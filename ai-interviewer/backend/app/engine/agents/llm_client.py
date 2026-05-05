@@ -39,6 +39,7 @@ from typing import Any, Literal
 from urllib.parse import urlparse
 
 from app.core.logging import get_logger
+from app.core.metrics import record_llm_call
 from app.core.settings import get_settings
 from app.core.timing import record_llm_timing_event
 
@@ -565,8 +566,11 @@ def _invoke_provider(
     override: dict[str, Any] | None = None,
     request_timeout: float | None = None,
     provider_max_retries: int | None = None,
-) -> str:
+) -> tuple[str, dict[str, Any]]:
     """Route to the configured provider after retry semantics are applied.
+
+    Returns ``(content, usage)`` where ``usage`` is the dict produced
+    by ``_extract_openai_usage`` / ``_extract_anthropic_usage``.
 
     When *override* is provided (BYOK per-session config), it takes
     precedence over the server-wide ``Settings``. Provider routing:
@@ -780,6 +784,98 @@ def _message_chars(messages: list[ChatMessage]) -> int:
     return sum(len(m.content or "") for m in messages)
 
 
+# ---------------------------------------------------------------------------
+# Token-usage extraction (PR-1: LLM cost observability)
+# ---------------------------------------------------------------------------
+# Each provider call returns a small ``usage`` dict alongside the raw
+# assistant text. The dict carries:
+#     prompt_tokens     - real or estimated tokens consumed
+#     completion_tokens - real or estimated tokens produced
+#     usage_estimated   - True when the provider response did not include
+#                         a ``usage`` block (we fall back to ``len/4``)
+# Callers should treat the dict as opaque; ``call_chat`` aggregates it
+# into ``record_llm_call`` and ``record_llm_timing_event``.
+
+# Rough chars-per-token ratio used when a provider response lacks a
+# real ``usage`` block. 4 chars/token is the public OpenAI rule of
+# thumb for Latin scripts; CJK answers run closer to 1.5 chars/token,
+# so this estimate underreports cost on Chinese-heavy traffic — a
+# conservative bias that is fine for "did we hit the budget?" alerts.
+_CHAR_PER_TOKEN_ESTIMATE = 4
+
+
+def _estimate_tokens_from_chars(chars: int) -> int:
+    if chars <= 0:
+        return 0
+    return max(1, chars // _CHAR_PER_TOKEN_ESTIMATE)
+
+
+def _extract_openai_usage(resp: Any, *, content: str, input_chars: int) -> dict[str, Any]:
+    """Pull ``prompt_tokens`` / ``completion_tokens`` from an OpenAI-shaped reply.
+
+    OpenAI, DeepSeek, and every OpenAI-compatible vendor that speaks
+    the Chat Completions wire protocol expose ``resp.usage.prompt_tokens``
+    / ``resp.usage.completion_tokens``. Some self-hosted gateways
+    (LiteLLM / OneAPI) drop the field; we fall back to a char-based
+    estimate so the metrics path always books *some* number.
+    """
+    usage_obj = getattr(resp, "usage", None)
+    if usage_obj is not None:
+        prompt = getattr(usage_obj, "prompt_tokens", None)
+        completion = getattr(usage_obj, "completion_tokens", None)
+        if prompt is None and isinstance(usage_obj, dict):
+            prompt = usage_obj.get("prompt_tokens")
+            completion = usage_obj.get("completion_tokens")
+        if prompt is not None and completion is not None:
+            return {
+                "prompt_tokens": max(0, int(prompt)),
+                "completion_tokens": max(0, int(completion)),
+                "usage_estimated": False,
+            }
+    return {
+        "prompt_tokens": _estimate_tokens_from_chars(input_chars),
+        "completion_tokens": _estimate_tokens_from_chars(len(content or "")),
+        "usage_estimated": True,
+    }
+
+
+def _extract_anthropic_usage(
+    resp: Any,
+    *,
+    content: str,
+    input_chars: int,
+) -> dict[str, Any]:
+    """Pull ``input_tokens`` / ``output_tokens`` from an Anthropic reply.
+
+    Anthropic SDK names differ from OpenAI's: ``resp.usage.input_tokens``
+    and ``resp.usage.output_tokens``. We normalise to the OpenAI keys
+    so downstream cost code stays single-shaped.
+    """
+    usage_obj = getattr(resp, "usage", None)
+    if usage_obj is not None:
+        prompt = getattr(usage_obj, "input_tokens", None)
+        completion = getattr(usage_obj, "output_tokens", None)
+        if prompt is None and isinstance(usage_obj, dict):
+            prompt = usage_obj.get("input_tokens")
+            completion = usage_obj.get("output_tokens")
+        if prompt is not None and completion is not None:
+            return {
+                "prompt_tokens": max(0, int(prompt)),
+                "completion_tokens": max(0, int(completion)),
+                "usage_estimated": False,
+            }
+    return {
+        "prompt_tokens": _estimate_tokens_from_chars(input_chars),
+        "completion_tokens": _estimate_tokens_from_chars(len(content or "")),
+        "usage_estimated": True,
+    }
+
+
+def _empty_usage() -> dict[str, Any]:
+    """Used by error / stub paths where no provider response exists."""
+    return {"prompt_tokens": 0, "completion_tokens": 0, "usage_estimated": True}
+
+
 def call_chat(
     messages: list[ChatMessage],
     *,
@@ -885,6 +981,7 @@ def call_chat(
         output_chars: int | None = None,
         attempts: int = 1,
         error_kind: str | None = None,
+        usage: dict[str, Any] | None = None,
     ) -> None:
         record_llm_timing_event(
             role=agent_role,
@@ -901,7 +998,39 @@ def call_chat(
             attempts=attempts,
             base_host=base_host,
             error_kind=error_kind,
+            prompt_tokens=None if usage is None else usage.get("prompt_tokens"),
+            completion_tokens=None if usage is None else usage.get("completion_tokens"),
+            usage_estimated=bool(usage and usage.get("usage_estimated")),
         )
+
+    def _book_llm_call(*, status: str, usage: dict[str, Any]) -> None:
+        """Forward call + token counts to the global Counter and the
+        per-session accumulator on the active SessionHandle (if any)."""
+        prompt_tokens = int(usage.get("prompt_tokens") or 0)
+        completion_tokens = int(usage.get("completion_tokens") or 0)
+        record_llm_call(
+            agent_role=agent_role,
+            provider=str(provider),
+            model=str(model),
+            status=status,
+            prompt_tokens=prompt_tokens,
+            completion_tokens=completion_tokens,
+        )
+        try:
+            from app.services.session_manager import record_session_llm_call
+
+            record_session_llm_call(
+                provider=str(provider),
+                model=str(model),
+                status=status,
+                prompt_tokens=prompt_tokens,
+                completion_tokens=completion_tokens,
+                usage_estimated=bool(usage.get("usage_estimated")),
+            )
+        except ImportError:  # pragma: no cover - session manager always present in app
+            return
+        except Exception as exc:  # pragma: no cover - never let book-keeping break the call
+            log.debug("session llm-call accounting skipped: %s", exc)
 
     if not has_override_key and settings.use_stub_llm:
         result = _stub_response(
@@ -909,18 +1038,25 @@ def call_chat(
             json_mode=json_mode,
             agent_role=agent_role,
         )
+        stub_usage: dict[str, Any] = {
+            "prompt_tokens": _estimate_tokens_from_chars(input_chars),
+            "completion_tokens": _estimate_tokens_from_chars(len(result or "")),
+            "usage_estimated": True,
+        }
         _record_timing(
             status="stub",
             elapsed_ms=int((time.perf_counter() - started_at) * 1000),
             output_chars=len(result or ""),
             attempts=1,
+            usage=stub_usage,
         )
+        _book_llm_call(status="stub", usage=stub_usage)
         return result
 
     attempt = 0
     while True:
         try:
-            result = _invoke_provider(
+            provider_result = _invoke_provider(
                 messages,
                 model=model,
                 temperature=temperature,
@@ -930,22 +1066,40 @@ def call_chat(
                 request_timeout=effective_request_timeout,
                 provider_max_retries=provider_max_retries,
             )
+            # ``_invoke_provider`` returns ``(content, usage)`` in
+            # production. Existing pre-PR-1 tests, however, monkeypatch
+            # ``_invoke_provider`` to return a bare string; treat that
+            # as "no usage block, fall back to char-based estimate" so
+            # those tests stay green without rewriting every mock.
+            if isinstance(provider_result, tuple) and len(provider_result) == 2:
+                result, usage = provider_result
+            else:
+                result = provider_result  # type: ignore[assignment]
+                usage = {
+                    "prompt_tokens": _estimate_tokens_from_chars(input_chars),
+                    "completion_tokens": _estimate_tokens_from_chars(len(result or "")),
+                    "usage_estimated": True,
+                }
             if diagnostic:
                 log.info(
                     "llm_call_success role=%s provider=%s model=%s elapsed_ms=%d "
-                    "output_chars=%d",
+                    "output_chars=%d prompt_tokens=%s completion_tokens=%s",
                     agent_role,
                     provider,
                     model,
                     int((time.perf_counter() - started_at) * 1000),
                     len(result or ""),
+                    usage.get("prompt_tokens"),
+                    usage.get("completion_tokens"),
                 )
             _record_timing(
                 status="success",
                 elapsed_ms=int((time.perf_counter() - started_at) * 1000),
                 output_chars=len(result or ""),
                 attempts=attempt + 1,
+                usage=usage,
             )
+            _book_llm_call(status="success", usage=usage)
             return result
         except LLMError as exc:
             if diagnostic:
@@ -956,13 +1110,16 @@ def call_chat(
                     model,
                     int((time.perf_counter() - started_at) * 1000),
                 )
+            error_usage = _empty_usage()
             _record_timing(
                 status="error",
                 elapsed_ms=int((time.perf_counter() - started_at) * 1000),
                 output_chars=None,
                 attempts=attempt + 1,
                 error_kind=classify_llm_error_kind(exc),
+                usage=error_usage,
             )
+            _book_llm_call(status="error", usage=error_usage)
             raise
         except Exception as exc:
             err_cls = _classify_exception(exc)
@@ -981,13 +1138,16 @@ def call_chat(
                 log.warning(
                     "llm call fatal after %d retries: %s", attempt, exc
                 )
+                error_usage = _empty_usage()
                 _record_timing(
                     status="error",
                     elapsed_ms=int((time.perf_counter() - started_at) * 1000),
                     output_chars=None,
                     attempts=attempt + 1,
                     error_kind=classify_llm_error_kind(wrapped),
+                    usage=error_usage,
                 )
+                _book_llm_call(status="error", usage=error_usage)
                 raise wrapped from exc
             sleep_for = min(cap, backoff * (2**attempt))
             attempt += 1
@@ -1011,7 +1171,7 @@ def _call_openai(
     override: dict[str, Any] | None = None,
     request_timeout: float | None = None,
     provider_max_retries: int | None = None,
-) -> str:
+) -> tuple[str, dict[str, Any]]:
     try:
         import openai  # noqa: F401 — early import for clearer error
     except ImportError as e:  # pragma: no cover
@@ -1035,7 +1195,13 @@ def _call_openai(
         kwargs["response_format"] = {"type": "json_object"}
 
     resp = client.chat.completions.create(**kwargs)
-    return resp.choices[0].message.content or ""
+    content = resp.choices[0].message.content or ""
+    usage = _extract_openai_usage(
+        resp,
+        content=content,
+        input_chars=_message_chars(messages),
+    )
+    return content, usage
 
 
 def _call_deepseek(
@@ -1048,7 +1214,7 @@ def _call_deepseek(
     override: dict[str, Any] | None = None,
     request_timeout: float | None = None,
     provider_max_retries: int | None = None,
-) -> str:
+) -> tuple[str, dict[str, Any]]:
     """Call DeepSeek via its OpenAI-compatible Chat Completions API.
 
     DeepSeek speaks the OpenAI wire protocol on ``api.deepseek.com``,
@@ -1083,7 +1249,7 @@ def _call_openai_compatible(
     override: dict[str, Any] | None = None,
     request_timeout: float | None = None,
     provider_max_retries: int | None = None,
-) -> str:
+) -> tuple[str, dict[str, Any]]:
     """Generic OpenAI-Chat-Completions-compatible client.
 
     Used by every vendor that speaks the OpenAI wire protocol on a
@@ -1115,12 +1281,16 @@ def _call_openai_compatible(
         "max_tokens": max_tokens,
     }
     if json_mode:
-        # Most vendors accept this affordance silently; the few that
-        # don't will return text we'll still parse loosely.
         kwargs["response_format"] = {"type": "json_object"}
 
     resp = client.chat.completions.create(**kwargs)
-    return resp.choices[0].message.content or ""
+    content = resp.choices[0].message.content or ""
+    usage = _extract_openai_usage(
+        resp,
+        content=content,
+        input_chars=_message_chars(messages),
+    )
+    return content, usage
 
 
 def _call_anthropic(
@@ -1130,7 +1300,7 @@ def _call_anthropic(
     max_tokens: int,
     *,
     override: dict[str, Any] | None = None,
-) -> str:
+) -> tuple[str, dict[str, Any]]:
     try:
         import anthropic  # noqa: F401 — early import for clearer error
     except ImportError as e:  # pragma: no cover
@@ -1154,7 +1324,13 @@ def _call_anthropic(
         temperature=temperature,
         max_tokens=max_tokens,
     )
-    return "".join(block.text for block in resp.content if hasattr(block, "text"))
+    content = "".join(block.text for block in resp.content if hasattr(block, "text"))
+    usage = _extract_anthropic_usage(
+        resp,
+        content=content,
+        input_chars=_message_chars(messages),
+    )
+    return content, usage
 
 
 def _anthropic_system_arg(

@@ -63,6 +63,21 @@ SESSION_PRIVACY_DELETES = Counter(
     "Privacy deletion operations by kind.",
     ["kind"],
 )
+LLM_CALLS_TOTAL = Counter(
+    "llm_calls_total",
+    "LLM provider calls observed at call_chat exit.",
+    ["agent_role", "provider", "model", "status"],
+)
+LLM_PROMPT_TOKENS_TOTAL = Counter(
+    "llm_prompt_tokens_total",
+    "Prompt tokens consumed by LLM calls (real or estimated).",
+    ["agent_role", "provider", "model"],
+)
+LLM_COMPLETION_TOKENS_TOTAL = Counter(
+    "llm_completion_tokens_total",
+    "Completion tokens produced by LLM calls (real or estimated).",
+    ["agent_role", "provider", "model"],
+)
 _TRACE_WRITE_SUCCESS_COUNTS: dict[str, int] = defaultdict(int)
 _TRACE_WRITE_FAILURE_COUNTS: dict[str, int] = defaultdict(int)
 _SETUP_PARSE_ERROR_COUNTS: dict[str, int] = defaultdict(int)
@@ -70,6 +85,78 @@ _CONTEXT_FLAG_COUNTS: dict[str, int] = defaultdict(int)
 _RATE_LIMIT_BLOCK_COUNTS: dict[str, int] = defaultdict(int)
 _WS_INVALID_FRAME_COUNTS: dict[str, int] = defaultdict(int)
 _SESSION_PRIVACY_DELETE_COUNTS: dict[str, int] = defaultdict(int)
+_LLM_CALL_COUNTS: dict[str, int] = defaultdict(int)
+_LLM_PROMPT_TOKEN_COUNTS: dict[str, int] = defaultdict(int)
+_LLM_COMPLETION_TOKEN_COUNTS: dict[str, int] = defaultdict(int)
+
+
+# Approximate USD price per 1K tokens, prompt / completion. Numbers
+# pulled from public 2025 list prices for the most common interview-loop
+# models. They are deliberately coarse: cost_summary.est_usd is an
+# observability hint, not a billing source. When a model is missing we
+# fall back to a tiny default so the field never returns None.
+_LLM_PRICE_PER_1K: dict[str, tuple[float, float]] = {
+    # OpenAI
+    "gpt-4o": (0.0025, 0.01),
+    "gpt-4o-mini": (0.00015, 0.0006),
+    "gpt-4-turbo": (0.01, 0.03),
+    "gpt-4": (0.03, 0.06),
+    "gpt-3.5-turbo": (0.0005, 0.0015),
+    # Anthropic
+    "claude-3-5-sonnet": (0.003, 0.015),
+    "claude-3-5-haiku": (0.0008, 0.004),
+    "claude-3-opus": (0.015, 0.075),
+    "claude-3-sonnet": (0.003, 0.015),
+    "claude-3-haiku": (0.00025, 0.00125),
+    # DeepSeek
+    "deepseek-chat": (0.00027, 0.0011),
+    "deepseek-reasoner": (0.00055, 0.0022),
+    "deepseek-coder": (0.00027, 0.0011),
+}
+_DEFAULT_LLM_PRICE_PER_1K: tuple[float, float] = (0.0005, 0.0015)
+
+
+def _resolve_llm_price(model: str) -> tuple[float, float]:
+    """Return ``(prompt_per_1k, completion_per_1k)`` for ``model``.
+
+    Match strategy: exact match first, then longest prefix match (so
+    ``gpt-4o-mini-2024-07-18`` still maps to ``gpt-4o-mini``). Unknown
+    models fall back to a small default so ``est_usd`` never returns
+    ``None``.
+    """
+    if not model:
+        return _DEFAULT_LLM_PRICE_PER_1K
+    lowered = model.lower().strip()
+    if lowered in _LLM_PRICE_PER_1K:
+        return _LLM_PRICE_PER_1K[lowered]
+    best: tuple[float, float] | None = None
+    best_len = -1
+    for key, value in _LLM_PRICE_PER_1K.items():
+        if lowered.startswith(key) and len(key) > best_len:
+            best, best_len = value, len(key)
+    return best or _DEFAULT_LLM_PRICE_PER_1K
+
+
+def estimate_llm_cost_usd(
+    *,
+    model: str,
+    prompt_tokens: int,
+    completion_tokens: int,
+) -> float:
+    """Best-effort USD cost estimate for one LLM call.
+
+    Returns ``0.0`` for non-positive token counts. Uses
+    :func:`_resolve_llm_price` for the per-1K rates. Six-decimal
+    rounding keeps multi-call accumulation stable to ~$0.000001.
+    """
+    if prompt_tokens <= 0 and completion_tokens <= 0:
+        return 0.0
+    prompt_price, completion_price = _resolve_llm_price(model)
+    cost = (
+        max(0, prompt_tokens) / 1000.0 * prompt_price
+        + max(0, completion_tokens) / 1000.0 * completion_price
+    )
+    return round(cost, 6)
 
 
 def record_http_request(method: str, path: str, status: int, duration: float) -> None:
@@ -162,6 +249,75 @@ def record_session_privacy_delete(kind: str, count: int = 1) -> None:
         return
     _SESSION_PRIVACY_DELETE_COUNTS[kind] += count
     SESSION_PRIVACY_DELETES.labels(kind=kind).inc(count)
+
+
+def record_llm_call(
+    *,
+    agent_role: str | None,
+    provider: str,
+    model: str,
+    status: str,
+    prompt_tokens: int = 0,
+    completion_tokens: int = 0,
+) -> None:
+    """Record a single LLM call at ``call_chat`` exit.
+
+    Increments three Counters: one for the call (success / error /
+    stub), one for prompt tokens, one for completion tokens. Token
+    counters are never decremented and accept estimated values when
+    the provider response did not include a ``usage`` block.
+
+    Empty / unknown labels are normalised to non-empty placeholders so
+    Prometheus does not drop the sample silently.
+    """
+    role = (agent_role or "unknown") or "unknown"
+    provider_label = (provider or "unknown") or "unknown"
+    model_label = (model or "unknown") or "unknown"
+    status_label = (status or "unknown") or "unknown"
+
+    LLM_CALLS_TOTAL.labels(
+        agent_role=role,
+        provider=provider_label,
+        model=model_label,
+        status=status_label,
+    ).inc()
+    _LLM_CALL_COUNTS[f"{role}:{provider_label}:{model_label}:{status_label}"] += 1
+
+    prompt = max(0, int(prompt_tokens or 0))
+    completion = max(0, int(completion_tokens or 0))
+    if prompt:
+        LLM_PROMPT_TOKENS_TOTAL.labels(
+            agent_role=role,
+            provider=provider_label,
+            model=model_label,
+        ).inc(prompt)
+        _LLM_PROMPT_TOKEN_COUNTS[
+            f"{role}:{provider_label}:{model_label}"
+        ] += prompt
+    if completion:
+        LLM_COMPLETION_TOKENS_TOTAL.labels(
+            agent_role=role,
+            provider=provider_label,
+            model=model_label,
+        ).inc(completion)
+        _LLM_COMPLETION_TOKEN_COUNTS[
+            f"{role}:{provider_label}:{model_label}"
+        ] += completion
+
+
+def llm_metrics_snapshot() -> dict[str, dict[str, int]]:
+    """Read-only snapshot of LLM Counter accumulators for tests / admin."""
+    return {
+        "llm_calls": dict(_LLM_CALL_COUNTS),
+        "llm_prompt_tokens": dict(_LLM_PROMPT_TOKEN_COUNTS),
+        "llm_completion_tokens": dict(_LLM_COMPLETION_TOKEN_COUNTS),
+    }
+
+
+def reset_llm_metrics_for_tests() -> None:
+    _LLM_CALL_COUNTS.clear()
+    _LLM_PROMPT_TOKEN_COUNTS.clear()
+    _LLM_COMPLETION_TOKEN_COUNTS.clear()
 
 
 def security_metrics_snapshot() -> dict[str, dict[str, int]]:

@@ -167,33 +167,6 @@ export interface PollQuestion {
   [key: string]: unknown;
 }
 
-/**
- * Compact projection of the candidate's most recently *evaluated* turn,
- * surfaced by ``GET /sessions/{id}/question`` so the InterviewRoom can
- * render in-interview feedback alongside the next question without an
- * extra round-trip.
- *
- * The backend (``app/services/session_manager.py::_extract_last_turn_evaluation``)
- * deliberately keeps the payload small (≤ 2 strengths / weaknesses) and
- * returns ``null`` when there is no displayable feedback (first ask,
- * non-scoring intent, fallback evaluator, explicit skip). The full
- * structured evaluation still lives in the final report.
- *
- * The ``score`` field is kept in the wire shape for future report
- * surfaces; the in-interview UI intentionally does **not** render the
- * raw number so candidates aren't anchored on a quantitative score
- * mid-loop.
- */
-export interface PreviousTurnEvaluation {
-  turn_idx: number;
-  dimension: string;
-  score: number;
-  passed: boolean;
-  strengths: string[];
-  weaknesses: string[];
-  rubric_coverage: Record<string, string>;
-}
-
 export interface PollQuestionResponse {
   session_id: string;
   status: PollStatus;
@@ -204,22 +177,6 @@ export interface PollQuestionResponse {
   error?: string | null;
   error_kind?: LLMErrorKind | null;
   retryable?: boolean;
-  /**
-   * Always present on every poll once a session exists; ``null`` means
-   * "no displayable feedback this turn". The frontend should never
-   * special-case its absence — see backend tests
-   * (``test_realtime_feedback_api.py``) which assert the key is always
-   * echoed even on completed / cancelled / error payloads.
-   */
-  previous_turn_evaluation?: PreviousTurnEvaluation | null;
-  /**
-   * Wall-clock duration of the most recent ``_run_segment`` in
-   * milliseconds (#11). Captured server-side via ``time.monotonic`` so
-   * a system clock adjustment cannot produce a negative value. ``null``
-   * before the first segment finishes; the frontend uses it to render
-   * an ETA hint on the next loading state.
-   */
-  server_latency_ms?: number | null;
 }
 
 export interface AnswerRequest {
@@ -338,6 +295,25 @@ export interface EvidenceSummary {
   match_rate?: number;
 }
 
+/**
+ * LLM cost accounting for one interview session, populated by the
+ * backend ``final_report_node``. ``est_usd`` is a coarse estimate
+ * derived from a static price table and may differ from the actual
+ * provider invoice; flag ``usage_estimated`` when at least one
+ * provider response did not include a real ``usage`` block.
+ */
+export interface CostSummary {
+  calls: number;
+  stub_calls?: number;
+  error_calls?: number;
+  prompt_tokens: number;
+  completion_tokens: number;
+  total_tokens: number;
+  est_usd: number;
+  usage_estimated?: boolean;
+  model_for_pricing?: string;
+}
+
 export interface FinalReport {
   session_id?: string;
   overall_score?: number;
@@ -358,6 +334,7 @@ export interface FinalReport {
    */
   evaluator_fallback_count?: number;
   total_turns?: number;
+  cost_summary?: CostSummary | null;
   [key: string]: unknown;
 }
 

@@ -9,9 +9,13 @@ from __future__ import annotations
 from typing import Any
 
 from app.core.logging import get_logger
+from app.core.metrics import estimate_llm_cost_usd
+from app.core.settings import get_settings
 from app.core.tracer import get_tracer
 from app.engine.workflow.eval_helpers import (
     is_evaluator_fallback as _is_evaluator_fallback,
+)
+from app.engine.workflow.eval_helpers import (
     is_system_fallback_text as _is_system_fallback_text,
 )
 from app.engine.workflow.state import InterviewState
@@ -291,6 +295,42 @@ def _turn_evidence(qa: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def _build_cost_summary() -> dict[str, Any] | None:
+    """Project the active SessionHandle's LLM cost tallies into the report.
+
+    Returns ``None`` when no SessionHandle is bound (CLI demo /
+    unit tests that drive the graph without the session manager) or
+    when no LLM call has been booked yet (defensive guard so a fresh
+    session does not emit a noise row of zeros).
+    """
+    try:
+        from app.services.session_manager import get_current_session_handle
+    except ImportError:  # pragma: no cover - session manager always present in app
+        return None
+    handle = get_current_session_handle()
+    if handle is None or handle.llm_call_count <= 0:
+        return None
+    model = get_settings().llm_model
+    est_usd = estimate_llm_cost_usd(
+        model=model,
+        prompt_tokens=handle.prompt_tokens_total,
+        completion_tokens=handle.completion_tokens_total,
+    )
+    return {
+        "calls": int(handle.llm_call_count),
+        "stub_calls": int(handle.llm_stub_call_count),
+        "error_calls": int(handle.llm_error_call_count),
+        "prompt_tokens": int(handle.prompt_tokens_total),
+        "completion_tokens": int(handle.completion_tokens_total),
+        "total_tokens": int(
+            handle.prompt_tokens_total + handle.completion_tokens_total
+        ),
+        "est_usd": float(est_usd),
+        "usage_estimated": bool(handle.cost_usage_estimated),
+        "model_for_pricing": model,
+    }
+
+
 def _workflow_artifacts(state: InterviewState) -> dict[str, Any]:
     return {
         "qa_summary": state.get("qa_summary", ""),
@@ -443,6 +483,9 @@ def final_report_node(state: InterviewState) -> dict[str, Any]:
         "evaluator_fallback_count": evaluator_fallback_count,
         "workflow_artifacts": _workflow_artifacts(state),
     }
+    cost_summary = _build_cost_summary()
+    if cost_summary is not None:
+        report["cost_summary"] = cost_summary
     video_sigs = state.get("video_signals")
     if isinstance(video_sigs, dict) and video_sigs:
         report["video_analysis"] = {

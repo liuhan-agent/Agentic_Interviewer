@@ -336,8 +336,6 @@ export function ReportView({ sessionId }: { sessionId: string }) {
     );
   }
 
-  const weakPracticeHref = buildWeakPracticeHref(report);
-
   return (
     <motion.div
       className="space-y-6"
@@ -374,10 +372,7 @@ export function ReportView({ sessionId }: { sessionId: string }) {
         <DimensionScores scores={report.dimension_scores} />
       </motion.div>
       <motion.div variants={{ hidden: { opacity: 0, y: 16 }, visible: { opacity: 1, y: 0 } }}>
-        <TrainingPlanCard
-          plan={report.training_plan}
-          weakPracticeHref={weakPracticeHref}
-        />
+        <TrainingPlanCard plan={report.training_plan} />
       </motion.div>
       <motion.div variants={{ hidden: { opacity: 0, y: 16 }, visible: { opacity: 1, y: 0 } }}>
         <OutcomeFeedback sessionId={sessionId} />
@@ -497,6 +492,7 @@ function Summary({ report }: { report: FinalReport }) {
                 <AnimatedScore score={report.overall_score} />
               </span>
             )}
+            <CostBadge cost={report.cost_summary} />
           </div>
         </div>
       </CardHeader>
@@ -509,6 +505,51 @@ function Summary({ report }: { report: FinalReport }) {
         </CardContent>
       )}
     </Card>
+  );
+}
+
+function formatTokens(value: number): string {
+  if (!Number.isFinite(value) || value <= 0) return "0";
+  if (value >= 1_000_000) return `${(value / 1_000_000).toFixed(1)}M`;
+  if (value >= 10_000) return `${(value / 1_000).toFixed(0)}K`;
+  if (value >= 1_000) return `${(value / 1_000).toFixed(1)}K`;
+  return String(value);
+}
+
+function formatCostUsd(value: number): string {
+  if (!Number.isFinite(value) || value <= 0) return "$0";
+  if (value < 0.01) return `<$0.01`;
+  if (value < 1) return `$${value.toFixed(3)}`;
+  return `$${value.toFixed(2)}`;
+}
+
+function CostBadge({
+  cost,
+}: {
+  cost?: import("@/lib/api/types").CostSummary | null;
+}) {
+  if (!cost || cost.calls <= 0) return null;
+  const tokens = formatTokens(cost.total_tokens);
+  const usd = formatCostUsd(cost.est_usd);
+  const tooltip =
+    `LLM 调用：${cost.calls}（其中 stub ${cost.stub_calls ?? 0} · error ${cost.error_calls ?? 0}）\n` +
+    `Prompt tokens：${cost.prompt_tokens.toLocaleString()}\n` +
+    `Completion tokens：${cost.completion_tokens.toLocaleString()}\n` +
+    `估算成本：${usd}（${cost.usage_estimated ? "含估算" : "提供方真实 usage"}，按 ${cost.model_for_pricing ?? "default"} 计价）`;
+  return (
+    <Badge
+      variant="outline"
+      className="gap-1.5 font-mono text-[10px] border-emerald-500/20 bg-emerald-500/5 text-emerald-300"
+      title={tooltip}
+    >
+      <Sparkles className="h-3 w-3" />
+      <span>
+        {cost.calls} calls · {tokens} tok · {usd}
+      </span>
+      {cost.usage_estimated ? (
+        <span className="text-amber-300">≈</span>
+      ) : null}
+    </Badge>
   );
 }
 
@@ -1377,17 +1418,8 @@ function DimensionScores({
 
 function TrainingPlanCard({
   plan,
-  weakPracticeHref,
 }: {
   plan?: FinalReport["training_plan"];
-  /**
-   * Pre-built href to ``/interview/setup`` with the weak dimensions
-   * pre-filled. Computed once at the report frame and passed down so
-   * the in-card CTA and the page-bottom Actions block stay in sync.
-   * ``null`` means "no weak dimensions to drill" (rare first-perfect
-   * sessions); we hide the inline CTA in that case.
-   */
-  weakPracticeHref?: string | null;
 }) {
   if (!plan) return null;
   const priorityWeaknesses = (plan.priority_weaknesses || []).filter(
@@ -1570,23 +1602,6 @@ function TrainingPlanCard({
                 color="purple"
               />
             </div>
-          </section>
-        )}
-
-        {weakPracticeHref && (
-          <section className="border-t pt-4">
-            <Button
-              asChild
-              className="w-full gap-2 bg-emerald-600 hover:bg-emerald-500 text-white sm:w-auto"
-            >
-              <Link href={weakPracticeHref}>
-                <Target className="h-4 w-4" />
-                针对本次弱项再来一场
-              </Link>
-            </Button>
-            <p className="mt-2 text-xs text-muted-foreground">
-              已为你预填弱项维度与岗位，点击直接进入新一轮面试。
-            </p>
           </section>
         )}
       </CardContent>
