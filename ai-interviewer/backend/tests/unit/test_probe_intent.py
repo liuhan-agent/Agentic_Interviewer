@@ -120,6 +120,102 @@ def test_probe_intent_is_enabled_by_default():
     assert Settings().enable_probe_intent is True
 
 
+def test_resolver_returns_new_business_scenario_intents(monkeypatch):
+    """Smoke test for the four 2026-Q2 business-scenario intents."""
+    _enable(monkeypatch)
+
+    assert (
+        pi.resolve_probe_intent(
+            direction="sales_business",
+            dimension="customer_discovery",
+            job_level="mid",
+        )
+        == "case_study_probe"
+    )
+    assert (
+        pi.resolve_probe_intent(
+            direction="hr_function",
+            dimension="talent_acquisition",
+            job_level="mid",
+        )
+        == "reference_check_probe"
+    )
+    assert (
+        pi.resolve_probe_intent(
+            direction="general_management",
+            dimension="cross_functional_alignment",
+            job_level="senior",
+        )
+        == "stakeholder_pushback_probe"
+    )
+    assert (
+        pi.resolve_probe_intent(
+            direction="hr_function",
+            dimension="organization_development",
+            job_level="senior",
+        )
+        == "process_design_probe"
+    )
+
+
+def test_resolver_returns_process_design_for_operations(monkeypatch):
+    """Operations · process_optimization should now favour process design."""
+    _enable(monkeypatch)
+
+    assert (
+        pi.resolve_probe_intent(
+            direction="operations",
+            dimension="process_optimization",
+            job_level="mid",
+        )
+        == "process_design_probe"
+    )
+
+
+def test_resolver_returns_pushback_for_pm_stakeholder_management(monkeypatch):
+    """PM · stakeholder_management should now favour pushback handling."""
+    _enable(monkeypatch)
+
+    assert (
+        pi.resolve_probe_intent(
+            direction="product_manager",
+            dimension="stakeholder_management",
+            job_level="mid",
+        )
+        == "stakeholder_pushback_probe"
+    )
+
+
+def test_new_intents_have_chinese_labels():
+    """Every ProbeIntent must have an entry in PROBE_INTENT_LABELS."""
+    for intent in (
+        "case_study_probe",
+        "reference_check_probe",
+        "stakeholder_pushback_probe",
+        "process_design_probe",
+    ):
+        assert intent in pi.PROBE_INTENT_LABELS, (
+            f"missing Chinese label for new intent {intent!r}"
+        )
+        assert pi.PROBE_INTENT_LABELS[intent], (
+            f"empty Chinese label for new intent {intent!r}"
+        )
+
+
+def test_evaluator_hint_can_be_one_of_new_intents(monkeypatch):
+    """An evaluator-supplied recommendation must propagate untouched."""
+    _enable(monkeypatch)
+
+    assert (
+        pi.resolve_probe_intent(
+            direction="java_backend",  # default would be debugging_probe
+            dimension="technical_depth",
+            evaluator_hint="case_study_probe",
+        )
+        == "case_study_probe"
+    )
+
+
 def test_normalize_failure_category_from_reason_and_missing_items():
     assert (
         pi.normalize_failure_category(
