@@ -75,11 +75,17 @@ def _normalise(values: list[float]) -> list[float]:
     return [(v - lo) / rng for v in values]
 
 
+# Hard fallback used when neither caller, direction config, nor settings
+# supply a value. 0.6 is the empirical sweet spot the retriever has been
+# tuned at since launch — see ``docs/PLAN_HYBRID_ALPHA.md``.
+_HYBRID_ALPHA_HARD_DEFAULT = 0.6
+
+
 def _blend(
     base: list[RetrievedDoc],
     bm25_scores: list[float],
     *,
-    alpha: float = 0.6,
+    alpha: float = _HYBRID_ALPHA_HARD_DEFAULT,
 ) -> list[RetrievedDoc]:
     """Linearly combine vector score and BM25 score.
 
@@ -95,6 +101,53 @@ def _blend(
         blended.append(RetrievedDoc(text=doc.text, metadata=dict(doc.metadata), score=final))
     blended.sort(key=lambda d: d.score, reverse=True)
     return blended
+
+
+def _clamp_alpha(value: float) -> float:
+    """Clamp ``alpha`` to the valid [0, 1] range.
+
+    External JSON / .env values are user-controlled and may drift outside
+    the unit interval; the linear blend would still run, but anything
+    above 1 makes BM25 a *negative* term while anything below 0 inverts
+    the vector signal. Both regress retrieval quality silently. The
+    safer behaviour is a hard clamp at the resolution boundary.
+    """
+    if value < 0.0:
+        return 0.0
+    if value > 1.0:
+        return 1.0
+    return value
+
+
+def _resolve_hybrid_alpha(
+    *,
+    explicit: float | None,
+    direction_alpha: float | None,
+    settings: Any,
+) -> float:
+    """Pick the hybrid blend weight to use for one ``retrieve_for_question`` call.
+
+    Resolution order (first non-None wins):
+
+    1. ``explicit`` — caller passed an explicit override (rare; primarily
+       for unit tests).
+    2. ``direction_alpha`` — value pulled from
+       ``InterviewDirection.retrieval_alpha`` so each interview direction
+       can dial vector vs. BM25 independently.
+    3. ``settings.retrieval_alpha_default`` — operator-level default.
+    4. :data:`_HYBRID_ALPHA_HARD_DEFAULT` — last-resort fallback so the
+       function never raises on missing config.
+
+    The resolved value is always clamped to [0, 1] before return.
+    """
+    if explicit is not None:
+        return _clamp_alpha(float(explicit))
+    if direction_alpha is not None:
+        return _clamp_alpha(float(direction_alpha))
+    settings_alpha = getattr(settings, "retrieval_alpha_default", None)
+    if settings_alpha is not None:
+        return _clamp_alpha(float(settings_alpha))
+    return _HYBRID_ALPHA_HARD_DEFAULT
 
 
 def _query_tail_signals(
@@ -147,6 +200,8 @@ def retrieve_for_question(
     target_skills: list[str] | None = None,
     top_k: int = 5,
     mode: str = "vector",
+    alpha: float | None = None,
+    direction_alpha: float | None = None,
 ) -> RetrievalContext:
     skills = " ".join(target_skills or job_spec.get("required_skills", []) or [])
     title = job_spec.get("title", "")
@@ -172,8 +227,20 @@ def retrieve_for_question(
     docs = store.similarity_search(query, k=top_k * 2 if mode == "hybrid" else top_k)
 
     if mode == "hybrid" and docs:
+        # ``get_settings`` is imported lazily so the unit tests that
+        # bypass the global settings (``test_target_skills.py`` etc.)
+        # never have to monkeypatch it. The lazy import also keeps
+        # ``retriever`` import-cost low for the much more common
+        # ``mode='vector'`` path that does not need any blend config.
+        from app.core.settings import get_settings
+
+        resolved_alpha = _resolve_hybrid_alpha(
+            explicit=alpha,
+            direction_alpha=direction_alpha,
+            settings=get_settings(),
+        )
         bm25 = _bm25_scores(query, docs)
-        docs = _blend(docs, bm25)[:top_k]
+        docs = _blend(docs, bm25, alpha=resolved_alpha)[:top_k]
 
     if not docs:
         log.info("retriever returned no docs for query=%r", query)

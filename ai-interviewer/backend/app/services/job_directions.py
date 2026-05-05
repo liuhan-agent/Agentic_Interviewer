@@ -37,6 +37,12 @@ class InterviewDirection:
     skills: list[str]
     template: str
     dimension_catalog: list[DimensionCatalogItem]
+    # Optional per-direction Hybrid RAG blend weight (P3 #6). When set,
+    # :func:`app.engine.rag.retriever._resolve_hybrid_alpha` uses this
+    # value to override ``settings.retrieval_alpha_default``. ``None``
+    # means "let the global setting decide", which keeps existing
+    # directions byte-identical until the operator opts in.
+    retrieval_alpha: float | None = None
 
     @property
     def rubric_dimensions(self) -> list[str]:
@@ -54,6 +60,7 @@ class InterviewDirection:
                 item.to_api_dict() for item in self.dimension_catalog
             ],
             "rubric_dimensions": self.rubric_dimensions,
+            "retrieval_alpha": self.retrieval_alpha,
         }
 
 
@@ -87,6 +94,26 @@ def _parse_dimension(raw: Any) -> DimensionCatalogItem:
     )
 
 
+def _parse_optional_alpha(raw: Any) -> float | None:
+    """Pull ``retrieval.alpha`` out of a direction record, if present.
+
+    Returns ``None`` for every shape that should fall back to the
+    global default — missing block, non-numeric value, etc. The
+    retriever itself clamps the value into [0, 1]; we just normalise
+    type here so the dataclass holds a clean ``float | None``.
+    """
+    retrieval = raw.get("retrieval")
+    if not isinstance(retrieval, dict):
+        return None
+    value = retrieval.get("alpha")
+    if value is None:
+        return None
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return None
+
+
 def _parse_direction(raw: Any) -> InterviewDirection:
     if not isinstance(raw, dict):
         raise ValueError("interview direction entries must be objects")
@@ -109,6 +136,7 @@ def _parse_direction(raw: Any) -> InterviewDirection:
         skills=skills,
         template=template,
         dimension_catalog=dims,
+        retrieval_alpha=_parse_optional_alpha(raw),
     )
 
 

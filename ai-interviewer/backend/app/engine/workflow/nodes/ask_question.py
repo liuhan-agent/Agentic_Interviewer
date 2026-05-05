@@ -63,8 +63,43 @@ def _step_retrieve_rag(state: InterviewState, ctx: dict[str, Any]) -> None:
         retrieve_kwargs["resume_anchor"] = ctx["resume_anchor"]
     if ctx.get("target_skills"):
         retrieve_kwargs["target_skills"] = ctx["target_skills"]
+    direction_alpha = _resolve_direction_alpha(state)
+    if direction_alpha is not None:
+        retrieve_kwargs["direction_alpha"] = direction_alpha
     retrieval = retrieve_for_question(**retrieve_kwargs)
     ctx["retrieval_block"] = retrieval.as_prompt_block
+
+
+def _resolve_direction_alpha(state: InterviewState) -> float | None:
+    """Look up the per-direction Hybrid RAG blend weight (P3 #6).
+
+    Returns ``None`` when:
+      * ``runtime_config.rag_mode`` is not ``hybrid`` (cheap short-circuit
+        — the retriever ignores ``alpha`` in vector mode anyway, but
+        skipping the lookup here keeps the hot path import-free);
+      * ``job_spec.interview_direction`` is missing or unknown
+        (``InterviewDirectionNotFound``); or
+      * the matched direction did not declare a ``retrieval.alpha``.
+
+    Any of those falls back to ``settings.retrieval_alpha_default``
+    inside :func:`_resolve_hybrid_alpha`.
+    """
+    runtime_config = state.get("runtime_config") or {}
+    if (runtime_config.get("rag_mode") or "vector") != "hybrid":
+        return None
+    direction_id = (state.get("job_spec") or {}).get("interview_direction")
+    if not direction_id:
+        return None
+    try:
+        from app.services.job_directions import (
+            InterviewDirectionNotFound,
+            get_interview_direction,
+        )
+
+        direction = get_interview_direction(str(direction_id))
+    except InterviewDirectionNotFound:
+        return None
+    return direction.retrieval_alpha
 
 
 def _step_retrieve_strategy(state: InterviewState, ctx: dict[str, Any]) -> None:

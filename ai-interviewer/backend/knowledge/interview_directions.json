@@ -7,6 +7,7 @@
     "default_level": "senior",
     "skills": ["java", "spring", "mysql", "redis", "microservices"],
     "template": "岗位职责：\n- 负责业务后端模块的需求理解、技术方案设计、接口开发和稳定交付。\n- 参与核心服务的性能优化、稳定性治理、问题排查和线上质量改进。\n- 参与数据库模型、缓存、消息队列、任务调度等后端基础能力建设。\n\n任职要求：\n- 熟悉 Java、Spring / Spring Boot、RESTful API 和常见后端开发模式。\n- 熟悉 MySQL、Redis、消息队列，理解事务、索引、缓存、幂等和并发处理。\n- 具备良好的编码规范、测试意识、Code Review 和技术文档习惯。",
+    "retrieval": {"alpha": 0.5},
     "dimension_catalog": [
       {"id": "technical_depth", "label": "技术深度", "description": "语言、框架、中间件和底层机制理解。", "triggers": ["java", "spring", "mysql", "redis", "中间件", "技术深度", "底层"]},
       {"id": "system_design", "label": "系统设计", "description": "架构、容量、稳定性和扩展性设计。", "triggers": ["架构", "系统设计", "高可用", "分布式", "微服务", "容量", "scalability"]},
@@ -24,6 +25,7 @@
     "default_level": "senior",
     "skills": ["javascript", "typescript", "react", "vue", "frontend"],
     "template": "岗位职责：\n- 负责 Web / H5 / 管理端等前端功能开发，交付清晰、稳定、易用的用户界面。\n- 将产品需求和设计稿转化为可维护的组件、页面和交互流程。\n- 持续优化页面性能、兼容性、可访问性和前端工程质量。\n\n任职要求：\n- 熟悉 JavaScript / TypeScript、HTML、CSS 和现代浏览器运行机制。\n- 熟悉 React / Vue 等主流框架及组件化、状态管理、路由和构建工具。\n- 重视代码可读性、组件复用、测试和用户体验细节。",
+    "retrieval": {"alpha": 0.55},
     "dimension_catalog": [
       {"id": "technical_depth", "label": "技术深度", "description": "浏览器、框架和工程化基础。", "triggers": ["javascript", "typescript", "react", "vue", "浏览器", "工程化"]},
       {"id": "coding_quality", "label": "代码质量", "description": "组件设计、可维护性和测试。", "triggers": ["组件", "代码质量", "复用", "测试", "可维护"]},
@@ -106,6 +108,7 @@
     "default_level": "senior",
     "skills": ["python", "machine-learning", "deep-learning", "llm", "evaluation"],
     "template": "岗位职责：\n- 参与机器学习、深度学习或大模型相关算法的研发、实验和业务落地。\n- 负责数据处理、特征构建、模型训练、评估、调优和效果分析。\n\n任职要求：\n- 熟悉机器学习、深度学习、统计学习和常见模型评估方法。\n- 熟悉 Python、PyTorch / TensorFlow，以及数据处理和实验分析工具。\n- 具备良好的算法实现、论文阅读、实验设计和问题定位能力。",
+    "retrieval": {"alpha": 0.7},
     "dimension_catalog": [
       {"id": "technical_depth", "label": "技术深度", "description": "算法、模型、统计和工程实现基础。", "triggers": ["机器学习", "深度学习", "模型", "算法", "统计", "pytorch", "tensorflow"]},
       {"id": "problem_solving", "label": "问题解决", "description": "实验设计、调优和问题定位。", "triggers": ["实验", "调优", "问题定位", "效果分析", "评估"]},
