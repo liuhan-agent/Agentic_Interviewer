@@ -58,12 +58,18 @@ def test_poll_question_returns_error_kind_for_failed_session(
     resp = client.get("/api/v1/interview/sessions/sess-error/question?timeout=0.1")
 
     assert resp.status_code == 200
+    # ``previous_turn_evaluation`` is part of the poll contract on every
+    # branch (see ``test_realtime_feedback_api.py``); the legacy ``_Handle``
+    # mock here doesn't define ``last_turn_evaluation`` so it surfaces as
+    # ``None``. Matching the full payload keeps the contract assertion
+    # tight.
     assert resp.json() == {
         "session_id": "sess-error",
         "status": "error",
         "question": None,
         "error": "invalid api key",
         "error_kind": "auth",
+        "previous_turn_evaluation": None,
     }
 
 

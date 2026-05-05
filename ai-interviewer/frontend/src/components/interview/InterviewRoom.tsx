@@ -25,6 +25,7 @@ import ReactMarkdown from "react-markdown";
 import TextareaAutosize from "react-textarea-autosize";
 
 import { LLMSettingsDialog } from "@/components/layout/LLMSettingsDialog";
+import { PreviousTurnFeedback } from "@/components/interview/PreviousTurnFeedback";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -391,6 +392,15 @@ export function InterviewRoom({ sessionId }: { sessionId: string }) {
           <div ref={transcriptEnd} />
         </CardContent>
       </Card>
+
+      {state.phase === "waiting_for_answer" && state.previousEvaluation ? (
+        <PreviousTurnFeedback
+          evaluation={state.previousEvaluation}
+          currentDimension={
+            (state.question?.dimension as string | undefined) ?? null
+          }
+        />
+      ) : null}
 
       <AnimatePresence>
         {state.phase === "waiting_for_answer" && (

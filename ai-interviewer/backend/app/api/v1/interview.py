@@ -756,6 +756,13 @@ async def poll_question(
         max_turns = handle.max_turns
     finally:
         reset_log_context(token)
+    # The graph pipeline caches a compact projection of the candidate's
+    # last evaluated turn on the handle (see ``_extract_last_turn_evaluation``
+    # in ``session_manager``). Echoing it on every poll lets the UI render
+    # in-interview feedback without a second round-trip; the key is always
+    # present (``None`` when there is no displayable feedback) so the
+    # frontend never has to special-case its absence.
+    previous_turn_evaluation = getattr(handle, "last_turn_evaluation", None)
     if question is None and done:
         if cancelled or final_status == "cancelled":
             return {
@@ -763,9 +770,10 @@ async def poll_question(
                 "status": "cancelled",
                 "question": None,
                 "max_turns": max_turns,
+                "previous_turn_evaluation": previous_turn_evaluation,
             }
         if handle.error:
-            return _terminal_error_payload(
+            payload = _terminal_error_payload(
                 session_id=session_id,
                 error=handle.error,
                 error_kind=getattr(handle, "error_kind", None),
@@ -775,12 +783,15 @@ async def poll_question(
                     )
                 ),
             )
+            payload["previous_turn_evaluation"] = previous_turn_evaluation
+            return payload
         return {
             "session_id": session_id,
             "status": "completed",
             "question": None,
             "final_report": final_report,
             "max_turns": max_turns,
+            "previous_turn_evaluation": previous_turn_evaluation,
         }
     return {
         "session_id": session_id,
@@ -788,6 +799,7 @@ async def poll_question(
         "turn_idx": turn_idx,
         "question": question,
         "max_turns": max_turns,
+        "previous_turn_evaluation": previous_turn_evaluation,
     }
 
 

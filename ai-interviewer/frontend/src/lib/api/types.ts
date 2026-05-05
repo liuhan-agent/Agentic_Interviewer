@@ -167,6 +167,33 @@ export interface PollQuestion {
   [key: string]: unknown;
 }
 
+/**
+ * Compact projection of the candidate's most recently *evaluated* turn,
+ * surfaced by ``GET /sessions/{id}/question`` so the InterviewRoom can
+ * render in-interview feedback alongside the next question without an
+ * extra round-trip.
+ *
+ * The backend (``app/services/session_manager.py::_extract_last_turn_evaluation``)
+ * deliberately keeps the payload small (≤ 2 strengths / weaknesses) and
+ * returns ``null`` when there is no displayable feedback (first ask,
+ * non-scoring intent, fallback evaluator, explicit skip). The full
+ * structured evaluation still lives in the final report.
+ *
+ * The ``score`` field is kept in the wire shape for future report
+ * surfaces; the in-interview UI intentionally does **not** render the
+ * raw number so candidates aren't anchored on a quantitative score
+ * mid-loop.
+ */
+export interface PreviousTurnEvaluation {
+  turn_idx: number;
+  dimension: string;
+  score: number;
+  passed: boolean;
+  strengths: string[];
+  weaknesses: string[];
+  rubric_coverage: Record<string, string>;
+}
+
 export interface PollQuestionResponse {
   session_id: string;
   status: PollStatus;
@@ -177,6 +204,14 @@ export interface PollQuestionResponse {
   error?: string | null;
   error_kind?: LLMErrorKind | null;
   retryable?: boolean;
+  /**
+   * Always present on every poll once a session exists; ``null`` means
+   * "no displayable feedback this turn". The frontend should never
+   * special-case its absence — see backend tests
+   * (``test_realtime_feedback_api.py``) which assert the key is always
+   * echoed even on completed / cancelled / error payloads.
+   */
+  previous_turn_evaluation?: PreviousTurnEvaluation | null;
 }
 
 export interface AnswerRequest {
