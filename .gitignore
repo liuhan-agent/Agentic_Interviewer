@@ -30,6 +30,9 @@ ai-interviewer/backend/knowledge/strategy/.dream_state.json
 # Local tool configuration
 .cursor/mcp.json*
 
+# Repo-local reference KB, keep local but do not publish with product source.
+reference/
+
 # OS / editor
 .DS_Store
 Thumbs.db
