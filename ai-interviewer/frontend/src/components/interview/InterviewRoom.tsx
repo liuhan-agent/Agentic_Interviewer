@@ -25,6 +25,7 @@ import ReactMarkdown from "react-markdown";
 import TextareaAutosize from "react-textarea-autosize";
 
 import { LLMSettingsDialog } from "@/components/layout/LLMSettingsDialog";
+import { NextQuestionLoader } from "@/components/interview/NextQuestionLoader";
 import { PreviousTurnFeedback } from "@/components/interview/PreviousTurnFeedback";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -370,23 +371,7 @@ export function InterviewRoom({ sessionId }: { sessionId: string }) {
           </AnimatePresence>
 
           {state.phase === "loading" && lastSubmittedTurn !== null && (
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              className="flex items-center gap-3 rounded-lg border border-dashed bg-secondary/30 p-4 text-sm text-muted-foreground"
-            >
-              <div className="flex gap-1">
-                <span className="h-2 w-2 animate-bounce rounded-full bg-emerald-400 [animation-delay:0ms]" />
-                <span className="h-2 w-2 animate-bounce rounded-full bg-emerald-400 [animation-delay:150ms]" />
-                <span className="h-2 w-2 animate-bounce rounded-full bg-emerald-400 [animation-delay:300ms]" />
-              </div>
-              <span>
-                AI 正在出下一题
-                <span className="ml-1 text-xs text-muted-foreground/70">
-                  · 通常需要 5–10 秒
-                </span>
-              </span>
-            </motion.div>
+            <NextQuestionLoader etaMs={state.lastServerLatencyMs} />
           )}
 
           <div ref={transcriptEnd} />
