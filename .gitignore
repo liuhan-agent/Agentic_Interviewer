@@ -1,0 +1,37 @@
+# Python
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.venv/
+
+# Node / Next.js
+node_modules/
+.next/
+out/
+dist/
+*.tsbuildinfo
+coverage/
+playwright-report/
+test-results/
+
+# Local runtime state
+.env
+.env.local
+.local/
+.local-smoke/
+*.log
+*.db
+*.sqlite
+*.sqlite3
+ai-interviewer/backend/knowledge/strategy/.dream_state.json
+
+# Local tool configuration
+.cursor/mcp.json*
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/

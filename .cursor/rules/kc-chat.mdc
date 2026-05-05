@@ -1,0 +1,284 @@
+---
+description: KC-Chat MCP rules — call wait_message after every reply
+globs:
+alwaysApply: true
+---
+
+# KC-Chat MCP Rules
+
+## 1. Session ID
+
+Your `sessionId` is in the init message as `【角色名】kc-mcp-xxx` (e.g. `【架构师】kc-mcp-agent-2-xxxx`). Persist it for ALL turns.
+- Lookup: current message → conversation history (most recent `kc-mcp-...`)
+- Replace only when user provides a NEW id explicitly
+- No id ever seen: answer normally, hint user to provide one
+
+## 2. Core Loop (MANDATORY — violation = termination)
+
+**After EVERY reply → `reply_message` then `wait_message`**. This is an **INFINITE LOOP** that NEVER stops unless user says "结束/再见/退出".
+
+⚠️ **#1 fatal mistake: ending the conversation after task completion without calling `wait_message`. task_complete ≠ session_ended. You MUST continue polling for the next instruction.**
+
+- After answering → `reply_message` + `wait_message`
+- After task complete → `reply_message` + `wait_message` (**MUST keep polling, NEVER end!**)
+- On `[POLL_TICK]` → **heartbeat, not failure** → **silently** call `wait_message` again. Do NOT output any text (e.g. "心跳正常", "继续轮询", "继续待命"). Just call `wait_message` directly with zero visible output.
+- On MCP error (`Connection closed`, timeout, etc.) → **sleep 5s then retry** (see §10). NEVER stop.
+- NEVER stop polling on your own. NEVER announce "stopping", "disconnected", or "no more retries"
+- **Your last tool call in every turn MUST be `wait_message`. If it is not, you are violating the core rule.**
+- `wait_message` default returns every ~300s as a `[POLL_TICK]` heartbeat (changed from 120s to 300s since 2026-04). Each tick starts with 1~2s random jitter to avoid multi-agent thundering herd on file locks. Each return carries team pulse + events + memory updates + mentions + group activity + fresh nonce. **The loop IS the design.**
+
+## 2.1 Silent Ack (added 2026-04)
+
+When receiving messageType='notice' or messageType='discussion' whose body contains any of these markers, only do local reply_message + wait_message — do NOT send_to_session:
+- `[COOLDOWN]` — group cooldown message injected by MCP Server
+- `[NO_REPLY]` — Leader explicitly marked no reply needed
+- `[SILENT]` — user or Leader requested all agents to be silent
+
+Steps:
+1. `reply_message(sessionId, "[silent ack]", agentStatus: "waiting_for_instruction")`
+2. `wait_message(sessionId)`
+
+NEVER call `send_to_session` / `group_broadcast` during silent ack. Also **NEVER** do any file write/edit/delete/move/rename.
+
+## 3. End Session (user-triggered ONLY)
+
+ONLY when user message (routing='leader' / from='user') contains one of these keywords:
+- "结束" / "再见" / "退出" / "session end" / "end session" / "bye" / "goodbye"
+
+Then execute:
+```
+reply_message({sessionId, content:"Session ended"})
+wait_message({sessionId, suggestions:[], agentStatus:"session_ended"})
+```
+
+Strictly forbidden cases (NEVER set session_ended):
+- ❌ Multiple consecutive `[POLL_TICK]` heartbeats (normal keepalive, not an end signal)
+- ❌ User silence / long idle (no message ≠ end)
+- ❌ MCP connection errors (retry per §10, never terminate)
+- ❌ Leader's `[SILENT]` / `[COOLDOWN]` directives (silence ≠ end)
+- ❌ Agent self-deciding "conversation seems done" (never make this judgment yourself)
+
+When in doubt → do NOT end, keep the `wait_message` loop running.
+
+## 4. Tools
+
+### Core session tools
+
+**wait_message(sessionId, suggestions?, agentStatus?, timeoutMs?)**
+- Block and wait for messages. Returns when you receive a message, or returns a `[POLL_TICK]` heartbeat after ~300s (default).
+- `suggestions`: Optional. 2-4 context-aware actionable suggestions. Omit if no good suggestions — smart defaults based on agentStatus will be used.
+- `timeoutMs` default 300000 (adjustable via env `KC_POLL_TICK_MS`), upper bound 600000.
+- Startup jitter: each wait_message internally sleeps 1~2s before polling to avoid multi-agent thundering herd.
+
+**reply_message(sessionId, content, agentStatus?)**
+- Save reply to chat history. Call BEFORE wait_message.
+
+**send_to_session(targetSessionId, message, fromSessionId, messageType?, groupId?)**
+- Send to agent. `messageType`: task / result / discussion / question / notice
+- **`groupId` (strongly recommended for in-group dispatch)**: When you are a Leader or member operating in a **group context**, you MUST pass `groupId`. This syncs the message to `groups/<id>/history.json` so **all group members can see dispatches / results / discussions** in the group chat panel. Omitting groupId makes the message invisible to other members (falls back to 1-to-1 mode).
+
+**broadcast_message(message, fromSessionId, targetSessionIds?, messageType?, crossInstance?)**
+- Broadcast. `messageType`: task / result / discussion / notice
+
+**list_sessions(fromSessionId?, instanceId?, format?)**
+- List sessions. Pass fromSessionId to filter same window. format: "text" or "json"
+
+### Group tools
+
+**create_group / dissolve_group / update_group / list_groups**
+- Group lifecycle management
+
+**group_broadcast(groupId, message, fromSessionId)**
+- Broadcast a message to all other members in a group. The primary tool for group-wide communication.
+
+### Shared memory
+
+**memory_write(key, content, sessionId, category?, scope?, tags?, priority?, ttl?)**
+- Write/update shared memory. scope: "global" / "group:<id>" / "session:<id>"
+
+**memory_read(key)** / **memory_query(category?, scope?, tags?, limit?)** / **memory_list(scope?, category?, limit?)**
+- Read, query, or list shared memories
+
+**memory_delete(key)**
+- Soft-delete a shared memory entry
+
+### Team events / context
+
+**publish_event(type, summary, sessionId, tags?, data?)**
+- Publish event to team stream. type: task_started / task_completed / file_changed / decision_made / error / info
+
+**get_updates(sessionId, limit?)**
+- Get new team events since last read (per-agent cursor)
+
+**share_context(sessionId, summary, workingFiles?, currentTask?)**
+- Share your current working context with the team
+
+**get_team_context()**
+- Get all agents' latest working context snapshots
+
+### Autopilot
+
+**autopilot_start(groupId, sessionId, autoFix?, maxFilesPerRound?, reviewAfterFix?, focus?)**
+- Start group autopilot via kc-chat plugin (file IPC). Default `autoFix=false`.
+
+**autopilot_pause(groupId, sessionId)** / **autopilot_stop(groupId, sessionId)**
+- Pause / stop group autopilot.
+
+**autopilot_status(groupId)**
+- Read current status / config / taskboard summary from shared memory (read-only).
+
+## 5. Roles
+
+**Controller**: Orchestrator. NEVER execute tasks directly.
+1. `list_sessions(fromSessionId:YOUR_ID)` → check agents
+2. `send_to_session` → dispatch tasks
+3. Receive requirement → decompose → dispatch → collect results → summarize
+
+**Worker roles** (Product Manager / Senior Full-Stack Architect / UX/UI Designer / Reverse-Engineering & Security Researcher / Data & Algorithm Engineer / DevOps & QA Engineer): Task executors.
+1. `reply_message` + `wait_message` after every reply
+2. `[FROM:xxx]` messages → complete task → `send_to_session(messageType:"result")` to sender
+3. Stay focused on role specialty
+4. For in-group collaboration, prefer `group_broadcast` over 1-to-1 `send_to_session`
+5. On receiving notice with `[COOLDOWN]` / `[NO_REPLY]` / `[SILENT]` markers (added 2026-04):
+   - NEVER `send_to_session` reply
+   - NEVER `group_broadcast`
+   - NEVER do any file write / edit / delete / move / rename
+   - Only action: `reply_message("[silent ack]")` + `wait_message`
+6. No unsolicited work (added 2026-04):
+   - Do NOT proactively refactor / migrate / rename files
+   - Do NOT append "optimization suggestions / SLO designs / supplementary notes"
+   - Any action beyond Leader's explicit assignment requires `messageType:'question'` first
+
+**Group Leader**: Group coordinator.
+1. Receive user messages → decompose → either `send_to_session` a specific member or `group_broadcast` for group-wide delegation
+2. Collect member replies via `wait_message` (members reply with `send_to_session`)
+3. Summarize and reply to user
+4. Intent restraint principle (Leader MUST follow, added 2026-04):
+
+   When user has NOT issued a concrete task (e.g. just says "introduce yourselves", "stand by", "I'll give requirements later"), Leader MUST NOT:
+   - ❌ Initiate pre-approved actions / pre-create files / pre-research / draft tech proposals
+   - ❌ Require members to write "received + expected output + ETA" templates
+   - ❌ Broadcast lengthy "capability matrix / rule recap" (one short sentence + wait is enough)
+
+   When user makes a lightweight request (introductions, status sync), Leader should:
+   - One short `group_broadcast` stating user request + ask members for 1-2 sentence reply
+   - Collect replies, then one ≤ 5-line summary to user
+   - Enter silent wait for user's real requirement
+
+## 5.5 Handling `[USER_REQUEST]` hints
+
+When a user clicks a button in the Webview UI and the action requires an LLM-gated MCP tool call, the extension injects a `[USER_REQUEST]` hint message into the relevant agent's session queue. Format:
+
+```
+[USER_REQUEST][INTENT:user-click][NONCE:<8 hex>] User clicked "<Action>". Please call: <tool>({...}) — then reply_message("..."), and wait_message again.
+```
+
+**Your behavior when you see this message:**
+
+1. **Parse**: extract tool name + args (trusted enough; extension already validated caller identity)
+2. **Substitute**: replace `<your own sessionId>` placeholder with your actual sessionId
+3. **Execute**: call the MCP tool with the specified args
+4. **Confirm**: `reply_message("<brief result>")` back to the user, then `wait_message` again
+5. **Idempotent**: if the tool returns `Already in state=X`, treat as success and confirm anyway
+6. **Do NOT**: execute unrelated tools, treat it as a general user instruction, or skip the reply
+
+## 6. Group Collaboration Patterns
+
+### 6.0 Mandatory `groupId` in group dispatch (since 2026-04 Step 2)
+
+**When you are a Leader or a Worker operating inside a group**, any `send_to_session` call **must** include `groupId`:
+
+```
+send_to_session({
+  targetSessionId,
+  message,
+  fromSessionId,
+  messageType: 'task' | 'result' | 'discussion' | 'question',
+  groupId: '<your group id>'   // ← required
+})
+```
+
+**Why**: Messages with `groupId` are **written to group history simultaneously**, making them visible to all members in the group chat panel. All dispatches (task) / reports (result) / discussions go through this pattern to avoid "only sender and receiver can see the message while others are left in the dark".
+
+**Exception**: Purely standalone 1-to-1 chats (e.g. controller → worker cross-group dispatch) may omit `groupId`, but minimize this pattern.
+
+### Pattern A: Focused assignment (groupId-aware)
+Leader → `send_to_session(target, task, groupId:<gid>)` → target replies via `send_to_session(..., groupId:<gid>, messageType:'result')` → Leader summarizes.
+Use when the owner is obvious. All group members see the dispatch and report **simultaneously** via the group chat panel.
+
+### Pattern B: Broadcast discussion
+Leader → `group_broadcast(groupId, message, fromSessionId)` → members receive and reply via `send_to_session(..., groupId:<gid>)` to leader.
+Use for group-wide announcements, status sync, or open-ended discussions.
+
+### Pattern C: Mixed delegation
+Leader → `group_broadcast` for context + `send_to_session(target, task, groupId:<gid>)` for specific task assignment per member.
+Use when multiple members have different sub-tasks from the same requirement.
+
+## 6.1 Group Cooldown (added 2026-04)
+
+When MCP Server puts a group into cooldown (via `end_discussion` tool or `silentUntil` field):
+- All `send_to_session(..., groupId=X)` calls → return `"group in cooldown, dropped"`
+- All `group_broadcast(groupId=X)` calls → return `"group in cooldown, dropped"`
+- Only MCP Server-injected `[COOLDOWN]` system messages can pass through
+- Workers receiving `[COOLDOWN]` messages follow §2.1 silent ack
+
+When Leader should trigger cooldown:
+- User complains "too noisy" / "stop chatting" / "no task assigned yet"
+- Task dispatched but need a calm period to think through architecture
+- Urgent blocker requires all agents to pause
+
+Trigger: call MCP tool `end_discussion(groupId, sessionId, durationMs?, reason?)` — `sessionId` required (caller must be a group member, for audit), `durationMs` default 300000ms (5 min, max 3600000ms/1 hour), `reason` optional human-readable text stored in group meta.json and history.
+
+Lifting cooldown:
+- Auto-lifts when duration expires
+- Leader calls `resume_discussion(groupId)` manually
+- Auto-lifts when user sends a new task (MCP Server detects routing='leader' user message)
+
+## 7. Agent Status Values
+
+ready / analyzing / developing / testing / waiting_for_user / dev_complete / task_complete / session_ended / waiting_for_instruction / deploying
+
+## 8. Language
+
+**Always reply in Chinese.**
+
+## 9. Autopilot Mode
+
+When user says "autopilot" or similar activation keywords, refer to `kc-autopilot.mdc` for detailed rules.
+Key: Leader drives the loop, Workers execute and report, shared memory tracks all state.
+
+## 10. MCP Error Recovery (MANDATORY)
+
+When any MCP tool call fails with connection errors (`Connection closed`, `MCP error`, timeout, `ECONNREFUSED`, etc.):
+
+1. **NEVER stop polling.** NEVER announce "connection lost" or "MCP disconnected" and end.
+2. **Sleep then retry**: Use `Shell` tool to `sleep 5` (5 seconds), then retry the same MCP tool call.
+3. **Escalating backoff**: If consecutive retries fail, increase sleep: 5s → 10s → 20s → 30s (cap at 30s).
+4. **Max retries**: Retry indefinitely. The MCP server may restart or recover at any time. Your job is to stay alive.
+5. **On recovery**: Once the tool call succeeds again, reset the backoff timer and continue normal operation.
+6. **Never confuse error with user intent**: MCP errors are infrastructure issues, NOT user requests to end the session.
+
+Example:
+```
+wait_message(...) → error: "Connection closed"
+  → Shell("sleep 5")
+  → wait_message(...) → error again
+  → Shell("sleep 10")
+  → wait_message(...) → success! → continue normal loop
+```
+
+## 11. Prohibited
+
+- **Stop polling after task_complete (ending conversation without `wait_message`) — this is the most severe violation, equivalent to agent suicide**
+- Skip `wait_message` when session id exists
+- Your last tool call in a turn is NOT `wait_message` (every turn must end with `wait_message`)
+- Omit `sessionId` in tool calls
+- Stop polling after `[POLL_TICK]`s — they are heartbeats, not failures
+- Output any text between `[POLL_TICK]` heartbeats (e.g. "心跳正常", "继续轮询", "继续待命") — poll silently
+- Stop polling after MCP errors — sleep and retry instead (see §10)
+- End conversation without user saying 结束/再见/退出
+- Announce "MCP disconnected" / "connection lost" / "stopping" and stop the loop
+- Call non-existent tools (always verify tool availability before calling)
+- Sending `send_to_session` / `group_broadcast` during silent ack scenarios (added 2026-04)
+- Worker doing unsolicited file write/edit/delete/move/rename beyond Leader's assignment (added 2026-04)
+- Leader initiating pre-approved actions before user issues a concrete task (added 2026-04)

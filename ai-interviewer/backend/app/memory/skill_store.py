@@ -1,0 +1,315 @@
+"""File-backed skill registry (Hermes-style).
+
+Sibling of :mod:`app.memory.strategy_store`. Both implement the
+"``MEMORY.md`` + topic files" pattern from Claude Code, but they
+carry **different semantics** so the interview harness can keep them
+independent:
+
+- ``knowledge/strategy/`` is the reward-driven memory the
+  ``strategy_dream`` agent maintains autonomously. Entries often
+  carry ``auto_generated: true`` and exist because some historical
+  signal (Thompson posteriors, outcomes) justified them.
+- ``knowledge/skills/`` is the **hand-authored** business know-how
+  layer — probe strategies, rubric templates, candidate-profile
+  tells. Humans add / remove skills; the interview runtime only
+  **reads** them.
+
+The registry exposes:
+
+- :func:`list_skills` — enumerate every skill file under
+  ``knowledge/skills/`` (ignoring the ``SKILL.md`` index).
+- :func:`retrieve_skills` — filter by ``dimension`` / ``job_level``,
+  ranked the same way as ``strategy_store.retrieve_strategies``.
+- :func:`build_skills_block` — render relevance-matched skills into
+  a compact markdown block suitable for splicing into the
+  Generator's ``skills`` payload slot (``generator_task.md``).
+
+Frontmatter contract (tolerant, per-field optional):
+
+    ---
+    name: Senior Backend Bar
+    description: Probe high-ownership outcomes, not buzzwords.
+    dimensions: [system_design, leadership]
+    job_levels: [senior, staff]
+    ---
+
+    <body renders into prompts>
+"""
+from __future__ import annotations
+
+import re
+from dataclasses import dataclass, field
+from pathlib import Path
+from typing import Any
+
+from app.core.logging import get_logger
+from app.core.settings import get_settings
+
+log = get_logger(__name__)
+
+_FM_PATTERN = re.compile(r"^---\s*\n(.*?)\n---\s*\n", re.DOTALL)
+_FM_FIELD = re.compile(r"^(\w+):\s*(.+)$", re.MULTILINE)
+_FM_LIST = re.compile(r"\[([^\]]*)\]")
+_SkillCache = tuple[Path, tuple[tuple[str, int, int], ...], list["SkillEntry"]]
+_skill_cache: _SkillCache | None = None
+
+
+@dataclass
+class SkillEntry:
+    """One skill card read off disk.
+
+    ``body`` is the markdown body with frontmatter stripped so callers
+    can splice it directly into a prompt without re-parsing.
+    """
+
+    path: Path
+    name: str = ""
+    description: str = ""
+    dimensions: list[str] = field(default_factory=list)
+    job_levels: list[str] = field(default_factory=list)
+    body: str = ""
+
+
+def _parse_frontmatter(text: str) -> dict[str, Any]:
+    """Parse the same YAML-ish frontmatter shape the strategy store uses.
+
+    Kept as a separate local copy so ``skill_store`` does not reach
+    into ``strategy_store``'s private helpers; if the frontmatter
+    grammar ever changes we can evolve one surface at a time.
+    """
+    m = _FM_PATTERN.match(text)
+    if not m:
+        return {}
+    block = m.group(1)
+    result: dict[str, Any] = {}
+    for fm in _FM_FIELD.finditer(block):
+        key, val = fm.group(1), fm.group(2).strip()
+        lm = _FM_LIST.match(val)
+        if lm:
+            items = [
+                i.strip().strip("'\"")
+                for i in lm.group(1).split(",")
+                if i.strip()
+            ]
+            result[key] = items
+        else:
+            result[key] = val
+    return result
+
+
+def _strip_frontmatter(text: str) -> str:
+    return _FM_PATTERN.sub("", text).strip()
+
+
+def _skills_dir() -> Path:
+    return get_settings().knowledge_dir / "skills"
+
+
+def _skills_signature(root: Path) -> tuple[tuple[str, int, int], ...]:
+    if not root.is_dir():
+        return ()
+    sig: list[tuple[str, int, int]] = []
+    for p in sorted(root.glob("*.md")):
+        if p.name == "SKILL.md":
+            continue
+        try:
+            stat = p.stat()
+        except OSError:
+            continue
+        sig.append((p.name, stat.st_mtime_ns, stat.st_size))
+    return tuple(sig)
+
+
+def clear_skill_cache_for_tests() -> None:
+    global _skill_cache
+    _skill_cache = None
+
+
+def list_skills() -> list[SkillEntry]:
+    """Return every skill card on disk, ignoring the ``SKILL.md`` index.
+
+    Sorted lexicographically so retrieval is deterministic when two
+    skills share the same relevance score.
+    """
+    global _skill_cache
+    root = _skills_dir()
+    if not root.is_dir():
+        _skill_cache = None
+        return []
+    signature = _skills_signature(root)
+    if (
+        _skill_cache is not None
+        and _skill_cache[0] == root
+        and _skill_cache[1] == signature
+    ):
+        return list(_skill_cache[2])
+    entries: list[SkillEntry] = []
+    for p in sorted(root.glob("*.md")):
+        if p.name == "SKILL.md":
+            continue
+        try:
+            text = p.read_text(encoding="utf-8")
+        except OSError:
+            continue
+        fm = _parse_frontmatter(text)
+        entries.append(
+            SkillEntry(
+                path=p,
+                name=str(fm.get("name", p.stem)),
+                description=str(fm.get("description", "")),
+                dimensions=list(fm.get("dimensions", []) or []),
+                job_levels=list(fm.get("job_levels", []) or []),
+                body=_strip_frontmatter(text),
+            )
+        )
+    _skill_cache = (root, signature, entries)
+    return list(entries)
+
+
+def retrieve_skills(
+    *,
+    dimension: str,
+    job_level: str = "mid",
+    limit: int = 3,
+    use_llm_selector: bool = False,
+    recent_qa_summary: str = "",
+) -> list[SkillEntry]:
+    """Return skill cards relevant to the current ``(dimension, job_level)``.
+
+    Scoring mirrors :func:`app.memory.strategy_store.retrieve_strategies`:
+
+    - +2 if the skill tags ``dimension`` explicitly,
+    - +1 if it tags ``job_level`` explicitly,
+    - +1 if the skill has **no** dimension scoping (i.e. universal skill).
+
+    Entries with score 0 are dropped; the rest are sorted score-DESC
+    and truncated to ``limit``.
+
+    ``use_llm_selector`` (``PLAN_LLM_MEMORY_SELECTOR``) opts into a
+    second-pass LLM side-query on the keyword-filtered top-N: mirrors
+    Claude Code's ``findRelevantMemories.sideQuery``. LLM failure or
+    unparsable reply degrades silently to the keyword top-N so this
+    kwarg can be flipped ON without new error paths at the call site.
+    """
+    all_entries = list_skills()
+    scored: list[tuple[int, SkillEntry]] = []
+    for entry in all_entries:
+        score = 0
+        if entry.dimensions and dimension in entry.dimensions:
+            score += 2
+        if entry.job_levels and job_level in entry.job_levels:
+            score += 1
+        if not entry.dimensions:
+            score += 1
+        scored.append((score, entry))
+    scored.sort(key=lambda x: x[0], reverse=True)
+    keyword_hits = [e for score, e in scored[:limit] if score > 0]
+
+    if not use_llm_selector or not keyword_hits:
+        return keyword_hits
+
+    # LLM second-pass (Claude Code ``findRelevantMemories`` equivalent).
+    # The import is local so the base keyword path keeps no runtime
+    # dependency on the LLM client — tests that only use keyword
+    # retrieval stay free of the prompt-rendering / call_chat import
+    # graph.
+    from app.memory.llm_selector import (
+        MemoryCandidate,
+        SelectorContext,
+        select_memories_with_llm,
+    )
+
+    candidates = [
+        MemoryCandidate(
+            filename=e.path.name,
+            name=e.name,
+            description=e.description,
+            kind="skill",
+            dimensions=list(e.dimensions),
+            job_levels=list(e.job_levels),
+        )
+        for e in keyword_hits
+    ]
+    selected = select_memories_with_llm(
+        candidates,
+        SelectorContext(
+            dimension=dimension,
+            job_level=job_level,
+            purpose="generator",
+            recent_qa_summary=recent_qa_summary,
+        ),
+        top_n=limit,
+    )
+    if selected is None:
+        # LLM failed → fall back to keyword top-N without changing shape.
+        return keyword_hits
+    if not selected:
+        # LLM explicitly said "none relevant" — respect that and
+        # return empty; callers already treat an empty list as "no
+        # skill injected" and use the default placeholder.
+        return []
+    by_name = {e.path.name: e for e in keyword_hits}
+    return [by_name[f] for f in selected if f in by_name]
+
+
+def build_skills_block(
+    entries: list[SkillEntry],
+    *,
+    max_body_chars: int = 600,
+) -> str:
+    """Render a list of skill cards into a compact markdown block.
+
+    Returned string is splicing-ready for the Generator's ``skills``
+    payload slot. An empty input list returns
+    ``"(no relevant interview skills)"`` so the prompt template has a
+    deterministic placeholder, matching the convention the strategy
+    store uses for its "no match" case.
+
+    Bodies are truncated to ``max_body_chars`` each; the full file
+    stays on disk for operators who want to inspect it.
+    """
+    if not entries:
+        return "(no relevant interview skills)"
+    blocks: list[str] = []
+    for i, e in enumerate(entries, 1):
+        body = e.body
+        truncated = ""
+        if len(body) > max_body_chars:
+            body = body[:max_body_chars]
+            truncated = " [truncated — see knowledge/skills/ for full text]"
+        dims = ", ".join(e.dimensions) if e.dimensions else "all"
+        levels = ", ".join(e.job_levels) if e.job_levels else "all"
+        blocks.append(
+            f"[Skill {i}] {e.name}\n"
+            f"  Applies to: dims={dims}, levels={levels}\n"
+            f"  {e.description}\n\n"
+            f"  {body}{truncated}"
+        )
+    return "\n\n".join(blocks)
+
+
+def build_skills_index() -> str:
+    """Tier-1 lightweight index (names + descriptions only).
+
+    Intended for future ``dynamic_system`` wiring analogous to
+    :func:`app.memory.strategy_store.build_strategy_index` — the LLM
+    learns "what skill cards exist" without burning tokens on their
+    full bodies. Not consumed by the current
+    ``build_context_frame_for_generator`` path, but kept here so the
+    Phase-3 follow-up that splits skill loading across tiers is a
+    one-line change.
+    """
+    entries = list_skills()
+    if not entries:
+        return ""
+    lines = [
+        "## Available Interview Skills",
+        "Scan the skills below. When authoring a question, if a skill "
+        "matches the current dimension / job level, its full body "
+        "will be provided in the SKILLS block.\n",
+    ]
+    for e in entries:
+        dims = ", ".join(e.dimensions) if e.dimensions else "all"
+        levels = ", ".join(e.job_levels) if e.job_levels else "all"
+        lines.append(f"- {e.name} [{dims} | {levels}]: {e.description}")
+    return "\n".join(lines)

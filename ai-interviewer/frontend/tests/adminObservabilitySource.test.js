@@ -1,0 +1,133 @@
+const assert = require("node:assert/strict");
+const fs = require("node:fs");
+const path = require("node:path");
+const test = require("node:test");
+
+const root = path.join(__dirname, "..");
+
+function read(relPath) {
+  return fs.readFileSync(path.join(root, relPath), "utf8");
+}
+
+test("admin page is framed as an agent observability console", () => {
+  const page = read("src/app/admin/page.tsx");
+
+  assert.match(page, /后台观测台/);
+  assert.match(page, /Agentic Workflow/);
+  assert.match(page, /用户侧质量中心/);
+});
+
+test("admin panel exposes system overview and productized card copy", () => {
+  const panel = read("src/components/admin/AdminPanel.tsx");
+
+  assert.match(panel, /SystemOverview/);
+  assert.match(panel, /系统状态总览/);
+  assert.match(panel, /策略学习/);
+  assert.match(panel, /评分复核/);
+  assert.match(panel, /面试质量入口/);
+  assert.match(panel, /跑完一场面试后会出现/);
+});
+
+test("admin active sessions link back to report and replay pages", () => {
+  const panel = read("src/components/admin/AdminPanel.tsx");
+
+  assert.match(panel, /查看报告/);
+  assert.match(panel, /Replay/);
+  assert.ok(panel.includes("`/interview/${session.session_id}/report`"));
+  assert.ok(panel.includes("`/interview/${session.session_id}/replay`"));
+});
+
+test("admin panel exposes persisted interview history", () => {
+  const panel = read("src/components/admin/AdminPanel.tsx");
+  const api = read("src/lib/api/admin.ts");
+
+  assert.match(api, /InterviewSessionHistory/);
+  assert.match(api, /getInterviewSessionsHistory/);
+  assert.ok(api.includes("\"/admin/interview-sessions\""));
+  assert.match(panel, /HistoricalSessionsCard/);
+  assert.match(panel, /历史面试/);
+  assert.match(panel, /数据库持久化记录/);
+  assert.match(panel, /has_report/);
+});
+
+test("admin history uses full date time display", () => {
+  const panel = read("src/components/admin/AdminPanel.tsx");
+
+  assert.match(panel, /formatDateTime/);
+  assert.match(panel, /toLocaleDateString/);
+  assert.match(panel, /toLocaleTimeString/);
+  assert.match(panel, /完整时间/);
+});
+
+test("admin history translates database fields into readable UI", () => {
+  const panel = read("src/components/admin/AdminPanel.tsx");
+  const api = read("src/lib/api/admin.ts");
+
+  assert.match(api, /trace_health/);
+  assert.match(panel, /Trace 状态/);
+  assert.match(panel, /formatHistoryStatus/);
+  assert.match(panel, /Trace 缺失/);
+  assert.match(panel, /copyToClipboard\(session.session_id\)/);
+  assert.match(panel, /完整 ID/);
+}
+);
+
+test("admin api client reuses the existing health endpoint", () => {
+  const api = read("src/lib/api/admin.ts");
+
+  assert.match(api, /BackendHealth/);
+  assert.match(api, /getBackendHealth/);
+  assert.ok(api.includes("\"/health\""));
+});
+
+test("admin panel surfaces 24h evaluator fallback observability", () => {
+  const panel = read("src/components/admin/AdminPanel.tsx");
+  const api = read("src/lib/api/admin.ts");
+
+  assert.match(api, /TraceRollupGroupBy = "health" \| "node" \| "verdict" \| "fallback"/);
+  assert.match(api, /fallback_rate\?: number/);
+  assert.match(api, /affected_sessions\?: number/);
+  assert.match(panel, /FallbackRollUp/);
+  assert.match(panel, /groupby: "fallback"/);
+  assert.match(panel, /评分 fallback（24 小时）/);
+  assert.match(panel, /fallback_rate/);
+});
+
+test("admin panel surfaces evaluator evidence coverage observability", () => {
+  const panel = read("src/components/admin/AdminPanel.tsx");
+  const api = read("src/lib/api/admin.ts");
+
+  assert.match(api, /EvidenceRollupResponse/);
+  assert.match(api, /getEvidenceRollUp/);
+  assert.ok(api.includes("/admin/evidence-rollup?"));
+  assert.match(panel, /EvidenceRollUp/);
+  assert.match(panel, /评分证据覆盖（24 小时）/);
+  assert.match(panel, /acceptance_check_rate/);
+  assert.match(panel, /evidence_span_rate/);
+  assert.match(panel, /verification_change_rate/);
+});
+
+test("admin panel surfaces question quality grounding observability", () => {
+  const panel = read("src/components/admin/AdminPanel.tsx");
+  const api = read("src/lib/api/admin.ts");
+
+  assert.match(api, /QuestionQualityRollupResponse/);
+  assert.match(api, /getQuestionQualityRollUp/);
+  assert.ok(api.includes("/admin/question-quality-rollup?"));
+  assert.match(panel, /QuestionQualityRollUp/);
+  assert.match(panel, /问题质量支撑（24 小时）/);
+  assert.match(panel, /contract_rate/);
+  assert.match(panel, /retrieval_grounding_rate/);
+  assert.match(panel, /avg_acceptance_checks/);
+});
+
+test("admin panel summarizes interview main-chain quality", () => {
+  const panel = read("src/components/admin/AdminPanel.tsx");
+
+  assert.match(panel, /InterviewQualityOverview/);
+  assert.match(panel, /面试主链路质量总览/);
+  assert.match(panel, /qualityLevel/);
+  assert.match(panel, /fallback_rate/);
+  assert.match(panel, /evidence_span_rate/);
+  assert.match(panel, /contract_rate/);
+});
