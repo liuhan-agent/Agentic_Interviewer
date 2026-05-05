@@ -45,10 +45,56 @@ _llm_override_var: ContextVar[dict[str, Any] | None] = ContextVar(
     "llm_override", default=None
 )
 
+# Per-session SessionHandle pointer, so call_chat can attribute LLM calls to
+# the right interview without importing the manager-level _sessions registry.
+# Set at the top of every ``_run_segment`` / legacy worker; reset in finally.
+# ``Any`` rather than the (forward-declared) SessionHandle keeps ruff UP037
+# happy under ``from __future__ import annotations`` while still fully
+# expressing the runtime contract via the function signatures below.
+_current_session_handle_var: ContextVar[Any] = ContextVar(
+    "current_session_handle", default=None
+)
+
 
 def get_llm_override() -> dict[str, Any] | None:
     """Read the per-session LLM config set by the session-manager thread."""
     return _llm_override_var.get()
+
+
+def get_current_session_handle() -> SessionHandle | None:
+    """Read the SessionHandle bound to the running interview thread, if any."""
+    return _current_session_handle_var.get()
+
+
+def record_session_llm_call(
+    *,
+    provider: str,
+    model: str,
+    status: str,
+    prompt_tokens: int,
+    completion_tokens: int,
+    usage_estimated: bool = False,
+) -> None:
+    """Accumulate one LLM call's tokens onto the active SessionHandle.
+
+    Called from ``call_chat`` exit (success / error / stub). When no
+    handle is bound (e.g. ``temporary_llm_override`` for resume parse,
+    background prefetch, or unit tests that don't go through the
+    session manager), the function is a no-op.
+    """
+    handle = _current_session_handle_var.get()
+    if handle is None:
+        return
+    handle.llm_call_count += 1
+    if status == "stub":
+        handle.llm_stub_call_count += 1
+    elif status == "error":
+        handle.llm_error_call_count += 1
+    handle.prompt_tokens_total += max(0, int(prompt_tokens or 0))
+    handle.completion_tokens_total += max(0, int(completion_tokens or 0))
+    if usage_estimated:
+        handle.cost_usage_estimated = True
+    handle.touch()
 
 
 @contextmanager
@@ -314,6 +360,23 @@ class SessionHandle:
     # latency on the in-memory handle).
     last_segment_latency_ms: int | None = None
 
+    # Per-session LLM cost accounting (P1 #3 — LLM cost observability).
+    # ``call_chat`` accumulates one increment per call into the active
+    # handle via ``record_session_llm_call``. Counters are deliberately
+    # additive across resumes so a recovered session keeps booking onto
+    # the same totals; the values are not restored from checkpoint
+    # (a rehydrated session starts from 0 because the original handle
+    # already wrote the historic totals into the closing trace row).
+    # ``cost_usage_estimated`` flips to True the first time any provider
+    # call returns no ``usage`` block so the report UI can flag the
+    # numbers as "approximate".
+    llm_call_count: int = 0
+    llm_stub_call_count: int = 0
+    llm_error_call_count: int = 0
+    prompt_tokens_total: int = 0
+    completion_tokens_total: int = 0
+    cost_usage_estimated: bool = False
+
     # Legacy sync-provider fields (only used when use_sync_provider=True)
     provider: QueueAnswerProvider | None = None
     thread: threading.Thread | None = None
@@ -373,6 +436,7 @@ def _graph_config(
 
     settings = get_settings()
     effective_turn = turn_idx if turn_idx is not None else handle.turn_idx
+    extra_metadata = _cost_summary_metadata(handle)
     ls_slice = build_langsmith_config(
         tracing_enabled=bool(settings.langsmith_tracing),
         session_id=session_id,
@@ -383,10 +447,38 @@ def _graph_config(
         job_title=handle.job_title,
         mode=handle.mode,
         turn_idx=effective_turn,
+        extra_metadata=extra_metadata or None,
     )
     if ls_slice:
         cfg.update(ls_slice)
     return cfg
+
+
+def _cost_summary_metadata(handle: SessionHandle) -> dict[str, Any]:
+    """Project the handle's running LLM tallies into LangSmith metadata.
+
+    Returns an empty dict before the first LLM call so a fresh session
+    does not carry a noise row of zeros into the trace tree. Called
+    from :func:`_graph_config` for every ``workflow.stream`` invocation,
+    so each segment span carries the up-to-now totals.
+    """
+    if handle.llm_call_count <= 0:
+        return {}
+    from app.core.metrics import estimate_llm_cost_usd
+
+    settings = get_settings()
+    est_usd = estimate_llm_cost_usd(
+        model=settings.llm_model,
+        prompt_tokens=handle.prompt_tokens_total,
+        completion_tokens=handle.completion_tokens_total,
+    )
+    return {
+        "llm_calls_total": handle.llm_call_count,
+        "llm_prompt_tokens_total": handle.prompt_tokens_total,
+        "llm_completion_tokens_total": handle.completion_tokens_total,
+        "llm_cost_usd_estimate": est_usd,
+        "llm_cost_usage_estimated": handle.cost_usage_estimated,
+    }
 
 
 class SessionManager:
@@ -543,6 +635,7 @@ class SessionManager:
         ``start`` and every ``submit_answer``.
         """
         _llm_override_var.set(handle.llm_config)
+        session_token = _current_session_handle_var.set(handle)
         timing_token = start_timing_trace()
         # Wall-clock start for the end-to-end latency trace (#11). We use
         # ``time.monotonic`` rather than ``time.time`` so a system clock
@@ -647,6 +740,7 @@ class SessionManager:
             )
             reset_timing_trace(timing_token)
             reset_log_context(log_token)
+            _current_session_handle_var.reset(session_token)
             with handle._segment_lock:
                 handle._running = False
 
@@ -732,6 +826,7 @@ class SessionManager:
         self, handle: SessionHandle, initial: InterviewState
     ) -> None:
         _llm_override_var.set(handle.llm_config)
+        session_token = _current_session_handle_var.set(handle)
         timing_token = start_timing_trace()
         log_token = bind_log_context(
             session_id=handle.session_id,
@@ -759,6 +854,7 @@ class SessionManager:
         finally:
             reset_timing_trace(timing_token)
             reset_log_context(log_token)
+            _current_session_handle_var.reset(session_token)
             if handle.provider:
                 unregister_provider(handle.session_id)
             handle.done_event.set()

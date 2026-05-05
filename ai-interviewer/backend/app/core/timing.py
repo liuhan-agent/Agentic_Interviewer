@@ -42,8 +42,17 @@ def record_llm_timing_event(
     attempts: int,
     base_host: str,
     error_kind: str | None = None,
+    prompt_tokens: int | None = None,
+    completion_tokens: int | None = None,
+    usage_estimated: bool = False,
 ) -> None:
-    """Append one LLM timing event if a buffer is active."""
+    """Append one LLM timing event if a buffer is active.
+
+    ``prompt_tokens`` / ``completion_tokens`` are recorded when the
+    provider returned a usage block, or when the caller estimated
+    them from char counts. ``usage_estimated`` distinguishes the two
+    cases so downstream cost summaries can flag low-confidence rows.
+    """
     events = _LLM_TIMING_EVENTS.get()
     if events is None:
         return
@@ -64,6 +73,12 @@ def record_llm_timing_event(
     }
     if error_kind:
         event["error_kind"] = error_kind
+    if prompt_tokens is not None:
+        event["prompt_tokens"] = max(0, int(prompt_tokens))
+    if completion_tokens is not None:
+        event["completion_tokens"] = max(0, int(completion_tokens))
+    if usage_estimated:
+        event["usage_estimated"] = True
     events.append(event)
 
 

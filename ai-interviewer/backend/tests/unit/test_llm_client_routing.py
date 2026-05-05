@@ -884,7 +884,7 @@ def test_call_openai_compatible_sets_base_url_and_json_mode(
 
     monkeypatch.setitem(sys.modules, "openai", SimpleNamespace(OpenAI=_FakeOpenAI))
 
-    result = llm_client._call_openai_compatible(
+    content, usage = llm_client._call_openai_compatible(
         [ChatMessage("user", "ping")],
         "test-model",
         0.1,
@@ -894,7 +894,13 @@ def test_call_openai_compatible_sets_base_url_and_json_mode(
         override={"api_key": "secret"},
     )
 
-    assert result == "pong"
+    assert content == "pong"
+    # Fake response carries no ``usage`` block, so the helper falls back
+    # to the char-based estimate. We just check the shape, not the
+    # exact token count, so the test stays robust if the estimator is
+    # tuned later.
+    assert usage["usage_estimated"] is True
+    assert "prompt_tokens" in usage and "completion_tokens" in usage
     assert captured["api_key"] == "secret"
     assert captured["base_url"] == "https://llm.example.test/v1"
     assert captured["timeout"] == 20.0
@@ -931,7 +937,7 @@ def test_call_openai_honors_override_base_url(
 
     monkeypatch.setitem(sys.modules, "openai", SimpleNamespace(OpenAI=_FakeOpenAI))
 
-    result = llm_client._call_openai(
+    content, usage = llm_client._call_openai(
         [ChatMessage("user", "ping")],
         "test-model",
         0.1,
@@ -943,7 +949,8 @@ def test_call_openai_honors_override_base_url(
         },
     )
 
-    assert result == "pong"
+    assert content == "pong"
+    assert usage["usage_estimated"] is True
     assert captured["api_key"] == "secret"
     assert captured["base_url"] == "https://openai-proxy.example.test/v1"
     assert captured["timeout"] == 20.0
@@ -980,7 +987,7 @@ def test_call_anthropic_honors_override_base_url(
         ),
     )
 
-    result = llm_client._call_anthropic(
+    content, usage = llm_client._call_anthropic(
         [ChatMessage("user", "ping")],
         "test-model",
         0.1,
@@ -991,7 +998,8 @@ def test_call_anthropic_honors_override_base_url(
         },
     )
 
-    assert result == "pong"
+    assert content == "pong"
+    assert usage["usage_estimated"] is True
     assert captured["api_key"] == "secret"
     assert captured["base_url"] == "https://anthropic-proxy.example.test"
     assert captured["kwargs"]["model"] == "test-model"
