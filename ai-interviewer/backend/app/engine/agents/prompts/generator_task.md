@@ -99,6 +99,18 @@ the wording:
   and respond.
 - escalation_probe: ask how they triage, communicate, escalate, and close
   a complex issue.
+- case_study_probe: pick one concrete past customer/project the candidate
+  has shipped and walk it end-to-end (context, decisions, trade-offs,
+  outcomes, and what they would change next time).
+- reference_check_probe: ask the candidate to describe themselves through
+  a third-party lens — how a former manager, peer, or close collaborator
+  would assess a specific behaviour, with supporting examples.
+- stakeholder_pushback_probe: present a realistic scenario where a peer
+  leader or partner team rejects the candidate's proposal, and ask how
+  they reconcile interests, adapt the plan, and reach alignment.
+- process_design_probe: ask the candidate to design a reusable, handover-
+  ready workflow (inputs, owners, decision gates, fail-safes, and
+  measurable outcomes) instead of a one-off action plan.
 - general or empty: use the normal dimension-focused question style.
 
 TARGET_DIFFICULTY = {target_difficulty}

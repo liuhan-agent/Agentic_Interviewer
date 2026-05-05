@@ -96,6 +96,14 @@ ProbeIntent = Literal[
     "roleplay_probe",
     "objection_probe",
     "escalation_probe",
+    # Business-scenario specific intents added for sales / HR /
+    # ops / management directions where the existing 13 values
+    # could not capture the third-party / case-walkthrough /
+    # multi-stakeholder / process-recipe shapes of expected probes.
+    "case_study_probe",
+    "reference_check_probe",
+    "stakeholder_pushback_probe",
+    "process_design_probe",
 ]
 BarLevel = Literal["intro", "standard", "deep_probe"]
 PlanStepKind = Literal[

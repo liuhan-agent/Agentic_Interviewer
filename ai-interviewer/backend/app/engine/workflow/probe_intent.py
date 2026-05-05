@@ -92,7 +92,11 @@ _DIRECTION_DIMENSION_MAP: dict[str, dict[str, ProbeIntent]] = {
         "requirement_analysis": "tradeoff_probe",
         "prioritization": "prioritization_probe",
         "metrics_thinking": "metric_probe",
-        "stakeholder_management": "roleplay_probe",
+        # PM stakeholder management is dominated by handling
+        # pushback from cross-functional partners; pushback shape
+        # is a strict superset of generic roleplay so it gives
+        # the generator more room without losing the old style.
+        "stakeholder_management": "stakeholder_pushback_probe",
     },
     "data_analyst": {
         "technical_depth": "experiment_probe",
@@ -104,14 +108,20 @@ _DIRECTION_DIMENSION_MAP: dict[str, dict[str, ProbeIntent]] = {
         "content_operations": "evidence_probe",
         "data_analysis": "metric_probe",
         "campaign_execution": "experiment_probe",
-        "process_optimization": "tradeoff_probe",
+        # Process optimisation is much more about authoring a
+        # reusable workflow than weighing alternatives, so prefer
+        # the explicit process_design framing.
+        "process_optimization": "process_design_probe",
     },
     "sales_business": {
         "objection_handling": "objection_probe",
         "negotiation": "roleplay_probe",
         "solution_matching": "tradeoff_probe",
         "pipeline_management": "evidence_probe",
-        "customer_discovery": "roleplay_probe",
+        # B2B customer discovery is best probed by walking through
+        # one concrete past customer end-to-end, not by generic
+        # roleplay.
+        "customer_discovery": "case_study_probe",
     },
     "marketing_brand": {
         "market_insight": "metric_probe",
@@ -121,9 +131,14 @@ _DIRECTION_DIMENSION_MAP: dict[str, dict[str, ProbeIntent]] = {
         "content_creativity": "evidence_probe",
     },
     "hr_function": {
-        "talent_acquisition": "evidence_probe",
+        # Talent acquisition leans on third-party signal
+        # (referees / past managers) more than raw evidence,
+        # which the new reference_check intent captures cleanly.
+        "talent_acquisition": "reference_check_probe",
         "employee_relations": "roleplay_probe",
-        "organization_development": "tradeoff_probe",
+        # Org development is fundamentally process design;
+        # tradeoff_probe under-specifies the expected output.
+        "organization_development": "process_design_probe",
         "policy_compliance": "evidence_probe",
         "service_orientation": "roleplay_probe",
     },
@@ -139,7 +154,10 @@ _DIRECTION_DIMENSION_MAP: dict[str, dict[str, ProbeIntent]] = {
         "team_leadership": "roleplay_probe",
         "decision_making": "tradeoff_probe",
         "execution_management": "evidence_probe",
-        "cross_functional_alignment": "roleplay_probe",
+        # Cross-functional alignment is dominated by handling
+        # peer-leader pushback; the dedicated intent steers
+        # the generator toward "design a counter-argument".
+        "cross_functional_alignment": "stakeholder_pushback_probe",
     },
 }
 
@@ -401,4 +419,8 @@ PROBE_INTENT_LABELS: dict[ProbeIntent, str] = {
     "roleplay_probe": "角色扮演",
     "objection_probe": "异议处理",
     "escalation_probe": "升级处理",
+    "case_study_probe": "案例剖析",
+    "reference_check_probe": "证人对照",
+    "stakeholder_pushback_probe": "利益方反对",
+    "process_design_probe": "流程设计",
 }
