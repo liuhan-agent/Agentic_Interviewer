@@ -1,5 +1,12 @@
 [
   {
+    "_deprecated": true,
+    "_deprecated_since": "2026-05",
+    "_replaced_by": "knowledge/interview_directions.json",
+    "_message": "DEPRECATED: This file is no longer read by any application code. Job templates are now derived from `interview_directions.json` via `app/services/job_templates.py` and `app/services/job_directions.py`. The RAG ingestion path explicitly skips this file (see `app/engine/rag/ingestion.py:52`). Do not edit; do not add new templates here. New direction-specific question banks live under `knowledge/business_questions/` and `knowledge/tech_questions/`.",
+    "_safe_to_remove": "After 2026-08, if no downstream tool surfaces a need for this file, it can be deleted outright."
+  },
+  {
     "direction": "java_backend",
     "title": "Java 后端开发工程师",
     "template": "岗位职责：\n- 负责业务后端模块的需求理解、技术方案设计、接口开发和稳定交付。\n- 参与核心服务的性能优化、稳定性治理、问题排查和线上质量改进。\n- 参与数据库模型、缓存、消息队列、任务调度等后端基础能力建设。\n- 与产品、前端、测试协作完成需求评审、联调、上线和复盘。\n\n任职要求：\n- 熟悉 Java、Spring / Spring Boot、RESTful API 和常见后端开发模式。\n- 熟悉 MySQL、Redis、消息队列，理解事务、索引、缓存、幂等和并发处理。\n- 具备良好的编码规范、测试意识、Code Review 和技术文档习惯。\n- 了解微服务、Linux、Docker、CI/CD 或可观测性建设者优先。",
