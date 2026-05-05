@@ -34,10 +34,14 @@ import { Input } from "@/components/ui/input";
 import { Separator } from "@/components/ui/separator";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
+  FALLBACK_KIND_DESCRIPTIONS,
+  FALLBACK_KIND_LABELS,
+  FALLBACK_KIND_ORDER,
   getAdminSessions,
   getBackendHealth,
   getBanditSnapshot,
   getEvidenceRollUp,
+  getFallbackRates,
   getInterviewSessionsHistory,
   getQuestionQualityRollUp,
   getRecentTracesByNode,
@@ -50,6 +54,8 @@ import {
   type BackendHealth,
   type BanditSnapshot,
   type EvidenceRollupResponse,
+  type FallbackKind,
+  type FallbackRatesResponse,
   type InterviewSessionHistory,
   type InterviewSessionHistoryItem,
   type QuestionQualityRollupResponse,
@@ -179,6 +185,11 @@ export function AdminPanel() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [tokenSaved, recentNode],
   );
+  const fallbackRatesFetcher = useCallback(
+    (signal?: AbortSignal) => getFallbackRates(signal),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [tokenSaved],
+  );
 
   const health = useAutoFetch(healthFetcher, tick);
   const bandit = useAutoFetch(banditFetcher, tick);
@@ -191,6 +202,7 @@ export function AdminPanel() {
   const evidenceRollup = useAutoFetch(evidenceRollupFetcher, tick);
   const questionQualityRollup = useAutoFetch(questionQualityRollupFetcher, tick);
   const recentTraces = useAutoFetch(recentTracesFetcher, tick);
+  const fallbackRates = useAutoFetch(fallbackRatesFetcher, tick);
 
   function handleSaveToken() {
     saveAdminToken(tokenInput);
@@ -229,6 +241,8 @@ export function AdminPanel() {
         <EvidenceRollUp state={evidenceRollup} />
         <QuestionQualityRollUp state={questionQualityRollup} />
       </div>
+
+      <FallbackKindCounts state={fallbackRates} />
 
       <div className="grid gap-6 lg:grid-cols-2">
         <BanditCard state={bandit} />
@@ -485,6 +499,176 @@ function FallbackRollUp({ state }: { state: Loadable<TraceRollupResponse> }) {
         )}
       </CardContent>
     </Card>
+  );
+}
+
+// FallbackKindCounts shows the in-process per-kind fallback Counter
+// (since process boot). It complements the trace-database
+// ``FallbackRollUp`` above, which only counts evaluator turns from
+// the last 24h. By breaking the count down per *kind* we let the
+// operator answer "which fallback is firing right now?" without
+// scraping Prometheus.
+//
+// Tone is set per-kind so a spike in any single kind stays visible
+// at a glance: safety→destructive, language→info-blue,
+// duplicate→accent-purple, contract_unsigned→amber,
+// evaluator_fallback→warning-yellow.
+const FALLBACK_KIND_TONE: Record<FallbackKind, string> = {
+  safety: "border-red-500/40 bg-red-500/[0.06]",
+  language: "border-sky-500/40 bg-sky-500/[0.06]",
+  duplicate: "border-purple-500/40 bg-purple-500/[0.06]",
+  contract_unsigned: "border-amber-500/40 bg-amber-500/[0.06]",
+  evaluator_fallback: "border-yellow-500/40 bg-yellow-500/[0.06]",
+};
+const FALLBACK_KIND_TEXT: Record<FallbackKind, string> = {
+  safety: "text-red-400",
+  language: "text-sky-400",
+  duplicate: "text-purple-400",
+  contract_unsigned: "text-amber-400",
+  evaluator_fallback: "text-yellow-400",
+};
+
+function FallbackKindCounts({ state }: { state: Loadable<FallbackRatesResponse> }) {
+  if (state.phase === "loading") {
+    return <Skeleton className="h-32 w-full" />;
+  }
+  if (state.phase === "error") {
+    return (
+      <Card className="border-destructive/40 bg-destructive/5">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2 text-base">
+            <AlertTriangle className="h-4 w-4 text-destructive" />
+            Fallback 详细计数加载失败
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <p className="text-xs text-muted-foreground">{state.message}</p>
+        </CardContent>
+      </Card>
+    );
+  }
+  const counts = state.data.fallback_counts ?? {};
+  const knownTotal = FALLBACK_KIND_ORDER.reduce(
+    (sum, kind) => sum + (counts[kind] ?? 0),
+    0,
+  );
+  const extraEntries = Object.entries(counts).filter(
+    ([kind]) => !(FALLBACK_KIND_ORDER as readonly string[]).includes(kind),
+  );
+  const extraTotal = extraEntries.reduce((sum, [, n]) => sum + n, 0);
+  const grandTotal = knownTotal + extraTotal;
+
+  return (
+    <Card>
+      <CardHeader>
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <CardTitle className="flex items-center gap-2 text-base">
+              <AlertTriangle className="h-4 w-4 text-amber-300" />
+              Fallback 详细计数（实时）
+            </CardTitle>
+            <CardDescription className="mt-1">
+              进程启动以来按 kind 拆分的兜底计数器，与上方 24 小时 trace
+              聚合互补：这里看「当下哪一类 fallback 在涨」，上方看「过去
+              24 小时谁受影响」。重启进程会清零，长期趋势请看 Prometheus。
+            </CardDescription>
+          </div>
+          <Badge
+            variant={grandTotal > 0 ? "warn" : "outline"}
+            className="font-mono text-[10px]"
+          >
+            合计 {grandTotal}
+          </Badge>
+        </div>
+      </CardHeader>
+      <CardContent>
+        {grandTotal === 0 ? (
+          <p className="text-sm text-muted-foreground">
+            自进程启动以来还没有触发任何 fallback。这通常是好事——所有
+            generator / evaluator 输出都直通了 happy path。
+          </p>
+        ) : (
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+            {FALLBACK_KIND_ORDER.map((kind) => {
+              const count = counts[kind] ?? 0;
+              const share = grandTotal > 0 ? count / grandTotal : 0;
+              return (
+                <FallbackKindBox
+                  key={kind}
+                  kind={kind}
+                  count={count}
+                  share={share}
+                />
+              );
+            })}
+          </div>
+        )}
+        {extraEntries.length > 0 && (
+          <div className="mt-3 rounded-lg border border-dashed border-amber-500/40 bg-amber-500/[0.04] p-3">
+            <p className="mb-1.5 text-[11px] font-medium text-amber-300">
+              发现未知 kind（疑似拼写漂移或新增类别，请确认）
+            </p>
+            <ul className="flex flex-wrap gap-1.5">
+              {extraEntries.map(([kind, count]) => (
+                <li key={kind}>
+                  <Badge variant="outline" className="font-mono text-[10px]">
+                    {kind} · {count}
+                  </Badge>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+function FallbackKindBox({
+  kind,
+  count,
+  share,
+}: {
+  kind: FallbackKind;
+  count: number;
+  share: number;
+}) {
+  const sharePct = Math.round(share * 100);
+  const tone = count > 0 ? FALLBACK_KIND_TONE[kind] : "";
+  const textTone = count > 0 ? FALLBACK_KIND_TEXT[kind] : "text-foreground/70";
+  return (
+    <div
+      className={cn(
+        "flex flex-col gap-2 rounded-lg border bg-card/50 p-3 transition-colors",
+        tone,
+      )}
+    >
+      <div className="flex items-center justify-between gap-2">
+        <span className="text-xs font-medium">{FALLBACK_KIND_LABELS[kind]}</span>
+        <Badge variant="outline" className="font-mono text-[10px] tabular-nums">
+          {sharePct}%
+        </Badge>
+      </div>
+      <div className={cn("font-mono text-2xl font-semibold tabular-nums", textTone)}>
+        {count}
+      </div>
+      <p className="text-[11px] leading-relaxed text-muted-foreground">
+        {FALLBACK_KIND_DESCRIPTIONS[kind]}
+      </p>
+      <div className="h-1 w-full overflow-hidden rounded-full bg-muted/40">
+        <div
+          className={cn(
+            "h-full rounded-full transition-all",
+            count > 0 ? "bg-current opacity-70" : "bg-muted-foreground/30",
+            textTone,
+          )}
+          style={{ width: `${Math.min(100, Math.max(count > 0 ? 6 : 0, sharePct))}%` }}
+        />
+      </div>
+      <span className="font-mono text-[10px] uppercase tracking-wider text-muted-foreground/60">
+        {kind}
+      </span>
+    </div>
   );
 }
 
@@ -1126,7 +1310,7 @@ function DriftBody({ snapshot }: { snapshot: VerifierDriftSnapshot }) {
                   .map(([dim, d]) => (
                     <tr key={dim} className="hover:bg-muted/20">
                       <td className="px-2 py-1.5 font-mono text-emerald-400/80">{dim.replaceAll("_", " ")}</td>
-                      <td className="px-2 py-1.5 text-right tabular-nums">{d.samples ?? 0}</td>
+                      <td className="px-2 py-1.5 text-right tabular-nums">{d.calls ?? 0}</td>
                       <td className={cn(
                         "px-2 py-1.5 text-right font-mono tabular-nums",
                         (d.override_rate ?? 0) >= 0.25 ? "text-red-400" : (d.override_rate ?? 0) >= 0.1 ? "text-amber-400" : "text-foreground/70",

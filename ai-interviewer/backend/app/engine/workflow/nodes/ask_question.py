@@ -26,6 +26,7 @@ import time
 from typing import Any
 
 from app.core.logging import get_logger
+from app.core.metrics import record_question_fallback
 from app.core.settings import get_settings
 from app.core.tracer import get_tracer
 from app.engine.agents.contract import negotiate_contract_via_evaluator
@@ -248,6 +249,7 @@ def _step_guardrail_check(state: InterviewState, ctx: dict[str, Any]) -> None:
             f"请结合一个真实项目，说明它如何体现你的{_display_dimension(dimension)}能力。"
         )
         payload["safety_fallback"] = verdict.reason
+        record_question_fallback("safety")
     ctx["question_payload"] = payload
 
 
@@ -378,6 +380,7 @@ def _rewrite_non_chinese_question(
     )
     payload["language_fallback"] = True
     payload.setdefault("original_question", original)
+    record_question_fallback("language")
 
 
 def _rewrite_duplicate_question(
@@ -401,6 +404,7 @@ def _rewrite_duplicate_question(
     )
     payload["duplicate_rewrite"] = True
     payload["original_question"] = original
+    record_question_fallback("duplicate")
 
 
 def _lock_question_dimension(payload: dict[str, Any], dimension: str) -> None:
@@ -634,6 +638,9 @@ def ask_question_node(state: InterviewState) -> dict[str, Any]:
         )
         question_payload["contract"] = contract
         question_payload["rubric_points"] = list(contract.get("must_cover", []))
+
+    if "evaluator" not in (contract.get("signed_by") or []):
+        record_question_fallback("contract_unsigned")
 
     log.info(
         "ask_question turn=%d dim=%s plan=%s signed_by=%s",

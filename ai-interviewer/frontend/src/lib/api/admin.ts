@@ -350,6 +350,56 @@ export function getTracerHealth(
   return adminGet<TracerHealthSnapshot>("/admin/tracer/health", signal);
 }
 
+// ---------------------------------------------------------------------------
+// Per-kind question/evaluator fallback counters (in-process, since boot).
+// Complements the trace-rollup ``FallbackRollUp`` which aggregates the
+// last 24h of evaluator fallbacks across sessions: this endpoint is the
+// live counter view broken down by *which kind of fallback* fired
+// (language rewrite vs. duplicate rewrite vs. safety guardrail vs.
+// contract not signed by evaluator vs. evaluator conservative path).
+// ---------------------------------------------------------------------------
+
+export type FallbackKind =
+  | "language"
+  | "duplicate"
+  | "safety"
+  | "contract_unsigned"
+  | "evaluator_fallback";
+
+export const FALLBACK_KIND_ORDER: readonly FallbackKind[] = [
+  "safety",
+  "language",
+  "duplicate",
+  "contract_unsigned",
+  "evaluator_fallback",
+] as const;
+
+export const FALLBACK_KIND_LABELS: Record<FallbackKind, string> = {
+  safety: "安全兜底",
+  language: "语言兜底",
+  duplicate: "重复兜底",
+  contract_unsigned: "契约未签",
+  evaluator_fallback: "评分兜底",
+};
+
+export const FALLBACK_KIND_DESCRIPTIONS: Record<FallbackKind, string> = {
+  safety: "guardrail 拦截题面，触发安全兜底重写",
+  language: "generator 出英文题被中文兜底重写",
+  duplicate: "题面与已问内容相似度过高，被去重重写",
+  contract_unsigned: "最终 contract 没拿到 evaluator 签名",
+  evaluator_fallback: "evaluator 走保守路径返回兜底评分",
+};
+
+export interface FallbackRatesResponse {
+  fallback_counts: Record<string, number>;
+}
+
+export function getFallbackRates(
+  signal?: AbortSignal,
+): Promise<FallbackRatesResponse> {
+  return adminGet<FallbackRatesResponse>("/admin/fallback-rates", signal);
+}
+
 export interface RecentTraceItem {
   id: number;
   session_id: string;

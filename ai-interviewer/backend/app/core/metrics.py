@@ -92,6 +92,13 @@ LLM_CALLS_TOTAL = Counter(
     "LLM provider calls observed at call_chat exit.",
     ["agent_role", "provider", "model", "status"],
 )
+QUESTION_FALLBACKS_TOTAL = Counter(
+    "question_fallbacks_total",
+    "Per-turn fallback paths triggered in the interview loop. "
+    "``kind`` is one of: language / duplicate / safety / "
+    "contract_unsigned / evaluator_fallback.",
+    ["kind"],
+)
 LLM_PROMPT_TOKENS_TOTAL = Counter(
     "llm_prompt_tokens_total",
     "Prompt tokens consumed by LLM calls (real or estimated).",
@@ -112,6 +119,7 @@ _SESSION_PRIVACY_DELETE_COUNTS: dict[str, int] = defaultdict(int)
 _LLM_CALL_COUNTS: dict[str, int] = defaultdict(int)
 _LLM_PROMPT_TOKEN_COUNTS: dict[str, int] = defaultdict(int)
 _LLM_COMPLETION_TOKEN_COUNTS: dict[str, int] = defaultdict(int)
+_QUESTION_FALLBACK_COUNTS: dict[str, int] = defaultdict(int)
 
 
 # Approximate USD price per 1K tokens, prompt / completion. Numbers
@@ -453,6 +461,56 @@ def reset_security_metrics_for_tests() -> None:
     _RATE_LIMIT_BLOCK_COUNTS.clear()
     _WS_INVALID_FRAME_COUNTS.clear()
     _SESSION_PRIVACY_DELETE_COUNTS.clear()
+
+
+# Known fallback kinds. Unknown kinds are still recorded but counted
+# under their raw label so callers see the typo / new kind explicitly
+# rather than getting silently dropped.
+QUESTION_FALLBACK_KINDS: tuple[str, ...] = (
+    "language",
+    "duplicate",
+    "safety",
+    "contract_unsigned",
+    "evaluator_fallback",
+)
+
+
+def record_question_fallback(kind: str) -> None:
+    """Increment the per-kind fallback Counter.
+
+    Defensive on purpose: the callers live on the interview hot path
+    (``ask_question_node`` / ``evaluator_node``). Any exception leaking
+    out of an observability helper would crash the turn, so we wrap
+    the Prometheus increment in a try/except and only log.
+    """
+    label = (kind or "unknown") or "unknown"
+    try:
+        QUESTION_FALLBACKS_TOTAL.labels(kind=label).inc()
+    except Exception:  # pragma: no cover - never break the hot path
+        pass
+    _QUESTION_FALLBACK_COUNTS[label] += 1
+
+
+def question_fallbacks_snapshot() -> dict[str, int]:
+    """Compact snapshot keyed by ``kind`` for the admin endpoint.
+
+    Always returns a row for every entry in ``QUESTION_FALLBACK_KINDS``
+    (zero when nothing fired) so the admin dashboard can render a
+    stable layout without conditional templating. Unknown kinds (e.g.
+    typos at a call site) are appended as-is.
+    """
+    snapshot: dict[str, int] = {
+        kind: _QUESTION_FALLBACK_COUNTS.get(kind, 0)
+        for kind in QUESTION_FALLBACK_KINDS
+    }
+    for kind, count in _QUESTION_FALLBACK_COUNTS.items():
+        if kind not in snapshot:
+            snapshot[kind] = count
+    return snapshot
+
+
+def reset_question_fallback_metrics_for_tests() -> None:
+    _QUESTION_FALLBACK_COUNTS.clear()
 
 
 def metrics_text() -> bytes:

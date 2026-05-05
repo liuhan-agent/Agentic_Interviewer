@@ -6,6 +6,7 @@ from datetime import UTC, datetime
 from typing import Any
 
 from app.core.logging import get_logger
+from app.core.metrics import record_question_fallback
 from app.core.settings import get_settings
 from app.core.tracer import get_tracer
 from app.engine.agents.evaluator_agent import evaluate_answer
@@ -78,6 +79,8 @@ def evaluator_node(state: InterviewState) -> dict[str, Any]:
         context_flags=state.get("context_flags") or {},
     )
     fallback_turn = is_evaluator_fallback(evaluation)
+    if fallback_turn:
+        record_question_fallback("evaluator_fallback")
     scores = dict(state.get("scores_per_dim", {}))
     if not fallback_turn:
         # Fallback evaluations come from the conservative path when the
