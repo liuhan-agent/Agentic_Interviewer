@@ -261,6 +261,7 @@ CHECKPOINT_BACKEND=memory
 ```text
 knowledge/
   tech_questions/       # 技术题库
+  business_questions/   # 业务题库
   behavioral_questions/ # 行为题库
   sample_resumes/       # 示例简历
   skills/               # 人工维护的面试技能卡
@@ -272,6 +273,8 @@ knowledge/
 ```powershell
 python -m app.scripts.seed_kb
 ```
+
+新增或修改题库 `.md` 后，需要重新运行 `python -m app.scripts.seed_kb`，让运行中的向量库吃到最新内容。
 
 检索逻辑位于：
 
