@@ -304,6 +304,16 @@ class SessionHandle:
     # cannot re-derive it from the checkpoint.
     last_turn_evaluation: dict[str, Any] | None = None
 
+    # End-to-end wall-clock duration of the most recent ``_run_segment``
+    # in milliseconds (#11). Captured via ``time.monotonic`` deltas in
+    # ``_run_segment.finally`` so all paths (interrupt / END / cancelled
+    # / errored) book a value. Surfaced through ``GET /question`` so the
+    # frontend can render an ETA hint on the next loading state. Stays
+    # ``None`` until at least one segment has finished; never restored
+    # from checkpoint (a recovered session genuinely has no prior
+    # latency on the in-memory handle).
+    last_segment_latency_ms: int | None = None
+
     # Legacy sync-provider fields (only used when use_sync_provider=True)
     provider: QueueAnswerProvider | None = None
     thread: threading.Thread | None = None
@@ -534,6 +544,10 @@ class SessionManager:
         """
         _llm_override_var.set(handle.llm_config)
         timing_token = start_timing_trace()
+        # Wall-clock start for the end-to-end latency trace (#11). We use
+        # ``time.monotonic`` rather than ``time.time`` so a system clock
+        # adjustment mid-segment cannot produce a negative duration.
+        segment_started_at = time.monotonic()
         log_token = bind_log_context(
             session_id=handle.session_id,
             trace_id=handle.trace_id,
@@ -625,6 +639,12 @@ class SessionManager:
                 clear_raw_answer_for_state(last_state)
             except Exception as e:  # pragma: no cover - best-effort privacy cleanup
                 log.debug("raw answer side-channel cleanup failed: %s", e)
+            # Book the segment latency on the handle for #11. Runs on
+            # every exit path (interrupt / END / cancel / error) so the
+            # client always sees a fresh value on the next poll.
+            handle.last_segment_latency_ms = int(
+                (time.monotonic() - segment_started_at) * 1000
+            )
             reset_timing_trace(timing_token)
             reset_log_context(log_token)
             with handle._segment_lock:

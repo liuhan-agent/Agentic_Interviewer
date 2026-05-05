@@ -212,6 +212,14 @@ export interface PollQuestionResponse {
    * echoed even on completed / cancelled / error payloads.
    */
   previous_turn_evaluation?: PreviousTurnEvaluation | null;
+  /**
+   * Wall-clock duration of the most recent ``_run_segment`` in
+   * milliseconds (#11). Captured server-side via ``time.monotonic`` so
+   * a system clock adjustment cannot produce a negative value. ``null``
+   * before the first segment finishes; the frontend uses it to render
+   * an ETA hint on the next loading state.
+   */
+  server_latency_ms?: number | null;
 }
 
 export interface AnswerRequest {
