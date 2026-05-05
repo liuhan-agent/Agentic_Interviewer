@@ -37,6 +37,7 @@ from langgraph.graph import END, START, StateGraph
 
 from app.core.logging import get_logger
 from app.core.settings import get_settings
+from app.engine.workflow.checkpoint_metrics import wrap_saver_with_metrics
 
 from .nodes import (
     ask_question_node,
@@ -188,7 +189,12 @@ def _postgres_saver() -> Any:
             "falling back to MemorySaver",
             e,
         )
-        return MemorySaver()
+        # The outer ``_default_checkpointer`` wraps with ``backend="postgres"``
+        # because that was the configured intent. We re-wrap here with the
+        # actual backend so dashboards report the truth (``memory``); the
+        # idempotent marker on the saver instance keeps the second call to
+        # ``wrap_saver_with_metrics`` a no-op.
+        return wrap_saver_with_metrics(MemorySaver(), backend="memory")
 
     try:
         pool = ConnectionPool(
@@ -207,7 +213,7 @@ def _postgres_saver() -> Any:
             e,
             exc_info=True,
         )
-        return MemorySaver()
+        return wrap_saver_with_metrics(MemorySaver(), backend="memory")
 
     log.info("using PostgresSaver checkpointer (pool min=1 max=10)")
     _POSTGRES_SAVER = saver
@@ -226,13 +232,13 @@ def _default_checkpointer() -> Any:
     """
     backend = get_settings().checkpoint_backend
     if backend == "memory":
-        return MemorySaver()
+        return wrap_saver_with_metrics(MemorySaver(), backend="memory")
     if backend == "postgres":
-        return _postgres_saver()
+        return wrap_saver_with_metrics(_postgres_saver(), backend="postgres")
     if get_settings().app_env == "prod":
         raise RuntimeError(f"unknown checkpoint_backend={backend!r} in production")
     log.warning("unknown checkpoint_backend=%r; using MemorySaver", backend)
-    return MemorySaver()
+    return wrap_saver_with_metrics(MemorySaver(), backend="memory")
 
 
 def build_workflow(checkpointer: Any | None = None):

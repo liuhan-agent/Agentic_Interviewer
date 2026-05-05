@@ -63,6 +63,30 @@ SESSION_PRIVACY_DELETES = Counter(
     "Privacy deletion operations by kind.",
     ["kind"],
 )
+CHECKPOINT_WRITE_DURATION_SECONDS = Histogram(
+    "checkpoint_write_duration_seconds",
+    "Latency of LangGraph checkpoint writes by backend and operation.",
+    ["backend", "operation"],
+    buckets=(
+        0.001,
+        0.005,
+        0.01,
+        0.025,
+        0.05,
+        0.1,
+        0.25,
+        0.5,
+        1.0,
+        2.5,
+        5.0,
+        10.0,
+    ),
+)
+CHECKPOINT_WRITE_FAILURES = Counter(
+    "checkpoint_write_failures_total",
+    "Checkpoint write failures by backend and operation.",
+    ["backend", "operation"],
+)
 LLM_CALLS_TOTAL = Counter(
     "llm_calls_total",
     "LLM provider calls observed at call_chat exit.",
@@ -249,6 +273,99 @@ def record_session_privacy_delete(kind: str, count: int = 1) -> None:
         return
     _SESSION_PRIVACY_DELETE_COUNTS[kind] += count
     SESSION_PRIVACY_DELETES.labels(kind=kind).inc(count)
+
+
+_CHECKPOINT_WRITE_OBSERVATIONS: dict[str, list[float]] = defaultdict(list)
+_CHECKPOINT_WRITE_FAILURE_COUNTS: dict[str, int] = defaultdict(int)
+# How many recent observations per ``(backend, operation)`` to keep around so
+# the admin dashboard can render p50 / p95 without scraping Prometheus. The
+# bound is intentionally small so the in-process memory cost is negligible
+# even on a sustained-traffic deployment; production observability still goes
+# through the Prometheus Histogram which never gets truncated.
+_CHECKPOINT_WRITE_OBSERVATION_LIMIT = 256
+
+
+def record_checkpoint_write(
+    *,
+    backend: str,
+    operation: str,
+    elapsed_ms: int,
+) -> None:
+    """Observe one successful checkpoint-write call.
+
+    ``backend`` is one of the configured saver names (``memory`` /
+    ``postgres`` / ``unknown`` for tests). ``operation`` is the saver
+    method that actually performed the write — ``put`` for full
+    checkpoints, ``put_writes`` for inter-node intermediate writes.
+    Both labels are required by the Prometheus contract; the helper
+    normalises empty / None values to ``unknown`` so a sample is never
+    silently dropped.
+    """
+    backend_label = (backend or "unknown") or "unknown"
+    operation_label = (operation or "unknown") or "unknown"
+    elapsed_seconds = max(0, int(elapsed_ms)) / 1000.0
+    CHECKPOINT_WRITE_DURATION_SECONDS.labels(
+        backend=backend_label,
+        operation=operation_label,
+    ).observe(elapsed_seconds)
+    key = f"{backend_label}:{operation_label}"
+    bucket = _CHECKPOINT_WRITE_OBSERVATIONS[key]
+    bucket.append(elapsed_seconds * 1000.0)
+    if len(bucket) > _CHECKPOINT_WRITE_OBSERVATION_LIMIT:
+        # Keep only the latest N observations to bound the memory cost.
+        del bucket[: len(bucket) - _CHECKPOINT_WRITE_OBSERVATION_LIMIT]
+
+
+def record_checkpoint_write_failure(
+    *,
+    backend: str,
+    operation: str,
+) -> None:
+    backend_label = (backend or "unknown") or "unknown"
+    operation_label = (operation or "unknown") or "unknown"
+    CHECKPOINT_WRITE_FAILURES.labels(
+        backend=backend_label,
+        operation=operation_label,
+    ).inc()
+    _CHECKPOINT_WRITE_FAILURE_COUNTS[f"{backend_label}:{operation_label}"] += 1
+
+
+def _percentile(values: list[float], pct: float) -> float:
+    if not values:
+        return 0.0
+    sorted_vals = sorted(values)
+    idx = max(0, min(len(sorted_vals) - 1, int(round(pct * (len(sorted_vals) - 1)))))
+    return sorted_vals[idx]
+
+
+def checkpoint_write_snapshot() -> dict[str, dict[str, Any]]:
+    """Compact in-process snapshot for the admin dashboard.
+
+    Per ``(backend, operation)`` returns the count, p50 and p95 of the
+    latest observations (in milliseconds) plus any failure count. The
+    Prometheus Histogram remains the source of truth for long-horizon
+    aggregation; this snapshot is just a zero-dependency way for an
+    admin endpoint to render a quick latency summary without scraping.
+    """
+    snapshot: dict[str, dict[str, Any]] = {}
+    keys = sorted(
+        set(_CHECKPOINT_WRITE_OBSERVATIONS) | set(_CHECKPOINT_WRITE_FAILURE_COUNTS)
+    )
+    for key in keys:
+        observations = _CHECKPOINT_WRITE_OBSERVATIONS.get(key, [])
+        snapshot[key] = {
+            "count": len(observations),
+            "p50_ms": round(_percentile(observations, 0.5), 3),
+            "p95_ms": round(_percentile(observations, 0.95), 3),
+            "p99_ms": round(_percentile(observations, 0.99), 3),
+            "failures": _CHECKPOINT_WRITE_FAILURE_COUNTS.get(key, 0),
+        }
+    return snapshot
+
+
+def reset_checkpoint_metrics_for_tests() -> None:
+    _CHECKPOINT_WRITE_OBSERVATIONS.clear()
+    _CHECKPOINT_WRITE_FAILURE_COUNTS.clear()
 
 
 def record_llm_call(
