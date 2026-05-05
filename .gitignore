@@ -33,6 +33,9 @@ ai-interviewer/backend/knowledge/strategy/.dream_state.json
 # Repo-local reference KB, keep local but do not publish with product source.
 reference/
 
+# Local agent planning/audit workspace, keep local but do not publish.
+docs/superpowers/
+
 # OS / editor
 .DS_Store
 Thumbs.db
