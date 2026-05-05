@@ -58,7 +58,12 @@ def _base_state() -> dict[str, Any]:
 
 
 def test_ask_plan_templates_exist_and_have_steps():
-    assert set(PLAN_TEMPLATES.keys()) == {"simple", "adaptive", "deep_probe"}
+    assert set(PLAN_TEMPLATES.keys()) == {
+        "simple",
+        "quick_review",
+        "adaptive",
+        "deep_probe",
+    }
     for name, spec in PLAN_TEMPLATES.items():
         steps = spec.get("steps")
         assert steps, f"template {name} has no steps"
@@ -70,7 +75,7 @@ def test_ask_plan_templates_exist_and_have_steps():
             assert "negotiate_contract" in kinds, (
                 f"template {name} must include negotiate_contract"
             )
-        if name == "simple":
+        if name in {"simple", "quick_review"}:
             assert "negotiate_contract" not in kinds, (
                 f"{name} plan must skip negotiate_contract"
             )

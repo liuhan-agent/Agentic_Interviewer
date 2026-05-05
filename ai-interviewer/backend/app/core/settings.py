@@ -192,13 +192,16 @@ class Settings(BaseSettings):
     default_quality_threshold: float = 7.5
     default_turn_budget: int = 12
 
-    # Bandit policy mode. ``template`` selects from the 5 template
+    # Bandit policy mode. ``template`` selects from the default 5 template
     # arms (``plan_simple / plan_adaptive / plan_deep_probe / plan_hint
     # / plan_switch``) and is the P1 default. ``legacy`` keeps the
     # original 4 strategy-family arms (``deepen_technical`` etc.) for
     # backwards compatibility with existing bandit checkpoints and
     # dashboards.
     policy_mode: Literal["template", "legacy"] = "template"
+    # Opt-in rollout for the compact quick-review template arm. Kept OFF by
+    # default so existing bandit masks, fixtures, and posteriors stay stable.
+    enable_quick_review_plan: bool = False
     # Direction-scoped policies are more precise but start cold. Until
     # a direction key reaches this many observations, director_sample
     # may fall back to the global ``level:dimension`` posterior.

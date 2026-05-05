@@ -4,6 +4,7 @@ Three templates in P0, mirroring the three question-quality bands
 documented in :mod:`app.engine.workflow.nodes.ask_question`:
 
 - ``simple``:    first turn / low-risk dimension, no contract negotiation
+- ``quick_review``: compact recap / quick signal check, no contract negotiation
 - ``adaptive``:  default mid-level, with contract negotiation
 - ``deep_probe`` evaluator-driven refine, adds a ``challenge`` step
 
@@ -73,6 +74,35 @@ _SIMPLE_STEPS: list[AskPlanStep] = [
         3,
         "guardrail_check",
         goal="Scan the question against the compliance rule set.",
+        success_criteria="verdict.allowed OR fallback applied.",
+        produced_keys=["question_payload"],
+        dependencies=[2],
+    ),
+]
+
+_QUICK_REVIEW_STEPS: list[AskPlanStep] = [
+    _step(
+        1,
+        "retrieve_rag",
+        goal="Pull only the most relevant snippets needed for a compact review probe.",
+        success_criteria="At least one retrieved doc OR an explicit empty marker.",
+        produced_keys=["retrieval_block"],
+    ),
+    _step(
+        2,
+        "draft_question",
+        goal=(
+            "Author one concise recap-style question that checks the current "
+            "dimension without opening a long detour."
+        ),
+        success_criteria="question non-empty AND proposed_contract has >=1 must_cover item.",
+        produced_keys=["question_payload", "proposed_contract"],
+        dependencies=[1],
+    ),
+    _step(
+        3,
+        "guardrail_check",
+        goal="Scan the compact question against the compliance rule set.",
         success_criteria="verdict.allowed OR fallback applied.",
         produced_keys=["question_payload"],
         dependencies=[2],
@@ -184,6 +214,10 @@ PLAN_TEMPLATES: dict[PlanTemplate, dict[str, Any]] = {
     "simple": {
         "complexity": "simple",
         "steps": _SIMPLE_STEPS,
+    },
+    "quick_review": {
+        "complexity": "simple",
+        "steps": _QUICK_REVIEW_STEPS,
     },
     "adaptive": {
         "complexity": "medium",

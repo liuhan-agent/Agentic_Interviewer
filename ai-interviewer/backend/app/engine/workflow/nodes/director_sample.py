@@ -17,6 +17,8 @@ In both modes:
 - If the evaluator pinned a ``pending_plan_template`` via
   ``refine_followup_node``, it is honoured regardless of policy
   mode by being passed down on the ``selected_action`` as a hint.
+- ``plan_quick_review`` is registered as a template arm but stays
+  masked out unless ``enable_quick_review_plan`` is enabled.
 """
 from __future__ import annotations
 
@@ -37,6 +39,7 @@ from app.ml.rl.action_space import (
     PLAN_ADAPTIVE,
     PLAN_DEEP_PROBE,
     PLAN_HINT,
+    PLAN_QUICK_REVIEW,
     PLAN_SIMPLE,
     PLAN_SWITCH,
     SKIP_TO_NEXT,
@@ -83,6 +86,8 @@ def _allowed_actions_template(
         if status.get(d) in {None, "pending", "active"} and d != current_dim
     ]
     allowed = {PLAN_SIMPLE.id, PLAN_ADAPTIVE.id, PLAN_DEEP_PROBE.id, PLAN_HINT.id}
+    if _quick_review_enabled(state):
+        allowed.add(PLAN_QUICK_REVIEW.id)
     if remaining:
         allowed.add(PLAN_SWITCH.id)
     return allowed
@@ -115,6 +120,16 @@ def _policy_mode() -> str:
         return get_settings().policy_mode
     except Exception:  # pragma: no cover - settings may not be loaded in some tests
         return "template"
+
+
+def _quick_review_enabled(state: InterviewState) -> bool:
+    runtime_config = state.get("runtime_config") or {}
+    if "enable_quick_review_plan" in runtime_config:
+        return bool(runtime_config.get("enable_quick_review_plan"))
+    try:
+        return bool(getattr(get_settings(), "enable_quick_review_plan", False))
+    except Exception:  # pragma: no cover - settings may be stubbed in tests
+        return False
 
 
 def _resolve_mode_and_actions(
