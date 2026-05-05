@@ -71,6 +71,17 @@ the question complexity accordingly:
 - "hard": deep technical, edge cases, multi-step reasoning, concrete
   failure mode analysis
 
+IMPORTANT — Quick Review positioning:
+When STRATEGY contains ``plan_quick_review`` or ``"plan_template":
+"quick_review"``, treat it as a fast signal check, not a hint and not
+an easier question.  Ask one compact candidate-facing question that
+quickly confirms the current dimension using the candidate's own
+project evidence, trade-off, metric, or failure signal.  Do not coach
+the candidate, do not reveal the rubric, and do not write a
+post-interview summary.  Keep the AI interviewer stance: this is still
+a live mock interview question, not a training plan, hiring-screening
+workflow, or report-generation step.
+
 IMPORTANT — Probe Intent:
 ``PROBE_INTENT`` controls the shape of the question, not the plan
 topology. Keep the selected STRATEGY and TARGET_DIFFICULTY, then adapt

@@ -70,7 +70,7 @@ class SelfIntroProfile(TypedDict, total=False):
     parse_status: Literal["llm", "heuristic", "fallback"]
 
 
-PlanTemplate = Literal["simple", "adaptive", "deep_probe"]
+PlanTemplate = Literal["simple", "adaptive", "deep_probe", "quick_review"]
 
 FailureCategory = Literal[
     "missing_evidence",
@@ -171,7 +171,7 @@ class AskPlan(TypedDict, total=False):
     """Half-structured execution recipe for one round of ``ask_question``.
 
     - ``template``: which default template this plan was resolved from
-      (``simple`` / ``adaptive`` / ``deep_probe``). When the optional
+      (``simple`` / ``adaptive`` / ``deep_probe`` / ``quick_review``). When the optional
       LLM planner is enabled, ``source`` is ``llm`` and ``template`` is
       the closest-matching label.
     - ``source``: how the plan was produced. Always ``default`` in P0

@@ -12,6 +12,7 @@ keep working during rollout.
 Template arms
 ~~~~~~~~~~~~~
 - ``plan_simple``       lightweight probe; no contract negotiation
+- ``plan_quick_review`` compact recap-style probe; opt-in rollout arm
 - ``plan_adaptive``     default follow-up with evaluator co-sign
 - ``plan_deep_probe``   evaluator-driven refine, adds challenge step
 - ``plan_hint``         same template as simple but biased at
@@ -22,10 +23,12 @@ Template arms
                         director it should switch dimensions before
                         the next ask
 
-Keeping the bandit arm count at 5 (vs. 3 bare templates) means:
+Keeping the default bandit arm count at 5 (vs. 3 bare templates) means:
   * ``give_hint``/``switch_dimension`` statistics from the old 4-arm
     space can be replayed via ``ALIAS_MAP`` without rebucketing;
   * We still honour the ACO-style "few arms per context" heuristic.
+The ``plan_quick_review`` arm is registered but excluded from masks
+unless ``enable_quick_review_plan`` is enabled.
 
 Bandit callers should use :func:`template_id_for_action` when they
 have a strategy-family id and need the canonical template arm.
@@ -44,7 +47,7 @@ class InterviewAction:
     # Which :class:`AskPlan` template this arm maps to. Multiple arms
     # may share a template; the director distinguishes them via other
     # side-effects (e.g. ``plan_switch`` changes ``current_dimension``).
-    plan_template: Literal["simple", "adaptive", "deep_probe"]
+    plan_template: Literal["simple", "adaptive", "deep_probe", "quick_review"]
     # Optional graph-level side-effect tag. ``None`` means "no
     # dimension change"; ``switch`` tells the director to rotate to
     # the next pending dimension *before* ask_question runs.
@@ -57,6 +60,12 @@ PLAN_SIMPLE: Final = InterviewAction(
     label="Plan: Simple",
     description="Lightweight first-turn probe; skip contract negotiation.",
     plan_template="simple",
+)
+PLAN_QUICK_REVIEW: Final = InterviewAction(
+    id="plan_quick_review",
+    label="Plan: Quick Review",
+    description="Compact recap probe that quickly checks one dimension before moving on.",
+    plan_template="quick_review",
 )
 PLAN_ADAPTIVE: Final = InterviewAction(
     id="plan_adaptive",
@@ -116,6 +125,7 @@ SKIP_TO_NEXT: Final = InterviewAction(
 
 TEMPLATE_ACTIONS: tuple[InterviewAction, ...] = (
     PLAN_SIMPLE,
+    PLAN_QUICK_REVIEW,
     PLAN_ADAPTIVE,
     PLAN_DEEP_PROBE,
     PLAN_HINT,

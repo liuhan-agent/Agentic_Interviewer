@@ -237,3 +237,32 @@ def test_render_generator_task_end_to_end() -> None:
     assert "AVOID_PATTERNS =" in out
     assert "简体中文" in out
     assert "Do not output English" in out
+
+
+def test_generator_task_documents_quick_review_positioning() -> None:
+    out = prompt_loader.render_prompt(
+        "generator_task.md",
+        dimension="system_design",
+        target_difficulty="medium",
+        probe_intent="general",
+        action='{"id":"plan_quick_review","plan_template":"quick_review"}',
+        refine_mode="False",
+        job_title="SWE",
+        job_level="mid",
+        role_required_skills="[]",
+        target_skills="[]",
+        highlights="[]",
+        resume_anchor="{}",
+        self_intro_profile="{}",
+        user_material_boundary="USER_MATERIAL_BOUNDARY",
+        history_section="RECENT_QA = []",
+        retrieval="(no docs)",
+        strategy="(no memories)",
+        skills="(no relevant interview skills)",
+        avoid_patterns="(no historical shallow patterns on this dimension)",
+        contract_hints="{}",
+    )
+
+    assert "Quick Review positioning" in out
+    assert "fast signal check, not a hint" in out
+    assert "AI interviewer stance" in out
