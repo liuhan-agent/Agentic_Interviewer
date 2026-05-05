@@ -42,11 +42,16 @@ class ThompsonBandit:
     exploration_rate: float = 0.15
     rng: random.Random = field(default_factory=random.Random)
     priors: dict[tuple[str, str], BetaParams] = field(default_factory=dict)
+    _default_alpha: float = field(default=1.0, repr=False)
+    _default_beta: float = field(default=1.0, repr=False)
 
     def _params(self, context_key: str, action_id: str) -> BetaParams:
         key = (context_key, action_id)
         if key not in self.priors:
-            self.priors[key] = BetaParams()
+            self.priors[key] = BetaParams(
+                alpha=self._default_alpha,
+                beta=self._default_beta,
+            )
         return self.priors[key]
 
     def select(
@@ -330,8 +335,11 @@ def get_bandit() -> ThompsonBandit:
             if _singleton is None:
                 from app.core.settings import get_settings
 
+                s = get_settings()
                 _singleton = ThompsonBandit(
-                    exploration_rate=get_settings().thompson_exploration_rate
+                    exploration_rate=s.thompson_exploration_rate,
+                    _default_alpha=s.bandit_default_alpha,
+                    _default_beta=s.bandit_default_beta,
                 )
     return _singleton
 

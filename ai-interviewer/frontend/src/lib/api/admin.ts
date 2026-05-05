@@ -101,6 +101,15 @@ export interface InterviewSessionHistoryItem {
   trace_health?: TraceHealth;
   error_kind?: string | null;
   retryable?: boolean;
+  cost_summary?: {
+    calls?: number;
+    stub_calls?: number;
+    error_calls?: number;
+    prompt_tokens?: number;
+    completion_tokens?: number;
+    est_usd?: number;
+    usage_estimated?: boolean;
+  } | null;
 }
 
 export interface InterviewSessionHistory {

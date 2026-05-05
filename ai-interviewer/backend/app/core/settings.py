@@ -259,6 +259,14 @@ class Settings(BaseSettings):
     bandit_decay_floor: float = 1.0
     bandit_decay_interval_days: int = 1
 
+    # Warm-start prior for new bandit arms. Jeffreys prior (1, 1)
+    # is maximally uninformative; raising these adds pseudo-observations
+    # so new directions/dimensions start with a bias toward "all arms
+    # roughly equal" instead of being dominated by the first observation.
+    # E.g. (2, 2) = one pseudo-success + one pseudo-failure per arm.
+    bandit_default_alpha: float = 1.0
+    bandit_default_beta: float = 1.0
+
     # ------------------------------------------------------------------
     # PII redaction: extend the MVP regex sweep to cover URLs, IPv4,
     # and Chinese 18-digit national ID numbers.  Kept ON by default
@@ -539,19 +547,6 @@ class Settings(BaseSettings):
     # pre-intent prompt shape if needed.
     # ------------------------------------------------------------------
     enable_probe_intent: bool = True
-
-    # ------------------------------------------------------------------
-    # Hybrid RAG blend weight (P3 #6). When ``runtime_config.rag_mode``
-    # is ``hybrid``, ``_blend`` linearly combines the vector score and
-    # BM25 score as ``alpha * vector + (1-alpha) * bm25``. Higher
-    # values trust embedding similarity more; lower values trust the
-    # keyword / lexical signal more. The :func:`_resolve_hybrid_alpha`
-    # helper picks the effective value with the precedence
-    # ``caller > InterviewDirection.retrieval_alpha > settings default
-    # > hardcoded 0.6``. Operators can pin a global default here when a
-    # particular embedding model favours one channel over the other.
-    # ------------------------------------------------------------------
-    retrieval_alpha_default: float = 0.6
 
     @property
     def effective_langsmith_project(self) -> str:

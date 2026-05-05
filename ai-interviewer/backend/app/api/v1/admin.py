@@ -319,6 +319,7 @@ def _recent_interview_sessions(limit: int = 20) -> list[dict[str, Any]]:
                 "trace_health": trace_health,
                 "error_kind": row.error_kind,
                 "retryable": bool(row.retryable),
+                "cost_summary": report.get("cost_summary"),
             }
         )
     return items
