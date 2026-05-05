@@ -1015,6 +1015,22 @@ def security_summary() -> dict[str, Any]:
     return security_metrics_snapshot()
 
 
+@router.get("/checkpoint/health", dependencies=[Depends(require_admin_token)])
+def checkpoint_health() -> dict[str, Any]:
+    """Return checkpoint write-latency aggregates per ``(backend, operation)``.
+
+    Powers the operator dashboard for P3 #2 (checkpoint write latency
+    observability). The Histogram is the authoritative source for
+    Prometheus / Grafana; this endpoint is the in-process companion
+    that lets a small admin UI render p50 / p95 / p99 / failure counts
+    without scraping. Empty dict means no checkpoint write has been
+    observed since the process started or since the last reset.
+    """
+    from app.core.metrics import checkpoint_write_snapshot
+
+    return {"checkpoint_writes": checkpoint_write_snapshot()}
+
+
 @router.get("/strategies", dependencies=[Depends(require_admin_token)])
 def list_strategies_route() -> dict[str, Any]:
     """Return a compact index of strategy memory entries.

@@ -5,6 +5,7 @@ import time
 from typing import Any
 
 from app.core.logging import get_logger
+from app.core.timing import get_latest_db_write_ms
 from app.core.tracer import get_tracer
 from app.engine.workflow.policy_context import policy_context_keys
 from app.engine.workflow.state import InterviewState
@@ -84,18 +85,22 @@ def reward_update_node(state: InterviewState) -> dict[str, Any]:
         reward,
         len(keys),
     )
+    payload: dict[str, Any] = {
+        "dimension": dimension,
+        "action_id": action_id,
+        "context_keys": keys,
+        "immediate_reward": reward,
+        "immediate_reward_applied": True,
+        "elapsed_ms": int((time.perf_counter() - node_started_at) * 1000),
+    }
+    db_write_ms = get_latest_db_write_ms()
+    if db_write_ms is not None:
+        payload["db_write_ms"] = int(db_write_ms)
     try:
         get_tracer().trace_node_event(
             {**state, **update},
             node="reward_update",
-            payload={
-                "dimension": dimension,
-                "action_id": action_id,
-                "context_keys": keys,
-                "immediate_reward": reward,
-                "immediate_reward_applied": True,
-                "elapsed_ms": int((time.perf_counter() - node_started_at) * 1000),
-            },
+            payload=payload,
             logical_turn_idx=answer_turn_idx,
         )
     except Exception as e:  # pragma: no cover - side channel

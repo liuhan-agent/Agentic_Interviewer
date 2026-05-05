@@ -14,16 +14,45 @@ _LLM_TIMING_EVENTS: ContextVar[list[dict[str, Any]] | None] = ContextVar(
     "llm_timing_events",
     default=None,
 )
+# Latest checkpoint-write duration observed in the current execution context.
+# Set by the saver wrapper in ``app/engine/workflow/checkpoint_metrics.py``
+# every time the checkpointer writes; read by ``reward_update_node`` so the
+# trace payload can carry ``db_write_ms`` next to the existing
+# ``elapsed_ms``. Per-context (not global) so concurrent sessions do not
+# clobber each other's measurements.
+_LATEST_DB_WRITE_MS: ContextVar[int | None] = ContextVar(
+    "latest_db_write_ms",
+    default=None,
+)
 
 
 def start_timing_trace() -> Token[list[dict[str, Any]] | None]:
     """Start a fresh timing buffer for the current execution context."""
+    _LATEST_DB_WRITE_MS.set(None)
     return _LLM_TIMING_EVENTS.set([])
 
 
 def reset_timing_trace(token: Token[list[dict[str, Any]] | None]) -> None:
-    """Restore the previous timing buffer."""
+    """Restore the previous timing buffer and clear per-segment write timing."""
     _LLM_TIMING_EVENTS.reset(token)
+    _LATEST_DB_WRITE_MS.set(None)
+
+
+def record_checkpoint_write_event(*, elapsed_ms: int) -> None:
+    """Stash the latest checkpoint-write duration for the current context.
+
+    The value is intentionally last-write-wins: by the time a node reads it
+    via :func:`get_latest_db_write_ms`, the most recent saver write is the
+    most relevant. Older writes are still permanently aggregated in the
+    Prometheus Histogram via :func:`app.core.metrics.record_checkpoint_write`
+    so multi-write spans are not lost from observability.
+    """
+    _LATEST_DB_WRITE_MS.set(max(0, int(elapsed_ms)))
+
+
+def get_latest_db_write_ms() -> int | None:
+    """Read the most recent checkpoint-write duration in this context."""
+    return _LATEST_DB_WRITE_MS.get()
 
 
 def record_llm_timing_event(
@@ -90,4 +119,3 @@ def consume_llm_timing_events() -> list[dict[str, Any]]:
     out = list(events)
     events.clear()
     return out
-
