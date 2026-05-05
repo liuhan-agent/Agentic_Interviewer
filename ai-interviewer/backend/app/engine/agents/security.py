@@ -229,13 +229,37 @@ _DISCRIMINATION_PATTERNS: list[re.Pattern[str]] = [
 ]
 
 
+_SYSTEM_LEAK_PATTERNS: list[re.Pattern[str]] = [
+    re.compile(
+        r"\buser_material_boundary\b"
+        r"|\bUSER_MATERIAL_BOUNDARY\b"
+        r"|\bacceptance_checks\b"
+        r"|\brubric_dimensions\b"
+        r"|\bquality_threshold\b"
+        r"|\bturn_budget_remaining\b"
+        r"|\bproposed_contract\b",
+    ),
+    re.compile(
+        r"\byou\s+are\s+(?:the|a)\s+"
+        r"(?:Generator|Evaluator|Verifier|Guard|Coach|Planner)\b",
+        re.IGNORECASE,
+    ),
+    re.compile(
+        r"(?:system|assistant)\s*prompt\s*(?:is|was|reads|contains|says)\b",
+        re.IGNORECASE,
+    ),
+]
+
+
 # Kept as a module attribute for backwards compatibility with any
 # external caller (internal callers use ``_regex_scan`` directly).
 # The list is the concatenation of the two pattern buckets in the
 # order they are scanned; each entry is the original source string
 # so downstream consumers do not need a ``re.Pattern`` import.
 FORBIDDEN_PATTERNS: list[str] = [
-    p.pattern for p in (*_INJECTION_PATTERNS, *_DISCRIMINATION_PATTERNS)
+    p.pattern for p in (
+        *_INJECTION_PATTERNS, *_DISCRIMINATION_PATTERNS, *_SYSTEM_LEAK_PATTERNS
+    )
 ]
 
 
@@ -288,6 +312,16 @@ def _regex_scan(text: str) -> GuardrailVerdict:
                 allowed=False,
                 reason=f"matched discrimination pattern: {m.group(0)[:80]!r}",
                 categories=["discrimination"],
+                source="regex",
+            )
+
+    for pat in _SYSTEM_LEAK_PATTERNS:
+        m = pat.search(text)
+        if m is not None:
+            return GuardrailVerdict(
+                allowed=False,
+                reason=f"system prompt leak detected: {m.group(0)[:80]!r}",
+                categories=["system_leak"],
                 source="regex",
             )
 

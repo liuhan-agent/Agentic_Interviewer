@@ -51,6 +51,7 @@ import {
   type BanditSnapshot,
   type EvidenceRollupResponse,
   type InterviewSessionHistory,
+  type InterviewSessionHistoryItem,
   type QuestionQualityRollupResponse,
   type RecentTracesResponse,
   type Strategies,
@@ -1104,6 +1105,43 @@ function DriftBody({ snapshot }: { snapshot: VerifierDriftSnapshot }) {
         </div>
       )}
 
+      {snapshot.per_dimension && Object.keys(snapshot.per_dimension).length > 0 && (
+        <div>
+          <div className="mb-1.5 text-[10px] font-mono uppercase tracking-wider text-muted-foreground">
+            按维度
+          </div>
+          <div className="overflow-x-auto rounded-lg border border-border/60">
+            <table className="w-full text-xs">
+              <thead>
+                <tr className="border-b border-border/40 bg-muted/30">
+                  <th className="px-2 py-1.5 text-left text-[10px] font-medium text-muted-foreground">维度</th>
+                  <th className="px-2 py-1.5 text-right text-[10px] font-medium text-muted-foreground">样本</th>
+                  <th className="px-2 py-1.5 text-right text-[10px] font-medium text-muted-foreground">推翻率</th>
+                  <th className="px-2 py-1.5 text-right text-[10px] font-medium text-muted-foreground">弃权率</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-border/30">
+                {Object.entries(snapshot.per_dimension)
+                  .sort(([, a], [, b]) => (b.override_rate ?? 0) - (a.override_rate ?? 0))
+                  .map(([dim, d]) => (
+                    <tr key={dim} className="hover:bg-muted/20">
+                      <td className="px-2 py-1.5 font-mono text-emerald-400/80">{dim.replaceAll("_", " ")}</td>
+                      <td className="px-2 py-1.5 text-right tabular-nums">{d.samples ?? 0}</td>
+                      <td className={cn(
+                        "px-2 py-1.5 text-right font-mono tabular-nums",
+                        (d.override_rate ?? 0) >= 0.25 ? "text-red-400" : (d.override_rate ?? 0) >= 0.1 ? "text-amber-400" : "text-foreground/70",
+                      )}>
+                        {rate(d.override_rate)}
+                      </td>
+                      <td className="px-2 py-1.5 text-right font-mono tabular-nums text-foreground/70">{rate(d.abstain_rate)}</td>
+                    </tr>
+                  ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
       {snapshot.overruled_patterns && snapshot.overruled_patterns.length > 0 && (
         <div>
           <div className="mb-1.5 text-[10px] font-mono uppercase tracking-wider text-muted-foreground">
@@ -1420,6 +1458,7 @@ const HistoricalSessionsCard = React.memo(function HistoricalSessionsCard({
                         <th className="whitespace-nowrap px-3 py-3 text-left text-[11px] font-semibold text-muted-foreground">候选人</th>
                         <th className="whitespace-nowrap px-3 py-3 text-center text-[11px] font-semibold text-muted-foreground">分数</th>
                         <th className="whitespace-nowrap px-3 py-3 text-center text-[11px] font-semibold text-muted-foreground">状态 / Trace 状态</th>
+                        <th className="whitespace-nowrap px-3 py-3 text-center text-[11px] font-semibold text-muted-foreground">LLM 调用</th>
                         <th className="whitespace-nowrap px-3 py-3 text-left text-[11px] font-semibold text-muted-foreground">时间</th>
                         <th className="whitespace-nowrap px-3 py-3 text-center text-[11px] font-semibold text-muted-foreground">操作</th>
                       </tr>
@@ -1487,6 +1526,9 @@ const HistoricalSessionsCard = React.memo(function HistoricalSessionsCard({
                           </td>
                           <td className="whitespace-nowrap px-3 py-2.5 text-center">
                             <CombinedStatusCell session={session} />
+                          </td>
+                          <td className="whitespace-nowrap px-2 py-2.5 text-center">
+                            <LlmCostCell cost={session.cost_summary} />
                           </td>
                           <td className="whitespace-nowrap px-3 py-2.5">
                             <HistoryTimeCell iso={session.created_at || ""} />
@@ -1574,6 +1616,7 @@ function HistoryMobileCard({
 
       <div className="flex items-center justify-between border-t border-border/40 pt-2.5">
         <ScoreCell score={session.overall_score} />
+        <LlmCostCell cost={session.cost_summary} />
         <span className="text-[11px] text-muted-foreground">
           {formatRelativeTime(session.created_at || "")}
         </span>
@@ -1786,6 +1829,38 @@ function CellWithTooltip({
         </div>
       </div>
     </div>
+  );
+}
+
+function LlmCostCell({
+  cost,
+}: {
+  cost?: InterviewSessionHistoryItem["cost_summary"];
+}) {
+  if (!cost || !cost.calls) {
+    return <span className="text-[10px] italic text-muted-foreground/25">—</span>;
+  }
+  const totalTokens = (cost.prompt_tokens ?? 0) + (cost.completion_tokens ?? 0);
+  const tokenLabel =
+    totalTokens >= 1_000_000
+      ? `${(totalTokens / 1_000_000).toFixed(1)}M`
+      : totalTokens >= 1_000
+        ? `${(totalTokens / 1_000).toFixed(1)}K`
+        : String(totalTokens);
+  return (
+    <span className="inline-flex flex-col items-center gap-0.5">
+      <span className="font-mono text-[11px] font-medium tabular-nums text-foreground/80">
+        {cost.calls}<span className="text-muted-foreground/50">{" "}次</span>
+      </span>
+      {totalTokens > 0 && (
+        <span className="text-[10px] text-muted-foreground/60">{tokenLabel} tok</span>
+      )}
+      {typeof cost.est_usd === "number" && cost.est_usd > 0 && (
+        <span className="text-[10px] font-mono text-amber-400/80">
+          ${cost.est_usd < 0.01 ? "<0.01" : cost.est_usd.toFixed(2)}
+        </span>
+      )}
+    </span>
   );
 }
 

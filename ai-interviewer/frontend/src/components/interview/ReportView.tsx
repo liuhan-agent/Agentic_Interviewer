@@ -492,7 +492,6 @@ function Summary({ report }: { report: FinalReport }) {
                 <AnimatedScore score={report.overall_score} />
               </span>
             )}
-            <CostBadge cost={report.cost_summary} />
           </div>
         </div>
       </CardHeader>
@@ -505,51 +504,6 @@ function Summary({ report }: { report: FinalReport }) {
         </CardContent>
       )}
     </Card>
-  );
-}
-
-function formatTokens(value: number): string {
-  if (!Number.isFinite(value) || value <= 0) return "0";
-  if (value >= 1_000_000) return `${(value / 1_000_000).toFixed(1)}M`;
-  if (value >= 10_000) return `${(value / 1_000).toFixed(0)}K`;
-  if (value >= 1_000) return `${(value / 1_000).toFixed(1)}K`;
-  return String(value);
-}
-
-function formatCostUsd(value: number): string {
-  if (!Number.isFinite(value) || value <= 0) return "$0";
-  if (value < 0.01) return `<$0.01`;
-  if (value < 1) return `$${value.toFixed(3)}`;
-  return `$${value.toFixed(2)}`;
-}
-
-function CostBadge({
-  cost,
-}: {
-  cost?: import("@/lib/api/types").CostSummary | null;
-}) {
-  if (!cost || cost.calls <= 0) return null;
-  const tokens = formatTokens(cost.total_tokens);
-  const usd = formatCostUsd(cost.est_usd);
-  const tooltip =
-    `LLM 调用：${cost.calls}（其中 stub ${cost.stub_calls ?? 0} · error ${cost.error_calls ?? 0}）\n` +
-    `Prompt tokens：${cost.prompt_tokens.toLocaleString()}\n` +
-    `Completion tokens：${cost.completion_tokens.toLocaleString()}\n` +
-    `估算成本：${usd}（${cost.usage_estimated ? "含估算" : "提供方真实 usage"}，按 ${cost.model_for_pricing ?? "default"} 计价）`;
-  return (
-    <Badge
-      variant="outline"
-      className="gap-1.5 font-mono text-[10px] border-emerald-500/20 bg-emerald-500/5 text-emerald-300"
-      title={tooltip}
-    >
-      <Sparkles className="h-3 w-3" />
-      <span>
-        {cost.calls} calls · {tokens} tok · {usd}
-      </span>
-      {cost.usage_estimated ? (
-        <span className="text-amber-300">≈</span>
-      ) : null}
-    </Badge>
   );
 }
 
@@ -1494,29 +1448,45 @@ function TrainingPlanCard({
               优先改进项
             </h4>
             <ul className="space-y-2">
-              {priorityWeaknesses.map((w, i) => (
-                <li
-                  key={i}
-                  className="rounded-lg border bg-card/50 p-3 text-sm transition-colors hover:bg-secondary/40"
-                >
-                  <div className="font-mono text-xs text-emerald-400/80">
-                    {formatDimensionName(w.dimension)}
-                  </div>
-                  <div className="mt-1 font-medium">
-                    {translateReportText(w.focus)}
-                  </div>
-                  {w.why_it_matters && (
-                    <div className="mt-1 text-xs text-muted-foreground">
-                      {translateReportText(w.why_it_matters)}
+              {priorityWeaknesses.map((w, i) => {
+                const focusHref =
+                  w.dimension
+                    ? `/interview/setup?${new URLSearchParams({ focus: w.dimension, length: "deep" }).toString()}`
+                    : null;
+                return (
+                  <li
+                    key={i}
+                    className="rounded-lg border bg-card/50 p-3 text-sm transition-colors hover:bg-secondary/40"
+                  >
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="font-mono text-xs text-emerald-400/80">
+                        {formatDimensionName(w.dimension)}
+                      </div>
+                      {focusHref && (
+                        <Button asChild variant="ghost" size="sm" className="h-6 gap-1 px-2 text-[11px] text-emerald-400 hover:text-emerald-300">
+                          <Link href={focusHref}>
+                            <Play className="h-3 w-3" />
+                            练这个
+                          </Link>
+                        </Button>
+                      )}
                     </div>
-                  )}
-                  {(w as any).evidence && (
-                    <div className="mt-1 border-l-2 border-amber-500/20 pl-2 text-xs text-muted-foreground italic">
-                      {(w as any).evidence}
+                    <div className="mt-1 font-medium">
+                      {translateReportText(w.focus)}
                     </div>
-                  )}
-                </li>
-              ))}
+                    {w.why_it_matters && (
+                      <div className="mt-1 text-xs text-muted-foreground">
+                        {translateReportText(w.why_it_matters)}
+                      </div>
+                    )}
+                    {(w as any).evidence && (
+                      <div className="mt-1 border-l-2 border-amber-500/20 pl-2 text-xs text-muted-foreground italic">
+                        {(w as any).evidence}
+                      </div>
+                    )}
+                  </li>
+                );
+              })}
             </ul>
           </section>
         )}
