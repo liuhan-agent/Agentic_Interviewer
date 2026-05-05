@@ -11,6 +11,7 @@ schema so the admin surface is not advertised to casual clients.
 """
 from __future__ import annotations
 
+from pathlib import Path
 from typing import Any
 from urllib.parse import urlparse, urlunparse
 
@@ -22,6 +23,9 @@ from app.core.settings import get_settings
 log = get_logger(__name__)
 
 router = APIRouter(prefix="/admin", include_in_schema=False, tags=["admin"])
+api_v1_router = APIRouter(
+    prefix="/api/v1/admin", include_in_schema=False, tags=["admin"]
+)
 
 
 def _langsmith_web_url(api_endpoint: str | None) -> str:
@@ -136,6 +140,33 @@ def require_admin_token(
         )
 
 
+def _knowledge_coverage_payload(root: Path) -> dict[str, Any]:
+    """Summarise ingestible knowledge files by ``source_type``."""
+    from app.engine.rag.ingestion import _iter_documents
+
+    chunks_by_type: dict[str, int] = {}
+    files_by_type: dict[str, set[str]] = {}
+    for _, meta in _iter_documents(root):
+        source_type = str(meta.get("source_type") or "misc")
+        source = str(meta.get("source") or "")
+        chunks_by_type[source_type] = chunks_by_type.get(source_type, 0) + 1
+        if source:
+            files_by_type.setdefault(source_type, set()).add(source)
+
+    by_source_type = {
+        source_type: {
+            "files": len(files_by_type.get(source_type, set())),
+            "chunks": chunks_by_type.get(source_type, 0),
+        }
+        for source_type in sorted(files_by_type.keys() | chunks_by_type.keys())
+    }
+    return {
+        "by_source_type": by_source_type,
+        "total_files": sum(item["files"] for item in by_source_type.values()),
+        "total_chunks": sum(item["chunks"] for item in by_source_type.values()),
+    }
+
+
 @router.get("/bandit/snapshot", dependencies=[Depends(require_admin_token)])
 def bandit_snapshot() -> dict[str, Any]:
     """Return the current Thompson posterior + policy knobs.
@@ -174,6 +205,13 @@ def verifier_drift_snapshot() -> dict[str, Any]:
     snap = get_verifier_drift_monitor().snapshot()
     snap["enabled"] = s.enable_verifier_drift_monitor
     return snap
+
+
+@api_v1_router.get("/knowledge/coverage", dependencies=[Depends(require_admin_token)])
+@router.get("/knowledge/coverage", dependencies=[Depends(require_admin_token)])
+def knowledge_coverage() -> dict[str, Any]:
+    """Return ingestible knowledge-file and chunk coverage by source type."""
+    return _knowledge_coverage_payload(Path(get_settings().knowledge_dir))
 
 
 @router.get("/sessions", dependencies=[Depends(require_admin_token)])

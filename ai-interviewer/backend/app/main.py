@@ -168,6 +168,7 @@ def create_app() -> FastAPI:
     app.include_router(llm_api.router)
     app.include_router(ws_voice_api.router)
     app.include_router(admin_api.router)
+    app.include_router(admin_api.api_v1_router)
 
     demo_dir = Path(__file__).resolve().parents[1] / "webdemo"
     if demo_dir.exists():
