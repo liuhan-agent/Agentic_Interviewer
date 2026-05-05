@@ -336,6 +336,8 @@ export function ReportView({ sessionId }: { sessionId: string }) {
     );
   }
 
+  const weakPracticeHref = buildWeakPracticeHref(report);
+
   return (
     <motion.div
       className="space-y-6"
@@ -372,7 +374,10 @@ export function ReportView({ sessionId }: { sessionId: string }) {
         <DimensionScores scores={report.dimension_scores} />
       </motion.div>
       <motion.div variants={{ hidden: { opacity: 0, y: 16 }, visible: { opacity: 1, y: 0 } }}>
-        <TrainingPlanCard plan={report.training_plan} />
+        <TrainingPlanCard
+          plan={report.training_plan}
+          weakPracticeHref={weakPracticeHref}
+        />
       </motion.div>
       <motion.div variants={{ hidden: { opacity: 0, y: 16 }, visible: { opacity: 1, y: 0 } }}>
         <OutcomeFeedback sessionId={sessionId} />
@@ -1372,8 +1377,17 @@ function DimensionScores({
 
 function TrainingPlanCard({
   plan,
+  weakPracticeHref,
 }: {
   plan?: FinalReport["training_plan"];
+  /**
+   * Pre-built href to ``/interview/setup`` with the weak dimensions
+   * pre-filled. Computed once at the report frame and passed down so
+   * the in-card CTA and the page-bottom Actions block stay in sync.
+   * ``null`` means "no weak dimensions to drill" (rare first-perfect
+   * sessions); we hide the inline CTA in that case.
+   */
+  weakPracticeHref?: string | null;
 }) {
   if (!plan) return null;
   const priorityWeaknesses = (plan.priority_weaknesses || []).filter(
@@ -1556,6 +1570,23 @@ function TrainingPlanCard({
                 color="purple"
               />
             </div>
+          </section>
+        )}
+
+        {weakPracticeHref && (
+          <section className="border-t pt-4">
+            <Button
+              asChild
+              className="w-full gap-2 bg-emerald-600 hover:bg-emerald-500 text-white sm:w-auto"
+            >
+              <Link href={weakPracticeHref}>
+                <Target className="h-4 w-4" />
+                针对本次弱项再来一场
+              </Link>
+            </Button>
+            <p className="mt-2 text-xs text-muted-foreground">
+              已为你预填弱项维度与岗位，点击直接进入新一轮面试。
+            </p>
           </section>
         )}
       </CardContent>
