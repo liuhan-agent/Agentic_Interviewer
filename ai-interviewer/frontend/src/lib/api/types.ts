@@ -167,6 +167,27 @@ export interface PollQuestion {
   [key: string]: unknown;
 }
 
+/**
+ * Compact projection of the candidate's most recently evaluated turn,
+ * surfaced by the backend (`_extract_last_turn_evaluation` in
+ * `session_manager.py`) so the InterviewRoom can render an
+ * "above-the-fold" feedback card while the candidate composes the next
+ * answer. Lists are capped at 2 items upstream — the type leaves them as
+ * plain `string[]` so the component never has to defend against null.
+ *
+ * Returned as `null` for first turn / non-scoring intents / fallback
+ * evaluator output / explicitly skipped turns.
+ */
+export interface PreviousTurnEvaluation {
+  turn_idx?: number | null;
+  dimension?: string | null;
+  score?: number | null;
+  passed: boolean;
+  strengths: string[];
+  weaknesses: string[];
+  rubric_coverage?: Record<string, unknown>;
+}
+
 export interface PollQuestionResponse {
   session_id: string;
   status: PollStatus;
@@ -177,6 +198,17 @@ export interface PollQuestionResponse {
   error?: string | null;
   error_kind?: LLMErrorKind | null;
   retryable?: boolean;
+  /**
+   * Mirrors `handle.last_turn_evaluation`. `null` when no displayable
+   * feedback exists this turn (see `PreviousTurnEvaluation` doc).
+   */
+  previous_turn_evaluation?: PreviousTurnEvaluation | null;
+  /**
+   * Wall-clock duration of the most recent server-side segment, in
+   * milliseconds. `null` until the first segment finishes. Used by
+   * the UI to render an ETA hint on the next loading state.
+   */
+  server_latency_ms?: number | null;
 }
 
 export interface AnswerRequest {

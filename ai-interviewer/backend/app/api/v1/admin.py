@@ -1008,6 +1008,22 @@ def tracer_health() -> dict[str, Any]:
     return tracer_health_snapshot()
 
 
+@router.get("/fallback-rates", dependencies=[Depends(require_admin_token)])
+def fallback_rates() -> dict[str, Any]:
+    """Return per-kind question/evaluator fallback counters.
+
+    Counts accumulate from process start. ``kind`` is one of
+    ``language`` / ``duplicate`` / ``safety`` /
+    ``contract_unsigned`` / ``evaluator_fallback``. Use Prometheus
+    (``/admin/metrics``) for long-horizon rates; this endpoint is
+    the in-process companion that lets the admin dashboard render
+    a live counter snapshot without scraping.
+    """
+    from app.core.metrics import question_fallbacks_snapshot
+
+    return {"fallback_counts": question_fallbacks_snapshot()}
+
+
 @router.get("/security/summary", dependencies=[Depends(require_admin_token)])
 def security_summary() -> dict[str, Any]:
     """Return lightweight counters for security and privacy hardening paths."""
