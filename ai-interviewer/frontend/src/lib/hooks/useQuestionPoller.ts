@@ -8,6 +8,7 @@ import type {
   FinalReport,
   PollQuestion,
   PollQuestionResponse,
+  PreviousTurnEvaluation,
   LLMErrorKind,
 } from "@/lib/api/types";
 import { inferLLMErrorKind } from "@/lib/llm-config";
@@ -29,6 +30,15 @@ export interface PollerState {
   error: string | null;
   errorKind: LLMErrorKind | null;
   retryable: boolean;
+  /**
+   * Compact projection of the candidate's most recently evaluated turn,
+   * piped through from the long-poll response. ``null`` when there is
+   * no displayable feedback (first ask, non-scoring intent, fallback
+   * evaluator). Updated only on ``QUESTION`` so terminal frames
+   * (completed / cancelled / error) preserve the last-shown card and
+   * the ``SUBMITTING`` transition does not flicker the panel away.
+   */
+  previousEvaluation: PreviousTurnEvaluation | null;
 }
 
 type Action =
@@ -44,6 +54,7 @@ type Action =
       question: PollQuestion;
       turnIdx: number | null;
       maxTurns: number | null;
+      previousEvaluation: PreviousTurnEvaluation | null;
     }
   | { type: "COMPLETED"; report: FinalReport | null }
   | { type: "CANCELLED" }
@@ -64,6 +75,7 @@ const initial: PollerState = {
   error: null,
   errorKind: null,
   retryable: false,
+  previousEvaluation: null,
 };
 
 const completedWithoutReportMessage =
@@ -97,6 +109,7 @@ function reducer(state: PollerState, a: Action): PollerState {
         question: a.question,
         turnIdx: a.turnIdx,
         maxTurns: a.maxTurns,
+        previousEvaluation: a.previousEvaluation,
         error: null,
         errorKind: null,
         retryable: false,
@@ -195,6 +208,7 @@ export function useQuestionPoller(sessionId: string) {
               question: res.question,
               turnIdx: res.turn_idx ?? null,
               maxTurns: res.max_turns ?? null,
+              previousEvaluation: res.previous_turn_evaluation ?? null,
             });
             return;
           }

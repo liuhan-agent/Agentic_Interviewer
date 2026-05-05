@@ -100,6 +100,59 @@ def _safe_llm_config_meta(config: dict[str, Any] | None) -> dict[str, Any] | Non
 HintSource = str
 
 
+_NON_FEEDBACK_INTENTS = {"empty", "clarification", "repeat", "too_short", "skipped"}
+
+
+def _extract_last_turn_evaluation(
+    qa_history: list[dict[str, Any]] | None,
+) -> dict[str, Any] | None:
+    """Project the most recent ``qa_history`` entry's evaluation into the
+    UI-friendly summary surfaced by ``GET /question`` and consumed by
+    ``InterviewRoom``'s in-interview feedback card.
+
+    Returns ``None`` (i.e. "no displayable feedback this turn") when:
+
+    - There is no prior turn yet (first ask),
+    - The candidate's answer was non-scoring (empty / clarification / repeat /
+      too_short / skipped),
+    - The evaluator fell back to a deterministic stub for that turn (LLM
+      outage), so the score is not real signal,
+    - The turn was an explicit skip.
+
+    The projection is deliberately small (≤ 2 strengths / weaknesses) to
+    keep the in-interview UI compact and to avoid leaking long-form
+    rubric prose into the polling response body. The full structured
+    evaluation still lives in ``state.qa_history`` for the report.
+    """
+    if not qa_history:
+        return None
+    last = qa_history[-1]
+    if not isinstance(last, dict):
+        return None
+    if last.get("answer_intent") in _NON_FEEDBACK_INTENTS:
+        return None
+    evaluation = last.get("evaluation")
+    if not isinstance(evaluation, dict) or not evaluation:
+        return None
+    if evaluation.get("source") == "fallback" or evaluation.get("fallback_reason"):
+        return None
+    if evaluation.get("skipped"):
+        return None
+
+    strengths = evaluation.get("strengths") or []
+    weaknesses = evaluation.get("weaknesses") or []
+    rubric_coverage = evaluation.get("rubric_coverage") or {}
+    return {
+        "turn_idx": last.get("turn_idx"),
+        "dimension": last.get("dimension"),
+        "score": evaluation.get("score"),
+        "passed": bool(evaluation.get("passed", False)),
+        "strengths": [str(s) for s in strengths[:2]] if isinstance(strengths, list) else [],
+        "weaknesses": [str(w) for w in weaknesses[:2]] if isinstance(weaknesses, list) else [],
+        "rubric_coverage": dict(rubric_coverage) if isinstance(rubric_coverage, dict) else {},
+    }
+
+
 def _hint_items(values: Any, *, limit: int = 3) -> list[str]:
     if not isinstance(values, list):
         return []
@@ -242,6 +295,14 @@ class SessionHandle:
     job_title: str | None = None
     job_level: str | None = None
     mode: str | None = None
+
+    # Compact projection of ``state.qa_history[-1].evaluation`` cached at
+    # interrupt time so ``GET /question`` can ship the previous turn's
+    # evaluation summary alongside the freshly arrived question. The
+    # frontend uses it to render the in-interview "本轮表现" feedback card.
+    # ``None`` on the very first turn or when ``recover_waiting_session``
+    # cannot re-derive it from the checkpoint.
+    last_turn_evaluation: dict[str, Any] | None = None
 
     # Legacy sync-provider fields (only used when use_sync_provider=True)
     provider: QueueAnswerProvider | None = None
@@ -519,6 +580,9 @@ class SessionManager:
                 handle.turn_idx = turn_idx
                 if last_state.get("max_turns") is not None:
                     handle.max_turns = int(last_state.get("max_turns") or 0) or None
+                handle.last_turn_evaluation = _extract_last_turn_evaluation(
+                    last_state.get("qa_history")
+                )
                 handle.question_event.set()
                 self._persist_interrupt(handle, question, turn_idx)
                 log.info(
@@ -1154,6 +1218,9 @@ class SessionManager:
             job_title=data.get("job_title") or job_spec.get("title"),
             job_level=data.get("job_level") or job_spec.get("level"),
             mode=data.get("mode") or values.get("mode"),
+            last_turn_evaluation=_extract_last_turn_evaluation(
+                values.get("qa_history")
+            ),
         )
         handle.question_event.set()
         with self._lock:

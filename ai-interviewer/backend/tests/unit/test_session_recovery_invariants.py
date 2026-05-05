@@ -4,7 +4,11 @@ import threading
 from types import SimpleNamespace
 from typing import Any
 
-from app.services.session_manager import SessionHandle, SessionManager
+from app.services.session_manager import (
+    SessionHandle,
+    SessionManager,
+    _extract_last_turn_evaluation,
+)
 
 
 def _manager_with_workflow(values: dict[str, Any], next_nodes: tuple[str, ...]):
@@ -83,3 +87,193 @@ def test_recover_waiting_session_returns_none_without_checkpoint_question() -> N
 
     assert manager.recover_waiting_session("sess-no-question") is None
     assert manager._sessions == {}
+
+
+# -----------------------------------------------------------------------
+# _extract_last_turn_evaluation: real-time feedback projection (#9)
+# -----------------------------------------------------------------------
+
+
+def test_extract_last_turn_evaluation_returns_none_for_empty_history() -> None:
+    assert _extract_last_turn_evaluation(None) is None
+    assert _extract_last_turn_evaluation([]) is None
+
+
+def test_extract_last_turn_evaluation_projects_minimal_summary() -> None:
+    qa_history = [
+        {
+            "turn_idx": 2,
+            "dimension": "system_design",
+            "answer_intent": "normal",
+            "evaluation": {
+                "score": 7.5,
+                "passed": True,
+                "strengths": ["架构层次清晰", "对取舍解释具体", "命中关键约束"],
+                "weaknesses": ["容量估算不够量化", "缓存失效场景没展开"],
+                "rubric_coverage": {
+                    "system_design": "covered",
+                    "trade_off_reasoning": "partial",
+                },
+                "rationale": "整体回答覆盖了主要架构层次……",
+            },
+        },
+    ]
+
+    summary = _extract_last_turn_evaluation(qa_history)
+
+    assert summary == {
+        "turn_idx": 2,
+        "dimension": "system_design",
+        "score": 7.5,
+        "passed": True,
+        "strengths": ["架构层次清晰", "对取舍解释具体"],
+        "weaknesses": ["容量估算不够量化", "缓存失效场景没展开"],
+        "rubric_coverage": {
+            "system_design": "covered",
+            "trade_off_reasoning": "partial",
+        },
+    }
+
+
+def test_extract_last_turn_evaluation_skips_fallback_evaluator() -> None:
+    qa_history = [
+        {
+            "turn_idx": 1,
+            "dimension": "system_design",
+            "answer_intent": "normal",
+            "evaluation": {
+                "score": 5.0,
+                "passed": False,
+                "source": "fallback",
+                "fallback_reason": "evaluator_llm_timeout",
+            },
+        },
+    ]
+    assert _extract_last_turn_evaluation(qa_history) is None
+
+
+def test_extract_last_turn_evaluation_skips_non_scoring_intents() -> None:
+    for intent in ("empty", "clarification", "repeat", "too_short", "skipped"):
+        qa_history = [
+            {
+                "turn_idx": 1,
+                "dimension": "system_design",
+                "answer_intent": intent,
+                "evaluation": {
+                    "score": 6.0,
+                    "passed": False,
+                    "strengths": [],
+                    "weaknesses": ["回答太短"],
+                },
+            },
+        ]
+        assert _extract_last_turn_evaluation(qa_history) is None, intent
+
+
+def test_extract_last_turn_evaluation_skips_explicitly_skipped_turn() -> None:
+    qa_history = [
+        {
+            "turn_idx": 1,
+            "dimension": "communication",
+            "answer_intent": "normal",
+            "evaluation": {
+                "score": None,
+                "passed": False,
+                "skipped": True,
+                "weaknesses": ["本题已跳过"],
+            },
+        },
+    ]
+    assert _extract_last_turn_evaluation(qa_history) is None
+
+
+def test_extract_last_turn_evaluation_caps_lists_at_two_items() -> None:
+    """The polling response shouldn't carry more than 2 strengths/weaknesses;
+    those are summary signals, not the full rubric breakdown."""
+    qa_history = [
+        {
+            "turn_idx": 3,
+            "dimension": "problem_solving",
+            "answer_intent": "normal",
+            "evaluation": {
+                "score": 6.5,
+                "passed": False,
+                "strengths": ["s1", "s2", "s3", "s4"],
+                "weaknesses": ["w1", "w2", "w3", "w4", "w5"],
+            },
+        },
+    ]
+    summary = _extract_last_turn_evaluation(qa_history)
+    assert summary is not None
+    assert summary["strengths"] == ["s1", "s2"]
+    assert summary["weaknesses"] == ["w1", "w2"]
+
+
+def test_recover_waiting_session_rebuilds_last_turn_evaluation_from_checkpoint() -> None:
+    """After a process restart, ``recover_waiting_session`` should also
+    re-derive the last-turn evaluation summary from the checkpoint's
+    qa_history so the in-interview feedback card keeps working."""
+    qa_history = [
+        {
+            "turn_idx": 1,
+            "dimension": "technical_depth",
+            "answer_intent": "normal",
+            "evaluation": {
+                "score": 8.0,
+                "passed": True,
+                "strengths": ["对索引原理理解到位"],
+                "weaknesses": ["没有量化压测数据"],
+                "rubric_coverage": {"technical_depth": "covered"},
+            },
+        },
+    ]
+    values = {
+        "session_id": "sess-recover-eval",
+        "trace_id": "trace-recover-eval",
+        "candidate": {"name": "Alex"},
+        "job_spec": {"title": "Backend Engineer", "level": "senior"},
+        "current_question": {"question": "Q2?", "dimension": "technical_depth"},
+        "turn_idx": 2,
+        "max_turns": 8,
+        "mode": "mixed",
+        "qa_history": qa_history,
+    }
+    manager = _manager_with_workflow(values, ("wait_answer",))
+    manager._load_persisted_session_for_retry = lambda _session_id: None  # type: ignore[method-assign]
+    manager._persist_interrupt = lambda *_args, **_kwargs: None  # type: ignore[method-assign]
+
+    handle = manager.recover_waiting_session("sess-recover-eval")
+
+    assert handle is not None
+    assert handle.last_turn_evaluation == {
+        "turn_idx": 1,
+        "dimension": "technical_depth",
+        "score": 8.0,
+        "passed": True,
+        "strengths": ["对索引原理理解到位"],
+        "weaknesses": ["没有量化压测数据"],
+        "rubric_coverage": {"technical_depth": "covered"},
+    }
+
+
+def test_recover_waiting_session_handles_checkpoint_without_qa_history() -> None:
+    """Recovery on the very first turn (no qa_history yet) should leave
+    last_turn_evaluation as None rather than crashing."""
+    values = {
+        "session_id": "sess-fresh",
+        "trace_id": "trace-fresh",
+        "candidate": {},
+        "job_spec": {},
+        "current_question": {"question": "Q1?", "dimension": "system_design"},
+        "turn_idx": 1,
+        "max_turns": 8,
+        "mode": "mixed",
+    }
+    manager = _manager_with_workflow(values, ("wait_answer",))
+    manager._load_persisted_session_for_retry = lambda _session_id: None  # type: ignore[method-assign]
+    manager._persist_interrupt = lambda *_args, **_kwargs: None  # type: ignore[method-assign]
+
+    handle = manager.recover_waiting_session("sess-fresh")
+
+    assert handle is not None
+    assert handle.last_turn_evaluation is None
