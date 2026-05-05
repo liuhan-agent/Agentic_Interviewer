@@ -375,6 +375,14 @@ def _require_session_access(
         raise HTTPException(status_code=403, detail="invalid session token")
 
 
+def _get_or_recover_session(manager: Any, session_id: str) -> Any | None:
+    handle = manager.get(session_id)
+    if handle is not None:
+        return handle
+    recover = getattr(manager, "recover_waiting_session", lambda _sid: None)
+    return recover(session_id)
+
+
 def _session_id_in_use(manager: Any, session_id: str) -> bool:
     session_exists = getattr(manager, "session_exists", None)
     if callable(session_exists):
@@ -716,10 +724,7 @@ async def poll_question(
     session_token: str | None = Header(default=None, alias="X-Session-Token"),
 ) -> dict[str, Any]:
     manager = get_session_manager()
-    handle = manager.get(session_id)
-    if handle is None:
-        recover = getattr(manager, "recover_waiting_session", lambda _sid: None)
-        handle = recover(session_id)
+    handle = _get_or_recover_session(manager, session_id)
     _require_session_access(session_id, session_token, handle=handle)
     if handle is None:
         can_retry = getattr(manager, "can_retry_failed_question", lambda _sid: False)
@@ -792,8 +797,10 @@ def create_voice_ticket(
     session_token: str | None = Header(default=None, alias="X-Session-Token"),
 ) -> dict[str, Any]:
     manager = get_session_manager()
-    handle = manager.get(session_id)
+    handle = _get_or_recover_session(manager, session_id)
     _require_session_access(session_id, session_token, handle=handle)
+    if handle is None:
+        raise HTTPException(status_code=404, detail="session not found")
     return {
         "ticket": issue_voice_ticket(session_id),
         "expires_in_seconds": get_settings().voice_ticket_ttl_seconds,
@@ -807,7 +814,7 @@ def submit_answer(
     session_token: str | None = Header(default=None, alias="X-Session-Token"),
 ) -> dict[str, Any]:
     manager = get_session_manager()
-    handle = manager.get(session_id)
+    handle = _get_or_recover_session(manager, session_id)
     _require_session_access(session_id, session_token, handle=handle)
     if handle is None:
         raise HTTPException(status_code=404, detail="session not found") from None
@@ -839,7 +846,7 @@ def skip_question(
     session_token: str | None = Header(default=None, alias="X-Session-Token"),
 ) -> dict[str, Any]:
     manager = get_session_manager()
-    handle = manager.get(session_id)
+    handle = _get_or_recover_session(manager, session_id)
     _require_session_access(session_id, session_token, handle=handle)
     if handle is None:
         raise HTTPException(status_code=404, detail="session not found") from None
@@ -864,7 +871,7 @@ def request_hint(
     session_token: str | None = Header(default=None, alias="X-Session-Token"),
 ) -> dict[str, Any]:
     manager = get_session_manager()
-    handle = manager.get(session_id)
+    handle = _get_or_recover_session(manager, session_id)
     _require_session_access(session_id, session_token, handle=handle)
     if handle is None:
         raise HTTPException(status_code=404, detail="session not found") from None
@@ -1034,11 +1041,7 @@ def resume_session(
     continue the interview without data loss.
     """
     manager = get_session_manager()
-    handle = manager.get(session_id)
-
-    if handle is None:
-        recover = getattr(manager, "recover_waiting_session", lambda _sid: None)
-        handle = recover(session_id)
+    handle = _get_or_recover_session(manager, session_id)
     _require_session_access(session_id, session_token, handle=handle)
 
     if handle is None:
