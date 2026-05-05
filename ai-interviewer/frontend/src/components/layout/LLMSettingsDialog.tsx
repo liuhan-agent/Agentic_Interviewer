@@ -256,7 +256,7 @@ export function LLMSettingsDialog({ children }: { children: React.ReactNode }) {
           </DialogTitle>
           <DialogDescription>
             配置你的 API Key，以便 AI 面试官可以代你调用 LLM。
-            默认会保留到本浏览器会话结束（关闭浏览器自动清空）；选择长期保存才会写入持久化存储。
+            默认会保留到本浏览器会话结束（关闭浏览器自动清空）；选择本机长期保存后，密钥会留在这台设备上。
           </DialogDescription>
         </DialogHeader>
 
@@ -351,7 +351,7 @@ export function LLMSettingsDialog({ children }: { children: React.ReactNode }) {
                   </li>
                   <li>
                     <strong className="text-foreground">本地浏览器：</strong>
-                    默认存到当前浏览器会话（关闭浏览器自动清空）；选择「长期保存」才会写入 localStorage，已做混淆处理，仅本机可见。
+                    默认仅保留到当前浏览器会话（刷新不丢，关闭浏览器自动清空）；公共设备请选择「不保存」。选择「本机长期保存」后，密钥会留在这台设备上。
                   </li>
                 </ul>
                 <p className="mt-2 text-muted-foreground">
@@ -455,13 +455,13 @@ export function LLMSettingsDialog({ children }: { children: React.ReactNode }) {
                 }
                 className="h-7 rounded-md border border-input bg-background px-2 text-xs text-foreground shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
               >
-                <option value="session">会话保留（默认：关闭浏览器自动清空）</option>
-                <option value="memory">不保存（最安全：刷新页面也会丢）</option>
-                <option value="local">长期保存（公共设备勿选）</option>
+                <option value="session">会话保留（默认：刷新不丢，关闭浏览器自动清空）</option>
+                <option value="memory">不保存（刷新页面也会丢）</option>
+                <option value="local">本机长期保存（公共设备勿选）</option>
               </select>
             </div>
             <span className="text-[10px] text-muted-foreground/70">
-              混淆不是加密：长期保存适合自用设备，不要在共享浏览器开启。
+              混淆不是加密：公共设备请选择不保存，本机长期保存只适合自用设备。
             </span>
           </div>
           <div className="flex items-center justify-end gap-2 sm:gap-0">
