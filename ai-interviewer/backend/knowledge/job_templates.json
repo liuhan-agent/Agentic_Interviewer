@@ -1,0 +1,58 @@
+[
+  {
+    "direction": "java_backend",
+    "title": "Java 后端开发工程师",
+    "template": "岗位职责：\n- 负责业务后端模块的需求理解、技术方案设计、接口开发和稳定交付。\n- 参与核心服务的性能优化、稳定性治理、问题排查和线上质量改进。\n- 参与数据库模型、缓存、消息队列、任务调度等后端基础能力建设。\n- 与产品、前端、测试协作完成需求评审、联调、上线和复盘。\n\n任职要求：\n- 熟悉 Java、Spring / Spring Boot、RESTful API 和常见后端开发模式。\n- 熟悉 MySQL、Redis、消息队列，理解事务、索引、缓存、幂等和并发处理。\n- 具备良好的编码规范、测试意识、Code Review 和技术文档习惯。\n- 了解微服务、Linux、Docker、CI/CD 或可观测性建设者优先。",
+    "skills": ["java", "spring", "mysql", "redis", "microservices"],
+    "rubric_dimensions": ["technical_depth", "problem_solving", "coding_quality", "project_experience", "communication"]
+  },
+  {
+    "direction": "frontend",
+    "title": "前端开发工程师",
+    "template": "岗位职责：\n- 负责 Web / H5 / 管理端等前端功能开发，交付清晰、稳定、易用的用户界面。\n- 将产品需求和设计稿转化为可维护的组件、页面和交互流程。\n- 持续优化页面性能、兼容性、可访问性和前端工程质量。\n- 与产品、设计、后端协作完成需求评审、接口联调、上线和问题修复。\n\n任职要求：\n- 熟悉 JavaScript / TypeScript、HTML、CSS 和现代浏览器运行机制。\n- 熟悉 React / Vue 等主流框架及组件化、状态管理、路由和构建工具。\n- 具备调试、性能分析、响应式布局和跨端适配经验。\n- 重视代码可读性、组件复用、测试和用户体验细节。",
+    "skills": ["javascript", "typescript", "react", "vue", "frontend"],
+    "rubric_dimensions": ["technical_depth", "coding_quality", "problem_solving", "project_experience", "communication"]
+  },
+  {
+    "direction": "ai_fullstack",
+    "title": "AI 全栈开发工程师",
+    "template": "岗位职责：\n- 负责 AI 应用的前后端功能开发，推动 LLM 能力在真实业务场景中落地。\n- 参与 RAG、Prompt、模型 API、工作流、权限和数据链路的设计与实现。\n- 构建可观测、可迭代的 AI 应用体验，包括反馈收集、效果评估和问题定位。\n- 与产品、算法、业务团队协作，把模糊需求拆解为可交付的系统模块。\n\n任职要求：\n- 熟悉 TypeScript / JavaScript、React / Vue，以及 Python / Node.js / Java 中至少一种后端技术。\n- 熟悉 API 设计、数据库、缓存、异步任务、部署和基础工程化流程。\n- 理解 LLM、RAG、向量检索、Prompt 工程和模型调用的基本边界。\n- 具备产品意识、问题拆解能力和端到端交付经验。",
+    "skills": ["typescript", "python", "llm", "rag", "fullstack"],
+    "rubric_dimensions": ["technical_depth", "system_design", "product_thinking", "project_experience", "communication"]
+  },
+  {
+    "direction": "mobile",
+    "title": "移动端开发工程师",
+    "template": "岗位职责：\n- 负责 Android / iOS / Flutter 等移动端应用的功能开发、性能优化和版本维护。\n- 根据产品需求完成页面、交互、网络、存储、权限和原生能力集成。\n- 参与架构设计、技术评审、代码审核、崩溃分析和体验优化。\n- 配合产品、设计、后端和测试完成联调、发布、监控和问题修复。\n\n任职要求：\n- 熟悉 Kotlin / Java、Swift / Objective-C 或 Dart / Flutter 中至少一种技术栈。\n- 理解移动端生命周期、UI 渲染、网络通信、数据存储、包体和性能优化。\n- 熟悉 Git、调试工具、打包发布流程和常见移动端工程实践。\n- 具备良好的编码规范、问题定位能力和跨团队协作能力。",
+    "skills": ["android", "ios", "flutter", "react-native", "mobile"],
+    "rubric_dimensions": ["technical_depth", "problem_solving", "coding_quality", "project_experience", "communication"]
+  },
+  {
+    "direction": "ai_agent",
+    "title": "AI Agent 开发工程师",
+    "template": "岗位职责：\n- 参与 AI Agent 系统的架构设计、核心模块开发和生产落地。\n- 设计并实现工具调用、任务规划、记忆/上下文管理、多轮对话和执行链路。\n- 构建 RAG、知识库、向量检索、评估反馈和安全控制等 Agent 基础能力。\n- 持续优化 Agent 的准确性、稳定性、可解释性和用户体验。\n\n任职要求：\n- 熟悉 Python / Java / TypeScript 中至少一种工程语言，具备扎实编码能力。\n- 理解 LLM 能力边界、Prompt、Tool Use、RAG、向量数据库和模型 I/O 流程。\n- 熟悉 LangChain、LangGraph、LlamaIndex、Dify、Coze 等框架者优先。\n- 具备复杂问题拆解、实验评估、系统集成和快速学习能力。",
+    "skills": ["llm", "agent", "rag", "python", "tool-calling"],
+    "rubric_dimensions": ["technical_depth", "system_design", "problem_solving", "product_thinking", "communication"]
+  },
+  {
+    "direction": "sre",
+    "title": "运维 / SRE 工程师",
+    "template": "岗位职责：\n- 负责服务稳定性、可观测性、容量、发布和故障响应体系建设。\n- 建设监控告警、日志追踪、SLO / SLA、应急预案和故障复盘机制。\n- 通过自动化工具、平台能力和工程改造减少重复人工运维。\n- 与研发团队协作提升系统可靠性、发布效率和故障恢复能力。\n\n任职要求：\n- 熟悉 Linux、网络、容器、Kubernetes、云服务和常见中间件。\n- 熟悉监控、日志、链路追踪、CI/CD、灰度发布和容量规划。\n- 熟悉 Python / Go / Shell 等脚本或工程语言，能用代码解决运维问题。\n- 理解高可用、容灾、故障演练、性能压测和安全基础。",
+    "skills": ["linux", "kubernetes", "observability", "devops", "sre"],
+    "rubric_dimensions": ["technical_depth", "system_design", "problem_solving", "project_experience", "communication"]
+  },
+  {
+    "direction": "ai_algorithm",
+    "title": "AI 算法工程师",
+    "template": "岗位职责：\n- 参与机器学习、深度学习或大模型相关算法的研发、实验和业务落地。\n- 负责数据处理、特征构建、模型训练、评估、调优和效果分析。\n- 探索 LLM、RAG、Agent、多模态、推荐、搜索或 NLP 等方向的算法能力。\n- 与工程、产品、业务团队协作，将算法能力转化为可验证的业务效果。\n\n任职要求：\n- 熟悉机器学习、深度学习、统计学习和常见模型评估方法。\n- 熟悉 Python、PyTorch / TensorFlow，以及数据处理和实验分析工具。\n- 具备良好的算法实现、论文阅读、实验设计和问题定位能力。\n- 理解模型部署、推理性能、数据质量和业务指标之间的关系者优先。",
+    "skills": ["python", "machine-learning", "deep-learning", "llm", "evaluation"],
+    "rubric_dimensions": ["technical_depth", "problem_solving", "project_experience", "product_thinking", "communication"]
+  },
+  {
+    "direction": "architect",
+    "title": "架构师 / 技术专家",
+    "template": "岗位职责：\n- 负责复杂系统的架构设计、技术选型、关键方案评审和演进路线规划。\n- 识别系统中的性能、稳定性、安全性、扩展性和可维护性风险。\n- 推动核心技术难题攻关、公共能力沉淀、工程规范和质量治理。\n- 协同产品、研发、测试、运维和业务团队，确保技术方案可落地。\n\n任职要求：\n- 具备扎实的软件工程基础，理解分布式系统、数据库、缓存、消息、网络和安全。\n- 能从业务目标出发进行领域建模、系统拆分、接口设计和容量评估。\n- 具备技术领导力、跨团队沟通能力、方案表达能力和风险判断能力。\n- 有大型系统重构、稳定性治理、平台化建设或技术团队指导经验者优先。",
+    "skills": ["architecture", "distributed-systems", "scalability", "leadership", "system-design"],
+    "rubric_dimensions": ["system_design", "technical_depth", "leadership", "problem_solving", "communication"]
+  }
+]

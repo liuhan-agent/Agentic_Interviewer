@@ -1,0 +1,292 @@
+---
+description: KC-Chat Autopilot Mode — autonomous group collaboration rules
+globs:
+alwaysApply: false
+---
+
+# KC-Chat 无人模式规则
+
+> 本规则在用户显式要求"启动无人模式/自动巡检/autopilot"时生效，与 `kc-chat.mdc` 配合使用。
+
+## 1. 模式概述
+
+无人模式下，群组中的 Agent 在群主调度下**自动循环工作**，无需用户逐条下达指令。
+
+- **群主（Leader）**：调度中心，管理任务看板，收集结果，分配下一轮任务
+- **Worker Agent**：执行巡检、修复、审查等任务，完成后报告并等待下一轮
+
+## 2. 启动流程
+
+无人模式可由 **三种方式**之一启动：
+
+**A. 用户在 KC Chat 面板群聊右键启动** —— 插件直接调 `AutopilotService.updateState`，写共享记忆并下发提示词到群主。
+
+**B. 用户对群主直接说"启动无人模式"** —— 群主执行下面的命令组初始化共享记忆。
+
+**C. Cursor 中的 LLM 通过 MCP 工具启动**（无需任何额外开关，插件会直接接受命令）：
+```
+autopilot_start({ groupId, sessionId, autoFix:false, focus:"full", maxFilesPerRound:5 })
+// 等待 5s 内返回 OK / FAILED
+// 之后 LLM 可定期调 autopilot_status({ groupId }) 监控进度
+// 暂停 / 停止：autopilot_pause / autopilot_stop
+```
+插件会拒绝未授权调用并返回提示。
+
+群主收到首轮提示词后执行：
+```
+1. memory_write(key:"autopilot-status", content:"active", category:"context", scope:"group:<groupId>")
+2. memory_write(key:"autopilot-taskboard", content:JSON.stringify({
+     tasks: [],
+     findings: [],
+     completed: [],
+     round: 0
+   }), category:"task", scope:"group:<groupId>")
+3. publish_event(type:"info", summary:"无人模式已启动")
+4. 给每个 Worker 分发首轮巡检任务（见第4节任务模板）
+5. 进入自动循环（见第3节）
+```
+
+## 2.1 冷却期兼容（2026-04 起新增，与 kc-chat.mdc §6.1 协同）
+
+Autopilot 循环期间群组若被置于冷却期（`silentUntil` 未过期）：
+- 群主暂停下一轮任务分发
+- `autopilot-status` 保持 `active`，taskboard 不动
+- 冷却期到期后自动继续下一轮
+- 冷却期内 `[AUTOPILOT_TICK]` 被抑制（TickScheduler 会跳过冷却中的 group）
+- Worker 在冷却期内收到的 `[COOLDOWN]` 系统消息按 kc-chat.mdc §2.1 走 silent ack，不触发下一轮任务执行
+
+## 3. 群主自动循环（核心）
+
+群主在无人模式下必须遵循以下循环，**不得主动停止**：
+
+```
+LOOP:
+  1. 分发本轮任务：
+     对每个 Worker，选一种派单方式：
+     (a) group_broadcast(groupId, 任务描述, leaderId) — 全组可见，留痕
+     (b) send_to_session(target, 任务) — 一对一直接派单
+     推荐先 group_broadcast 同步背景，再 send_to_session 分配具体任务
+
+  2. 等待结果：
+     wait_message({ sessionId: leaderId })
+     → Worker 通过 send_to_session(messageType:"result") 回报结果
+     重复 wait_message 直到预期成员数都回来，或超时
+
+  3. 分析结果：
+     - 读取 memory_read("autopilot-taskboard") 获取任务看板
+     - 将新发现写入 findings[]
+     - 将已完成任务移到 completed[]
+
+  4. 决策：
+     - 有新 bug/问题 → 决定是否立即修复 or 记录待办
+     - 有修复完成 → 指派审查者 review
+     - 有审查完成 → 标记关闭
+     - 无新发现 → 切换巡检方向或深入检查
+
+  5. 更新任务看板：
+     memory_write(key:"autopilot-taskboard", content:更新后的看板)
+     publish_event(type:"info", summary:"第N轮巡检完成，发现X个问题")
+
+  6. 检查中断条件：
+     - memory_read("autopilot-status") → 如果为 "paused"/"stopped"，停止循环
+     - 用户消息优先：如果收到用户消息，暂停自动循环处理用户需求
+
+  GOTO LOOP
+```
+
+注意：群主通过 `wait_message` 接收 Worker 的回复，Worker 通过 `send_to_session` 向群主汇报结果。
+
+## 4. 任务模板
+
+群主根据 Worker 角色分配不同类型的任务：
+
+### Bug 扫描 / 问题定位
+```
+请扫描项目代码，重点检查以下方面：
+- 未处理的异常和错误
+- 空指针/undefined 风险
+- 逻辑漏洞和边界条件
+- 资源泄漏（未关闭的连接、流等）
+
+要求：
+1. 列出发现的问题（文件路径 + 行号 + 描述 + 严重程度）
+2. 对每个问题给出修复建议
+3. 使用 share_context 共享你正在检查的文件
+4. 使用 publish_event 记录重要发现
+5. 完成后用 send_to_session 回复群主
+```
+
+### 代码审查
+```
+请审查以下代码变更/文件：
+[具体文件或变更描述]
+
+检查要点：
+- 代码质量和可读性
+- 命名规范
+- 重复代码
+- 性能问题
+- 安全隐患
+
+要求：
+1. 给出审查意见（通过/需修改/拒绝）
+2. 列出具体问题和建议
+3. 完成后用 send_to_session 回复群主
+```
+
+### 重构优化
+```
+请分析项目代码，寻找优化机会：
+- 过长的函数（>50行）
+- 重复的代码块
+- 不合理的依赖关系
+- 可以提取的公共模块
+- 性能可优化的热点
+
+要求：
+1. 列出优化建议（优先级排序）
+2. 评估每项优化的收益和风险
+3. 完成后用 send_to_session 回复群主
+```
+
+## 5. Worker 行为规则
+
+Worker 在无人模式下：
+
+1. **收到任务** → 立即执行，使用 `share_context` 共享工作状态
+2. **发现问题** → 使用 `publish_event(type:"error/info")` 记录
+3. **完成任务** → `send_to_session(messageType:"result", targetSessionId:leaderId)` 向群主汇报
+4. **等待下一轮** → `wait_message` 保持会话通道；群主通过 `group_broadcast` 或 `send_to_session` 下达新任务
+5. **自主判断**：
+   - 严重 bug（崩溃/安全漏洞）→ 报告并建议立即修复
+   - 一般问题 → 报告并等待群主决策
+   - 优化建议 → 记录到共享记忆，低优先级
+6. **任务分配**：群主通过 `send_to_session` 直接指派任务给合适角色的 Worker。
+
+## 6. 共享记忆使用规范
+
+| Key | 用途 | 更新者 |
+|-----|------|--------|
+| `autopilot-status` | 模式状态：active/paused/stopped | 群主/用户 |
+| `autopilot-taskboard` | 任务看板 JSON | 群主 |
+| `autopilot-config` | 配置（巡检深度、自动修复开关等） | 用户/群主 |
+| `autopilot-findings-{round}` | 每轮发现的汇总 | 群主 |
+| `known-issues` | 已知问题列表（避免重复报告） | 群主 |
+
+### 任务看板格式
+```json
+{
+  "round": 5,
+  "mode": "scanning",
+  "tasks": [
+    {
+      "id": "task-001",
+      "assignee": "kc-mcp-agent-3-xxx",
+      "type": "scan",
+      "target": "mcp-server/src/index.ts",
+      "status": "in_progress",
+      "createdAt": "..."
+    }
+  ],
+  "findings": [
+    {
+      "id": "find-001",
+      "severity": "high",
+      "file": "src/index.ts",
+      "line": 42,
+      "description": "未处理的异常",
+      "suggestedFix": "...",
+      "reportedBy": "agent-3",
+      "status": "pending_review",
+      "round": 3
+    }
+  ],
+  "completed": []
+}
+```
+
+## 7. 停止/暂停
+
+- 用户说"停止无人模式/暂停/stop autopilot" → 群主更新 `autopilot-status` 为 stopped
+- 群主通知所有 Worker 暂停，汇总最终报告
+- 群主生成汇总：共扫描了多少文件、发现多少问题、修复了多少、待处理多少
+
+## 8. 用户打断处理
+
+无人模式运行中用户发送消息时：
+1. 群主暂停自动循环
+2. 处理用户需求
+3. 用户需求完成后，询问是否继续无人模式
+4. 如果继续，恢复循环；否则停止
+
+## 9. 安全约束
+
+- 自动修复默认**关闭**，需用户明确授权"允许自动修复"
+- 删除文件操作**禁止自动执行**
+- 修改核心配置文件需群主确认
+- 每轮最多修改 5 个文件，超过需暂停确认
+
+## 10. `[AUTOPILOT_TICK]` 强制推动规则（2026-04 Step 3 起）
+
+无人模式运行时，扩展侧的 **AutopilotTickScheduler**（每 30s 扫描一次）会检测群主和 Worker 是否卡住，在以下情况**主动注入 `[AUTOPILOT_TICK]` 消息**到群主会话：
+
+1. **Leader stale**：群主的 `status.json` mtime 超过 90s 未更新
+2. **Round stale**：`autopilot-taskboard.updatedAt` 超过 120s 未推进
+3. **Worker timeout**：`handleGroupWait` 中 Worker 未回复超过 120s
+
+### 收到 `[AUTOPILOT_TICK]` 的处理规则
+
+**群主（Leader）收到 `[AUTOPILOT_TICK]` 消息时，与 `[POLL_TICK]` 行为完全不同**：
+
+- ❌ **`[POLL_TICK]`**：静默重调 `wait_message`，不输出任何文本
+- ✅ **`[AUTOPILOT_TICK]`**：**必须立即动作**，不可忽略
+
+### 消息格式
+
+```
+[AUTOPILOT_TICK][REASON:<idle-timeout|round-stale|worker-timeout>][TICK:<n>/<max>] <提示正文>
+```
+
+例如：
+```
+[AUTOPILOT_TICK][REASON:round-stale][TICK:1/2] 群组「研究小组」第 3 轮巡检已停滞 120s，请立即：
+1) memory_read autopilot-taskboard 查看进度
+2) 根据 pending/completed 状态推进下一步
+3) 若有 Worker 超时，用 send_to_session 重新指派或标记 skipped
+```
+
+### 群主必须执行的动作（按 REASON 分类）
+
+**REASON: idle-timeout（群主空闲超时）**
+1. `memory_read("autopilot-status", "group:<gid>")` 确认仍 active
+2. `memory_read("autopilot-taskboard", "group:<gid>")` 查看当前 round
+3. 发起下一轮任务分发，或结算当前 round
+
+**REASON: round-stale（当前轮次停滞）**
+1. `wait_message(scope:"group", expectedCount: <已到/未到 workers 数>)` 主动收集 Worker 回复
+2. 汇总已完成的任务，写入 taskboard.completed
+3. 对未回复的 Worker：`send_to_session(..., messageType:"question")` 询问状态；若确认 Worker 挂掉，标记为 skipped 继续
+4. `memory_write("autopilot-taskboard", ...)` 更新进度
+
+**REASON: worker-timeout（Worker 超时）**
+1. TickScheduler 会在消息正文中列出 `timedOutWorkers`
+2. 群主选择策略：
+   - **重试**（首次）：`send_to_session(target, "任务超时，请重新尝试", groupId:<gid>)`
+   - **转派**：从空闲同角色 Worker 中找人接手
+   - **跳过**：标记任务为 skipped 并更新 taskboard
+   - **降级**：若 > 50% Worker 超时，主动 `autopilot_pause` 通知用户
+3. 完成策略后 `memory_write("autopilot-taskboard", ...)` 并进入下一轮
+
+### 降级机制（保底）
+
+- 群主**连续 2 次 tick 仍无任何动作**（memory / send_to_session / wait_message 都没调用）→ TickScheduler 会写 `autopilot-status=blocked`，UI 出现红色警示横幅
+- blocked 状态下用户可一键"恢复"或"停止"，群主收到恢复消息后**必须主动重启 round 分发**（不可再等）
+
+### 对群主的铁律
+
+**看到 `[AUTOPILOT_TICK]` 就等同于用户在屏幕前敲桌子说"动起来"**。严禁：
+- ❌ 忽略 tick 继续 wait_message
+- ❌ 只回复"收到 tick"而不动作
+- ❌ 反问"需要我做什么？"（tick 正文已经告诉你做什么了）
+
+**正确的姿势**：立即执行 tick 正文要求的动作，完成后 `reply_message` 简短汇报进度，再 `wait_message` 回到循环。

@@ -1,0 +1,7 @@
+interface:
+  display_name: "Agentic Workflow Reference"
+  short_description: "Use repo-curated cards to borrow patterns, compare projects, and find reading paths across Claude Code, Hermes, OpenClaw, and ACO."
+  default_prompt: "Use $agentic-workflow-reference only for repository-scoped pattern borrowing, reading paths, or cross-project comparisons across Claude Code, Hermes Agent, OpenClaw, and Agentic-Content-Optimizer. Prefer official or web sources first for external definitions, latest viewpoints, or company positions."
+
+policy:
+  allow_implicit_invocation: true

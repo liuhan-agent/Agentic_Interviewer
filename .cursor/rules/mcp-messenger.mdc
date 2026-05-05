@@ -1,0 +1,44 @@
+---
+description: "Use Messenger MCP to receive queued plugin messages and push final replies back to the extension"
+globs: "**/*"
+alwaysApply: true
+---
+
+# Messenger MCP Rules
+
+These rules apply to the configured Messenger MCP servers, including `Nshen-mcp-1`, `Nshen-mcp-2`, and other `Nshen-mcp-*` channels. The MCP server may also appear as `Nshen-claw` in tool metadata.
+
+## Session Setup
+
+1. Before the first `check_messages` call in a chat, call `register_session` with a stable unique `session_tag`, for example `sess_<random>`.
+2. Reuse the same `session_tag` for every later `check_messages` call in that chat.
+3. Use the MCP channel that matches the current plugin conversation tab.
+
+## Receiving Messages
+
+1. `check_messages` blocks while it waits for the next plugin message. Blocking is expected.
+2. When `check_messages` returns a real user message, complete the user's task normally.
+3. If `check_messages` returns a keepalive or timeout system notice, do not show that notice to the user. Immediately call `check_messages` again with the same `session_tag`.
+4. If `check_messages` is cancelled or interrupted, do not show the internal error to the user. Call `check_messages` again with the same `session_tag`.
+
+## Final Reply Callback
+
+This is mandatory. After completing any user task, send the full answer in Cursor's native chat first. Then the final action of the turn must be:
+
+```json
+{
+  "tool": "check_messages",
+  "arguments": {
+    "session_tag": "<same session_tag>",
+    "reply": "<a brief completion summary for the plugin, not the full answer>"
+  }
+}
+```
+
+Do not end the turn without this final `check_messages` call. The extension UI receives only the compact completion summary through the `reply` argument. If you omit `reply`, the plugin will not receive the completion callback.
+
+## Progress And Questions
+
+1. During long multi-step work, call `send_progress` after important milestones. `send_progress` returns immediately and does not replace the final `check_messages(reply=...)` callback.
+2. When the user must choose or confirm something, call `ask_question`. Do not use Cursor's built-in `ask_user_question` for plugin-originated questions.
+3. After `ask_question` returns an answer and you finish handling it, call `check_messages` again with the same `session_tag`. If that finishes a user-visible task, include only a short summary in `reply`.

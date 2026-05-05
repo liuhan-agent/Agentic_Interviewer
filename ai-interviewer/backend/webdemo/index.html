@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Agentic Interviewer Demo</title>
+  <link rel="stylesheet" href="/static/style.css" />
+</head>
+<body>
+  <header>
+    <h1>Agentic Interviewer</h1>
+    <p class="subtitle">LangGraph + Thompson Sampling, text or voice.</p>
+  </header>
+
+  <section id="setup" class="card">
+    <h2>1. Start a session</h2>
+    <p>Candidate and job spec are editable below.</p>
+    <label>Candidate JSON
+      <textarea id="candidate" rows="6"></textarea>
+    </label>
+    <label>Job spec JSON
+      <textarea id="job_spec" rows="7"></textarea>
+    </label>
+    <div class="row">
+      <label>Max turns <input id="max_turns" type="number" value="6" /></label>
+      <label>Quality threshold <input id="threshold" type="number" step="0.1" value="7.0" /></label>
+      <label>Turn budget <input id="budget" type="number" value="8" /></label>
+    </div>
+    <button id="start-btn">Start interview</button>
+  </section>
+
+  <section id="run" class="card hidden">
+    <h2>2. Interview in progress</h2>
+    <div class="status-bar">
+      <span>Session: <code id="session_id">-</code></span>
+      <span>Turn: <code id="turn_idx">-</code></span>
+      <span>Status: <code id="status">-</code></span>
+    </div>
+
+    <div class="qa-window">
+      <div id="qa-list"></div>
+    </div>
+
+    <div class="controls">
+      <div class="text-mode">
+        <h3>Type answer</h3>
+        <textarea id="answer" rows="4" placeholder="Type your answer..."></textarea>
+        <button id="submit-btn">Submit answer</button>
+      </div>
+      <div class="voice-mode">
+        <h3>Speak answer</h3>
+        <button id="record-btn">Start recording</button>
+        <button id="stop-btn" disabled>Stop and send</button>
+        <audio id="tts-player" controls autoplay></audio>
+        <p class="hint">Voice uses the WebSocket channel. Stub TTS returns readable bytes instead of real audio when the backend has no OpenAI key.</p>
+      </div>
+    </div>
+  </section>
+
+  <section id="report" class="card hidden">
+    <h2>3. Final report</h2>
+    <pre id="report-pre"></pre>
+  </section>
+
+  <script src="/static/app.js"></script>
+</body>
+</html>

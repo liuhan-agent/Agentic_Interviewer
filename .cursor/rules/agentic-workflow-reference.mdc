@@ -1,0 +1,45 @@
+---
+description: "Use when the user wants repository-scoped pattern borrowing, reading paths, or cross-project comparisons across Claude Code, Hermes Agent, OpenClaw, or Agentic-Content-Optimizer in this repository. Do not use as the primary source for official definitions, latest viewpoints, or general web questions."
+globs:
+alwaysApply: false
+---
+
+# Agentic Workflow Reference
+
+This rule is for the curated `reference/` knowledge base in this repository.
+
+Use it only for:
+- repository-scoped pattern borrowing
+- reading-path guidance inside `reference/`
+- cross-project comparisons across Claude Code, Hermes Agent, OpenClaw, and Agentic-Content-Optimizer
+
+Do not trigger from topic words alone.
+The trigger is `repository source + borrowing intent`, not `theme match`.
+
+## Primary Entry
+- Start from `reference/MEMORY.md`.
+- For repo-scoped concept, comparison, and pattern questions, enter through `reference/topics/*`.
+- For repo-scoped project trace, source provenance, and "where should I read first" questions, enter through `reference/projects/*`.
+
+## Source Priority
+1. User-specified source wins.
+2. Official docs, official company viewpoints, latest definitions, and explicit web-search questions should use official or web sources first.
+3. This rule is the primary source only for repo-scoped pattern borrowing, repo-scoped comparisons, and KB reading paths.
+4. If the user wants both external and repo-derived views, answer in two layers: `Official/Web` first, then `Repo-derived patterns`.
+
+## Retrieval Budget
+- Default budget is `1 root + 1 primary card + 1 support card + max 2 raw docs`.
+- Start with one primary card.
+- Add one support card only when it materially changes the answer.
+- Return to raw docs only through a card's `Source Map`.
+- Do not sweep multiple topics or projects "just in case".
+
+## Response Shape
+- `Route`: name the entry card first.
+- `Pattern Extraction`: give the smallest useful synthesis from the cards and only the minimum necessary raw docs.
+- `Source Map`: name the next raw docs only if deeper verification is needed.
+
+## Boundary Guardrails
+- Stay in `navigation + pattern extraction + source map`.
+- If the user asks for architecture options or concrete system proposals, stay in `reference-guided patterns` mode first.
+- Do not answer an external company's current position or definition from repo cards as though it were the company's own view.

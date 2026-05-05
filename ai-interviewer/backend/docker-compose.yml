@@ -1,0 +1,41 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: interviewer-postgres
+    environment:
+      POSTGRES_USER: interviewer
+      POSTGRES_PASSWORD: interviewer
+      POSTGRES_DB: interviewer
+    ports:
+      - "5433:5432"
+    volumes:
+      - interviewer_pg:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U interviewer -d interviewer"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    container_name: interviewer-redis
+    ports:
+      - "6380:6379"
+    volumes:
+      - interviewer_redis:/data
+
+  chroma:
+    image: chromadb/chroma:0.5.20
+    container_name: interviewer-chroma
+    ports:
+      - "8100:8000"
+    environment:
+      IS_PERSISTENT: "TRUE"
+      ALLOW_RESET: "TRUE"
+    volumes:
+      - interviewer_chroma:/chroma/chroma
+
+volumes:
+  interviewer_pg:
+  interviewer_redis:
+  interviewer_chroma:

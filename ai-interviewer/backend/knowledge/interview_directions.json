@@ -1,0 +1,245 @@
+[
+  {
+    "industry": "internet",
+    "direction": "java_backend",
+    "label": "Java 后端开发",
+    "default_title": "Java 后端开发工程师",
+    "default_level": "senior",
+    "skills": ["java", "spring", "mysql", "redis", "microservices"],
+    "template": "岗位职责：\n- 负责业务后端模块的需求理解、技术方案设计、接口开发和稳定交付。\n- 参与核心服务的性能优化、稳定性治理、问题排查和线上质量改进。\n- 参与数据库模型、缓存、消息队列、任务调度等后端基础能力建设。\n\n任职要求：\n- 熟悉 Java、Spring / Spring Boot、RESTful API 和常见后端开发模式。\n- 熟悉 MySQL、Redis、消息队列，理解事务、索引、缓存、幂等和并发处理。\n- 具备良好的编码规范、测试意识、Code Review 和技术文档习惯。",
+    "dimension_catalog": [
+      {"id": "technical_depth", "label": "技术深度", "description": "语言、框架、中间件和底层机制理解。", "triggers": ["java", "spring", "mysql", "redis", "中间件", "技术深度", "底层"]},
+      {"id": "system_design", "label": "系统设计", "description": "架构、容量、稳定性和扩展性设计。", "triggers": ["架构", "系统设计", "高可用", "分布式", "微服务", "容量", "scalability"]},
+      {"id": "problem_solving", "label": "问题解决", "description": "定位、排查和解决复杂问题。", "triggers": ["问题排查", "故障", "调优", "debug", "troubleshoot", "root cause"]},
+      {"id": "coding_quality", "label": "代码质量", "description": "代码可维护性、测试、Review 和工程规范。", "triggers": ["代码质量", "测试", "code review", "可维护", "clean code"]},
+      {"id": "project_experience", "label": "项目经验", "description": "项目交付、业务落地和结果复盘。", "triggers": ["项目", "交付", "落地", "端到端", "负责"]},
+      {"id": "communication", "label": "沟通表达", "description": "跨团队协作和技术表达。", "triggers": ["协作", "沟通", "跨团队", "stakeholder"]}
+    ]
+  },
+  {
+    "industry": "internet",
+    "direction": "frontend",
+    "label": "前端开发",
+    "default_title": "前端开发工程师",
+    "default_level": "senior",
+    "skills": ["javascript", "typescript", "react", "vue", "frontend"],
+    "template": "岗位职责：\n- 负责 Web / H5 / 管理端等前端功能开发，交付清晰、稳定、易用的用户界面。\n- 将产品需求和设计稿转化为可维护的组件、页面和交互流程。\n- 持续优化页面性能、兼容性、可访问性和前端工程质量。\n\n任职要求：\n- 熟悉 JavaScript / TypeScript、HTML、CSS 和现代浏览器运行机制。\n- 熟悉 React / Vue 等主流框架及组件化、状态管理、路由和构建工具。\n- 重视代码可读性、组件复用、测试和用户体验细节。",
+    "dimension_catalog": [
+      {"id": "technical_depth", "label": "技术深度", "description": "浏览器、框架和工程化基础。", "triggers": ["javascript", "typescript", "react", "vue", "浏览器", "工程化"]},
+      {"id": "coding_quality", "label": "代码质量", "description": "组件设计、可维护性和测试。", "triggers": ["组件", "代码质量", "复用", "测试", "可维护"]},
+      {"id": "problem_solving", "label": "问题解决", "description": "调试、兼容、性能和线上问题处理。", "triggers": ["调试", "性能", "兼容", "问题修复", "debug"]},
+      {"id": "project_experience", "label": "项目经验", "description": "前端项目交付和复杂页面经验。", "triggers": ["项目", "页面", "交付", "落地"]},
+      {"id": "product_thinking", "label": "产品思维", "description": "用户体验、交互细节和业务理解。", "triggers": ["用户体验", "交互", "产品", "易用"]},
+      {"id": "communication", "label": "沟通表达", "description": "与产品、设计、后端协作。", "triggers": ["协作", "沟通", "设计", "后端"]}
+    ]
+  },
+  {
+    "industry": "internet",
+    "direction": "ai_fullstack",
+    "label": "AI 全栈开发",
+    "default_title": "AI 全栈开发工程师",
+    "default_level": "senior",
+    "skills": ["typescript", "python", "llm", "rag", "fullstack"],
+    "template": "岗位职责：\n- 负责 AI 应用的前后端功能开发，推动 LLM 能力在真实业务场景中落地。\n- 参与 RAG、Prompt、模型 API、工作流、权限和数据链路的设计与实现。\n- 构建可观测、可迭代的 AI 应用体验，包括反馈收集、效果评估和问题定位。\n\n任职要求：\n- 熟悉 TypeScript / React，以及 Python / Node.js / Java 中至少一种后端技术。\n- 理解 LLM、RAG、向量检索、Prompt 工程和模型调用边界。\n- 具备产品意识、问题拆解能力和端到端交付经验。",
+    "dimension_catalog": [
+      {"id": "technical_depth", "label": "技术深度", "description": "全栈工程、LLM、RAG 和数据链路基础。", "triggers": ["llm", "rag", "prompt", "typescript", "python", "向量", "模型"]},
+      {"id": "system_design", "label": "系统设计", "description": "AI 应用架构、权限、工作流和可观测性。", "triggers": ["架构", "工作流", "权限", "可观测", "系统设计"]},
+      {"id": "product_thinking", "label": "产品思维", "description": "AI 能力落地、效果评估和体验设计。", "triggers": ["产品", "体验", "效果", "反馈", "业务场景"]},
+      {"id": "project_experience", "label": "项目经验", "description": "端到端交付和业务落地经验。", "triggers": ["项目", "交付", "落地", "端到端"]},
+      {"id": "problem_solving", "label": "问题解决", "description": "AI 应用问题定位和迭代优化。", "triggers": ["问题定位", "优化", "评估", "调试"]},
+      {"id": "communication", "label": "沟通表达", "description": "和产品、算法、业务团队协作。", "triggers": ["协作", "沟通", "业务团队"]}
+    ]
+  },
+  {
+    "industry": "internet",
+    "direction": "mobile",
+    "label": "移动端开发",
+    "default_title": "移动端开发工程师",
+    "default_level": "senior",
+    "skills": ["android", "ios", "flutter", "react-native", "mobile"],
+    "template": "岗位职责：\n- 负责 Android / iOS / Flutter 等移动端应用的功能开发、性能优化和版本维护。\n- 根据产品需求完成页面、交互、网络、存储、权限和原生能力集成。\n\n任职要求：\n- 熟悉 Kotlin / Java、Swift / Objective-C 或 Dart / Flutter 中至少一种技术栈。\n- 理解移动端生命周期、UI 渲染、网络通信、数据存储、包体和性能优化。\n- 具备良好的编码规范、问题定位能力和跨团队协作能力。",
+    "dimension_catalog": [
+      {"id": "technical_depth", "label": "技术深度", "description": "移动端框架、生命周期、渲染和原生能力。", "triggers": ["android", "ios", "flutter", "kotlin", "swift", "生命周期", "渲染"]},
+      {"id": "problem_solving", "label": "问题解决", "description": "崩溃、性能、兼容和线上问题定位。", "triggers": ["崩溃", "性能", "兼容", "问题定位", "调试"]},
+      {"id": "coding_quality", "label": "代码质量", "description": "模块化、测试和移动端工程规范。", "triggers": ["代码", "模块", "测试", "工程"]},
+      {"id": "project_experience", "label": "项目经验", "description": "版本发布、业务功能和复杂项目经验。", "triggers": ["项目", "发布", "版本", "业务"]},
+      {"id": "communication", "label": "沟通表达", "description": "和产品、设计、后端、测试协作。", "triggers": ["协作", "沟通", "设计", "测试"]}
+    ]
+  },
+  {
+    "industry": "internet",
+    "direction": "ai_agent",
+    "label": "AI Agent 开发",
+    "default_title": "AI Agent 开发工程师",
+    "default_level": "senior",
+    "skills": ["llm", "agent", "rag", "python", "tool-calling"],
+    "template": "岗位职责：\n- 参与 AI Agent 系统的架构设计、核心模块开发和生产落地。\n- 设计并实现工具调用、任务规划、记忆、上下文管理、多轮对话和执行链路。\n- 构建 RAG、知识库、向量检索、评估反馈和安全控制等 Agent 基础能力。\n\n任职要求：\n- 熟悉 Python / Java / TypeScript 中至少一种工程语言。\n- 理解 LLM 能力边界、Prompt、Tool Use、RAG、向量数据库和模型 I/O 流程。\n- 具备复杂问题拆解、实验评估、系统集成和快速学习能力。",
+    "dimension_catalog": [
+      {"id": "technical_depth", "label": "技术深度", "description": "LLM、工具调用、RAG 和 Agent 工程基础。", "triggers": ["llm", "agent", "tool", "rag", "prompt", "向量", "模型"]},
+      {"id": "system_design", "label": "系统设计", "description": "Agent 架构、执行链路、记忆和上下文设计。", "triggers": ["架构", "任务规划", "记忆", "上下文", "执行链路", "系统"]},
+      {"id": "problem_solving", "label": "问题解决", "description": "调试、评估、可靠性和复杂问题拆解。", "triggers": ["评估", "可靠", "问题拆解", "调试", "优化"]},
+      {"id": "product_thinking", "label": "产品思维", "description": "场景落地、体验和效果闭环。", "triggers": ["场景", "体验", "效果", "用户"]},
+      {"id": "communication", "label": "沟通表达", "description": "表达方案、协作落地和风险沟通。", "triggers": ["沟通", "协作", "表达"]}
+    ]
+  },
+  {
+    "industry": "internet",
+    "direction": "sre",
+    "label": "运维 / SRE",
+    "default_title": "运维 / SRE 工程师",
+    "default_level": "senior",
+    "skills": ["linux", "kubernetes", "observability", "devops", "sre"],
+    "template": "岗位职责：\n- 负责服务稳定性、可观测性、容量、发布和故障响应体系建设。\n- 建设监控告警、日志追踪、SLO / SLA、应急预案和故障复盘机制。\n\n任职要求：\n- 熟悉 Linux、网络、容器、Kubernetes、云服务和常见中间件。\n- 熟悉监控、日志、链路追踪、CI/CD、灰度发布和容量规划。\n- 理解高可用、容灾、故障演练、性能压测和安全基础。",
+    "dimension_catalog": [
+      {"id": "technical_depth", "label": "技术深度", "description": "Linux、网络、容器、云和中间件基础。", "triggers": ["linux", "网络", "容器", "kubernetes", "云", "中间件"]},
+      {"id": "system_design", "label": "系统设计", "description": "稳定性、容量、容灾和发布体系设计。", "triggers": ["稳定性", "容量", "容灾", "高可用", "发布", "slo", "sla"]},
+      {"id": "problem_solving", "label": "问题解决", "description": "故障响应、定位、复盘和恢复。", "triggers": ["故障", "应急", "复盘", "排查", "恢复"]},
+      {"id": "project_experience", "label": "项目经验", "description": "平台建设、自动化和运维项目落地。", "triggers": ["平台", "自动化", "项目", "建设"]},
+      {"id": "communication", "label": "沟通表达", "description": "和研发、业务团队协作推进稳定性。", "triggers": ["协作", "沟通", "研发"]}
+    ]
+  },
+  {
+    "industry": "internet",
+    "direction": "ai_algorithm",
+    "label": "AI 算法",
+    "default_title": "AI 算法工程师",
+    "default_level": "senior",
+    "skills": ["python", "machine-learning", "deep-learning", "llm", "evaluation"],
+    "template": "岗位职责：\n- 参与机器学习、深度学习或大模型相关算法的研发、实验和业务落地。\n- 负责数据处理、特征构建、模型训练、评估、调优和效果分析。\n\n任职要求：\n- 熟悉机器学习、深度学习、统计学习和常见模型评估方法。\n- 熟悉 Python、PyTorch / TensorFlow，以及数据处理和实验分析工具。\n- 具备良好的算法实现、论文阅读、实验设计和问题定位能力。",
+    "dimension_catalog": [
+      {"id": "technical_depth", "label": "技术深度", "description": "算法、模型、统计和工程实现基础。", "triggers": ["机器学习", "深度学习", "模型", "算法", "统计", "pytorch", "tensorflow"]},
+      {"id": "problem_solving", "label": "问题解决", "description": "实验设计、调优和问题定位。", "triggers": ["实验", "调优", "问题定位", "效果分析", "评估"]},
+      {"id": "project_experience", "label": "项目经验", "description": "算法项目落地和业务效果。", "triggers": ["项目", "落地", "业务", "效果"]},
+      {"id": "product_thinking", "label": "产品思维", "description": "指标、场景和业务价值理解。", "triggers": ["指标", "业务", "场景", "产品"]},
+      {"id": "communication", "label": "沟通表达", "description": "解释模型效果和跨团队协作。", "triggers": ["沟通", "协作", "解释"]}
+    ]
+  },
+  {
+    "industry": "internet",
+    "direction": "architect",
+    "label": "架构师 / 技术专家",
+    "default_title": "架构师 / 技术专家",
+    "default_level": "staff",
+    "skills": ["architecture", "distributed-systems", "scalability", "leadership", "system-design"],
+    "template": "岗位职责：\n- 负责复杂系统的架构设计、技术选型、关键方案评审和演进路线规划。\n- 识别系统中的性能、稳定性、安全性、扩展性和可维护性风险。\n- 推动核心技术难题攻关、公共能力沉淀、工程规范和质量治理。\n\n任职要求：\n- 具备扎实的软件工程基础，理解分布式系统、数据库、缓存、消息、网络和安全。\n- 能从业务目标出发进行领域建模、系统拆分、接口设计和容量评估。\n- 具备技术领导力、跨团队沟通能力、方案表达能力和风险判断能力。",
+    "dimension_catalog": [
+      {"id": "system_design", "label": "系统设计", "description": "复杂系统架构、建模、拆分和演进。", "triggers": ["架构", "系统设计", "领域建模", "系统拆分", "容量", "演进"]},
+      {"id": "technical_depth", "label": "技术深度", "description": "分布式、数据、缓存、消息和安全基础。", "triggers": ["分布式", "数据库", "缓存", "消息", "网络", "安全"]},
+      {"id": "leadership", "label": "技术领导力", "description": "技术影响力、指导和跨团队推进。", "triggers": ["领导", "影响力", "指导", "团队", "推进"]},
+      {"id": "problem_solving", "label": "问题解决", "description": "风险识别、技术攻关和治理。", "triggers": ["风险", "攻关", "治理", "问题"]},
+      {"id": "communication", "label": "沟通表达", "description": "方案表达和跨团队协作。", "triggers": ["沟通", "表达", "协作", "评审"]}
+    ]
+  },
+  {
+    "industry": "business",
+    "direction": "product_manager",
+    "label": "产品经理",
+    "default_title": "产品经理",
+    "default_level": "mid",
+    "skills": ["user-research", "requirements", "prd", "metrics", "roadmap"],
+    "template": "岗位职责：\n- 负责用户需求洞察、产品方案设计、需求拆解和版本规划。\n- 协同设计、研发、运营和业务团队推动产品功能落地。\n- 建立并跟踪核心指标，持续优化用户体验和业务结果。\n\n任职要求：\n- 具备用户研究、需求分析、PRD 撰写和项目推进能力。\n- 能基于数据和业务目标进行优先级判断与方案取舍。\n- 具备良好的沟通协调、结构化表达和复盘能力。",
+    "dimension_catalog": [
+      {"id": "user_insight", "label": "用户洞察", "description": "理解用户、场景、痛点和真实需求。", "triggers": ["用户", "调研", "洞察", "痛点", "场景"]},
+      {"id": "requirement_analysis", "label": "需求分析", "description": "需求拆解、边界定义和方案设计。", "triggers": ["需求", "prd", "方案", "拆解", "边界"]},
+      {"id": "prioritization", "label": "优先级判断", "description": "基于价值、成本和风险排序。", "triggers": ["优先级", "取舍", "排期", "路线图", "roadmap"]},
+      {"id": "metrics_thinking", "label": "指标思维", "description": "指标定义、数据分析和效果评估。", "triggers": ["指标", "数据", "转化", "留存", "效果"]},
+      {"id": "stakeholder_management", "label": "协同推进", "description": "跨团队沟通、项目推进和冲突处理。", "triggers": ["协同", "推进", "沟通", "跨团队", "协调"]}
+    ]
+  },
+  {
+    "industry": "business",
+    "direction": "operations",
+    "label": "运营",
+    "default_title": "运营专员 / 运营经理",
+    "default_level": "mid",
+    "skills": ["user-growth", "content", "campaign", "data-analysis", "process"],
+    "template": "岗位职责：\n- 负责用户、内容、活动或社群运营，提升拉新、活跃、留存和转化。\n- 策划并执行运营活动，跟踪数据表现并持续复盘优化。\n- 建立运营流程、素材规范和跨团队协作机制。\n\n任职要求：\n- 具备用户增长、活动策划、内容运营或社群运营经验。\n- 能使用数据分析业务问题并提出可落地的优化动作。\n- 具备执行力、沟通协调和复盘迭代能力。",
+    "dimension_catalog": [
+      {"id": "user_growth", "label": "用户增长", "description": "拉新、活跃、留存和转化策略。", "triggers": ["拉新", "活跃", "留存", "转化", "增长"]},
+      {"id": "content_operations", "label": "内容运营", "description": "内容策划、素材管理和传播效果。", "triggers": ["内容", "素材", "社群", "传播"]},
+      {"id": "data_analysis", "label": "数据分析", "description": "用数据定位问题和评估运营效果。", "triggers": ["数据", "分析", "指标", "复盘"]},
+      {"id": "campaign_execution", "label": "活动执行", "description": "活动策划、推进、落地和复盘。", "triggers": ["活动", "策划", "执行", "落地"]},
+      {"id": "process_optimization", "label": "流程优化", "description": "运营流程、协作机制和效率提升。", "triggers": ["流程", "机制", "效率", "优化"]}
+    ]
+  },
+  {
+    "industry": "business",
+    "direction": "sales_business",
+    "label": "销售 / 商务",
+    "default_title": "销售 / 商务经理",
+    "default_level": "mid",
+    "skills": ["customer-development", "solution-sales", "negotiation", "crm", "pipeline"],
+    "template": "岗位职责：\n- 负责目标客户开拓、需求挖掘、商机推进和客户关系维护。\n- 结合客户场景提供解决方案，完成商务谈判、合同推进和回款跟进。\n- 管理销售漏斗和 CRM 数据，持续提升转化率和收入结果。\n\n任职要求：\n- 具备客户开发、需求分析、解决方案销售和商务谈判能力。\n- 能处理客户异议，推动多方决策链路并维护长期合作关系。\n- 具备目标管理、过程管理和结果复盘能力。",
+    "dimension_catalog": [
+      {"id": "customer_discovery", "label": "客户发现", "description": "客户开拓、需求挖掘和关键人识别。", "triggers": ["客户开拓", "客户开发", "需求挖掘", "关键人", "客户发现"]},
+      {"id": "solution_matching", "label": "方案匹配", "description": "根据客户场景匹配产品、方案和价值。", "triggers": ["解决方案", "方案销售", "方案匹配", "客户场景", "价值"]},
+      {"id": "objection_handling", "label": "异议处理", "description": "处理价格、竞品、预算和信任异议。", "triggers": ["异议", "竞品", "预算", "价格", "反对意见"]},
+      {"id": "negotiation", "label": "商务谈判", "description": "报价、合同、条款和多方谈判推进。", "triggers": ["商务谈判", "谈判", "合同", "报价", "条款"]},
+      {"id": "pipeline_management", "label": "销售漏斗管理", "description": "商机阶段、CRM、预测和回款推进。", "triggers": ["销售漏斗", "crm", "商机", "回款", "预测"]}
+    ]
+  },
+  {
+    "industry": "business",
+    "direction": "marketing_brand",
+    "label": "市场 / 品牌",
+    "default_title": "市场 / 品牌经理",
+    "default_level": "mid",
+    "skills": ["market-research", "brand", "campaign", "channel", "content"],
+    "template": "岗位职责：\n- 负责市场洞察、品牌定位、传播策略和营销活动策划执行。\n- 管理内容、渠道、投放和合作资源，提升品牌声量和业务线索。\n- 追踪活动效果和渠道 ROI，持续优化市场策略。\n\n任职要求：\n- 具备市场调研、品牌传播、内容策划和活动执行经验。\n- 熟悉渠道运营、投放分析或 B2B/B2C 增长方法。\n- 具备创意表达、项目推进和数据复盘能力。",
+    "dimension_catalog": [
+      {"id": "market_insight", "label": "市场洞察", "description": "行业、用户、竞品和趋势分析。", "triggers": ["市场", "调研", "竞品", "趋势", "洞察"]},
+      {"id": "brand_strategy", "label": "品牌策略", "description": "定位、传播主张和品牌一致性。", "triggers": ["品牌", "定位", "传播", "声量"]},
+      {"id": "campaign_planning", "label": "营销策划", "description": "活动创意、节奏、资源和落地。", "triggers": ["活动", "策划", "营销", "campaign"]},
+      {"id": "channel_growth", "label": "渠道增长", "description": "渠道、投放、线索和 ROI 管理。", "triggers": ["渠道", "投放", "线索", "roi", "增长"]},
+      {"id": "content_creativity", "label": "内容创意", "description": "内容表达、创意和素材生产。", "triggers": ["内容", "创意", "素材", "文案"]}
+    ]
+  },
+  {
+    "industry": "business",
+    "direction": "hr_function",
+    "label": "HR / 职能",
+    "default_title": "HR / 职能专员",
+    "default_level": "mid",
+    "skills": ["recruiting", "employee-relations", "policy", "organization", "service"],
+    "template": "岗位职责：\n- 负责招聘、员工关系、组织发展、制度流程或职能支持等工作。\n- 协同业务团队理解组织需求，提供稳定、合规、高效的人力或职能服务。\n- 建立流程规范，提升员工体验和组织运行效率。\n\n任职要求：\n- 具备招聘、员工关系、组织发展或行政职能相关经验。\n- 熟悉基础劳动法规、流程制度和跨部门协作方式。\n- 具备服务意识、沟通协调、问题处理和保密意识。",
+    "dimension_catalog": [
+      {"id": "talent_acquisition", "label": "人才招聘", "description": "岗位理解、寻访、面试和招聘转化。", "triggers": ["招聘", "人才", "面试", "寻访", "offer"]},
+      {"id": "employee_relations", "label": "员工关系", "description": "员工沟通、关系维护和冲突处理。", "triggers": ["员工关系", "沟通", "冲突", "关怀"]},
+      {"id": "organization_development", "label": "组织发展", "description": "组织诊断、培训、绩效和人才发展。", "triggers": ["组织", "培训", "绩效", "发展"]},
+      {"id": "policy_compliance", "label": "制度合规", "description": "流程、制度、劳动法规和风险控制。", "triggers": ["制度", "流程", "合规", "劳动法", "风险"]},
+      {"id": "service_orientation", "label": "服务意识", "description": "内部客户服务、响应和体验优化。", "triggers": ["服务", "响应", "体验", "支持"]}
+    ]
+  },
+  {
+    "industry": "business",
+    "direction": "customer_success",
+    "label": "客服 / 客户成功",
+    "default_title": "客服 / 客户成功经理",
+    "default_level": "mid",
+    "skills": ["customer-empathy", "support", "issue-resolution", "escalation", "retention"],
+    "template": "岗位职责：\n- 负责客户咨询、问题受理、解决方案交付和客户关系维护。\n- 跟进客户使用体验、风险预警、续约/留存和满意度提升。\n- 协调产品、技术、销售等团队推动复杂问题闭环。\n\n任职要求：\n- 具备客户沟通、问题诊断、方案交付和投诉处理能力。\n- 能识别客户风险并推动升级、协同和复盘。\n- 具备服务意识、抗压能力、结构化表达和数据记录习惯。",
+    "dimension_catalog": [
+      {"id": "customer_empathy", "label": "客户同理心", "description": "理解客户情绪、诉求和真实业务影响。", "triggers": ["客户", "同理", "满意度", "体验", "诉求"]},
+      {"id": "issue_diagnosis", "label": "问题诊断", "description": "定位客户问题、复现和归因。", "triggers": ["问题", "诊断", "定位", "排查", "复现"]},
+      {"id": "solution_delivery", "label": "方案交付", "description": "给出清晰可执行方案并推动落地。", "triggers": ["解决方案", "交付", "处理", "闭环"]},
+      {"id": "escalation_management", "label": "升级管理", "description": "复杂问题升级、协同和风险控制。", "triggers": ["升级", "投诉", "协同", "风险"]},
+      {"id": "retention_growth", "label": "留存增长", "description": "续约、留存、客户成功和价值提升。", "triggers": ["续约", "留存", "客户成功", "价值"]}
+    ]
+  },
+  {
+    "industry": "business",
+    "direction": "general_management",
+    "label": "通用管理",
+    "default_title": "团队管理者",
+    "default_level": "senior",
+    "skills": ["leadership", "goal-setting", "execution", "decision-making", "cross-functional"],
+    "template": "岗位职责：\n- 负责团队目标拆解、资源协调、过程管理和结果交付。\n- 建设团队机制，提升协作效率、人才成长和组织稳定性。\n- 处理跨部门协同、复杂决策和业务风险。\n\n任职要求：\n- 具备团队管理、目标管理、项目推进和复盘改进经验。\n- 能在不确定场景下做出判断，协调资源并推动结果。\n- 具备沟通影响力、冲突处理和人才培养能力。",
+    "dimension_catalog": [
+      {"id": "goal_setting", "label": "目标设定", "description": "目标拆解、优先级和资源配置。", "triggers": ["目标", "拆解", "优先级", "资源"]},
+      {"id": "team_leadership", "label": "团队领导", "description": "团队建设、人才培养和激励。", "triggers": ["团队", "培养", "激励", "领导"]},
+      {"id": "decision_making", "label": "决策判断", "description": "复杂场景判断、取舍和风险管理。", "triggers": ["决策", "判断", "取舍", "风险"]},
+      {"id": "execution_management", "label": "执行管理", "description": "过程管理、推进和结果交付。", "triggers": ["执行", "推进", "交付", "过程"]},
+      {"id": "cross_functional_alignment", "label": "跨部门协同", "description": "跨团队协作、沟通和冲突处理。", "triggers": ["跨部门", "协同", "沟通", "冲突"]}
+    ]
+  }
+]
