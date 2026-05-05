@@ -42,7 +42,7 @@ test("LLM settings dialog shows the effective model route summary", () => {
   assert.match(source, /modelRouteSummary\(config\)/);
 });
 
-test("LLM credentials default to memory-only storage", () => {
+test("LLM credentials default to session-only browser storage", () => {
   const configSource = fs.readFileSync(
     path.join(__dirname, "..", "src", "lib", "llm-config.ts"),
     "utf8",
@@ -52,9 +52,13 @@ test("LLM credentials default to memory-only storage", () => {
     "utf8",
   );
 
-  assert.match(configSource, /storageMode: "memory"/);
-  assert.match(dialogSource, /value=\{config\.storageMode \?\? "memory"\}/);
+  assert.match(configSource, /storageMode: "session"/);
+  assert.match(dialogSource, /value=\{config\.storageMode \?\? "session"\}/);
+  assert.match(dialogSource, /默认仅保留到当前浏览器会话/);
+  assert.match(dialogSource, /密钥会留在这台设备上/);
+  assert.match(dialogSource, /<option value="local">本机长期保存（公共设备勿选）<\/option>/);
   assert.match(dialogSource, /混淆不是加密/);
+  assert.doesNotMatch(dialogSource, /localStorage/);
 });
 
 test("package exposes frontend source test script", () => {
