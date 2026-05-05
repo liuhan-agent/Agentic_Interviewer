@@ -763,6 +763,11 @@ async def poll_question(
     # present (``None`` when there is no displayable feedback) so the
     # frontend never has to special-case its absence.
     previous_turn_evaluation = getattr(handle, "last_turn_evaluation", None)
+    # End-to-end wall-clock latency of the most recent ``_run_segment``
+    # in milliseconds (#11). The frontend uses it to render an ETA hint
+    # ("AI 正在思考，预计 ≈ 5 秒") on the next loading state. ``None``
+    # until the first segment finishes.
+    server_latency_ms = getattr(handle, "last_segment_latency_ms", None)
     if question is None and done:
         if cancelled or final_status == "cancelled":
             return {
@@ -771,6 +776,7 @@ async def poll_question(
                 "question": None,
                 "max_turns": max_turns,
                 "previous_turn_evaluation": previous_turn_evaluation,
+                "server_latency_ms": server_latency_ms,
             }
         if handle.error:
             payload = _terminal_error_payload(
@@ -784,6 +790,7 @@ async def poll_question(
                 ),
             )
             payload["previous_turn_evaluation"] = previous_turn_evaluation
+            payload["server_latency_ms"] = server_latency_ms
             return payload
         return {
             "session_id": session_id,
@@ -792,6 +799,7 @@ async def poll_question(
             "final_report": final_report,
             "max_turns": max_turns,
             "previous_turn_evaluation": previous_turn_evaluation,
+            "server_latency_ms": server_latency_ms,
         }
     return {
         "session_id": session_id,
@@ -800,6 +808,7 @@ async def poll_question(
         "question": question,
         "max_turns": max_turns,
         "previous_turn_evaluation": previous_turn_evaluation,
+        "server_latency_ms": server_latency_ms,
     }
 
 

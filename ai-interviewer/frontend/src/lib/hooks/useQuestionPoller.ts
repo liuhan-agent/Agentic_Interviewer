@@ -39,6 +39,13 @@ export interface PollerState {
    * the ``SUBMITTING`` transition does not flicker the panel away.
    */
   previousEvaluation: PreviousTurnEvaluation | null;
+  /**
+   * Wall-clock duration of the most recent server-side segment in
+   * milliseconds (#11). The InterviewRoom can use it to render an ETA
+   * hint on the next loading state ("AI 正在思考，预计 ≈ 5 秒").
+   * ``null`` before the first segment finishes.
+   */
+  lastServerLatencyMs: number | null;
 }
 
 type Action =
@@ -55,6 +62,7 @@ type Action =
       turnIdx: number | null;
       maxTurns: number | null;
       previousEvaluation: PreviousTurnEvaluation | null;
+      serverLatencyMs: number | null;
     }
   | { type: "COMPLETED"; report: FinalReport | null }
   | { type: "CANCELLED" }
@@ -76,6 +84,7 @@ const initial: PollerState = {
   errorKind: null,
   retryable: false,
   previousEvaluation: null,
+  lastServerLatencyMs: null,
 };
 
 const completedWithoutReportMessage =
@@ -110,6 +119,7 @@ function reducer(state: PollerState, a: Action): PollerState {
         turnIdx: a.turnIdx,
         maxTurns: a.maxTurns,
         previousEvaluation: a.previousEvaluation,
+        lastServerLatencyMs: a.serverLatencyMs,
         error: null,
         errorKind: null,
         retryable: false,
@@ -209,6 +219,7 @@ export function useQuestionPoller(sessionId: string) {
               turnIdx: res.turn_idx ?? null,
               maxTurns: res.max_turns ?? null,
               previousEvaluation: res.previous_turn_evaluation ?? null,
+              serverLatencyMs: res.server_latency_ms ?? null,
             });
             return;
           }
