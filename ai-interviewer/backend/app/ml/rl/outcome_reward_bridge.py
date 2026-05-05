@@ -39,21 +39,37 @@ OUTCOME_WEIGHTS: dict[str, float] = {
 
 
 def _delayed_reward(outcome: OutcomeRecord) -> float:
-    """Translate a categorical outcome + optional perf score into [0,1].
+    """Translate a categorical outcome + optional scores into [0,1].
 
-    If ``performance_score`` is present we blend it with the category
-    weight using ``settings.outcome_perf_blend``; default 0.5 keeps the
-    historic 50/50 mix.  Unknown categories fall back to 0.3 so we
-    never hand the bandit a garbage-in-garbage-out update.
+    Two blending channels exist, selected by ``outcome.source``:
+
+    - ``ats_sync`` (B-end default): uses ``performance_score`` in [0,1]
+      blended with the category weight via ``outcome_perf_blend``.
+    - ``user_feedback`` (C-end): uses ``helpful_score`` (already
+      normalised to [0,1] by the API layer) blended the same way.
+      Falls through to the ``performance_score`` channel if
+      ``helpful_score`` is absent, so legacy rows stay compatible.
+
+    Unknown categories fall back to 0.3 so we never hand the bandit a
+    garbage-in-garbage-out update.
     """
     s = get_settings()
     weights = s.outcome_weights or OUTCOME_WEIGHTS
     base = weights.get(outcome.outcome, 0.3)
-    if outcome.performance_score is None:
+
+    source = getattr(outcome, "source", "ats_sync") or "ats_sync"
+    subjective: float | None = None
+    if source == "user_feedback":
+        raw = getattr(outcome, "helpful_score", None)
+        if raw is not None:
+            subjective = max(0.0, min(1.0, float(raw)))
+    if subjective is None and outcome.performance_score is not None:
+        subjective = max(0.0, min(1.0, float(outcome.performance_score)))
+    if subjective is None:
         return base
-    perf = max(0.0, min(1.0, float(outcome.performance_score)))
+
     blend = s.outcome_perf_blend
-    return (1.0 - blend) * base + blend * perf
+    return (1.0 - blend) * base + blend * subjective
 
 
 def _pending_traces(sess, session_ids: Iterable[str]) -> list[GenerationTrace]:

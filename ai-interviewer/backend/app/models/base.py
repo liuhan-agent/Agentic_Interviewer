@@ -123,6 +123,10 @@ _SQLITE_UPGRADES: dict[str, dict[str, str]] = {
         "generation_trace_id": "INTEGER",
         "node": "VARCHAR(64)",
     },
+    "outcome_records": {
+        "source": "VARCHAR(32) DEFAULT 'ats_sync'",
+        "helpful_score": "REAL",
+    },
 }
 
 _POSTGRES_UPGRADES: dict[str, dict[str, str]] = {
@@ -144,6 +148,10 @@ _POSTGRES_UPGRADES: dict[str, dict[str, str]] = {
     "trace_annotations": {
         "generation_trace_id": "INTEGER",
         "node": "VARCHAR(64)",
+    },
+    "outcome_records": {
+        "source": "VARCHAR(32) DEFAULT 'ats_sync'",
+        "helpful_score": "DOUBLE PRECISION",
     },
 }
 

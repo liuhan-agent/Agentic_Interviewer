@@ -42,6 +42,7 @@ import {
 import { Separator } from "@/components/ui/separator";
 import { Skeleton } from "@/components/ui/skeleton";
 import { InfoTooltip } from "@/components/interview/InfoTooltip";
+import { OutcomeFeedback } from "@/components/interview/OutcomeFeedback";
 import { TrainingPlanSourceBadge } from "@/components/interview/TrainingPlanSourceBadge";
 import { ApiError } from "@/lib/api/client";
 import { getReport } from "@/lib/api/interview";
@@ -372,6 +373,9 @@ export function ReportView({ sessionId }: { sessionId: string }) {
       </motion.div>
       <motion.div variants={{ hidden: { opacity: 0, y: 16 }, visible: { opacity: 1, y: 0 } }}>
         <TrainingPlanCard plan={report.training_plan} />
+      </motion.div>
+      <motion.div variants={{ hidden: { opacity: 0, y: 16 }, visible: { opacity: 1, y: 0 } }}>
+        <OutcomeFeedback sessionId={sessionId} />
       </motion.div>
       <motion.div variants={{ hidden: { opacity: 0, y: 16 }, visible: { opacity: 1, y: 0 } }}>
         <VideoInsightsCard analysis={report.video_analysis} />
