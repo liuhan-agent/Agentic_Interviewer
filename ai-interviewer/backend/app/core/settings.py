@@ -540,6 +540,19 @@ class Settings(BaseSettings):
     # ------------------------------------------------------------------
     enable_probe_intent: bool = True
 
+    # ------------------------------------------------------------------
+    # Hybrid RAG blend weight (P3 #6). When ``runtime_config.rag_mode``
+    # is ``hybrid``, ``_blend`` linearly combines the vector score and
+    # BM25 score as ``alpha * vector + (1-alpha) * bm25``. Higher
+    # values trust embedding similarity more; lower values trust the
+    # keyword / lexical signal more. The :func:`_resolve_hybrid_alpha`
+    # helper picks the effective value with the precedence
+    # ``caller > InterviewDirection.retrieval_alpha > settings default
+    # > hardcoded 0.6``. Operators can pin a global default here when a
+    # particular embedding model favours one channel over the other.
+    # ------------------------------------------------------------------
+    retrieval_alpha_default: float = 0.6
+
     @property
     def effective_langsmith_project(self) -> str:
         """Project name actually forwarded to the LangSmith SDK.
