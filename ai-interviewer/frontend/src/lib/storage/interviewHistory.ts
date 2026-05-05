@@ -36,6 +36,7 @@ export interface InterviewHistoryEntry {
   maxTurns?: number;
   growthSignal?: string;
   overallVerdict?: string;
+  feedbackSubmitted?: boolean;
 }
 
 interface StoredShape {
@@ -174,7 +175,8 @@ function isValidEntry(x: unknown): x is InterviewHistoryEntry {
     (e.status === "running" ||
       e.status === "done" ||
       e.status === "cancelled" ||
-      e.status === "failed")
+      e.status === "failed") &&
+    (e.feedbackSubmitted === undefined || typeof e.feedbackSubmitted === "boolean")
   );
 }
 
@@ -289,6 +291,7 @@ export interface UpsertInput {
   maxTurns?: number;
   growthSignal?: string;
   overallVerdict?: string;
+  feedbackSubmitted?: boolean;
 }
 
 /**
@@ -322,6 +325,7 @@ export function upsertEntry(input: UpsertInput): InterviewHistoryEntry {
         maxTurns: input.maxTurns,
         growthSignal: input.growthSignal,
         overallVerdict: input.overallVerdict,
+        feedbackSubmitted: input.feedbackSubmitted,
       }),
       lastVisitedAt: now,
     };

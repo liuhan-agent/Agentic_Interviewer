@@ -435,3 +435,20 @@ export interface JobTemplateResponse {
 export interface ListDimensionsResponse {
   dimensions: DimensionOption[];
 }
+
+export type FeedbackOutcome =
+  | "got_offer"
+  | "no_offer"
+  | "still_preparing"
+  | "withdrew";
+
+export interface SubmitFeedbackRequest {
+  outcome: FeedbackOutcome;
+  helpful_score?: number;
+  notes?: string;
+}
+
+export interface SubmitFeedbackResponse {
+  session_id: string;
+  accepted: boolean;
+}

@@ -19,6 +19,8 @@ import type {
   SkipQuestionResponse,
   StartSessionRequest,
   StartSessionResponse,
+  SubmitFeedbackRequest,
+  SubmitFeedbackResponse,
   VoiceTicketResponse,
 } from "./types";
 import { jobTemplateRequestPath } from "@/lib/job-template";
@@ -222,4 +224,14 @@ export function resumeSession(sessionId: string): Promise<ResumeResponse> {
   return request(`${BASE}/sessions/${encodeURIComponent(sessionId)}/resume`, {
     headers: sessionHeaders(sessionId),
   });
+}
+
+export function submitFeedback(
+  sessionId: string,
+  body: SubmitFeedbackRequest,
+): Promise<SubmitFeedbackResponse> {
+  return request(
+    `${BASE}/sessions/${encodeURIComponent(sessionId)}/feedback`,
+    { method: "POST", headers: sessionHeaders(sessionId), body },
+  );
 }

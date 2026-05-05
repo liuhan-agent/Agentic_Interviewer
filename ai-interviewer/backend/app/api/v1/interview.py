@@ -951,6 +951,86 @@ def delete_session(
     return payload
 
 
+class FeedbackRequest(BaseModel):
+    """C-end user feedback submitted on the report page."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    outcome: Literal["got_offer", "no_offer", "still_preparing", "withdrew"]
+    helpful_score: int | None = Field(default=None, ge=1, le=5)
+    notes: str | None = Field(default=None, max_length=1024)
+
+
+_FEEDBACK_OUTCOME_MAP: dict[str, str] = {
+    "got_offer": "hired",
+    "no_offer": "rejected",
+    "still_preparing": "withdrew",
+    "withdrew": "ghosted",
+}
+
+
+@router.post("/sessions/{session_id}/feedback")
+def submit_feedback(
+    session_id: SessionIdPath,
+    body: FeedbackRequest,
+    session_token: str | None = Header(default=None, alias="X-Session-Token"),
+) -> dict[str, Any]:
+    """Accept C-end user outcome feedback and upsert into OutcomeRecord.
+
+    Idempotent: repeated submissions for the same session_id overwrite
+    the previous record. The existing ``backfill_once`` scheduler picks
+    up the new/updated OutcomeRecord and propagates the delayed reward
+    to the Thompson Sampling bandit.
+    """
+    _require_session_access(session_id, session_token)
+    canonical_outcome = _FEEDBACK_OUTCOME_MAP[body.outcome]
+    helpful_norm: float | None = None
+    if body.helpful_score is not None:
+        helpful_norm = (body.helpful_score - 1) / 4.0
+
+    try:
+        from datetime import UTC, datetime as _dt
+
+        now = _dt.now(UTC)
+        with get_db_session() as db:
+            existing = db.get(OutcomeRecord, session_id)
+            if existing is not None:
+                existing.outcome = canonical_outcome
+                existing.source = "user_feedback"
+                existing.helpful_score = helpful_norm
+                existing.notes = body.notes
+                existing.collected_at = now
+            else:
+                db.add(
+                    OutcomeRecord(
+                        session_id=session_id,
+                        outcome=canonical_outcome,
+                        source="user_feedback",
+                        helpful_score=helpful_norm,
+                        notes=body.notes,
+                        collected_at=now,
+                    )
+                )
+    except Exception as e:
+        log.exception("submit_feedback failed for session %s", session_id)
+        raise HTTPException(
+            status_code=500,
+            detail=api_error_detail(
+                "feedback_save_failed",
+                "反馈保存失败，请稍后重试。",
+                "retry_later",
+            ),
+        ) from e
+
+    log.info(
+        "feedback saved: session=%s outcome=%s helpful=%.2f",
+        session_id,
+        canonical_outcome,
+        helpful_norm if helpful_norm is not None else -1,
+    )
+    return {"session_id": session_id, "accepted": True}
+
+
 @router.get("/sessions/{session_id}/report")
 def get_report(
     session_id: SessionIdPath,
