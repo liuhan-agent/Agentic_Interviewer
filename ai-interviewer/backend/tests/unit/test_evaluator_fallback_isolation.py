@@ -99,3 +99,53 @@ def test_real_evaluation_still_updates_score_and_status(
     # Running 70/30 average: 0.7 * 6.0 + 0.3 * 8.0 = 4.2 + 2.4 = 6.6
     assert update["scores_per_dim"]["technical_depth"] == 6.6
     assert update["dimension_status"]["technical_depth"] == "passed"
+
+
+def test_qa_history_persists_answer_intent_normal(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """When ``current_answer_intent`` is ``"normal"``, the qa_history entry
+    carries the same intent so downstream report / replay can reason about
+    *why* the turn was scored a given way."""
+    real = _fake_evaluation(fallback=False, score=7.0, passed=False)
+    monkeypatch.setattr(evaluator_node_mod, "evaluate_answer", lambda **_: real)
+
+    state = _state_with_dim("technical_depth", prev_score=0.0, prev_status="pending")
+    update = evaluator_node_mod.evaluator_node(state)
+
+    assert update["qa_history"][0]["answer_intent"] == "normal"
+
+
+@pytest.mark.parametrize(
+    "intent",
+    ["empty", "clarification", "repeat", "too_short", "skipped"],
+)
+def test_qa_history_persists_non_normal_answer_intent(
+    monkeypatch: pytest.MonkeyPatch,
+    intent: str,
+) -> None:
+    real = _fake_evaluation(fallback=False, score=4.0, passed=False)
+    monkeypatch.setattr(evaluator_node_mod, "evaluate_answer", lambda **_: real)
+
+    state = _state_with_dim("technical_depth", prev_score=0.0, prev_status="pending")
+    state["current_answer_intent"] = intent
+
+    update = evaluator_node_mod.evaluator_node(state)
+
+    assert update["qa_history"][0]["answer_intent"] == intent
+
+
+def test_qa_history_defaults_to_normal_when_intent_missing(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Older checkpoints / partial states without ``current_answer_intent``
+    fall back to ``"normal"`` so the field is never absent in the output."""
+    real = _fake_evaluation(fallback=False, score=6.0, passed=False)
+    monkeypatch.setattr(evaluator_node_mod, "evaluate_answer", lambda **_: real)
+
+    state = _state_with_dim("technical_depth", prev_score=0.0, prev_status="pending")
+    state.pop("current_answer_intent", None)
+
+    update = evaluator_node_mod.evaluator_node(state)
+
+    assert update["qa_history"][0]["answer_intent"] == "normal"

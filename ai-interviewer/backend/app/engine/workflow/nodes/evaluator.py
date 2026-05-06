@@ -121,6 +121,12 @@ def evaluator_node(state: InterviewState) -> dict[str, Any]:
         "selected_action": (state.get("selected_action") or {}).get("id", ""),
         "evaluation": evaluation,
         "timestamp": datetime.now(UTC).isoformat(),
+        # Classification produced upstream by ``wait_answer_node``;
+        # persisting it on the turn record means the final report,
+        # replay, and any downstream training pipeline can explain why
+        # a turn was scored the way it was without re-running the
+        # classifier.
+        "answer_intent": state.get("current_answer_intent") or "normal",
     }
 
     turn_budget = max(0, state.get("turn_budget_remaining", 0) - 1)
