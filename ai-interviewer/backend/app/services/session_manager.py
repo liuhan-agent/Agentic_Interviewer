@@ -39,6 +39,7 @@ from typing import Any
 from app.core.logging import bind_log_context, get_logger, reset_log_context
 from app.core.settings import get_settings
 from app.core.timing import reset_timing_trace, start_timing_trace
+from app.services.session_recovery import RecoveryService
 from app.services.session_persistence import SessionPersistence
 from app.services.session_registry import SessionRegistry
 
@@ -490,6 +491,7 @@ class SessionManager:
         self._registry = SessionRegistry(self._sessions, self._lock)
         self._persistence = SessionPersistence(get_db_session_fn=get_db_session)
         self._workflow = build_workflow()
+        self._recovery = RecoveryService(self._workflow)
         self._reaper_thread: threading.Thread | None = None
         self._reaper_stop = threading.Event()
         self._maybe_start_reaper()
@@ -507,6 +509,14 @@ class SessionManager:
             persistence = SessionPersistence(get_db_session_fn=get_db_session)
             self._persistence = persistence
         return persistence
+
+    def _session_recovery(self) -> RecoveryService:
+        recovery = getattr(self, "_recovery", None)
+        workflow = getattr(self, "_workflow", None)
+        if recovery is None or getattr(recovery, "_workflow", None) is not workflow:
+            recovery = RecoveryService(workflow)
+            self._recovery = recovery
+        return recovery
 
     # ------------------------------------------------------------------
     # TTL reaper
@@ -1149,70 +1159,13 @@ class SessionManager:
     # ------------------------------------------------------------------
 
     def _checkpoint_exists(self, session_id: str) -> bool:
-        """Check whether the LangGraph checkpointer has state for *session_id*.
-
-        With MemorySaver all checkpoints vanish on restart, so rehydrated
-        handles would fail on the first ``submit_answer``.  We probe
-        ``get_state`` and treat any missing / empty result as "no
-        checkpoint".
-        """
-        config = _graph_config(session_id)
-        try:
-            state = self._workflow.get_state(config)
-            values = getattr(state, "values", None) if state is not None else None
-            return bool(values)
-        except Exception as e:
-            log.debug("checkpoint probe for %s: %s", session_id, e)
-            return False
+        return self._session_recovery().checkpoint_exists(session_id)
 
     def _checkpoint_retryable_question_failure(self, session_id: str) -> bool:
-        """Return whether a checkpoint can safely retry question generation.
-
-        This is intentionally narrow: we only retry a graph that is parked
-        at ``ask_question`` and has not produced a ``current_question`` yet.
-        Once a question has been shown, the next user action must be a normal
-        answer resume rather than another generator run.
-        """
-        config = _graph_config(session_id)
-        try:
-            state = self._workflow.get_state(config)
-        except Exception as e:
-            log.warning("checkpoint retry probe failed for %s: %s", session_id, e)
-            return False
-
-        values = getattr(state, "values", None) or {}
-        next_nodes = tuple(getattr(state, "next", ()) or ())
-        if "ask_question" not in next_nodes:
-            return False
-        if values.get("final_report"):
-            return False
-        return not bool(values.get("current_question"))
+        return self._session_recovery().checkpoint_retryable_question_failure(session_id)
 
     def _checkpoint_retryable_evaluator_failure(self, session_id: str) -> bool:
-        """Return whether a checkpoint can safely retry answer evaluation.
-
-        This covers the failure mode where the user already submitted an answer
-        and the graph crashed before ``evaluator`` completed. Retrying resumes
-        the parked graph from ``evaluator`` with the checkpointed
-        ``current_answer`` and ``current_question`` instead of asking the user
-        to answer the same question again.
-        """
-        config = _graph_config(session_id)
-        try:
-            state = self._workflow.get_state(config)
-        except Exception as e:
-            log.warning("checkpoint evaluator retry probe failed for %s: %s", session_id, e)
-            return False
-
-        values = getattr(state, "values", None) or {}
-        next_nodes = tuple(getattr(state, "next", ()) or ())
-        if "evaluator" not in next_nodes:
-            return False
-        if values.get("final_report"):
-            return False
-        if not isinstance(values.get("current_question"), dict):
-            return False
-        return bool(str(values.get("current_answer") or "").strip())
+        return self._session_recovery().checkpoint_retryable_evaluator_failure(session_id)
 
     def can_retry_failed_question(self, session_id: str) -> bool:
         """Public probe used by APIs to show a retry affordance."""
@@ -1222,24 +1175,7 @@ class SessionManager:
         )
 
     def _checkpoint_waiting_question(self, session_id: str) -> dict[str, Any] | None:
-        """Return checkpoint values if the graph is paused for an answer."""
-        config = _graph_config(session_id)
-        try:
-            state = self._workflow.get_state(config)
-        except Exception as e:
-            log.warning("checkpoint waiting probe failed for %s: %s", session_id, e)
-            return None
-
-        values = getattr(state, "values", None) or {}
-        next_nodes = tuple(getattr(state, "next", ()) or ())
-        question = values.get("current_question")
-        if "wait_answer" not in next_nodes:
-            return None
-        if not isinstance(question, dict) or not question:
-            return None
-        if values.get("final_report"):
-            return None
-        return values
+        return self._session_recovery().checkpoint_waiting_question(session_id)
 
     def recover_waiting_session(self, session_id: str) -> SessionHandle | None:
         """Rebuild an in-memory handle from a waiting-for-answer checkpoint.
