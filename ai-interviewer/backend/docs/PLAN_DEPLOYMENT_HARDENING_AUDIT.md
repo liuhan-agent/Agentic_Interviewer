@@ -193,3 +193,23 @@ the deployment is single-tenant and BYOK already isolates LLM accounts.
 None of the three items is a current correctness or security defect.
 Each becomes mandatory once the listed trigger fires; the suggested
 follow-up sections describe a minimal, non-disruptive path.
+
+## How this deferral is tracked (so it does not get forgotten)
+
+The three deferrals are mirrored as **pre-flight checks** in
+[PLAN_PRODUCTION_DEPLOY.md §6](./PLAN_PRODUCTION_DEPLOY.md#6-已知延后加固触发器pending-hardening-triggers).
+Every release pass is required to walk that checklist; if any of the
+listed triggers has fired the corresponding minimal-landing action
+must move into the current release rather than being deferred again.
+
+- F1 / F2 / F3 trigger conditions are duplicated in the deploy plan
+  table so a release reviewer who has not seen this audit can still
+  evaluate them.
+- The deploy plan links back here for the rationale, so the two
+  documents stay in lock-step: any change to the trigger or the
+  landing action must update both files in the same commit.
+
+This ensures the audit cannot quietly age out: either the deploy
+plan is reviewed and the triggers are checked, or this audit is
+explicitly retired by removing the corresponding row from the
+deploy-plan table.
