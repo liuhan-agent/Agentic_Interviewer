@@ -40,7 +40,10 @@ jobs:
         run: npm run typecheck
 
       - name: Run frontend unit tests
-        run: node --test "tests/**/*.test.js"
+        shell: pwsh
+        run: |
+          $tests = Get-ChildItem -Path tests -Filter *.test.js -File | ForEach-Object { $_.FullName }
+          node --test $tests
 
       - name: Run frontend lint
         run: npm run lint
