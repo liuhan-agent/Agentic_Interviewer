@@ -378,6 +378,9 @@ def test_retry_failed_question_endpoint_starts_retry(
     calls: list[str] = []
 
     class _RetryManager:
+        def get(self, session_id: str) -> None:
+            return None
+
         def retry_failed_question(self, session_id: str) -> object | None:
             calls.append(session_id)
             return object()
@@ -398,6 +401,9 @@ def test_retry_failed_question_endpoint_rejects_non_retryable(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     class _RetryManager:
+        def get(self, session_id: str) -> None:
+            return None
+
         def retry_failed_question(self, session_id: str) -> object | None:
             return None
 

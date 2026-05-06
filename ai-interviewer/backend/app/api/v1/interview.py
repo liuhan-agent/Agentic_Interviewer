@@ -987,8 +987,12 @@ def retry_failed_question(
     session_id: SessionIdPath,
     session_token: str | None = Header(default=None, alias="X-Session-Token"),
 ) -> dict[str, Any]:
-    _require_session_access(session_id, session_token)
     manager = get_session_manager()
+    _require_session_access(
+        session_id,
+        session_token,
+        handle=_get_or_recover_session(manager, session_id),
+    )
     handle = manager.retry_failed_question(session_id)
     if handle is None:
         raise HTTPException(
@@ -1071,7 +1075,12 @@ def submit_feedback(
     up the new/updated OutcomeRecord and propagates the delayed reward
     to the Thompson Sampling bandit.
     """
-    _require_session_access(session_id, session_token)
+    manager = get_session_manager()
+    _require_session_access(
+        session_id,
+        session_token,
+        handle=_get_or_recover_session(manager, session_id),
+    )
     canonical_outcome = _FEEDBACK_OUTCOME_MAP[body.outcome]
     helpful_norm: float | None = None
     if body.helpful_score is not None:

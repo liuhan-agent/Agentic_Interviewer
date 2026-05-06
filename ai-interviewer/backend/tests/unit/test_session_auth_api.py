@@ -713,6 +713,156 @@ def test_submit_answer_treats_too_short_idempotency_key_as_disabled(
     assert len(manager.submitted) == 2
 
 
+# ---------------------------------------------------------------------------
+# Auth coverage scan: every /sessions/{id}/... route must reject requests
+# that are missing the X-Session-Token header. This is a "guardrail" test
+# rather than a behaviour test — it makes sure that future routes added
+# under /sessions/{id} cannot accidentally ship without an auth check.
+# ---------------------------------------------------------------------------
+
+
+_SESSION_ROUTE_AUTH_CASES: list[dict[str, Any]] = [
+    {
+        "id": "GET /question",
+        "method": "get",
+        "url": "/api/v1/interview/sessions/sess-auth/question",
+        "json": None,
+        "params": None,
+    },
+    {
+        "id": "POST /voice-ticket",
+        "method": "post",
+        "url": "/api/v1/interview/sessions/sess-auth/voice-ticket",
+        "json": None,
+        "params": None,
+    },
+    {
+        "id": "POST /answer",
+        "method": "post",
+        "url": "/api/v1/interview/sessions/sess-auth/answer",
+        "json": {"answer": "A", "turn_idx": 2},
+        "params": None,
+    },
+    {
+        "id": "POST /skip-question",
+        "method": "post",
+        "url": "/api/v1/interview/sessions/sess-auth/skip-question",
+        "json": {"turn_idx": 2},
+        "params": None,
+    },
+    {
+        "id": "POST /hint",
+        "method": "post",
+        "url": "/api/v1/interview/sessions/sess-auth/hint",
+        "json": {"turn_idx": 2},
+        "params": None,
+    },
+    {
+        "id": "POST /retry-question",
+        "method": "post",
+        "url": "/api/v1/interview/sessions/sess-auth/retry-question",
+        "json": None,
+        "params": None,
+    },
+    {
+        "id": "DELETE /sessions/{id}",
+        "method": "delete",
+        "url": "/api/v1/interview/sessions/sess-auth",
+        "json": None,
+        "params": {"confirm_session_id": "sess-auth"},
+    },
+    {
+        "id": "POST /feedback",
+        "method": "post",
+        "url": "/api/v1/interview/sessions/sess-auth/feedback",
+        "json": {"outcome": "got_offer"},
+        "params": None,
+    },
+    {
+        "id": "GET /report",
+        "method": "get",
+        "url": "/api/v1/interview/sessions/sess-auth/report",
+        "json": None,
+        "params": None,
+    },
+    {
+        "id": "GET /replay",
+        "method": "get",
+        "url": "/api/v1/interview/sessions/sess-auth/replay",
+        "json": None,
+        "params": None,
+    },
+    {
+        "id": "GET /resume",
+        "method": "get",
+        "url": "/api/v1/interview/sessions/sess-auth/resume",
+        "json": None,
+        "params": None,
+    },
+]
+
+
+@pytest.mark.parametrize(
+    "case",
+    _SESSION_ROUTE_AUTH_CASES,
+    ids=[case["id"] for case in _SESSION_ROUTE_AUTH_CASES],
+)
+def test_every_session_route_rejects_missing_token(
+    client: tuple[TestClient, _Manager],
+    case: dict[str, Any],
+) -> None:
+    """Coverage scan: every ``/api/v1/interview/sessions/{id}/...`` route
+    must surface ``401`` when the client did not send an
+    ``X-Session-Token`` header.
+
+    This test is the safety net for future routes added under
+    ``/sessions/{id}``: forgetting ``_require_session_access`` will fail
+    here long before it reaches a code review."""
+    http, _manager = client
+    request_kwargs: dict[str, Any] = {}
+    if case["json"] is not None:
+        request_kwargs["json"] = case["json"]
+    if case["params"] is not None:
+        request_kwargs["params"] = case["params"]
+
+    resp = getattr(http, case["method"])(case["url"], **request_kwargs)
+
+    assert resp.status_code == 401, (
+        f"{case['id']} returned {resp.status_code}; expected 401 when "
+        "X-Session-Token is missing. Body: " + resp.text[:200]
+    )
+
+
+def test_session_route_auth_scan_includes_all_session_id_routes() -> None:
+    """If a new route is added under ``/sessions/{session_id}``, this test
+    fails until ``_SESSION_ROUTE_AUTH_CASES`` is updated. That keeps the
+    coverage scan honest as the API evolves."""
+    session_id_routes: set[tuple[str, str]] = set()
+    for route in interview_api.router.routes:
+        path = getattr(route, "path", "")
+        if "{session_id}" not in path:
+            continue
+        for method in getattr(route, "methods", set()) or set():
+            method_normalised = method.lower()
+            if method_normalised in {"head", "options"}:
+                continue
+            session_id_routes.add((method_normalised, path))
+
+    covered: set[tuple[str, str]] = set()
+    for case in _SESSION_ROUTE_AUTH_CASES:
+        # Normalise the test URL against the live router path so a
+        # template change (e.g. ``{id}`` → ``{session_id}``) surfaces here
+        # instead of silently bypassing the scan.
+        templated = case["url"].replace("sess-auth", "{session_id}")
+        covered.add((case["method"], templated))
+
+    missing = session_id_routes - covered
+    assert not missing, (
+        "Routes added under /sessions/{session_id} without entries in "
+        f"_SESSION_ROUTE_AUTH_CASES: {sorted(missing)}"
+    )
+
+
 def test_submit_answer_idempotency_isolates_across_sessions(
     client: tuple[TestClient, _Manager],
     monkeypatch: pytest.MonkeyPatch,
