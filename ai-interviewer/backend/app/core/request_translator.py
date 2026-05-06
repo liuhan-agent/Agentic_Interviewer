@@ -18,6 +18,12 @@ from app.engine.workflow.state import InterviewState, build_initial_state
 _ALLOWED_MODES = {"tech", "behavioral", "mixed"}
 _MAX_TURNS_LIMIT = 20
 _MAX_TURN_BUDGET_LIMIT = 30
+_ALLOWED_RAG_MODES = {"vector", "hybrid"}
+_RAG_TOP_K_DEFAULT = 5
+_RAG_TOP_K_MIN = 1
+_RAG_TOP_K_MAX = 50
+_LLM_TEMPERATURE_MIN = 0.0
+_LLM_TEMPERATURE_MAX = 2.0
 
 # Frontend historically types ``mode`` as ``"mixed" | "text" | "voice"``
 # (the latter two describe the interaction channel, not the interview
@@ -41,6 +47,54 @@ def _clamp_int(value: Any, default: int, *, lower: int, upper: int) -> int:
 def _clamp_float(value: Any, default: float, *, lower: float, upper: float) -> float:
     raw = default if value is None else float(value)
     return max(lower, min(upper, raw))
+
+
+def _safe_clamp_int(
+    value: Any,
+    default: int,
+    *,
+    lower: int,
+    upper: int,
+) -> int:
+    """Clamp ``value`` into ``[lower, upper]``, falling back to ``default``.
+
+    Unlike :func:`_clamp_int`, garbage values (non-numeric strings,
+    booleans, lists) collapse to ``default`` instead of raising. The
+    runtime-config layer accepts free-form ``dict[str, Any]`` payloads
+    that are not always pre-validated by the FastAPI request schema
+    (CLI demos / direct service calls), so the layer must absorb bad
+    input rather than 500.
+    """
+    if value is None or isinstance(value, bool):
+        raw = default
+    else:
+        try:
+            raw = int(value)
+        except (TypeError, ValueError):
+            raw = default
+    return max(lower, min(upper, raw))
+
+
+def _normalise_rag_mode(value: Any) -> str:
+    if isinstance(value, str) and value in _ALLOWED_RAG_MODES:
+        return value
+    return "vector"
+
+
+def _normalise_llm_temperature(value: Any) -> float | None:
+    """Clamp temperature to [0.0, 2.0] or fall back to ``None``.
+
+    Returning ``None`` (instead of a default) preserves the long-standing
+    "let LLM call sites read ``settings.llm_temperature`` when unset"
+    contract; only out-of-range numerics get clamped.
+    """
+    if value is None or isinstance(value, bool):
+        return None
+    try:
+        candidate = float(value)
+    except (TypeError, ValueError):
+        return None
+    return max(_LLM_TEMPERATURE_MIN, min(_LLM_TEMPERATURE_MAX, candidate))
 
 
 def _execution_config(req: dict[str, Any]) -> dict[str, Any]:
@@ -82,9 +136,14 @@ def _runtime_config(req: dict[str, Any]) -> dict[str, Any]:
     ``QueueAnswerProvider`` blocking behaviour.
     """
     return {
-        "rag_top_k": int(req.get("rag_top_k", 5)),
-        "rag_mode": req.get("rag_mode", "vector"),
-        "llm_temperature": req.get("llm_temperature"),
+        "rag_top_k": _safe_clamp_int(
+            req.get("rag_top_k"),
+            _RAG_TOP_K_DEFAULT,
+            lower=_RAG_TOP_K_MIN,
+            upper=_RAG_TOP_K_MAX,
+        ),
+        "rag_mode": _normalise_rag_mode(req.get("rag_mode")),
+        "llm_temperature": _normalise_llm_temperature(req.get("llm_temperature")),
         "mode": req.get("mode", "mixed"),
         "use_sync_provider": bool(req.get("use_sync_provider", False)),
     }
