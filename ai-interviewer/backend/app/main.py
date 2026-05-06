@@ -26,6 +26,7 @@ from app.api.v1 import admin as admin_api
 from app.api.v1 import interview as interview_api
 from app.api.v1 import llm as llm_api
 from app.api.v1 import ws_voice as ws_voice_api
+from app.core.deployment_preflight import run_preflight
 from app.core.logging import configure_logging, get_logger
 from app.core.request_context import install_request_context_middleware
 from app.core.settings import Settings, get_settings
@@ -67,6 +68,8 @@ def _configure_langsmith(settings: Settings) -> None:
 
 
 def _run_startup(app: FastAPI, settings: Settings) -> None:
+    app.state.config_summary = run_preflight(settings)
+
     try:
         init_db()
     except Exception as e:  # pragma: no cover

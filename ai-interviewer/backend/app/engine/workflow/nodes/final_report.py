@@ -12,6 +12,7 @@ from app.core.logging import get_logger
 from app.core.metrics import estimate_llm_cost_usd
 from app.core.settings import get_settings
 from app.core.tracer import get_tracer
+from app.services.scoring_credibility import compute_credibility
 from app.engine.workflow.eval_helpers import (
     is_evaluator_fallback as _is_evaluator_fallback,
 )
@@ -483,6 +484,15 @@ def final_report_node(state: InterviewState) -> dict[str, Any]:
         "evaluator_fallback_count": evaluator_fallback_count,
         "workflow_artifacts": _workflow_artifacts(state),
     }
+    ev_summary = report["evidence_summary"]
+    ct_summary = report["contract_summary"]
+    report["credibility_summary"] = compute_credibility(
+        total_turns=len(qa_history),
+        evaluator_fallback_count=evaluator_fallback_count,
+        evidence_summary=ev_summary,
+        contract_summary=ct_summary,
+        verification=verification,
+    )
     cost_summary = _build_cost_summary()
     if cost_summary is not None:
         report["cost_summary"] = cost_summary
