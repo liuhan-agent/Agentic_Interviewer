@@ -89,17 +89,35 @@ from app.core.session_ids import SESSION_ID_MAX_LENGTH, SESSION_ID_PATTERN
 from app.core.settings import get_settings
 from app.core.video_signals_schema import VideoSignalsInput
 from app.core.voice_ticket import issue_voice_ticket
-from app.engine.agents.security import check_user_context
 from app.models.base import get_session as get_db_session
 from app.models.interview_session import InterviewSession
 from app.services.jd_parser import (
     JDParseError,
-    all_dimension_options,
-    dimension_label,
     parse_job_spec,
 )
-from app.services.job_directions import list_interview_directions
-from app.services.job_templates import JobTemplateNotFound, get_job_template
+from app.services.job_templates import JobTemplateNotFound
+from app.services.interview_setup import (
+    ResumeTextExtractionError,
+    default_job_template_payload,
+    list_dimensions_payload,
+    list_directions_payload,
+    parse_jd_setup_payload,
+    parse_resume_setup_upload,
+    resume_parse_payload,
+)
+from app.services.interview_feedback import (
+    FEEDBACK_OUTCOME_MAP,
+    save_interview_feedback,
+)
+from app.services.interview_reports import (
+    attach_trace_health,
+    report_payload_from_persisted_session,
+)
+from app.services.interview_runtime import (
+    stale_session_error,
+    terminal_error_payload,
+    terminal_payload_from_persisted_session,
+)
 from app.services.privacy_cleanup import delete_session_data
 from app.services.resume_parse_cache import (
     get_resume_parse_cache,
@@ -116,7 +134,7 @@ from app.services.resume_parser import (
 from app.services.resume_parser import (
     MAX_FILE_BYTES as MAX_RESUME_UPLOAD_BYTES,
 )
-from app.services.session_manager import get_session_manager, temporary_llm_override
+from app.services.session_manager import get_session_manager
 from app.services.session_replay import (
     ReplayNotFound,
     ReplayNotReady,
@@ -407,16 +425,12 @@ def _terminal_error_payload(
     error_kind: str | None,
     retryable: bool = False,
 ) -> dict[str, Any]:
-    payload = {
-        "session_id": session_id,
-        "status": "error",
-        "question": None,
-        "error": error,
-        "error_kind": error_kind,
-    }
-    if retryable:
-        payload["retryable"] = True
-    return payload
+    return terminal_error_payload(
+        session_id=session_id,
+        error=error,
+        error_kind=error_kind,
+        retryable=retryable,
+    )
 
 
 def _stale_session_error(
@@ -425,18 +439,9 @@ def _stale_session_error(
     status: str | None = None,
     retryable: bool = False,
 ) -> dict[str, Any]:
-    label = status or "unknown"
-    return _terminal_error_payload(
-        session_id=session_id,
-        error=(
-            f"这场面试当前状态为 {label}，"
-            + (
-                "可以点继续处理来恢复上一轮进度。"
-                if retryable
-                else "已经无法继续。请回到首页重新开始一场面试。"
-            )
-        ),
-        error_kind=None,
+    return stale_session_error(
+        session_id,
+        status=status,
         retryable=retryable,
     )
 
@@ -453,51 +458,7 @@ def _terminal_payload_from_persisted_session(
     browser still keeps a local history entry. When that happens, give the
     frontend a structured terminal state instead of a vague 404.
     """
-    try:
-        from app.models.base import get_session as get_db_session
-        from app.models.interview_session import InterviewSession
-
-        with get_db_session() as db:
-            row = db.get(InterviewSession, session_id)
-            if row is None:
-                return None
-            status = row.status
-            final_report = row.final_report
-            persisted_error = getattr(row, "error", None)
-            persisted_error_kind = getattr(row, "error_kind", None)
-            persisted_retryable = bool(getattr(row, "retryable", False))
-    except Exception as e:
-        log.warning("load persisted session %s failed: %s", session_id, e)
-        return None
-
-    if status == "completed":
-        return {
-            "session_id": session_id,
-            "status": "completed",
-            "question": None,
-            "final_report": final_report,
-        }
-    if status == "cancelled":
-        return {
-            "session_id": session_id,
-            "status": "cancelled",
-            "question": None,
-        }
-    if status in {"error", "errored", "failed", "stale", "interrupted", "running"}:
-        effective_retryable = retryable or persisted_retryable
-        if persisted_error:
-            return _terminal_error_payload(
-                session_id=session_id,
-                error=persisted_error,
-                error_kind=persisted_error_kind,
-                retryable=effective_retryable,
-            )
-        return _stale_session_error(
-            session_id,
-            status=status,
-            retryable=effective_retryable,
-        )
-    return None
+    return terminal_payload_from_persisted_session(session_id, retryable=retryable)
 
 
 def _load_terminal_payload_from_persisted_session(
@@ -520,56 +481,7 @@ def _load_terminal_payload_from_persisted_session(
 def _report_payload_from_persisted_session(
     session_id: str,
 ) -> dict[str, Any] | None:
-    try:
-        from app.models.base import get_session as get_db_session
-        from app.models.interview_session import InterviewSession
-
-        with get_db_session() as db:
-            row = db.get(InterviewSession, session_id)
-            if row is None:
-                return None
-            status = row.status
-            final_report = row.final_report
-            persisted_error = getattr(row, "error", None)
-            persisted_error_kind = getattr(row, "error_kind", None)
-    except Exception as e:
-        log.warning("load persisted report %s failed: %s", session_id, e)
-        return None
-
-    if status == "completed":
-        return _attach_trace_health(
-            {
-                "session_id": session_id,
-                "final_report": final_report,
-                "error": None,
-            },
-            session_id,
-        )
-    if status == "cancelled":
-        return _attach_trace_health(
-            {
-                "session_id": session_id,
-                "final_report": final_report,
-                "error": "session cancelled",
-                "error_kind": None,
-            },
-            session_id,
-        )
-    if status in {"error", "errored", "failed", "stale"}:
-        return _attach_trace_health(
-            {
-                "session_id": session_id,
-                "final_report": final_report,
-                "error": persisted_error
-                or (
-                    f"这场面试当前状态为 {status}，没有可用报告。"
-                    "请重新开始一场面试。"
-                ),
-                "error_kind": persisted_error_kind,
-            },
-            session_id,
-        )
-    return None
+    return report_payload_from_persisted_session(session_id)
 
 
 def _attach_trace_health(payload: dict[str, Any], session_id: str) -> dict[str, Any]:
@@ -580,14 +492,7 @@ def _attach_trace_health(payload: dict[str, Any], session_id: str) -> dict[str, 
     the report is the candidate's deliverable and must not 500 just
     because the observability stack is having a bad day.
     """
-    try:
-        from app.services.trace_health import compute_session_trace_health
-
-        payload["trace_health"] = compute_session_trace_health(session_id)
-    except Exception as e:  # pragma: no cover - defensive
-        log.warning("attach_trace_health failed for %s: %s", session_id, e)
-        payload["trace_health"] = "missing"
-    return payload
+    return attach_trace_health(payload, session_id)
 
 
 def _delete_checkpoint_thread(session_id: str) -> bool | None:
@@ -631,19 +536,7 @@ def _parse_llm_config_form(raw: str | None) -> dict[str, Any] | None:
 
 
 def _resume_parse_payload(parsed: Any, text: str) -> dict[str, Any]:
-    return {
-        "candidate_name": parsed.candidate_name,
-        "candidate_profile": parsed.candidate_profile,
-        "summary": parsed.summary,
-        "skills": parsed.skills,
-        "highlights": parsed.highlights,
-        "projects": parsed.projects,
-        "focus_areas": parsed.focus_areas,
-        "concerns": parsed.concerns,
-        "raw_text_preview": text[:2000],
-        "parse_status": parsed.parse_status,
-        "context_flags": check_user_context(text, source="resume").categories,
-    }
+    return resume_parse_payload(parsed, text)
 
 
 def _rate_limit_client_key(request: Request, endpoint: str) -> str:
@@ -1054,12 +947,7 @@ class FeedbackRequest(BaseModel):
     notes: str | None = Field(default=None, max_length=1024)
 
 
-_FEEDBACK_OUTCOME_MAP: dict[str, str] = {
-    "got_offer": "hired",
-    "no_offer": "rejected",
-    "still_preparing": "withdrew",
-    "withdrew": "ghosted",
-}
+_FEEDBACK_OUTCOME_MAP = FEEDBACK_OUTCOME_MAP
 
 
 @router.post("/sessions/{session_id}/feedback")
@@ -1081,34 +969,14 @@ def submit_feedback(
         session_token,
         handle=_get_or_recover_session(manager, session_id),
     )
-    canonical_outcome = _FEEDBACK_OUTCOME_MAP[body.outcome]
-    helpful_norm: float | None = None
-    if body.helpful_score is not None:
-        helpful_norm = (body.helpful_score - 1) / 4.0
-
     try:
-        from datetime import UTC, datetime as _dt
-
-        now = _dt.now(UTC)
-        with get_db_session() as db:
-            existing = db.get(OutcomeRecord, session_id)
-            if existing is not None:
-                existing.outcome = canonical_outcome
-                existing.source = "user_feedback"
-                existing.helpful_score = helpful_norm
-                existing.notes = body.notes
-                existing.collected_at = now
-            else:
-                db.add(
-                    OutcomeRecord(
-                        session_id=session_id,
-                        outcome=canonical_outcome,
-                        source="user_feedback",
-                        helpful_score=helpful_norm,
-                        notes=body.notes,
-                        collected_at=now,
-                    )
-                )
+        result = save_interview_feedback(
+            session_id=session_id,
+            outcome=body.outcome,
+            helpful_score=body.helpful_score,
+            notes=body.notes,
+            get_db_session_fn=get_db_session,
+        )
     except Exception as e:
         log.exception("submit_feedback failed for session %s", session_id)
         raise HTTPException(
@@ -1123,8 +991,8 @@ def submit_feedback(
     log.info(
         "feedback saved: session=%s outcome=%s helpful=%.2f",
         session_id,
-        canonical_outcome,
-        helpful_norm if helpful_norm is not None else -1,
+        result.canonical_outcome,
+        result.helpful_norm if result.helpful_norm is not None else -1,
     )
     return {"session_id": session_id, "accepted": True}
 
@@ -1315,11 +1183,18 @@ async def parse_resume_upload(
         file.content_type,
         len(raw),
     )
+    llm_override = _parse_llm_config_form(llm_config)
     try:
-        text = extract_text_with_timeout(
+        result = parse_resume_setup_upload(
             filename=file.filename,
             content_type=file.content_type,
-            data=raw,
+            raw=raw,
+            llm_override=llm_override,
+            extract_text_fn=extract_text_with_timeout,
+            parse_resume_fn=parse_resume,
+            get_cache_fn=get_resume_parse_cache,
+            cache_key_fn=resume_parse_cache_key,
+            should_cache_fn=should_cache_resume_parse,
             timeout_seconds=EXTRACT_TEXT_TIMEOUT_SECONDS,
         )
     except ResumeParseError as e:
@@ -1349,60 +1224,37 @@ async def parse_resume_upload(
             status_code=422,
             detail=api_error_detail("resume_parse_failed", msg, "edit_resume_manually"),
         ) from e
-    except Exception as e:
+    except ResumeTextExtractionError as e:
         log.exception("resume_parse_upload: unexpected decode failure")
         record_setup_parse_error("resume", "resume_read_failed")
         raise HTTPException(
             status_code=500,
             detail=api_error_detail(
                 "resume_read_failed",
-                f"Failed to read file: {e}",
+                f"Failed to read file: {e.original}",
                 "retry_upload",
             ),
         ) from e
 
-    llm_override = _parse_llm_config_form(llm_config)
-    cache_key = resume_parse_cache_key(
-        text=text,
-        filename=file.filename,
-        llm_override=llm_override,
-    )
-    cache = get_resume_parse_cache()
-    if cache is not None:
-        hit = cache.get(cache_key)
-        if hit is not None:
-            payload = dict(hit.payload)
-            status = payload.get("parse_status")
-            if isinstance(status, dict):
-                payload["parse_status"] = {
-                    **status,
-                    "cached": True,
-                    "cache_age_ms": hit.age_ms,
-                }
-            payload["raw_text_preview"] = text[:2000]
-            log.info("resume_parse_cache_hit: key=%s age_ms=%s", cache_key[:16], hit.age_ms)
-            record_context_flags("resume", payload.get("context_flags") or [])
-            return payload
-        log.info("resume_parse_cache_miss: key=%s", cache_key[:16])
-
-    if llm_override:
-        with temporary_llm_override(llm_override):
-            parsed = parse_resume(text, force_llm=True, filename=file.filename)
+    if result.cached:
+        log.info(
+            "resume_parse_cache_hit: key=%s age_ms=%s",
+            result.cache_key[:16],
+            result.cache_age_ms,
+        )
     else:
-        parsed = parse_resume(text, filename=file.filename)
+        log.info("resume_parse_cache_miss: key=%s", result.cache_key[:16])
+    payload = result.payload
     log.info(
         "resume_parse_upload_done: mode=%s reason=%s elapsed_ms=%s text_chars=%s projects=%d focus_areas=%d",
-        parsed.parse_status.get("mode"),
-        parsed.parse_status.get("reason"),
-        parsed.parse_status.get("elapsed_ms"),
-        parsed.parse_status.get("text_chars"),
-        len(parsed.projects),
-        len(parsed.focus_areas),
+        payload.get("parse_status", {}).get("mode"),
+        payload.get("parse_status", {}).get("reason"),
+        payload.get("parse_status", {}).get("elapsed_ms"),
+        payload.get("parse_status", {}).get("text_chars"),
+        len(payload.get("projects") or []),
+        len(payload.get("focus_areas") or []),
     )
-    payload = _resume_parse_payload(parsed, text)
     record_context_flags("resume", payload.get("context_flags") or [])
-    if cache is not None and should_cache_resume_parse(payload):
-        cache.set(cache_key, payload)
     return payload
 
 
@@ -1440,14 +1292,14 @@ def parse_jd(req: ParseJobSpecRequest, request: Request) -> dict[str, Any]:
         req.llm_config.model_dump(exclude_none=True) if req.llm_config else None
     )
     try:
-        with temporary_llm_override(llm_override):
-            parsed = parse_job_spec(
-                req.text,
-                direction=req.direction,
-                title=req.title,
-                level=req.level,
-                force_llm=bool(llm_override),
-            )
+        payload = parse_jd_setup_payload(
+            text=req.text,
+            direction=req.direction,
+            title=req.title,
+            level=req.level,
+            llm_override=llm_override,
+            parse_job_spec_fn=parse_job_spec,
+        )
     except JDParseError as e:
         message = "岗位要求为空，请补充后再试。" if "empty" in str(e).lower() else str(e)
         code = "jd_empty" if "empty" in str(e).lower() else "jd_parse_failed"
@@ -1460,45 +1312,29 @@ def parse_jd(req: ParseJobSpecRequest, request: Request) -> dict[str, Any]:
         "jd_parse: title=%r level=%r dims=%s skills=%d",
         req.title,
         req.level,
-        parsed.rubric_dimensions,
-        len(parsed.required_skills),
+        payload["rubric_dimensions"],
+        len(payload["required_skills"]),
     )
-    context_flags = check_user_context(req.text, source="jd").categories
-    record_context_flags("jd", context_flags)
-    return {
-        "required_skills": parsed.required_skills,
-        "rubric_dimensions": parsed.rubric_dimensions,
-        "rubric_dimension_labels": [
-            {"id": d, "label": dimension_label(d)} for d in parsed.rubric_dimensions
-        ],
-        "suggested_level": parsed.suggested_level,
-        "rationale": parsed.rationale,
-        "unmapped_requirements": parsed.unmapped_requirements or [],
-        "context_flags": context_flags,
-    }
+    record_context_flags("jd", payload.get("context_flags") or [])
+    return payload
 
 
 @router.get("/dimensions")
 def list_dimensions() -> dict[str, Any]:
     """Static catalog used by the dimension picker in the SetupForm."""
-    return {"dimensions": all_dimension_options()}
+    return list_dimensions_payload()
 
 
 @router.get("/directions")
 def list_directions() -> dict[str, Any]:
     """Static direction catalog used by SetupForm."""
-    return {
-        "directions": [
-            direction.to_api_dict() for direction in list_interview_directions()
-        ]
-    }
+    return list_directions_payload()
 
 
 @router.get("/job-template")
 def get_default_job_template(direction: str, level: str | None = None) -> dict[str, Any]:
     """Return the editable generic JD template for a setup direction."""
     try:
-        template = get_job_template(direction)
+        return default_job_template_payload(direction, level=level)
     except JobTemplateNotFound as e:
         raise HTTPException(status_code=404, detail="Job template not found") from e
-    return template.to_api_dict(level=level)
