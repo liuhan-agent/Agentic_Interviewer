@@ -201,6 +201,7 @@ def _postgres_saver() -> Any:
             conninfo=dsn,
             min_size=1,
             max_size=10,
+            open=True,
             kwargs={"autocommit": True, "prepare_threshold": 0},
         )
         saver = PostgresSaver(pool)
