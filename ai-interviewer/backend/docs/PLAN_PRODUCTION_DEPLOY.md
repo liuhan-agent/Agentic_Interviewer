@@ -1,10 +1,10 @@
 # 生产部署清单
 
-> **当前阶段**：项目仍在开发 / 调试阶段，本清单作为**未来上线前的手工核对清单**，不在启动时强制 enforce；dev 启动不受影响。dev 默认配置（`APP_ENV=dev` / `API_TOKEN=` 空 / `ALLOW_OPEN_ADMIN=true` 等）即可一行 `uvicorn app.main:app --reload` 起服。
+> **当前阶段**：dev / test 仍允许低门槛启动；当 `APP_ENV=prod` 时，`app/core/deployment_preflight.py` 会在启动期强制拦截高风险配置。本清单仍作为上线前人工核对入口。
 
 ## 适用范围
 
-仅当 `APP_ENV=prod` 真正部署上线时手工核对下面 5 项。staging 可以参考 1 / 2 / 4，按需启用。
+仅当 `APP_ENV=prod` 真正部署上线时手工核对下面项目。staging 可以参考 1 / 2 / 4 / 6，按需启用。
 
 ## 核对项
 
@@ -51,6 +51,21 @@
 - **关注项**：`LANGSMITH_PROJECT` 必须与 dev / staging 区分（建议 suffix `-prod` / `-staging` / `-dev`）
 - **遗漏后果**：prod 流量与 dev 调试 trace 串台，dashboard 数据被污染、计费方混淆
 
+### 6. 生产 fallback 禁止静默退化
+
+以下配置由启动 preflight 自动校验：
+
+| 配置 | prod 要求 | 原因 |
+|------|-----------|------|
+| `CHECKPOINT_BACKEND` | 必须为 `postgres` | HITL 会话必须可跨进程恢复 |
+| `LLM_PROVIDER` / `use_stub_llm` | 禁止进入 stub mode | 避免生产报告来自 deterministic stub |
+| `EMBEDDING_PROVIDER` | 默认禁止 `stub` | 避免 RAG/检索能力静默退化 |
+| `ALLOW_STUB_EMBEDDINGS_IN_PROD` | 仅临时降级时显式设 `true` | 让降级成为可审计选择 |
+| `RESUME_PARSE_CACHE_BACKEND` | 禁止 `memory` | 多 worker 下 memory cache 行为不一致 |
+| `API_TOKEN` | 必须非空，除非显式 `ALLOW_OPEN_ADMIN=true` | 保护 admin 接口 |
+
+`ENABLE_VERIFIER_DRIFT_MONITOR=true` 且 `VERIFIER_DRIFT_BACKEND=memory` 只告警不阻断；多 worker 部署建议改为 Redis，否则 drift 窗口按进程分裂。
+
 ## 6. 已知延后加固触发器（Pending Hardening Triggers）
 
 以下三项在 [PLAN_DEPLOYMENT_HARDENING_AUDIT.md](./PLAN_DEPLOYMENT_HARDENING_AUDIT.md) 中**显式延后**，每次部署变更时按表格列的「触发条件」核对一次；任何一项触发立即把对应「最小落地动作」加入本次发布范围，禁止"再延后一次"。
@@ -67,7 +82,7 @@
 
 | 层 | 行为 |
 |----|------|
-| 启动期校验（`app/main.py` create_app） | **不**做强校验，dev 配置即可启动 |
+| 启动期校验（`app/main.py` create_app） | dev/test 只告警；`APP_ENV=prod` 对 §6 的高风险项硬失败 |
 | `ws_voice` token 校验 | 仅在 `app_env == "prod"` 分支生效（见 §1） |
 | `rate_limit.py` | 始终生效，但是进程内（见 §3） |
 | CORS | 始终读 `CORS_ORIGINS`（见 §4） |

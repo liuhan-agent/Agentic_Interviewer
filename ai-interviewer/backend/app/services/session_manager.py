@@ -39,6 +39,7 @@ from typing import Any
 from app.core.logging import bind_log_context, get_logger, reset_log_context
 from app.core.settings import get_settings
 from app.core.timing import reset_timing_trace, start_timing_trace
+from app.services.session_registry import SessionRegistry
 
 # Per-session LLM override, readable by call_chat via get_llm_override().
 _llm_override_var: ContextVar[dict[str, Any] | None] = ContextVar(
@@ -485,10 +486,18 @@ class SessionManager:
     def __init__(self) -> None:
         self._sessions: dict[str, SessionHandle] = {}
         self._lock = threading.Lock()
+        self._registry = SessionRegistry(self._sessions, self._lock)
         self._workflow = build_workflow()
         self._reaper_thread: threading.Thread | None = None
         self._reaper_stop = threading.Event()
         self._maybe_start_reaper()
+
+    def _session_registry(self) -> SessionRegistry:
+        registry = getattr(self, "_registry", None)
+        if registry is None:
+            registry = SessionRegistry(self._sessions, self._lock)
+            self._registry = registry
+        return registry
 
     # ------------------------------------------------------------------
     # TTL reaper
@@ -528,13 +537,7 @@ class SessionManager:
         settings = get_settings()
         ttl = timedelta(minutes=settings.session_idle_ttl_minutes)
         now = datetime.now(UTC)
-        victims: list[str] = []
-        with self._lock:
-            for sid, handle in self._sessions.items():
-                if handle.done_event.is_set():
-                    continue
-                if (now - handle.last_activity_at) > ttl:
-                    victims.append(sid)
+        victims = self._session_registry().expired_session_ids(now=now, ttl=ttl)
         if not victims:
             return 0
         for sid in victims:
@@ -903,10 +906,7 @@ class SessionManager:
                 session_token_hash=session_token_hash,
                 **session_meta,
             )
-            with self._lock:
-                if session_id in self._sessions:
-                    raise ValueError("session_id already exists")
-                self._sessions[session_id] = handle
+            self._session_registry().add(session_id, handle)
             register_provider(session_id, provider)
             t = threading.Thread(
                 target=self._run_workflow_legacy,
@@ -926,18 +926,14 @@ class SessionManager:
                 session_token_hash=session_token_hash,
                 **session_meta,
             )
-            with self._lock:
-                if session_id in self._sessions:
-                    raise ValueError("session_id already exists")
-                self._sessions[session_id] = handle
+            self._session_registry().add(session_id, handle)
             self._start_segment(handle, initial)
 
         return handle
 
     def session_exists(self, session_id: str) -> bool:
-        with self._lock:
-            if session_id in self._sessions:
-                return True
+        if self._session_registry().contains(session_id):
+            return True
         try:
             from app.models.interview_session import InterviewSession
 
@@ -948,11 +944,7 @@ class SessionManager:
             return False
 
     def get(self, session_id: str) -> SessionHandle | None:
-        with self._lock:
-            handle = self._sessions.get(session_id)
-        if handle is not None:
-            handle.touch()
-        return handle
+        return self._session_registry().get(session_id)
 
     def submit_answer(
         self,
@@ -1173,13 +1165,11 @@ class SessionManager:
         return cancel_resume_started
 
     def remove(self, session_id: str) -> None:
-        with self._lock:
-            self._sessions.pop(session_id, None)
+        self._session_registry().remove(session_id)
 
     def snapshot(self) -> list[dict[str, Any]]:
         """Return a read-only serialisable view of active sessions."""
-        with self._lock:
-            pairs = list(self._sessions.items())
+        pairs = self._session_registry().snapshot_pairs()
         return [
             {
                 "session_id": sid,
@@ -1211,7 +1201,8 @@ class SessionManager:
         config = _graph_config(session_id)
         try:
             state = self._workflow.get_state(config)
-            return state is not None and state.values is not None
+            values = getattr(state, "values", None) if state is not None else None
+            return bool(values)
         except Exception as e:
             log.debug("checkpoint probe for %s: %s", session_id, e)
             return False
@@ -1300,10 +1291,8 @@ class SessionManager:
         process. The checkpoint is the source of truth: if it still contains a
         pending question at ``wait_answer``, the interview can continue.
         """
-        with self._lock:
-            existing = self._sessions.get(session_id)
+        existing = self._session_registry().get(session_id)
         if existing is not None:
-            existing.touch()
             return existing
 
         values = self._checkpoint_waiting_question(session_id)
@@ -1339,8 +1328,7 @@ class SessionManager:
             ),
         )
         handle.question_event.set()
-        with self._lock:
-            self._sessions[session_id] = handle
+        self._session_registry().add(session_id, handle, replace=True)
         self._persist_interrupt(handle, question, turn_idx)
         log.info("recovered waiting session %s at turn %d", session_id, turn_idx)
         return handle
@@ -1398,8 +1386,7 @@ class SessionManager:
         if not self.can_retry_failed_question(session_id):
             return None
 
-        with self._lock:
-            handle = self._sessions.get(session_id)
+        handle = self._session_registry().get(session_id)
 
         created_handle = False
         if handle is None:
@@ -1422,8 +1409,7 @@ class SessionManager:
                     else -1
                 ),
             )
-            with self._lock:
-                self._sessions[session_id] = handle
+            self._session_registry().add(session_id, handle, replace=True)
             created_handle = True
         else:
             if not self._wait_until_idle(handle):
@@ -1469,8 +1455,7 @@ class SessionManager:
             else:
                 handle._cancel_event.clear()
             if created_handle:
-                with self._lock:
-                    self._sessions.pop(session_id, None)
+                self._session_registry().remove(session_id)
             return None
         self._mark_retry_running(session_id)
         return handle
@@ -1515,7 +1500,7 @@ class SessionManager:
         count = 0
         stale = 0
         for row in rows:
-            if row.session_id in self._sessions:
+            if self._session_registry().contains(row.session_id):
                 continue
 
             if not self._checkpoint_exists(row.session_id):
@@ -1550,8 +1535,7 @@ class SessionManager:
             )
             if row.current_question:
                 handle.question_event.set()
-            with self._lock:
-                self._sessions[row.session_id] = handle
+            self._session_registry().add(row.session_id, handle, replace=True)
             count += 1
             log.info(
                 "rehydrated session %s at turn %d",
