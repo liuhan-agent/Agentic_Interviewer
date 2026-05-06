@@ -1,0 +1,38 @@
+name: Backend Unit Tests
+
+on:
+  pull_request:
+    paths:
+      - "ai-interviewer/backend/**"
+      - ".github/workflows/backend-unit.yml"
+  push:
+    branches:
+      - main
+    paths:
+      - "ai-interviewer/backend/**"
+      - ".github/workflows/backend-unit.yml"
+
+jobs:
+  backend-unit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+
+      - name: Install backend dependencies
+        working-directory: ai-interviewer/backend
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -e ".[dev]"
+
+      - name: Run backend unit tests
+        working-directory: ai-interviewer/backend
+        run: python -m pytest tests/unit
