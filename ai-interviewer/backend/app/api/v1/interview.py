@@ -59,6 +59,13 @@ from fastapi import APIRouter, File, Form, Header, HTTPException, Path, Query, R
 from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_validator
 
 from app.core.api_errors import api_error_detail
+from app.core.idempotency import (
+    IDEMPOTENCY_KEY_MAX_LENGTH,
+    IdempotencyConflict,
+    get_idempotency_store,
+    hash_request_body,
+    is_valid_idempotency_key,
+)
 from app.core.llm_config_schema import (
     LLM_API_KEY_MAX_LENGTH,
     LLM_BASE_URL_MAX_LENGTH,
@@ -835,6 +842,11 @@ def submit_answer(
     session_id: SessionIdPath,
     body: AnswerRequest,
     session_token: str | None = Header(default=None, alias="X-Session-Token"),
+    idempotency_key: str | None = Header(
+        default=None,
+        alias="Idempotency-Key",
+        max_length=IDEMPOTENCY_KEY_MAX_LENGTH,
+    ),
 ) -> dict[str, Any]:
     manager = get_session_manager()
     handle = _get_or_recover_session(manager, session_id)
@@ -850,6 +862,46 @@ def submit_answer(
         if body.video_signals is not None
         else None
     )
+
+    # Idempotency: replay-safe wrapper around the manager call. The
+    # request hash *intentionally* excludes ``llm_config`` so a client
+    # can re-issue the same logical answer with a refreshed BYOK token
+    # and still get the cached response back; the answer text and turn
+    # index are what define "the same submission".
+    use_idempotency = is_valid_idempotency_key(idempotency_key)
+    request_hash = ""
+    idempotency_scope = ""
+    if use_idempotency:
+        request_hash = hash_request_body(
+            {
+                "answer": body.answer,
+                "turn_idx": body.turn_idx,
+                "video_signals": video_signals_payload,
+            }
+        )
+        idempotency_scope = f"answer:{session_id}"
+        store = get_idempotency_store()
+        try:
+            cached = store.lookup(idempotency_scope, idempotency_key, request_hash)
+        except IdempotencyConflict as exc:
+            reset_log_context(token)
+            log.info(
+                "idempotency conflict: scope=%s key_prefix=%s",
+                idempotency_scope,
+                (idempotency_key or "")[:8],
+            )
+            raise HTTPException(
+                status_code=409,
+                detail=api_error_detail(
+                    "idempotency_conflict",
+                    "幂等键已被使用且请求体不一致，请使用新的 Idempotency-Key 或保持请求体不变。",
+                    "use_new_idempotency_key",
+                ),
+            ) from exc
+        if cached is not None:
+            reset_log_context(token)
+            return cached.response
+
     try:
         manager.submit_answer(
             session_id,
@@ -864,7 +916,16 @@ def submit_answer(
         raise HTTPException(status_code=409, detail=str(e)) from e
     finally:
         reset_log_context(token)
-    return {"session_id": session_id, "accepted": True}
+
+    response = {"session_id": session_id, "accepted": True}
+    if use_idempotency:
+        get_idempotency_store().record(
+            idempotency_scope,
+            idempotency_key,
+            request_hash,
+            response,
+        )
+    return response
 
 
 @router.post("/sessions/{session_id}/skip-question")

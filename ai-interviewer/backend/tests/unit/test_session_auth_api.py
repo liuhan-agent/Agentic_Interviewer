@@ -8,6 +8,7 @@ from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
 from app.api.v1 import interview as interview_api
+from app.core.idempotency import reset_idempotency_store
 from app.core.session_auth import hash_session_token
 
 
@@ -110,6 +111,9 @@ class _Manager:
 def client(monkeypatch: pytest.MonkeyPatch) -> tuple[TestClient, _Manager]:
     manager = _Manager()
     monkeypatch.setattr(interview_api, "get_session_manager", lambda: manager)
+    # Idempotency cache is a process-local singleton; reset between
+    # cases so a stray hit from a prior test cannot leak into this one.
+    reset_idempotency_store()
     app = FastAPI()
     app.include_router(interview_api.router)
     return TestClient(app), manager
@@ -585,3 +589,174 @@ def test_submit_answer_rejects_invalid_video_signals(
 
     assert resp.status_code == 422
     assert manager.submitted == []
+
+
+_IDEM_KEY = "idem-550e8400-e29b-41d4-a716-446655440000"
+
+
+def test_submit_answer_replays_cached_response_for_same_idempotency_key(
+    client: tuple[TestClient, _Manager],
+) -> None:
+    """Two identical POSTs with the same Idempotency-Key must produce
+    one manager.submit_answer call and one identical response. This
+    rescues clients that lost the network response on the first try."""
+    http, manager = client
+
+    payload = {"answer": "first answer", "turn_idx": 2}
+    headers = {
+        "X-Session-Token": "session-secret",
+        "Idempotency-Key": _IDEM_KEY,
+    }
+
+    first = http.post(
+        "/api/v1/interview/sessions/sess-auth/answer",
+        headers=headers,
+        json=payload,
+    )
+    second = http.post(
+        "/api/v1/interview/sessions/sess-auth/answer",
+        headers=headers,
+        json=payload,
+    )
+
+    assert first.status_code == 200
+    assert second.status_code == 200
+    assert first.json() == second.json()
+    assert len(manager.submitted) == 1
+
+
+def test_submit_answer_returns_409_for_idempotency_key_with_mutated_body(
+    client: tuple[TestClient, _Manager],
+) -> None:
+    """Replay-with-mutation is unsafe — surfacing 409 forces the client
+    to either keep the body identical or rotate the key."""
+    http, manager = client
+
+    headers = {
+        "X-Session-Token": "session-secret",
+        "Idempotency-Key": _IDEM_KEY,
+    }
+
+    first = http.post(
+        "/api/v1/interview/sessions/sess-auth/answer",
+        headers=headers,
+        json={"answer": "first", "turn_idx": 2},
+    )
+    second = http.post(
+        "/api/v1/interview/sessions/sess-auth/answer",
+        headers=headers,
+        json={"answer": "DIFFERENT body", "turn_idx": 2},
+    )
+
+    assert first.status_code == 200
+    assert second.status_code == 409
+    assert second.json()["detail"]["code"] == "idempotency_conflict"
+    assert len(manager.submitted) == 1
+
+
+def test_submit_answer_without_idempotency_key_keeps_legacy_behaviour(
+    client: tuple[TestClient, _Manager],
+) -> None:
+    """A client that does not opt into Idempotency-Key keeps the original
+    submit semantics: each POST is forwarded verbatim, and a stale
+    turn_idx still bubbles up as 409 from the manager."""
+    http, manager = client
+
+    headers = {"X-Session-Token": "session-secret"}
+    accepted = http.post(
+        "/api/v1/interview/sessions/sess-auth/answer",
+        headers=headers,
+        json={"answer": "first", "turn_idx": 2},
+    )
+    assert accepted.status_code == 200
+    assert len(manager.submitted) == 1
+
+    # Same body, no Idempotency-Key — manager call repeats and the stale
+    # turn_idx assertion still fires.
+    repeat = http.post(
+        "/api/v1/interview/sessions/sess-auth/answer",
+        headers=headers,
+        json={"answer": "first", "turn_idx": 2},
+    )
+    # The stub manager doesn't model the post-submit turn_idx advance,
+    # so a same-body resubmit still succeeds; the key point is that we
+    # called submit_answer twice (no cache short-circuit).
+    assert repeat.status_code == 200
+    assert len(manager.submitted) == 2
+
+
+def test_submit_answer_treats_too_short_idempotency_key_as_disabled(
+    client: tuple[TestClient, _Manager],
+) -> None:
+    """A throwaway key (e.g. ``Idempotency-Key: x``) silently disables
+    the cache rather than activating it on noise."""
+    http, manager = client
+
+    headers = {
+        "X-Session-Token": "session-secret",
+        "Idempotency-Key": "short",
+    }
+
+    first = http.post(
+        "/api/v1/interview/sessions/sess-auth/answer",
+        headers=headers,
+        json={"answer": "first", "turn_idx": 2},
+    )
+    second = http.post(
+        "/api/v1/interview/sessions/sess-auth/answer",
+        headers=headers,
+        json={"answer": "first", "turn_idx": 2},
+    )
+
+    assert first.status_code == 200
+    assert second.status_code == 200
+    assert len(manager.submitted) == 2
+
+
+def test_submit_answer_idempotency_isolates_across_sessions(
+    client: tuple[TestClient, _Manager],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The cache is keyed by ``(session_id, idempotency_key)``: the same
+    key reused on a different session must not leak the cached response
+    between unrelated interviews."""
+    http, _manager = client
+
+    other_handle = _Handle()
+    other_handle.session_token_hash = hash_session_token("other-secret")
+
+    class _DualManager(_Manager):
+        def get(self, session_id: str) -> _Handle | None:
+            if session_id == "sess-auth":
+                return self.handle
+            if session_id == "sess-other":
+                return other_handle
+            return None
+
+    dual = _DualManager()
+    monkeypatch.setattr(interview_api, "get_session_manager", lambda: dual)
+
+    first = http.post(
+        "/api/v1/interview/sessions/sess-auth/answer",
+        headers={
+            "X-Session-Token": "session-secret",
+            "Idempotency-Key": _IDEM_KEY,
+        },
+        json={"answer": "from sess-auth", "turn_idx": 2},
+    )
+    second = http.post(
+        "/api/v1/interview/sessions/sess-other/answer",
+        headers={
+            "X-Session-Token": "other-secret",
+            "Idempotency-Key": _IDEM_KEY,
+        },
+        json={"answer": "from sess-other", "turn_idx": 2},
+    )
+
+    assert first.status_code == 200
+    assert second.status_code == 200
+    # Each call produced a fresh manager.submit_answer (no cross-session
+    # cache reuse).
+    assert len(dual.submitted) == 2
+    answers = {entry["answer"] for entry in dual.submitted}
+    assert answers == {"from sess-auth", "from sess-other"}
