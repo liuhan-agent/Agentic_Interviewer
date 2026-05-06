@@ -1,0 +1,78 @@
+name: Frontend CI
+
+on:
+  pull_request:
+    paths:
+      - "ai-interviewer/frontend/**"
+      - ".github/workflows/frontend-ci.yml"
+  push:
+    branches:
+      - main
+    paths:
+      - "ai-interviewer/frontend/**"
+      - ".github/workflows/frontend-ci.yml"
+
+jobs:
+  frontend-ci:
+    runs-on: windows-latest
+    timeout-minutes: 20
+
+    defaults:
+      run:
+        shell: cmd
+        working-directory: ai-interviewer/frontend
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - name: Detect frontend source changes
+        id: frontend_changes
+        shell: pwsh
+        working-directory: .
+        run: |
+          if ("${{ github.event_name }}" -eq "pull_request") {
+            $base = "${{ github.event.pull_request.base.sha }}"
+          } else {
+            $base = "${{ github.event.before }}"
+          }
+          $files = git diff --name-only $base "${{ github.sha }}"
+          $changed = @($files | Where-Object { $_ -like "ai-interviewer/frontend/*" }).Count -gt 0
+          "changed=$($changed.ToString().ToLowerInvariant())" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+
+      - name: Skip frontend checks
+        if: steps.frontend_changes.outputs.changed != 'true'
+        run: echo Frontend source files unchanged; skipping dependency checks.
+
+      - name: Set up Node.js
+        if: steps.frontend_changes.outputs.changed == 'true'
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+          cache-dependency-path: ai-interviewer/frontend/package-lock.json
+
+      - name: Install frontend dependencies
+        if: steps.frontend_changes.outputs.changed == 'true'
+        run: npm ci
+
+      - name: Run frontend typecheck
+        if: steps.frontend_changes.outputs.changed == 'true'
+        run: npm run typecheck
+
+      - name: Run frontend unit tests
+        if: steps.frontend_changes.outputs.changed == 'true'
+        shell: pwsh
+        run: |
+          $tests = Get-ChildItem -Path tests -Filter *.test.js -File | ForEach-Object { $_.FullName }
+          node --test $tests
+
+      - name: Run frontend lint
+        if: steps.frontend_changes.outputs.changed == 'true'
+        run: npm run lint
+
+      - name: Build frontend
+        if: steps.frontend_changes.outputs.changed == 'true'
+        run: npm run build
