@@ -40,7 +40,7 @@ jobs:
         run: npm run typecheck
 
       - name: Run frontend unit tests
-        run: npm test
+        run: node --test "tests/**/*.test.js"
 
       - name: Run frontend lint
         run: npm run lint
