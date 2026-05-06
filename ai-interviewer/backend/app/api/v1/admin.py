@@ -118,6 +118,11 @@ def require_admin_token(
     settings = get_settings()
     expected = settings.api_token
     if not expected:
+        if getattr(settings, "app_env", "dev") == "prod":
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail="API_TOKEN must be configured in production",
+            )
         if not getattr(settings, "allow_open_admin", False):
             raise HTTPException(
                 status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
@@ -702,6 +707,17 @@ def evidence_rollup(since: str = "24h") -> dict[str, Any]:
     return _compute_evidence_rollup(since=since)
 
 
+@router.get("/credibility-rollup", dependencies=[Depends(require_admin_token)])
+def credibility_rollup() -> dict[str, Any]:
+    """Per-session credibility assessment for recent completed sessions.
+
+    Reads ``final_report`` traces that contain a ``credibility_summary``
+    block and returns the distribution of credibility levels plus
+    per-session details for the admin dashboard.
+    """
+    return _compute_credibility_rollup()
+
+
 def _compute_evidence_rollup(*, since: str) -> dict[str, Any]:
     from datetime import UTC, datetime, timedelta
 
@@ -769,6 +785,98 @@ def _compute_evidence_rollup(*, since: str) -> dict[str, Any]:
             verification_changed,
             verification_triggered,
         ),
+    }
+
+
+def _compute_credibility_rollup() -> dict[str, Any]:
+    from datetime import UTC, datetime, timedelta
+
+    from app.models import GenerationTrace, get_session
+    from app.services.scoring_credibility import compute_credibility
+
+    cutoff = datetime.now(UTC) - timedelta(hours=168)
+    try:
+        with get_session() as sess:
+            rows = (
+                sess.query(GenerationTrace)
+                .filter(GenerationTrace.node == "final_report")
+                .filter(GenerationTrace.created_at >= cutoff)
+                .order_by(GenerationTrace.created_at.desc())
+                .limit(200)
+                .all()
+            )
+    except Exception as e:  # pragma: no cover
+        log.warning("compute_credibility_rollup failed: %s", e)
+        return {
+            "now": datetime.now(UTC).isoformat(),
+            "total_sessions": 0,
+            "distribution": {"high": 0, "medium": 0, "low": 0},
+            "sessions": [],
+        }
+
+    distribution: dict[str, int] = {"high": 0, "medium": 0, "low": 0}
+    session_details: list[dict[str, Any]] = []
+
+    for row in rows:
+        snapshot = _as_dict(getattr(row, "state_snapshot", None))
+        payload = _as_dict(snapshot.get("payload"))
+        state_payload = _as_dict(snapshot.get("state"))
+        report_payload = _as_dict(state_payload.get("final_report"))
+        source_payload = (
+            payload
+            if payload.get("credibility_summary") or payload.get("total_turns")
+            else report_payload
+        )
+        session_id = str(getattr(row, "session_id", "") or "")
+
+        cred = source_payload.get("credibility_summary")
+        if isinstance(cred, dict) and "credibility_level" in cred:
+            level = str(cred["credibility_level"])
+            distribution[level] = distribution.get(level, 0) + 1
+            session_details.append({
+                "session_id": session_id,
+                "credibility_level": level,
+                "fallback_rate": cred.get("fallback_rate", 0.0),
+                "evidence_span_miss_rate": cred.get("evidence_span_miss_rate", 0.0),
+                "contract_no_rate": cred.get("contract_no_rate", 0.0),
+            })
+            continue
+
+        ev_summary = _as_dict(source_payload.get("evidence_summary"))
+        ct_summary = _as_dict(source_payload.get("contract_summary"))
+        verification = _as_dict(
+            snapshot.get("verification") or source_payload.get("verification")
+        )
+        total_turns = int(source_payload.get("total_turns", 0) or 0)
+        fallback_count = int(
+            source_payload.get("evaluator_fallback_count", 0) or 0
+        )
+
+        if total_turns <= 0:
+            continue
+
+        cred_result = compute_credibility(
+            total_turns=total_turns,
+            evaluator_fallback_count=fallback_count,
+            evidence_summary=ev_summary,
+            contract_summary=ct_summary,
+            verification=verification,
+        )
+        level = cred_result["credibility_level"]
+        distribution[level] = distribution.get(level, 0) + 1
+        session_details.append({
+            "session_id": session_id,
+            "credibility_level": level,
+            "fallback_rate": cred_result["fallback_rate"],
+            "evidence_span_miss_rate": cred_result["evidence_span_miss_rate"],
+            "contract_no_rate": cred_result["contract_no_rate"],
+        })
+
+    return {
+        "now": datetime.now(UTC).isoformat(),
+        "total_sessions": len(session_details),
+        "distribution": distribution,
+        "sessions": session_details[:50],
     }
 
 

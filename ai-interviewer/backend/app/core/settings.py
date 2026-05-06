@@ -146,6 +146,7 @@ class Settings(BaseSettings):
 
     embedding_provider: Literal["openai", "stub"] = "openai"
     embedding_model: str = "text-embedding-3-small"
+    allow_stub_embeddings_in_prod: bool = False
 
     asr_provider: Literal["openai", "deepgram", "stub"] = "openai"
     asr_model: str = "whisper-1"
