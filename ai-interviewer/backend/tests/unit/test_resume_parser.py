@@ -429,6 +429,54 @@ def test_extract_text_rejects_unsupported_format() -> None:
     assert "unsupported" in str(ei.value).lower()
 
 
+def test_extract_text_rejects_pdf_with_wrong_magic_bytes() -> None:
+    """A resume.pdf upload whose body is not a real PDF must surface as
+    ``unsupported`` (HTTP 415) rather than reaching pypdf and failing
+    deep inside the parser as a generic 422."""
+    with pytest.raises(rp.ResumeParseError) as ei:
+        rp.extract_text(
+            filename="resume.pdf",
+            content_type="application/pdf",
+            data=b"this is plain text masquerading as a pdf",
+        )
+    assert "unsupported" in str(ei.value).lower()
+    assert "pdf" in str(ei.value).lower()
+
+
+def test_extract_text_rejects_pdf_content_type_with_wrong_magic_bytes() -> None:
+    """Content-type alone (no .pdf suffix) still triggers the magic check."""
+    with pytest.raises(rp.ResumeParseError) as ei:
+        rp.extract_text(
+            filename="upload.bin",
+            content_type="application/pdf",
+            data=b"\x00\x01\x02\x03 not a pdf",
+        )
+    assert "unsupported" in str(ei.value).lower()
+
+
+def test_extract_text_rejects_docx_with_wrong_magic_bytes() -> None:
+    """A resume.docx upload whose body is not a ZIP must surface as
+    ``unsupported`` rather than failing as ``Failed to read DOCX``."""
+    with pytest.raises(rp.ResumeParseError) as ei:
+        rp.extract_text(
+            filename="resume.docx",
+            content_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+            data=b"this is text, not docx",
+        )
+    assert "unsupported" in str(ei.value).lower()
+    assert "docx" in str(ei.value).lower()
+
+
+def test_extract_text_skips_magic_check_for_text_uploads() -> None:
+    """Plain text/markdown uploads are tolerated regardless of leading bytes."""
+    text = rp.extract_text(
+        filename="resume.txt",
+        content_type="text/plain",
+        data=b"\xef\xbb\xbfHello there\n",
+    )
+    assert "Hello there" in text
+
+
 def test_extract_text_decodes_plain_text() -> None:
     text = rp.extract_text(
         filename="r.txt",
