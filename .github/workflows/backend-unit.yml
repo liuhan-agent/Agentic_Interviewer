@@ -16,6 +16,9 @@ jobs:
   backend-unit:
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    env:
+      ALLOW_OPEN_ADMIN: "true"
+      EVIDENCE_SPAN_ALIGNMENT: "false"
 
     steps:
       - name: Checkout
