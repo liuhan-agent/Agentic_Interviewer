@@ -53,6 +53,12 @@ class QATurn(TypedDict, total=False):
     selected_action: str
     evaluation: dict[str, Any]
     timestamp: str
+    # ``answer_intent`` is classified by ``wait_answer_node`` from the
+    # raw candidate answer (empty / too_short / clarification / repeat /
+    # skipped / normal). Persisting it on the turn record lets the final
+    # report, replay, and any downstream training pipeline see *why* a
+    # turn was scored the way it was without re-running the classifier.
+    answer_intent: AnswerIntent
 
 
 class SelfIntroCommunicationSignal(TypedDict, total=False):
