@@ -202,7 +202,9 @@ def _postgres_saver() -> Any:
             min_size=1,
             max_size=10,
             kwargs={"autocommit": True, "prepare_threshold": 0},
+            open=False,
         )
+        pool.open()
         saver = PostgresSaver(pool)
         saver.setup()
     except Exception as e:
