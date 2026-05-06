@@ -459,3 +459,129 @@ def test_hint_returns_reauth_required(
         "error": "reauth_required",
         "message": "This interview needs your personal LLM configuration again.",
     }
+
+
+def test_submit_answer_rejects_text_above_max_length(
+    client: tuple[TestClient, _Manager],
+) -> None:
+    http, manager = client
+
+    resp = http.post(
+        "/api/v1/interview/sessions/sess-auth/answer",
+        headers={"X-Session-Token": "session-secret"},
+        json={
+            "answer": "x" * (interview_api.ANSWER_TEXT_MAX_LENGTH + 1),
+            "turn_idx": 2,
+        },
+    )
+
+    assert resp.status_code == 422
+    assert manager.submitted == []
+
+
+def test_submit_answer_accepts_answer_at_max_length(
+    client: tuple[TestClient, _Manager],
+) -> None:
+    http, manager = client
+
+    resp = http.post(
+        "/api/v1/interview/sessions/sess-auth/answer",
+        headers={"X-Session-Token": "session-secret"},
+        json={
+            "answer": "x" * interview_api.ANSWER_TEXT_MAX_LENGTH,
+            "turn_idx": 2,
+        },
+    )
+
+    assert resp.status_code == 200
+    assert len(manager.submitted) == 1
+    assert manager.submitted[0]["video_signals"] is None
+
+
+def test_submit_answer_accepts_valid_video_signals(
+    client: tuple[TestClient, _Manager],
+) -> None:
+    http, manager = client
+
+    resp = http.post(
+        "/api/v1/interview/sessions/sess-auth/answer",
+        headers={"X-Session-Token": "session-secret"},
+        json={
+            "answer": "ok",
+            "turn_idx": 2,
+            "video_signals": {
+                "confidence": 0.7,
+                "engagement": 0.5,
+                "dominant_emotion": "positive",
+                "sample_count": 12,
+            },
+        },
+    )
+
+    assert resp.status_code == 200
+    assert manager.submitted[-1]["video_signals"] == {
+        "confidence": 0.7,
+        "engagement": 0.5,
+        "dominant_emotion": "positive",
+        "sample_count": 12,
+    }
+
+
+@pytest.mark.parametrize(
+    "video_signals",
+    [
+        # missing required field
+        {
+            "confidence": 0.5,
+            "engagement": 0.5,
+            "dominant_emotion": "neutral",
+        },
+        # confidence out of range
+        {
+            "confidence": 1.5,
+            "engagement": 0.5,
+            "dominant_emotion": "neutral",
+            "sample_count": 5,
+        },
+        # invalid emotion enum
+        {
+            "confidence": 0.5,
+            "engagement": 0.5,
+            "dominant_emotion": "angry",
+            "sample_count": 5,
+        },
+        # extra field forbidden
+        {
+            "confidence": 0.5,
+            "engagement": 0.5,
+            "dominant_emotion": "neutral",
+            "sample_count": 5,
+            "attention_score": 0.9,
+        },
+        # sample_count zero
+        {
+            "confidence": 0.5,
+            "engagement": 0.5,
+            "dominant_emotion": "neutral",
+            "sample_count": 0,
+        },
+    ],
+)
+def test_submit_answer_rejects_invalid_video_signals(
+    client: tuple[TestClient, _Manager],
+    video_signals: dict[str, Any],
+) -> None:
+    http, manager = client
+
+    resp = http.post(
+        "/api/v1/interview/sessions/sess-auth/answer",
+        headers={"X-Session-Token": "session-secret"},
+        json={
+            "answer": "ok",
+            "turn_idx": 2,
+            "video_signals": video_signals,
+        },
+    )
+
+    assert resp.status_code == 422
+    assert manager.submitted == []

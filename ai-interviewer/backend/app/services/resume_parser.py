@@ -231,6 +231,46 @@ def _extract_text(data: bytes) -> str:
     return data.decode("utf-8", errors="replace")
 
 
+_PDF_MAGIC = b"%PDF"
+_ZIP_MAGIC = b"PK\x03\x04"
+
+
+def _declared_format(name: str, ctype: str) -> str | None:
+    """Map filename/content_type to a declared format token.
+
+    ``name``/``ctype`` are pre-lowered. ``None`` means the upload is in
+    none of our supported families and should surface as
+    ``unsupported`` upstream.
+    """
+    if name.endswith(".pdf") or "pdf" in ctype:
+        return "pdf"
+    if name.endswith(".docx") or "officedocument.wordprocessingml" in ctype:
+        return "docx"
+    if name.endswith((".txt", ".md", ".markdown")) or ctype.startswith("text/"):
+        return "text"
+    return None
+
+
+def _verify_magic_bytes(data: bytes, declared: str) -> None:
+    """Reject uploads whose declared format does not match the file header.
+
+    Filename and content_type are user-controlled; without a magic-byte
+    check, a malicious client could ship arbitrary bytes labelled as
+    ``resume.pdf`` and force the parser deep into pypdf before failing.
+    Mismatch surfaces as ``unsupported`` so the API maps it to 415.
+    """
+    if declared == "pdf" and not data.startswith(_PDF_MAGIC):
+        raise ResumeParseError(
+            "Unsupported file: declared as PDF but the file does not start "
+            "with the PDF magic bytes (%PDF). Please upload the original PDF."
+        )
+    if declared == "docx" and not data.startswith(_ZIP_MAGIC):
+        raise ResumeParseError(
+            "Unsupported file: declared as DOCX but the file is not a valid "
+            "ZIP container. Please upload the original .docx file."
+        )
+
+
 def extract_text(
     *,
     filename: str | None,
@@ -253,17 +293,20 @@ def extract_text(
     name = (filename or "").lower()
     ctype = (content_type or "").lower()
 
-    if name.endswith(".pdf") or "pdf" in ctype:
-        text = _extract_pdf(data)
-    elif name.endswith(".docx") or "officedocument.wordprocessingml" in ctype:
-        text = _extract_docx(data)
-    elif name.endswith((".txt", ".md", ".markdown")) or ctype.startswith("text/"):
-        text = _extract_text(data)
-    else:
+    declared = _declared_format(name, ctype)
+    if declared is None:
         raise ResumeParseError(
             f"Unsupported file type (filename={filename!r}, content_type={content_type!r}). "
             "Supported: .pdf .docx .txt .md"
         )
+    _verify_magic_bytes(data, declared)
+
+    if declared == "pdf":
+        text = _extract_pdf(data)
+    elif declared == "docx":
+        text = _extract_docx(data)
+    else:
+        text = _extract_text(data)
 
     text = _clean_extracted_text(text).strip()
     if not text:

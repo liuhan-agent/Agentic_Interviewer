@@ -27,6 +27,7 @@ from app.core.metrics import record_ws_invalid_frame
 from app.core.session_auth import verify_session_token
 from app.core.session_ids import is_valid_session_id
 from app.core.settings import get_settings
+from app.core.video_signals_schema import VideoSignalsInput
 from app.core.voice_ticket import consume_voice_ticket
 from app.services.session_manager import SessionHandle, get_session_manager
 from app.voice.asr import get_asr
@@ -48,15 +49,6 @@ _VOICE_EXECUTOR = concurrent.futures.ThreadPoolExecutor(
     max_workers=4,
     thread_name_prefix="ws-voice",
 )
-
-
-class VideoSignalsInput(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-
-    confidence: float = Field(ge=0, le=1)
-    engagement: float = Field(ge=0, le=1)
-    dominant_emotion: Literal["neutral", "positive", "nervous", "confused"]
-    sample_count: int = Field(ge=1, le=1000)
 
 
 class AuthFrame(BaseModel):

@@ -80,6 +80,7 @@ from app.core.session_auth import (
 )
 from app.core.session_ids import SESSION_ID_MAX_LENGTH, SESSION_ID_PATTERN
 from app.core.settings import get_settings
+from app.core.video_signals_schema import VideoSignalsInput
 from app.core.voice_ticket import issue_voice_ticket
 from app.engine.agents.security import check_user_context
 from app.models.base import get_session as get_db_session
@@ -152,6 +153,7 @@ RESUME_PROJECT_ANCHOR_MAX_LENGTH = 160
 RESUME_FOCUS_AREAS_MAX_COUNT = 20
 RESUME_FOCUS_LABEL_MAX_LENGTH = 160
 RESUME_CONCERNS_MAX_COUNT = 10
+ANSWER_TEXT_MAX_LENGTH = 8000
 SessionIdPath = Annotated[
     str,
     Path(
@@ -299,9 +301,9 @@ class StartSessionRequest(BaseModel):
 
 
 class AnswerRequest(BaseModel):
-    answer: str = Field(min_length=1, max_length=50000)
+    answer: str = Field(min_length=1, max_length=ANSWER_TEXT_MAX_LENGTH)
     turn_idx: int
-    video_signals: dict[str, Any] | None = None
+    video_signals: VideoSignalsInput | None = None
     llm_config: LLMConfigOverride | None = None
 
 
@@ -843,12 +845,17 @@ def submit_answer(
     llm_override = (
         body.llm_config.model_dump(exclude_none=True) if body.llm_config else None
     )
+    video_signals_payload = (
+        body.video_signals.model_dump(exclude_none=False)
+        if body.video_signals is not None
+        else None
+    )
     try:
         manager.submit_answer(
             session_id,
             body.answer,
             turn_idx=body.turn_idx,
-            video_signals=body.video_signals,
+            video_signals=video_signals_payload,
             llm_config=llm_override,
         )
     except ValueError as e:
