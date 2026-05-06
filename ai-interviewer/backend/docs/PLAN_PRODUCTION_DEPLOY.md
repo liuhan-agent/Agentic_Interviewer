@@ -51,6 +51,18 @@
 - **关注项**：`LANGSMITH_PROJECT` 必须与 dev / staging 区分（建议 suffix `-prod` / `-staging` / `-dev`）
 - **遗漏后果**：prod 流量与 dev 调试 trace 串台，dashboard 数据被污染、计费方混淆
 
+## 6. 已知延后加固触发器（Pending Hardening Triggers）
+
+以下三项在 [PLAN_DEPLOYMENT_HARDENING_AUDIT.md](./PLAN_DEPLOYMENT_HARDENING_AUDIT.md) 中**显式延后**，每次部署变更时按表格列的「触发条件」核对一次；任何一项触发立即把对应「最小落地动作」加入本次发布范围，禁止"再延后一次"。
+
+| ID | 项 | 触发条件 | 最小落地动作 |
+|----|----|---------|-------------|
+| F1 | Voice-ticket Redis-backed store | 部署 ≥ 2 backend worker 且无 sticky session（cookie / IP-hash） | 抽 `VoiceTicketStore` 接口；新增 `RedisVoiceTicketStore`，配 `VOICE_TICKET_BACKEND=redis` |
+| F2 | `/resume/parse` per-provider rate limit | 切换到「服务端共享 LLM key」模式（任意一个 `LLM_API_KEY_*` settings 非空且非 BYOK） | 在 `_enforce_setup_rate_limit` 加 `provider:host` 二级桶；与 `effective_llm_fingerprint` 拼 key |
+| F3 | Cache 多租户 salt | 引入 org / tenant / workspace 概念，或合规要求消除"已处理简历"侧信道 | 在 `resume_parse_cache_key` 的 `material` 字典加 `org_id`；Redis prefix 按 org 拆分以支持单租户驱逐 |
+
+> 决策依据见 audit 文档；这里仅承担「不让它们被忘掉」的索引职责。每发一次 prod release，本节由发布人（或代发布的 AI agent）至少 review 一遍。
+
 ## 与代码层的关系
 
 | 层 | 行为 |
