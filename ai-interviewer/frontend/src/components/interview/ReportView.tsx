@@ -336,6 +336,8 @@ export function ReportView({ sessionId }: { sessionId: string }) {
     );
   }
 
+  const weakPracticeHref = buildWeakPracticeHref(report);
+
   return (
     <motion.div
       className="space-y-6"
@@ -372,7 +374,10 @@ export function ReportView({ sessionId }: { sessionId: string }) {
         <DimensionScores scores={report.dimension_scores} />
       </motion.div>
       <motion.div variants={{ hidden: { opacity: 0, y: 16 }, visible: { opacity: 1, y: 0 } }}>
-        <TrainingPlanCard plan={report.training_plan} />
+        <TrainingPlanCard
+          plan={report.training_plan}
+          weakPracticeHref={weakPracticeHref}
+        />
       </motion.div>
       <motion.div variants={{ hidden: { opacity: 0, y: 16 }, visible: { opacity: 1, y: 0 } }}>
         <OutcomeFeedback sessionId={sessionId} />
@@ -381,7 +386,11 @@ export function ReportView({ sessionId }: { sessionId: string }) {
         <VideoInsightsCard analysis={report.video_analysis} />
       </motion.div>
       <motion.div variants={{ hidden: { opacity: 0, y: 16 }, visible: { opacity: 1, y: 0 } }}>
-        <Actions sessionId={sessionId} report={report} />
+        <Actions
+          sessionId={sessionId}
+          report={report}
+          weakPracticeHref={weakPracticeHref}
+        />
       </motion.div>
     </motion.div>
   );
@@ -1372,8 +1381,10 @@ function DimensionScores({
 
 function TrainingPlanCard({
   plan,
+  weakPracticeHref,
 }: {
   plan?: FinalReport["training_plan"];
+  weakPracticeHref?: string | null;
 }) {
   if (!plan) return null;
   const priorityWeaknesses = (plan.priority_weaknesses || []).filter(
@@ -1408,6 +1419,15 @@ function TrainingPlanCard({
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-5">
+        {weakPracticeHref && (
+          <Button asChild className="gap-2 bg-emerald-600 hover:bg-emerald-500 text-white">
+            <Link href={weakPracticeHref}>
+              <Target className="h-4 w-4" />
+              针对本次弱项再来一场
+            </Link>
+          </Button>
+        )}
+
         {diagnosis && (diagnosis.overall_readiness || diagnosis.target_level_gap) && (
           <section className="rounded-lg border bg-gradient-to-br from-blue-500/5 to-transparent p-4">
             <h4 className="mb-2 flex items-center gap-2 text-sm font-medium">
@@ -1677,12 +1697,12 @@ function VideoInsightsCard({ analysis }: { analysis?: VideoAnalysis }) {
 function Actions({
   sessionId,
   report,
+  weakPracticeHref,
 }: {
   sessionId: string;
   report: FinalReport | null;
+  weakPracticeHref?: string | null;
 }) {
-  const weakPracticeHref = report ? buildWeakPracticeHref(report) : null;
-
   function handleExport() {
     if (!report) return;
     const payload = JSON.stringify(report, null, 2);
