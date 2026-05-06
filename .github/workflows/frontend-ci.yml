@@ -19,6 +19,7 @@ jobs:
 
     defaults:
       run:
+        shell: cmd
         working-directory: ai-interviewer/frontend
 
     steps:
