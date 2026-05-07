@@ -1,3 +1,4 @@
+import { Suspense } from "react";
 import { Settings2 } from "lucide-react";
 
 import { SetupForm } from "@/components/interview/SetupForm";
@@ -26,7 +27,15 @@ export default function SetupPage() {
           没有标准答案——按你真实的想法回答即可，结束后会拿到多维度反馈和提升建议。
         </p>
       </div>
-      <SetupForm />
+      <Suspense
+        fallback={
+          <div className="rounded-lg border bg-card p-6 text-sm text-muted-foreground">
+            正在加载表单...
+          </div>
+        }
+      >
+        <SetupForm />
+      </Suspense>
     </section>
   );
 }
