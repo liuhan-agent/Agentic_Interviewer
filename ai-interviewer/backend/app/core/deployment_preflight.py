@@ -53,6 +53,31 @@ def build_config_summary(settings: Settings) -> dict[str, Any]:
     }
 
 
+def _check_chroma_reachable(settings: Settings, issues: list[str]) -> None:
+    """Verify Chroma is reachable in production (non-stub embeddings only).
+
+    Appends to *issues* on failure rather than raising directly, so the
+    caller can aggregate all preflight problems into a single report.
+    """
+    try:
+        import chromadb  # noqa: F811
+
+        client = chromadb.HttpClient(
+            host=settings.chroma_host,
+            port=settings.chroma_port,
+        )
+        client.heartbeat()
+    except ImportError:
+        issues.append(
+            "chromadb package is not installed; "
+            "required for production RAG with non-stub embeddings"
+        )
+    except Exception as exc:
+        issues.append(
+            f"Chroma unreachable at {settings.chroma_host}:{settings.chroma_port}: {exc}"
+        )
+
+
 def run_preflight(settings: Settings) -> dict[str, Any]:
     """Execute preflight checks and return the config summary.
 
@@ -112,6 +137,9 @@ def run_preflight(settings: Settings) -> dict[str, Any]:
         else:
             log.warning("preflight: %s", msg)
 
+    if is_prod and settings.embedding_provider != "stub":
+        _check_chroma_reachable(settings, issues)
+
     if (
         settings.enable_verifier_drift_monitor
         and settings.verifier_drift_backend == "memory"
@@ -119,6 +147,12 @@ def run_preflight(settings: Settings) -> dict[str, Any]:
         log.warning(
             "preflight: verifier drift monitor uses memory backend; "
             "multi-worker production windows are not shared"
+        )
+
+    if is_prod:
+        log.warning(
+            "preflight: rate_limit is process-local; "
+            "if running multiple workers, configure upstream rate limiting"
         )
 
     if is_prod and issues:
