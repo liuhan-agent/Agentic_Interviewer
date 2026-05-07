@@ -36,13 +36,13 @@ def _as_text_list(value: Any, *, limit: int = 6) -> list[str]:
 
 def _resume_projects(candidate: dict[str, Any]) -> list[dict[str, Any]]:
     parsed = candidate.get("resume_parsed") or {}
-    projects = parsed.get("projects") if isinstance(parsed, dict) else []
+    projects = (parsed.get("projects") or []) if isinstance(parsed, dict) else []
     return [p for p in projects if isinstance(p, dict)]
 
 
 def _resume_focus_areas(candidate: dict[str, Any]) -> list[dict[str, Any]]:
     parsed = candidate.get("resume_parsed") or {}
-    areas = parsed.get("focus_areas") if isinstance(parsed, dict) else []
+    areas = (parsed.get("focus_areas") or []) if isinstance(parsed, dict) else []
     return [f for f in areas if isinstance(f, dict)]
 
 
