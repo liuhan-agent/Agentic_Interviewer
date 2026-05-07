@@ -46,7 +46,7 @@ def compute_credibility(
     checks_no = int(contract_summary.get("checks_no", 0) or 0)
     contract_no_rate = _safe_rate(checks_no, total_checks)
 
-    forced_refine = bool(verification.get("forced_refine", False))
+    forced_refine = _verification_forced_refine(verification)
 
     level = _assess_level(
         fallback_rate=fallback_rate,
@@ -71,6 +71,20 @@ def _safe_rate(numerator: int, denominator: int) -> float:
     if denominator <= 0 or numerator < 0:
         return 0.0
     return min(1.0, numerator / denominator)
+
+
+def _verification_forced_refine(verification: dict[str, Any]) -> bool:
+    return _is_true(verification.get("forced_refine")) or _is_true(
+        verification.get("verifier_forced_refine")
+    )
+
+
+def _is_true(value: Any) -> bool:
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, str):
+        return value.strip().lower() in {"1", "true", "yes"}
+    return bool(value)
 
 
 def _assess_level(

@@ -724,6 +724,27 @@ function EvidenceRollUp({ state }: { state: Loadable<EvidenceRollupResponse> }) 
               label="verification_change_rate"
               value={formatPercent(data.verification_change_rate)}
             />
+            <StatBox
+              label="total_acceptance_checks"
+              value={String(data.total_acceptance_checks)}
+            />
+            <StatBox label="yes_checks" value={String(data.yes_checks)} />
+            <StatBox
+              label="unsupported_yes"
+              value={`${data.unsupported_yes_checks}/${data.yes_checks} (${formatPercent(data.unsupported_yes_rate)})`}
+            />
+            <StatBox
+              label="evidence_span_none"
+              value={`${data.evidence_span_none_count}/${data.evidence_span_total} (${formatPercent(data.evidence_span_none_rate)})`}
+            />
+            <StatBox
+              label="evidence_quote_total"
+              value={String(data.evidence_quote_total)}
+            />
+            <StatBox
+              label="avg_quotes_per_check"
+              value={data.avg_evidence_quotes_per_check.toFixed(2)}
+            />
           </div>
         )}
       </CardContent>

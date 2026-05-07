@@ -546,6 +546,30 @@ def test_final_report_node_summarises_evidence_span_match_rate(monkeypatch) -> N
     }
 
 
+def test_final_report_node_credibility_reads_verifier_forced_refine_from_qa_history(
+    monkeypatch,
+) -> None:
+    monkeypatch.setattr(fr, "get_tracer", lambda: _NoopTracer())
+
+    qa_history = [
+        _mk_qa_turn(
+            turn_idx=0,
+            dimension="system_design",
+            passed=False,
+            score=8.2,
+            acceptance={"Names a trade-off.": {"verdict": "yes", "evidence": ["trade-off"]}},
+        )
+    ]
+    qa_history[0]["evaluation"]["verifier_forced_refine"] = True
+
+    out = fr.final_report_node(_mk_state(qa_history))  # type: ignore[arg-type]
+
+    assert (
+        out["final_report"]["credibility_summary"]["verification_forced_refine"]
+        is True
+    )
+
+
 def test_final_report_node_emits_empty_evidence_summary_without_spans(
     monkeypatch,
 ) -> None:
