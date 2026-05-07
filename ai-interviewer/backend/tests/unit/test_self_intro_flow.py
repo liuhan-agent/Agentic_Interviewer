@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import json
+from types import SimpleNamespace
 from typing import Any
 from unittest.mock import patch
 
@@ -65,6 +66,21 @@ def test_self_intro_parse_fallback_profile_does_not_advance_formal_turns(
     assert "evaluation" not in out
     assert "scores_per_dim" not in out
     assert "qa_history" not in out
+
+
+def test_parse_self_intro_profile_tolerates_missing_resume_projects(monkeypatch) -> None:
+    from app.engine.agents import self_intro as parser
+
+    monkeypatch.setattr(parser, "get_settings", lambda: SimpleNamespace(use_stub_llm=True))
+
+    profile = parser.parse_self_intro_profile(
+        answer="我主要做 Python 后端和 Kafka 消息系统。",
+        candidate={"resume_parsed": {"skills": ["Python", "Kafka"], "projects": None}},
+        job_spec={},
+    )
+
+    assert profile["parse_status"] == "heuristic"
+    assert profile["emphasized_skills"] == ["Python", "Kafka"]
 
 
 def test_route_after_eval_uses_formal_turn_idx_for_max_turns() -> None:
