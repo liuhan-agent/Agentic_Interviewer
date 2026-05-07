@@ -722,6 +722,7 @@ def _compute_evidence_rollup(*, since: str) -> dict[str, Any]:
     from datetime import UTC, datetime, timedelta
 
     from app.models import GenerationTrace, get_session
+    from app.services.scoring_quality import acceptance_evidence_quality
 
     cutoff = datetime.now(UTC) - timedelta(hours=_ROLLUP_WINDOWS_HOURS[since])
     try:
@@ -743,6 +744,12 @@ def _compute_evidence_rollup(*, since: str) -> dict[str, Any]:
     verification_traces = 0
     verification_triggered = 0
     verification_changed = 0
+    total_acceptance_checks = 0
+    yes_checks = 0
+    unsupported_yes_checks = 0
+    evidence_span_total = 0
+    evidence_span_none_count = 0
+    evidence_quote_total = 0
 
     for row in rows:
         node = str(getattr(row, "node", "") or "")
@@ -750,6 +757,13 @@ def _compute_evidence_rollup(*, since: str) -> dict[str, Any]:
             total_evaluator += 1
             evaluation = _as_dict(getattr(row, "evaluation", None))
             acceptance = _as_dict(evaluation.get("acceptance_check_results"))
+            quality = acceptance_evidence_quality(acceptance)
+            total_acceptance_checks += quality["total_acceptance_checks"]
+            yes_checks += quality["yes_checks"]
+            unsupported_yes_checks += quality["unsupported_yes_checks"]
+            evidence_span_total += quality["evidence_span_total"]
+            evidence_span_none_count += quality["evidence_span_none_count"]
+            evidence_quote_total += quality["evidence_quote_total"]
             if acceptance:
                 with_acceptance += 1
             if _has_evidence_spans(acceptance):
@@ -774,6 +788,21 @@ def _compute_evidence_rollup(*, since: str) -> dict[str, Any]:
         "acceptance_check_rate": _rate(with_acceptance, total_evaluator),
         "evidence_span_rate": _rate(with_spans, total_evaluator),
         "fallback_rate": _rate(fallback_traces, total_evaluator),
+        "total_acceptance_checks": total_acceptance_checks,
+        "yes_checks": yes_checks,
+        "unsupported_yes_checks": unsupported_yes_checks,
+        "unsupported_yes_rate": _rate(unsupported_yes_checks, yes_checks),
+        "evidence_span_total": evidence_span_total,
+        "evidence_span_none_count": evidence_span_none_count,
+        "evidence_span_none_rate": _rate(
+            evidence_span_none_count,
+            evidence_span_total,
+        ),
+        "evidence_quote_total": evidence_quote_total,
+        "avg_evidence_quotes_per_check": _rate(
+            evidence_quote_total,
+            total_acceptance_checks,
+        ),
         "verification_traces": verification_traces,
         "verification_triggered": verification_triggered,
         "verification_changed": verification_changed,
@@ -893,6 +922,15 @@ def _empty_evidence_rollup(*, since: str) -> dict[str, Any]:
         "acceptance_check_rate": 0.0,
         "evidence_span_rate": 0.0,
         "fallback_rate": 0.0,
+        "total_acceptance_checks": 0,
+        "yes_checks": 0,
+        "unsupported_yes_checks": 0,
+        "unsupported_yes_rate": 0.0,
+        "evidence_span_total": 0,
+        "evidence_span_none_count": 0,
+        "evidence_span_none_rate": 0.0,
+        "evidence_quote_total": 0,
+        "avg_evidence_quotes_per_check": 0.0,
         "verification_traces": 0,
         "verification_triggered": 0,
         "verification_changed": 0,
