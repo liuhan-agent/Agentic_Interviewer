@@ -185,7 +185,7 @@ export interface PreviousTurnEvaluation {
   passed: boolean;
   strengths: string[];
   weaknesses: string[];
-  rubric_coverage?: Record<string, unknown>;
+  rubric_coverage: Record<string, string>;
 }
 
 export interface PollQuestionResponse {
