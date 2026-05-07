@@ -87,6 +87,15 @@ class TestComputeCredibility:
         assert result["credibility_level"] == "medium"
         assert result["verification_forced_refine"] is True
 
+    def test_verifier_forced_refine_alias_adds_signal(self):
+        result = compute_credibility(
+            total_turns=5,
+            evaluator_fallback_count=0,
+            verification={"verifier_forced_refine": True},
+        )
+        assert result["credibility_level"] == "medium"
+        assert result["verification_forced_refine"] is True
+
     def test_multiple_low_signals_stack_to_low(self):
         result = compute_credibility(
             total_turns=4,

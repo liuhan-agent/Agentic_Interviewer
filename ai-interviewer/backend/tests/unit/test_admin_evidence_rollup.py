@@ -107,6 +107,24 @@ def test_evidence_rollup_counts_evaluator_and_verifier_coverage(
             },
         ),
         _FakeTraceRow(
+            node="evaluator",
+            evaluation={
+                "source": "llm",
+                "acceptance_check_results": {
+                    "Unsupported yes": {
+                        "verdict": "yes",
+                        "evidence": [],
+                        "evidence_spans": [],
+                    },
+                    "None span yes": {
+                        "verdict": "yes",
+                        "evidence": ["phantom quote"],
+                        "evidence_spans": [{"match": "none"}],
+                    },
+                },
+            },
+        ),
+        _FakeTraceRow(
             node="verification",
             payload={"triggered": True, "verdict_changed": True},
         ),
@@ -121,13 +139,22 @@ def test_evidence_rollup_counts_evaluator_and_verifier_coverage(
 
     assert resp.status_code == 200
     body = resp.json()
-    assert body["total_evaluator_traces"] == 3
-    assert body["with_acceptance_checks"] == 2
-    assert body["with_evidence_spans"] == 1
+    assert body["total_evaluator_traces"] == 4
+    assert body["with_acceptance_checks"] == 3
+    assert body["with_evidence_spans"] == 2
     assert body["fallback_traces"] == 1
-    assert body["acceptance_check_rate"] == 0.6667
-    assert body["evidence_span_rate"] == 0.3333
-    assert body["fallback_rate"] == 0.3333
+    assert body["acceptance_check_rate"] == 0.75
+    assert body["evidence_span_rate"] == 0.5
+    assert body["fallback_rate"] == 0.25
+    assert body["total_acceptance_checks"] == 4
+    assert body["yes_checks"] == 3
+    assert body["unsupported_yes_checks"] == 1
+    assert body["unsupported_yes_rate"] == 0.3333
+    assert body["evidence_span_total"] == 2
+    assert body["evidence_span_none_count"] == 1
+    assert body["evidence_span_none_rate"] == 0.5
+    assert body["evidence_quote_total"] == 3
+    assert body["avg_evidence_quotes_per_check"] == 0.75
     assert body["verification_traces"] == 2
     assert body["verification_triggered"] == 1
     assert body["verification_changed"] == 1
