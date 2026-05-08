@@ -83,10 +83,10 @@
 | P2-2.5 | P2 | `AdminPanel` 组件拆分清理 | AFK | PR-5 | P2-2.2、P2-2.3、P2-2.4 | Done |
 | P2-2.6 | P2 | admin 默认视角确认 | HITL | PR-5 | P2-2.1 | Done |
 | P2-3.1 | P2 | P0/P1/P2 执行看板文档 | AFK | PR-5 | 当前 issue 拆分完成 | Done |
-| P2-3.2 | P2 | 验证命令矩阵 | AFK | PR-5 | P2-3.1 | Ready |
-| P2-3.3 | P2 | PR 切分规则 | AFK | PR-5 | P2-3.1 | Ready |
-| P2-3.4 | P2 | HITL 决策清单 | HITL | PR-5 | P2-3.1 | Needs decision |
-| P2-3.5 | P2 | 完成定义与 release gate | AFK | PR-5 | P2-3.2、P2-3.3、P2-3.4 | Ready |
+| P2-3.2 | P2 | 验证命令矩阵 | AFK | PR-5 | P2-3.1 | Done |
+| P2-3.3 | P2 | PR 切分规则 | AFK | PR-5 | P2-3.1 | Done |
+| P2-3.4 | P2 | HITL 决策清单 | HITL | PR-5 | P2-3.1 | Done |
+| P2-3.5 | P2 | 完成定义与 release gate | AFK | PR-5 | P2-3.2、P2-3.3、P2-3.4 | Done |
 | P2-3.6 | P2 | 是否发布到 GitHub Issues | HITL | PR-5 | P2-3.1 - P2-3.5 | Needs decision |
 
 ### 验证命令矩阵
@@ -595,8 +595,33 @@ npm run build
 | 隐私删除误删 | 先 dry-run 测试，再启用实际删除 |
 | 专项练习维度不合法 | 后端强校验 focus dimensions |
 
-## 完成定义
+## HITL 决策清单（P2-3.4）
 
-- P0 完成：预检命令、共享状态方案、HITL 回归矩阵均可运行。
-- P1 完成：报告可信度可见，隐私删除/留存有闭环，外显文案无招聘决策导向。
-- P2 完成：用户能从弱项进入专项练习，admin 面板能按运行/质量/策略三个视角查看系统状态。
+| 决策点 | 来源 | 决定 |
+| --- | --- | --- |
+| probe 严格度（P0-1.5） | P0-1 | prod hard fail，preview/staging/dev warning |
+| memory backend 策略（P0-2.6） | P0-2 | rate limit + voice ticket prod hard fail，drift memory warning |
+| 可信度文案（P1-1.5） | P1-1 | 低可信度建议"继续查看但谨慎参考"，不制造恐慌 |
+| 默认留存策略（P1-2.5） | P1-2 | 沿用 settings，preview 通过 `.env` 显式缩短 |
+| 产品词表（P1-3.5） | P1-3 | 表现优秀 / 达到目标水平 / 接近达标 / 重点补齐 / 暂无结论 / 已取消 |
+| 非法 focus 策略（P2-1.6） | P2-1 | 前端轻提示、后端防御性过滤 |
+| admin 默认视角（P2-2.6） | P2-2 | 默认"运行健康"，admin 首屏先回答系统是否正常 |
+
+## 完成定义与 Release Gate（P2-3.5）
+
+- **P0 完成**：预检命令、共享状态方案、HITL 回归矩阵均可运行。
+- **P1 完成**：报告可信度可见，隐私删除/留存有闭环，外显文案无招聘决策导向。
+- **P2 完成**：用户能从弱项进入专项练习，admin 面板能按运行/质量/策略三个视角查看系统状态。
+
+**全仓 Release Gate：**
+
+```powershell
+cd D:\Agent\Agentic_Interviewer\ai-interviewer\backend
+pytest tests/unit -q
+cd ..\frontend
+npm run typecheck
+npm run lint
+npm run build
+```
+
+所有命令 exit code 0 方可 release。
