@@ -10,6 +10,7 @@ export const VERDICT_OPTIONS: readonly VerdictOption[] = [
   { value: "target_met", shortLabel: "达到目标水平" },
   { value: "near_target", shortLabel: "接近达标" },
   { value: "needs_focus", shortLabel: "重点补齐" },
+  { value: "inconclusive", shortLabel: "暂无结论" },
 ] as const;
 
 const LEGACY_VERDICT_LABELS: Record<string, string> = {
@@ -23,6 +24,7 @@ const LEGACY_VERDICT_LABELS: Record<string, string> = {
   lean_no_hire: "重点补齐",
   no_hire: "重点补齐",
   cancelled: "已取消",
+  inconclusive: "暂无结论",
 };
 
 const VERDICT_TONES: Record<string, VerdictTone> = {
@@ -40,6 +42,7 @@ const VERDICT_TONES: Record<string, VerdictTone> = {
   lean_no_hire: "mixed",
   no_hire: "negative",
   cancelled: "neutral",
+  inconclusive: "neutral",
 };
 
 export function verdictShortLabel(verdict: string): string {
