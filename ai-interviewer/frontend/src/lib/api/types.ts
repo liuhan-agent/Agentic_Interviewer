@@ -136,9 +136,18 @@ export interface StartSessionRequest {
 export interface StartSessionResponse {
   session_id: string;
   session_token: string;
+  session_token_expires_at: string;
+  recovery_token: string;
+  recovery_token_expires_at: string;
   trace_id: string;
   status: string;
   max_turns?: number | null;
+}
+
+export interface RecoverSessionResponse {
+  session_id: string;
+  session_token: string;
+  session_token_expires_at: string;
 }
 
 export interface VoiceTicketResponse {

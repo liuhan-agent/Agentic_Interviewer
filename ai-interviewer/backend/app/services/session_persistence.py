@@ -33,6 +33,12 @@ class SessionPersistence:
                 row.status = "interrupted"
                 if handle.session_token_hash and not row.session_token_hash:
                     row.session_token_hash = handle.session_token_hash
+                if getattr(handle, "session_token_expires_at", None):
+                    row.session_token_expires_at = handle.session_token_expires_at
+                if getattr(handle, "recovery_token_hash", None) and not row.recovery_token_hash:
+                    row.recovery_token_hash = handle.recovery_token_hash
+                if getattr(handle, "recovery_token_expires_at", None):
+                    row.recovery_token_expires_at = handle.recovery_token_expires_at
                 if handle.llm_config_meta:
                     row.llm_config_meta = handle.llm_config_meta
                 row.current_question = question
@@ -58,6 +64,12 @@ class SessionPersistence:
                 status = (final_state or {}).get("status", "completed")
                 if handle.session_token_hash and not row.session_token_hash:
                     row.session_token_hash = handle.session_token_hash
+                if getattr(handle, "session_token_expires_at", None):
+                    row.session_token_expires_at = handle.session_token_expires_at
+                if getattr(handle, "recovery_token_hash", None) and not row.recovery_token_hash:
+                    row.recovery_token_hash = handle.recovery_token_hash
+                if getattr(handle, "recovery_token_expires_at", None):
+                    row.recovery_token_expires_at = handle.recovery_token_expires_at
                 if handle.llm_config_meta:
                     row.llm_config_meta = handle.llm_config_meta
                 row.status = status if status != "running" else "completed"
@@ -90,6 +102,7 @@ class SessionPersistence:
                     "job_level": row.job_level,
                     "mode": row.mode,
                     "session_token_hash": row.session_token_hash,
+                    "session_token_expires_at": row.session_token_expires_at,
                     "llm_config_meta": row.llm_config_meta,
                     "turn_idx": row.turn_idx,
                     "asked_turn": row.asked_turn,

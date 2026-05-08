@@ -331,6 +331,10 @@ class SessionHandle:
     llm_config: dict[str, Any] | None = None
     llm_config_meta: dict[str, Any] | None = None
     session_token_hash: str | None = None
+    session_token_expires_at: datetime | None = None
+    recovery_token_hash: str | None = None
+    recovery_token_expires_at: datetime | None = None
+    recovery_token_revoked_at: datetime | None = None
 
     # Session-level metadata cached on the handle so every
     # ``workflow.stream`` segment reuses the same LangSmith
@@ -842,6 +846,9 @@ class SessionManager:
         *,
         llm_config: dict[str, Any] | None = None,
         session_token_hash: str | None = None,
+        session_token_expires_at: datetime | None = None,
+        recovery_token_hash: str | None = None,
+        recovery_token_expires_at: datetime | None = None,
     ) -> SessionHandle:
         runtime_cfg = initial.get("runtime_config") or {}
         use_sync = bool(runtime_cfg.get("use_sync_provider"))
@@ -872,6 +879,9 @@ class SessionManager:
                 llm_config=llm_config,
                 llm_config_meta=llm_config_meta,
                 session_token_hash=session_token_hash,
+                session_token_expires_at=session_token_expires_at,
+                recovery_token_hash=recovery_token_hash,
+                recovery_token_expires_at=recovery_token_expires_at,
                 **session_meta,
             )
             self._session_registry().add(session_id, handle)
@@ -892,6 +902,9 @@ class SessionManager:
                 llm_config=llm_config,
                 llm_config_meta=llm_config_meta,
                 session_token_hash=session_token_hash,
+                session_token_expires_at=session_token_expires_at,
+                recovery_token_hash=recovery_token_hash,
+                recovery_token_expires_at=recovery_token_expires_at,
                 **session_meta,
             )
             self._session_registry().add(session_id, handle)
@@ -1208,6 +1221,7 @@ class SessionManager:
             session_id=session_id,
             trace_id=str(data.get("trace_id") or values.get("trace_id") or session_id),
             session_token_hash=data.get("session_token_hash"),
+                session_token_expires_at=data.get("session_token_expires_at"),
             llm_config_meta=data.get("llm_config_meta"),
             current_question=question,
             turn_idx=turn_idx,

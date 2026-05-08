@@ -53,6 +53,7 @@ from __future__ import annotations
 import asyncio
 import concurrent.futures
 import json
+from datetime import UTC, datetime, timedelta
 from typing import Annotated, Any, Literal
 
 from fastapi import APIRouter, File, Form, Header, HTTPException, Path, Query, Request, UploadFile
@@ -81,8 +82,11 @@ from app.core.metrics import (
 from app.core.rate_limit import RateLimitExceededError, check_rate_limit
 from app.core.request_translator import translate_request
 from app.core.session_auth import (
+    hash_recovery_token,
     hash_session_token,
+    new_recovery_token,
     new_session_token,
+    verify_recovery_token,
     verify_session_token,
 )
 from app.core.session_ids import SESSION_ID_MAX_LENGTH, SESSION_ID_PATTERN
@@ -373,14 +377,34 @@ def _clamp_poll_timeout(timeout: float) -> float:
     return max(0.0, min(60.0, float(timeout)))
 
 
-def _session_token_hash_from_db(session_id: str) -> str | None:
+def _ensure_aware_utc(value: datetime | None) -> datetime | None:
+    if value is None:
+        return None
+    if value.tzinfo is None:
+        return value.replace(tzinfo=UTC)
+    return value.astimezone(UTC)
+
+
+def _is_expired(value: datetime | None) -> bool:
+    expires_at = _ensure_aware_utc(value)
+    return expires_at is not None and expires_at <= datetime.now(UTC)
+
+
+def _session_token_meta_from_db(session_id: str) -> tuple[str | None, datetime | None]:
     try:
         with get_db_session() as db:
             row = db.get(InterviewSession, session_id)
-            return row.session_token_hash if row is not None else None
+            if row is None:
+                return None, None
+            return row.session_token_hash, row.session_token_expires_at
     except Exception as e:
         log.warning("session token lookup failed for %s: %s", session_id, e)
-        return None
+        return None, None
+
+
+def _session_token_hash_from_db(session_id: str) -> str | None:
+    token_hash, _expires_at = _session_token_meta_from_db(session_id)
+    return token_hash
 
 
 def _require_session_access(
@@ -390,12 +414,15 @@ def _require_session_access(
     handle: Any | None = None,
 ) -> None:
     token_hash = getattr(handle, "session_token_hash", None)
+    expires_at = getattr(handle, "session_token_expires_at", None)
     if not token_hash:
-        token_hash = _session_token_hash_from_db(session_id)
+        token_hash, expires_at = _session_token_meta_from_db(session_id)
     if not token_hash:
         if get_settings().app_env != "prod":
             return
         raise HTTPException(status_code=401, detail="session token required")
+    if _is_expired(expires_at):
+        raise HTTPException(status_code=401, detail="session token expired")
     if not session_token:
         raise HTTPException(status_code=401, detail="session token required")
     if not verify_session_token(session_token, token_hash):
@@ -579,6 +606,15 @@ def start_session(req: StartSessionRequest) -> dict[str, Any]:
         req.llm_config.model_dump(exclude_none=True) if req.llm_config else None
     )
     session_token = new_session_token()
+    recovery_token = new_recovery_token()
+    now = datetime.now(UTC)
+    settings = get_settings()
+    session_token_expires_at = now + timedelta(
+        hours=max(1, int(settings.session_token_ttl_hours))
+    )
+    recovery_token_expires_at = now + timedelta(
+        days=max(1, int(settings.recovery_token_ttl_days))
+    )
     try:
         if _session_id_in_use(manager, session_id):
             raise HTTPException(
@@ -595,6 +631,9 @@ def start_session(req: StartSessionRequest) -> dict[str, Any]:
             initial,
             llm_config=llm_override,
             session_token_hash=hash_session_token(session_token),
+            session_token_expires_at=session_token_expires_at,
+            recovery_token_hash=hash_recovery_token(recovery_token),
+            recovery_token_expires_at=recovery_token_expires_at,
         )
     except ValueError as e:
         if "session_id already exists" in str(e):
@@ -611,12 +650,72 @@ def start_session(req: StartSessionRequest) -> dict[str, Any]:
         return {
             "session_id": session_id,
             "session_token": session_token,
+            "session_token_expires_at": session_token_expires_at.isoformat(),
+            "recovery_token": recovery_token,
+            "recovery_token_expires_at": recovery_token_expires_at.isoformat(),
             "trace_id": trace_id,
             "status": "running",
             "max_turns": initial.get("max_turns"),
         }
     finally:
         reset_log_context(token)
+
+
+class RecoverSessionRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    recovery_token: str = Field(min_length=16, max_length=256)
+
+
+@router.post("/sessions/{session_id}/recover")
+def recover_session(
+    session_id: SessionIdPath,
+    body: RecoverSessionRequest,
+) -> dict[str, Any]:
+    """Exchange a browser recovery credential for a fresh short session token."""
+    invalid_detail = "invalid recovery token"
+    settings = get_settings()
+    now = datetime.now(UTC)
+    new_token = new_session_token()
+    expires_at = now + timedelta(
+        hours=max(1, int(settings.session_token_ttl_hours))
+    )
+
+    try:
+        with get_db_session() as db:
+            row = db.get(InterviewSession, session_id)
+            if row is None:
+                raise HTTPException(status_code=401, detail=invalid_detail)
+            if row.recovery_token_revoked_at is not None:
+                raise HTTPException(status_code=401, detail=invalid_detail)
+            if _is_expired(row.recovery_token_expires_at):
+                raise HTTPException(status_code=401, detail=invalid_detail)
+            if not verify_recovery_token(
+                body.recovery_token,
+                row.recovery_token_hash,
+            ):
+                raise HTTPException(status_code=401, detail=invalid_detail)
+
+            row.session_token_hash = hash_session_token(new_token)
+            row.session_token_expires_at = expires_at
+    except HTTPException:
+        raise
+    except Exception as e:
+        log.exception("recover_session failed for %s", session_id)
+        raise HTTPException(
+            status_code=500,
+            detail=api_error_detail(
+                "session_recover_failed",
+                "恢复会话失败，请稍后重试。",
+                "retry_later",
+            ),
+        ) from e
+
+    return {
+        "session_id": session_id,
+        "session_token": new_token,
+        "session_token_expires_at": expires_at.isoformat(),
+    }
 
 
 @router.get("/sessions/{session_id}/question")
