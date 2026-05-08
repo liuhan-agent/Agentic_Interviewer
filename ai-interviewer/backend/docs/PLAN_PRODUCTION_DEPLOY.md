@@ -41,17 +41,23 @@ CLI 输出只包含脱敏配置摘要和 Postgres / Redis / Chroma 探测状态�
 - **建议**：prod env 显式 `ALLOW_OPEN_ADMIN=false`，不依赖默认值
 - **#1 / #2 必须同时正确**：单独配 `API_TOKEN` 但漏关 `ALLOW_OPEN_ADMIN` 等于零防御
 
-### 3. 多 worker / 多副本下的限流策略
+### 3. 多 worker / 多副本下的共享状态策略
 
-`app/core/rate_limit.py` 是进程内限流，N 个 uvicorn worker 或 N 个 pod 会把限额放大 N 倍。三选一：
+以下 backend 在 `APP_ENV=prod` 下不能继续使用 `memory`：
 
-| 方案 | 改动 | 优劣 |
-|------|------|------|
-| A · 静态降配 | 把 `RESUME_PARSE_RATE_LIMIT_PER_MINUTE` / `JD_PARSE_RATE_LIMIT_PER_MINUTE` / `LLM_TEST_RATE_LIMIT_PER_MINUTE` 都除以 worker 数 | 最简单；但每次扩缩容都要重算 |
-| B · 上游限流 | nginx `limit_req` 或 ALB rate-based rule | 最贴生产实践；增加运维 L7 配置 |
-| C · Redis 共享 | 把 `rate_limit.py` 换成 Redis-backed sliding window，保持 `check_rate_limit` / `RateLimitExceededError` 接口不变 | 弹性最好；增加 Redis 依赖与代码改动 |
+| 配置 | prod 要求 | 原因 |
+|------|-----------|------|
+| `RATE_LIMIT_BACKEND` | `redis`，或在应用外配置等价上游限流后才可例外 | `/resume/parse`、`/jd/parse`、`/llm/test` 是高成本端点，memory backend 会被 worker 数放大限额 |
+| `VOICE_TICKET_BACKEND` | `redis` | 语音 WebSocket 一次性 ticket 必须能跨 worker 消费且只消费一次 |
+| `VERIFIER_DRIFT_BACKEND` | 建议 `redis`；当前 `memory` 只告警不阻断 | drift 观测窗口按进程分裂会影响 admin 诊断可信度，但不阻塞主链面试 |
 
-**不做任一项的后果**：`/api/v1/resume/parse` 与 `/api/v1/jd/parse` 是 LLM 计费端点，限流被绕过会直接放大账单。
+默认 dev/test 仍可使用 `memory`，避免本地启动强依赖 Redis。生产部署建议显式配置：
+
+```env
+RATE_LIMIT_BACKEND=redis
+VOICE_TICKET_BACKEND=redis
+VERIFIER_DRIFT_BACKEND=redis
+```
 
 ### 4. CORS 收紧
 
@@ -79,6 +85,8 @@ CLI 输出只包含脱敏配置摘要和 Postgres / Redis / Chroma 探测状态�
 | `EMBEDDING_PROVIDER` | 默认禁止 `stub` | 避免 RAG/检索能力静默退化 |
 | `ALLOW_STUB_EMBEDDINGS_IN_PROD` | 仅临时降级时显式设 `true` | 让降级成为可审计选择 |
 | `RESUME_PARSE_CACHE_BACKEND` | 禁止 `memory` | 多 worker 下 memory cache 行为不一致 |
+| `RATE_LIMIT_BACKEND` | 禁止 `memory` | 多 worker 下高成本端点限额会被放大 |
+| `VOICE_TICKET_BACKEND` | 禁止 `memory` | 语音 ticket 不能跨 worker 一次性消费 |
 | `API_TOKEN` | 必须非空，除非显式 `ALLOW_OPEN_ADMIN=true` | 保护 admin 接口 |
 
 `ENABLE_VERIFIER_DRIFT_MONITOR=true` 且 `VERIFIER_DRIFT_BACKEND=memory` 只告警不阻断；多 worker 部署建议改为 Redis，否则 drift 窗口按进程分裂。
@@ -89,7 +97,7 @@ CLI 输出只包含脱敏配置摘要和 Postgres / Redis / Chroma 探测状态�
 
 | ID | 项 | 触发条件 | 最小落地动作 |
 |----|----|---------|-------------|
-| F1 | Voice-ticket Redis-backed store | 部署 ≥ 2 backend worker 且无 sticky session（cookie / IP-hash） | 抽 `VoiceTicketStore` 接口；新增 `RedisVoiceTicketStore`，配 `VOICE_TICKET_BACKEND=redis` |
+| F1 | Voice-ticket Redis-backed store | 部署 ≥ 2 backend worker 且无 sticky session（cookie / IP-hash） | 已落地 `VoiceTicketStore` 接口与 `RedisVoiceTicketStore`；生产配置 `VOICE_TICKET_BACKEND=redis` |
 | F2 | `/resume/parse` per-provider rate limit | 切换到「服务端共享 LLM key」模式（任意一个 `LLM_API_KEY_*` settings 非空且非 BYOK） | 在 `_enforce_setup_rate_limit` 加 `provider:host` 二级桶；与 `effective_llm_fingerprint` 拼 key |
 | F3 | Cache 多租户 salt | 引入 org / tenant / workspace 概念，或合规要求消除"已处理简历"侧信道 | 在 `resume_parse_cache_key` 的 `material` 字典加 `org_id`；Redis prefix 按 org 拆分以支持单租户驱逐 |
 
