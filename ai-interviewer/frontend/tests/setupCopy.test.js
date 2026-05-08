@@ -197,6 +197,7 @@ test("interview API exposes confirmed hard-delete session call", () => {
   const types = readApiTypes();
 
   assert.match(types, /export interface DeleteSessionResponse/);
+  assert.match(types, /sessions_deleted:\s*number/);
   assert.match(api, /export function deleteSession/);
   assert.match(api, /method:\s*"DELETE"/);
   assert.match(api, /confirm_session_id=\$\{encodeURIComponent\(sessionId\)\}/);

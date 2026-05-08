@@ -281,7 +281,9 @@ async function adminDelete<T>(path: string): Promise<T> {
 export interface AdminDeleteSessionResponse {
   session_id: string;
   deleted: boolean;
+  sessions_deleted: number;
   traces_deleted: number;
+  outcomes_deleted: number;
   outcome_deleted: boolean;
   checkpoint_deleted?: boolean;
 }
