@@ -50,6 +50,7 @@ import type {
   FinalReport,
   LLMErrorKind,
   RubricScore,
+  ScoringCredibility,
   TraceHealth,
   VideoAnalysis,
 } from "@/lib/api/types";
@@ -810,6 +811,36 @@ function asNumber(value: unknown): number | null {
   return Number.isFinite(n) ? n : null;
 }
 
+function formatRate(value: number | null | undefined): string {
+  const n = typeof value === "number" && Number.isFinite(value) ? value : 0;
+  return `${Math.round(Math.min(1, Math.max(0, n)) * 100)}%`;
+}
+
+function credibilityMetric(summary: ScoringCredibility): QualityMetric {
+  const level = String(summary.credibility_level ?? "").toLowerCase();
+  const value =
+    level === "high"
+      ? "信号充分"
+      : level === "medium"
+        ? "部分信号不足"
+        : level === "low"
+          ? "信号不足"
+          : "基础评分";
+  const forcedRefine = summary.verification_forced_refine
+    ? "；复核曾触发强制修正"
+    : "";
+
+  return {
+    label: "评分可信度",
+    value,
+    description:
+      `fallback ${formatRate(summary.fallback_rate)}，` +
+      `证据缺失 ${formatRate(summary.evidence_span_miss_rate)}，` +
+      `检查未通过 ${formatRate(summary.contract_no_rate)}${forcedRefine}。`,
+    variant: level === "high" ? "success" : level ? "warn" : "outline",
+  };
+}
+
 // Build the deep link the QualityCenter "查看该 trace" button uses.
 // The Trace Explorer page picks up ``node`` and ``dimension`` from the
 // query string and pre-scrolls to the matching card so a candidate or
@@ -845,6 +876,7 @@ function QualityCenter({
   const workflow = asRecord(report.workflow_artifacts);
   const contract = asRecord(report.contract_summary);
   const evidenceSummary = asRecord(report.evidence_summary);
+  const credibilitySummary = report.credibility_summary;
   const coverageWarnings = asArray(report.coverage_warnings);
   const skillCoverage = asRecord(workflow.target_skill_coverage);
   const latestAction = asRecord(workflow.latest_selected_action);
@@ -896,7 +928,7 @@ function QualityCenter({
     value: skillCount > 0 ? `${skillCount} 个技能点` : "基础个性化",
     description:
       skillCount > 0
-        ? "问题围绕目标技能和候选人回答动态调整。"
+        ? "问题围绕目标技能和你的回答动态调整。"
         : "当前报告未暴露详细技能覆盖，仍保留基础题目与评分证据。",
     variant: skillCount > 0 ? "success" : "outline",
   };
@@ -913,6 +945,9 @@ function QualityCenter({
           "本场面试未走完整闭环（评分或学习节点缺失），评分仅供参考。",
         variant: "warn",
       };
+    }
+    if (credibilitySummary) {
+      return credibilityMetric(credibilitySummary);
     }
     return {
       label: "评分可信度",

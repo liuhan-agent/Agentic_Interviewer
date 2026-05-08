@@ -327,6 +327,16 @@ export interface EvidenceSummary {
   match_rate?: number;
 }
 
+export interface ScoringCredibility {
+  credibility_level?: "high" | "medium" | "low" | string;
+  fallback_rate?: number;
+  evidence_span_miss_rate?: number;
+  contract_no_rate?: number;
+  verification_forced_refine?: boolean;
+  total_turns?: number;
+  evaluator_fallback_count?: number;
+}
+
 /**
  * LLM cost accounting for one interview session, populated by the
  * backend ``final_report_node``. ``est_usd`` is a coarse estimate
@@ -358,6 +368,7 @@ export interface FinalReport {
   training_plan?: TrainingPlan;
   video_analysis?: VideoAnalysis;
   evidence_summary?: EvidenceSummary;
+  credibility_summary?: ScoringCredibility;
   /**
    * How many of ``total_turns`` were scored by the conservative
    * fallback path (LLM unavailable). When the ratio is high, the
