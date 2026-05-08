@@ -168,6 +168,19 @@ def _user_material_context_flags(
     }
 
 
+def _focus_dimensions(req: dict[str, Any], job_spec: dict[str, Any]) -> list[str]:
+    raw = req.get("focus_dimensions")
+    if not isinstance(raw, list):
+        return []
+    allowed = set(job_spec.get("rubric_dimensions") or [])
+    focus: list[str] = []
+    for item in raw:
+        if not isinstance(item, str) or item not in allowed or item in focus:
+            continue
+        focus.append(item)
+    return focus
+
+
 def translate_request(req: dict[str, Any]) -> tuple[str, str, InterviewState]:
     """Build ``(session_id, trace_id, initial_state)`` from a request dict.
 
@@ -195,6 +208,7 @@ def translate_request(req: dict[str, Any]) -> tuple[str, str, InterviewState]:
         candidate=candidate,
         job_spec=job_spec,
         context_flags=_user_material_context_flags(candidate, job_spec),
+        focus_dimensions=_focus_dimensions(req, job_spec),
         mode=mode,  # type: ignore[arg-type]
         runtime_config=runtime,
         max_turns=exec_cfg["max_turns"],

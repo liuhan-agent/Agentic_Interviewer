@@ -319,6 +319,7 @@ class StartSessionRequest(BaseModel):
     job_spec: JobSpecInput
     mode: str = "mixed"
     enable_video_analysis: bool = False
+    focus_dimensions: list[str] = Field(default_factory=list)
     max_turns: int | None = Field(default=None, ge=1, le=MAX_SESSION_TURNS)
     quality_threshold: float | None = Field(default=None, ge=0, le=10)
     turn_budget: int | None = Field(default=None, ge=1, le=MAX_TURN_BUDGET)

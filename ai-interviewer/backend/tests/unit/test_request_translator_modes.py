@@ -90,6 +90,21 @@ def test_translate_request_preserves_user_material_context_flags() -> None:
     }
 
 
+def test_translate_request_filters_focus_dimensions_to_rubric() -> None:
+    req = _base_request(None)
+    req["job_spec"] = {
+        "title": "Backend Engineer",
+        "level": "senior",
+        "required_skills": ["python"],
+        "rubric_dimensions": ["technical_depth", "system_design"],
+    }
+    req["focus_dimensions"] = ["system_design", "missing", "technical_depth"]
+
+    _, _, state = translate_request(req)
+
+    assert state["focus_dimensions"] == ["system_design", "technical_depth"]
+
+
 def test_translate_request_generates_timestamped_session_id() -> None:
     session_id, _, _ = translate_request(_base_request(None))
 
