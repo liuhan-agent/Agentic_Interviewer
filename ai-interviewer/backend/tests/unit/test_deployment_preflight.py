@@ -36,6 +36,8 @@ class _StubSettings:
             "resume_parse_cache_backend": "redis",
             "asr_provider": "openai",
             "tts_provider": "openai",
+            "rate_limit_backend": "redis",
+            "voice_ticket_backend": "redis",
             "langsmith_tracing": False,
             "default_guard_mode": "regex_only",
             "redact_answer_pii": True,
@@ -72,6 +74,8 @@ class TestBuildConfigSummary:
             "resume_parse_cache_backend",
             "asr_provider",
             "tts_provider",
+            "rate_limit_backend",
+            "voice_ticket_backend",
             "verifier_drift_backend",
             "langsmith_tracing",
             "default_guard_mode",
@@ -194,6 +198,30 @@ class TestRunPreflight:
             resume_parse_cache_backend="memory",
         )
         with pytest.raises(PreflightError, match="resume_parse_cache_backend=memory"):
+            run_preflight(s)
+
+    def test_prod_memory_rate_limit_backend_raises(self):
+        s = _StubSettings(
+            app_env="prod",
+            checkpoint_backend="postgres",
+            api_token="valid-token",
+            llm_provider="openai",
+            use_stub_llm=False,
+            rate_limit_backend="memory",
+        )
+        with pytest.raises(PreflightError, match="rate_limit_backend=memory"):
+            run_preflight(s)
+
+    def test_prod_memory_voice_ticket_backend_raises(self):
+        s = _StubSettings(
+            app_env="prod",
+            checkpoint_backend="postgres",
+            api_token="valid-token",
+            llm_provider="openai",
+            use_stub_llm=False,
+            voice_ticket_backend="memory",
+        )
+        with pytest.raises(PreflightError, match="voice_ticket_backend=memory"):
             run_preflight(s)
 
     def test_prod_drift_monitor_memory_backend_warns_but_succeeds(self):

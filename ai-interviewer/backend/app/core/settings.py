@@ -360,6 +360,8 @@ class Settings(BaseSettings):
 
     # Lightweight per-process rate limits for high-cost setup and BYOK
     # validation endpoints. Values are per client IP per window.
+    rate_limit_backend: Literal["memory", "redis"] = "memory"
+    rate_limit_redis_prefix: str = "agentic_interviewer:rate_limit"
     rate_limit_window_seconds: int = 60
     resume_parse_rate_limit_per_minute: int = 20
     jd_parse_rate_limit_per_minute: int = 30
@@ -371,6 +373,8 @@ class Settings(BaseSettings):
     trace_retention_days: int = 30
     outcome_retention_days: int = 180
     privacy_cleanup_batch_size: int = 500
+    voice_ticket_backend: Literal["memory", "redis"] = "memory"
+    voice_ticket_redis_prefix: str = "agentic_interviewer:voice_ticket"
     voice_ticket_ttl_seconds: int = 30
 
     # ------------------------------------------------------------------
