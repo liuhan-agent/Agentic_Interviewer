@@ -39,3 +39,7 @@ jobs:
       - name: Run backend unit tests
         working-directory: ai-interviewer/backend
         run: python -m pytest tests/unit
+
+      - name: Run P0 runtime smoke
+        working-directory: ai-interviewer/backend
+        run: python -m app.scripts.smoke_p0_runtime --turns 3 --budget 6

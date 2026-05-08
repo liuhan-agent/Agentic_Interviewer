@@ -2,7 +2,11 @@ from __future__ import annotations
 
 import os
 
-from app.scripts.smoke_p0_runtime import _force_offline_runtime, collect_smoke_errors
+from app.scripts.smoke_p0_runtime import (
+    _force_offline_runtime,
+    _install_offline_vectorstore,
+    collect_smoke_errors,
+)
 
 
 def _valid_demo_result() -> dict:
@@ -46,9 +50,35 @@ def test_collect_smoke_errors_reports_missing_runtime_signals() -> None:
 
 def test_force_offline_runtime_uses_memory_checkpoint(monkeypatch) -> None:
     monkeypatch.setenv("CHECKPOINT_BACKEND", "postgres")
+    monkeypatch.setenv("DATABASE_URL", "postgresql+psycopg2://example")
 
     _force_offline_runtime()
 
     assert os.environ["LLM_PROVIDER"] == "stub"
     assert os.environ["EMBEDDING_PROVIDER"] == "stub"
     assert os.environ["CHECKPOINT_BACKEND"] == "memory"
+    assert os.environ["DATABASE_URL"] == "sqlite:///:memory:"
+
+
+def test_install_offline_vectorstore_uses_shared_memory_store() -> None:
+    from app.engine.rag import ingestion
+    from app.engine.rag import retriever
+    from app.scripts import run_demo
+
+    original_ingestion_get_vectorstore = ingestion.get_vectorstore
+    original_retriever_get_vectorstore = retriever.get_vectorstore
+    original_run_demo_get_vectorstore = run_demo.get_vectorstore
+    try:
+        _install_offline_vectorstore()
+
+        store = run_demo.get_vectorstore()
+        assert ingestion.get_vectorstore() is store
+        assert retriever.get_vectorstore() is store
+
+        store.add(["python observability"], [{"source": "test.md", "chunk": 0}])
+        assert ingestion.get_vectorstore().count() == 1
+        assert retriever.get_vectorstore().count() == 1
+    finally:
+        ingestion.get_vectorstore = original_ingestion_get_vectorstore
+        retriever.get_vectorstore = original_retriever_get_vectorstore
+        run_demo.get_vectorstore = original_run_demo_get_vectorstore
