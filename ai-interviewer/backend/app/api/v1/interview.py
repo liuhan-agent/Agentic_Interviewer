@@ -113,6 +113,7 @@ from app.services.interview_feedback import (
     FEEDBACK_OUTCOME_MAP,
     save_interview_feedback,
 )
+from app.services.interview_question_response import build_question_poll_payload
 from app.services.interview_reports import (
     attach_trace_health,
     report_payload_from_persisted_session,
@@ -769,48 +770,28 @@ async def poll_question(
     # ("AI 正在思考，预计 ≈ 5 秒") on the next loading state. ``None``
     # until the first segment finishes.
     server_latency_ms = getattr(handle, "last_segment_latency_ms", None)
-    if question is None and done:
-        if cancelled or final_status == "cancelled":
-            return {
-                "session_id": session_id,
-                "status": "cancelled",
-                "question": None,
-                "max_turns": max_turns,
-                "previous_turn_evaluation": previous_turn_evaluation,
-                "server_latency_ms": server_latency_ms,
-            }
-        if handle.error:
-            payload = _terminal_error_payload(
-                session_id=session_id,
-                error=handle.error,
-                error_kind=getattr(handle, "error_kind", None),
-                retryable=bool(
-                    getattr(manager, "can_retry_failed_question", lambda _sid: False)(
-                        session_id
-                    )
-                ),
+    retryable = False
+    if question is None and done and handle.error:
+        retryable = bool(
+            getattr(manager, "can_retry_failed_question", lambda _sid: False)(
+                session_id
             )
-            payload["previous_turn_evaluation"] = previous_turn_evaluation
-            payload["server_latency_ms"] = server_latency_ms
-            return payload
-        return {
-            "session_id": session_id,
-            "status": "completed",
-            "question": None,
-            "final_report": final_report,
-            "max_turns": max_turns,
-            "previous_turn_evaluation": previous_turn_evaluation,
-            "server_latency_ms": server_latency_ms,
-        }
-    return {
-        "session_id": session_id,
-        "status": "waiting_for_answer" if question else "pending",
-        "turn_idx": turn_idx,
-        "question": question,
-        "max_turns": max_turns,
-        "previous_turn_evaluation": previous_turn_evaluation,
-        "server_latency_ms": server_latency_ms,
-    }
+        )
+    return build_question_poll_payload(
+        session_id=session_id,
+        question=question,
+        done=done,
+        cancelled=cancelled,
+        final_status=final_status,
+        final_report=final_report,
+        error=handle.error,
+        error_kind=getattr(handle, "error_kind", None),
+        retryable=retryable,
+        turn_idx=turn_idx,
+        max_turns=max_turns,
+        previous_turn_evaluation=previous_turn_evaluation,
+        server_latency_ms=server_latency_ms,
+    )
 
 
 @router.post("/sessions/{session_id}/voice-ticket")
