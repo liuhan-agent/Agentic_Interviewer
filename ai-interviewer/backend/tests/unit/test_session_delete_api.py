@@ -188,7 +188,9 @@ def test_delete_session_hard_deletes_persisted_rows(monkeypatch: pytest.MonkeyPa
         assert resp.json() == {
             "session_id": "sess-delete",
             "deleted": True,
+            "sessions_deleted": 1,
             "traces_deleted": 1,
+            "outcomes_deleted": 1,
             "outcome_deleted": True,
             "checkpoint_deleted": True,
         }
@@ -211,7 +213,15 @@ def test_delete_session_is_idempotent_when_rows_are_missing(
         )
 
         assert resp.status_code == 200
-        assert resp.json()["deleted"] is False
+        assert resp.json() == {
+            "session_id": "sess-missing",
+            "deleted": False,
+            "sessions_deleted": 0,
+            "traces_deleted": 0,
+            "outcomes_deleted": 0,
+            "outcome_deleted": False,
+            "checkpoint_deleted": True,
+        }
 
 
 def test_delete_session_cancels_and_removes_active_handle(
