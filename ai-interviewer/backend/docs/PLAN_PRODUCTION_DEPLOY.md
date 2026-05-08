@@ -59,7 +59,22 @@ VOICE_TICKET_BACKEND=redis
 VERIFIER_DRIFT_BACKEND=redis
 ```
 
-### 4. CORS 收紧
+### 4. 隐私删除与留存策略
+
+默认策略沿用 `Settings`，不在代码里区分 preview / prod：
+
+| 配置 | 默认值 | 说明 |
+|------|--------|------|
+| `ENABLE_PRIVACY_CLEANUP` | `false` | 默认不自动硬删除，避免 dev/test 或预览环境误删 |
+| `PRIVACY_CLEANUP_INTERVAL_MINUTES` | `60` | 开启后每小时执行一次过期清理 |
+| `SESSION_RETENTION_DAYS` | `30` | 面试 session 保留 30 天 |
+| `TRACE_RETENTION_DAYS` | `30` | generation trace 保留 30 天 |
+| `OUTCOME_RETENTION_DAYS` | `180` | outcome/反馈信号保留 180 天 |
+| `PRIVACY_CLEANUP_BATCH_SIZE` | `500` | 单轮最多处理 500 条 |
+
+决策：**默认留存天数继续由 settings 提供；preview / staging 如需更短留存，必须在 `.env` 或部署平台环境变量中显式覆盖**，不要在代码里为环境写隐式分支。启用自动清理前，先用 `python -m app.scripts.privacy_cleanup --dry-run` 观察待删数量。
+
+### 5. CORS 收紧
 
 - **配置项**：`CORS_ORIGINS`
 - **dev 默认**：`localhost` 系列
@@ -67,14 +82,14 @@ VERIFIER_DRIFT_BACKEND=redis
 - **校验代码**：`app/main.py` `CORSMiddleware` 段
 - **遗漏后果**：浏览器侧任意源都能调你的 LLM 计费端点
 
-### 5. LangSmith 路由
+### 6. LangSmith 路由
 
 仅当 `LANGSMITH_TRACING=true` 时关注：
 
 - **关注项**：`LANGSMITH_PROJECT` 必须与 dev / staging 区分（建议 suffix `-prod` / `-staging` / `-dev`）
 - **遗漏后果**：prod 流量与 dev 调试 trace 串台，dashboard 数据被污染、计费方混淆
 
-### 6. 生产 fallback 禁止静默退化
+### 7. 生产 fallback 禁止静默退化
 
 以下配置由启动 preflight 自动校验：
 
@@ -91,7 +106,7 @@ VERIFIER_DRIFT_BACKEND=redis
 
 `ENABLE_VERIFIER_DRIFT_MONITOR=true` 且 `VERIFIER_DRIFT_BACKEND=memory` 只告警不阻断；多 worker 部署建议改为 Redis，否则 drift 窗口按进程分裂。
 
-## 6. 已知延后加固触发器（Pending Hardening Triggers）
+## 8. 已知延后加固触发器（Pending Hardening Triggers）
 
 以下三项在 [PLAN_DEPLOYMENT_HARDENING_AUDIT.md](./PLAN_DEPLOYMENT_HARDENING_AUDIT.md) 中**显式延后**，每次部署变更时按表格列的「触发条件」核对一次；任何一项触发立即把对应「最小落地动作」加入本次发布范围，禁止"再延后一次"。
 
