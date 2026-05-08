@@ -10,12 +10,31 @@ Topology::
       -> director_sample
       -> ask_question
       -> wait_answer
+      -> route_after_wait
+           -> "self_intro_parse" -> self_intro_parse
+           -> "skip_question"    -> skip_question
+           -> "evaluator"        -> evaluator
+           -> "end"              -> final_report
+      -> skip_question
+      -> route_after_skip
+           -> "next_question" -> director_sample
+           -> "end"           -> final_report
       -> evaluator
+      -> verification
+      -> reward_update
       -> compress_context
       -> route_after_eval
            -> "refine"        -> refine_followup -> director_sample
            -> "next_question" -> director_sample
-           -> "end"           -> final_report    -> experience_extractor -> END
+           -> "end"           -> final_report
+      -> final_report
+      -> training_plan
+      -> experience_extractor
+      -> END
+
+This is a human-readable summary only. The exact node / edge /
+conditional-branch snapshot is exposed by ``workflow_topology_snapshot``
+and guarded by ``tests/unit/test_langgraph_workflow_topology.py``.
 
 This mirrors the ACO business-loop pattern with the names mapped to
 the interview domain. Every cycle goes back through ``director_sample``
@@ -62,7 +81,7 @@ from .state import InterviewState
 log = get_logger(__name__)
 
 
-def _register_nodes(graph: StateGraph) -> None:
+def _register_nodes(graph: Any) -> None:
     graph.add_node("resume_parse", resume_parse_node)
     graph.add_node("self_intro_question", self_intro_question_node)
     graph.add_node("self_intro_parse", self_intro_parse_node)
@@ -84,7 +103,7 @@ def _register_nodes(graph: StateGraph) -> None:
     graph.add_node("experience_extractor", experience_extractor_node)
 
 
-def _register_edges(graph: StateGraph) -> None:
+def _register_edges(graph: Any) -> None:
     graph.add_edge(START, "resume_parse")
     graph.add_edge("resume_parse", "self_intro_question")
     graph.add_edge("self_intro_question", "wait_answer")
@@ -129,6 +148,63 @@ def _register_edges(graph: StateGraph) -> None:
     graph.add_edge("final_report", "training_plan")
     graph.add_edge("training_plan", "experience_extractor")
     graph.add_edge("experience_extractor", END)
+
+
+class _TopologyRecorder:
+    """Small graph-like recorder used for topology snapshot tests."""
+
+    def __init__(self) -> None:
+        self.nodes: list[str] = []
+        self.edges: list[dict[str, str]] = []
+        self.conditional_edges: list[dict[str, Any]] = []
+
+    def add_node(self, name: str, _node: Any) -> None:
+        self.nodes.append(name)
+
+    def add_edge(self, source: Any, target: Any) -> None:
+        self.edges.append(
+            {
+                "source": _topology_endpoint(source),
+                "target": _topology_endpoint(target),
+            }
+        )
+
+    def add_conditional_edges(
+        self,
+        source: str,
+        router: Any,
+        branches: dict[str, Any],
+    ) -> None:
+        self.conditional_edges.append(
+            {
+                "source": source,
+                "router": getattr(router, "__name__", str(router)),
+                "branches": {
+                    label: _topology_endpoint(target)
+                    for label, target in branches.items()
+                },
+            }
+        )
+
+
+def _topology_endpoint(value: Any) -> str:
+    if value == START:
+        return "START"
+    if value == END:
+        return "END"
+    return str(value)
+
+
+def workflow_topology_snapshot() -> dict[str, Any]:
+    """Return the registered topology without compiling the graph."""
+    recorder = _TopologyRecorder()
+    _register_nodes(recorder)
+    _register_edges(recorder)
+    return {
+        "nodes": recorder.nodes,
+        "edges": recorder.edges,
+        "conditional_edges": recorder.conditional_edges,
+    }
 
 
 def _psycopg_dsn(database_url: str) -> str:
