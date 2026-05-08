@@ -1227,6 +1227,9 @@ export function SetupForm() {
           upsertEntry({
             sessionId: res.session_id,
             sessionToken: res.session_token,
+            sessionTokenExpiresAt: res.session_token_expires_at,
+            recoveryToken: res.recovery_token,
+            recoveryTokenExpiresAt: res.recovery_token_expires_at,
             jdTitle: values.job_title,
             candidateName: values.candidate_name,
             jobLevel: values.job_level,

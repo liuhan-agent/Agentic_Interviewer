@@ -353,6 +353,8 @@ class Settings(BaseSettings):
     # ------------------------------------------------------------------
     session_idle_ttl_minutes: int = 60
     session_reaper_interval_seconds: int = 120
+    session_token_ttl_hours: int = 24
+    recovery_token_ttl_days: int = 7
     # Grace window between yielding an interrupt and clearing the
     # ``_running`` flag.  Too low and clients see spurious "prior
     # segment still running" warnings on cold LLM calls.

@@ -6,6 +6,7 @@ const {
   getCompletedBefore,
   getEntry,
   getHistory,
+  getRecoveryToken,
   getSessionToken,
   SESSION_TOKEN_TTL_DAYS,
   upsertEntry,
@@ -92,6 +93,48 @@ test("upsertEntry keeps session token out of persistent history", () => {
   const createdAt = new Date(getEntry("session-token").createdAt);
   const ttlMs = expiresAt.getTime() - createdAt.getTime();
   assert.ok(ttlMs >= (SESSION_TOKEN_TTL_DAYS * 24 * 60 * 60 * 1000) - 1000);
+});
+
+test("upsertEntry persists recovery token in local history", () => {
+  const storage = installLocalStorage();
+  const expiresAt = new Date(Date.now() + 60_000).toISOString();
+
+  upsertEntry({
+    sessionId: "session-recover",
+    recoveryToken: "recover-secret-123",
+    recoveryTokenExpiresAt: expiresAt,
+    jdTitle: "Backend",
+    status: "running",
+  });
+
+  assert.match(storage.getItem("interviewHistory"), /recover-secret-123/);
+  assert.equal(getRecoveryToken("session-recover"), "recover-secret-123");
+  assert.equal(getEntry("session-recover").recoveryTokenExpiresAt, expiresAt);
+});
+
+test("expired recovery token is removed while history remains", () => {
+  installLocalStorage({
+    interviewHistory: JSON.stringify({
+      version: 1,
+      entries: [
+        {
+          sessionId: "expired-recovery",
+          recoveryToken: "recover-secret-123",
+          recoveryTokenExpiresAt: new Date(Date.now() - 1000).toISOString(),
+          jdTitle: "Backend",
+          createdAt: new Date().toISOString(),
+          lastVisitedAt: new Date().toISOString(),
+          status: "running",
+        },
+      ],
+    }),
+  });
+
+  assert.equal(getRecoveryToken("expired-recovery"), undefined);
+  const entry = getEntry("expired-recovery");
+  assert.equal(entry.sessionId, "expired-recovery");
+  assert.equal(entry.recoveryToken, undefined);
+  assert.equal(entry.recoveryTokenExpiresAt, undefined);
 });
 
 test("expired session token is removed while history remains", () => {

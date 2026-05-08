@@ -38,3 +38,13 @@ test("history list has a filtered empty state", () => {
   assert.match(source, /当前筛选下没有面试记录/);
   assert.match(source, /查看全部/);
 });
+
+test("history export strips browser recovery credential", () => {
+  const source = fs.readFileSync(
+    path.join(__dirname, "..", "src", "components", "interview", "HistoryList.tsx"),
+    "utf8",
+  );
+
+  assert.match(source, /delete safeEntry\.recoveryToken/);
+  assert.match(source, /delete safeEntry\.recoveryTokenExpiresAt/);
+});

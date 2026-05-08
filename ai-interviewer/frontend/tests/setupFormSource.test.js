@@ -104,3 +104,13 @@ test("history export and copy explain session token privacy", () => {
   assert.match(source, /delete safeEntry\.sessionTokenExpiresAt/);
   assert.match(source, /当前标签页会话/);
 });
+
+test("setup form stores browser recovery credential from start response", () => {
+  const source = fs.readFileSync(
+    path.join(__dirname, "..", "src", "components", "interview", "SetupForm.tsx"),
+    "utf8",
+  );
+
+  assert.match(source, /recoveryToken: res\.recovery_token/);
+  assert.match(source, /recoveryTokenExpiresAt: res\.recovery_token_expires_at/);
+});

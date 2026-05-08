@@ -72,6 +72,25 @@ test("interview API exposes reauth-required detection", () => {
   assert.match(source, /err instanceof ApiError/);
 });
 
+test("interview API exposes browser recovery flow", () => {
+  const source = fs.readFileSync(
+    path.join(__dirname, "..", "src", "lib", "api", "interview.ts"),
+    "utf8",
+  );
+  const types = fs.readFileSync(
+    path.join(__dirname, "..", "src", "lib", "api", "types.ts"),
+    "utf8",
+  );
+
+  assert.match(types, /export interface RecoverSessionResponse/);
+  assert.match(types, /recovery_token/);
+  assert.match(source, /export function recoverSession/);
+  assert.match(source, /\/recover/);
+  assert.match(source, /getRecoveryToken\(sessionId\)/);
+  assert.match(source, /err instanceof ApiError && err\.status === 401/);
+  assert.match(source, /writeSessionToken\(sessionId/);
+});
+
 test("api client preserves structured error code and action", () => {
   const source = fs.readFileSync(
     path.join(__dirname, "..", "src", "lib", "api", "client.ts"),

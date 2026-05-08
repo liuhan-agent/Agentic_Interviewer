@@ -24,6 +24,8 @@ export interface InterviewHistoryEntry {
   sessionId: string;
   sessionToken?: string;
   sessionTokenExpiresAt?: string;
+  recoveryToken?: string;
+  recoveryTokenExpiresAt?: string;
   jdTitle: string;
   candidateName?: string;
   jobLevel?: string;
@@ -56,7 +58,7 @@ function sessionTokenKey(sessionId: string): string {
   return `${SESSION_TOKEN_KEY_PREFIX}${sessionId}`;
 }
 
-function writeSessionToken(
+export function writeSessionToken(
   sessionId: string,
   token: string,
   expiresAt: string,
@@ -161,6 +163,9 @@ function isValidEntry(x: unknown): x is InterviewHistoryEntry {
     (e.sessionToken === undefined || typeof e.sessionToken === "string") &&
     (e.sessionTokenExpiresAt === undefined ||
       typeof e.sessionTokenExpiresAt === "string") &&
+    (e.recoveryToken === undefined || typeof e.recoveryToken === "string") &&
+    (e.recoveryTokenExpiresAt === undefined ||
+      typeof e.recoveryTokenExpiresAt === "string") &&
     isTextField(e.jdTitle) &&
     (e.candidateName === undefined || isTextField(e.candidateName)) &&
     (e.jobLevel === undefined || isTextField(e.jobLevel)) &&
@@ -235,6 +240,12 @@ function isExpiredToken(entry: InterviewHistoryEntry, now = Date.now()): boolean
   return !Number.isFinite(expiresAt) || expiresAt <= now;
 }
 
+function isExpiredRecoveryToken(entry: InterviewHistoryEntry, now = Date.now()): boolean {
+  if (!entry.recoveryToken || !entry.recoveryTokenExpiresAt) return false;
+  const expiresAt = Date.parse(entry.recoveryTokenExpiresAt);
+  return !Number.isFinite(expiresAt) || expiresAt <= now;
+}
+
 function withoutSessionToken(entry: InterviewHistoryEntry): InterviewHistoryEntry {
   const next = { ...entry };
   delete next.sessionToken;
@@ -242,21 +253,35 @@ function withoutSessionToken(entry: InterviewHistoryEntry): InterviewHistoryEntr
   return next;
 }
 
+function withoutRecoveryToken(entry: InterviewHistoryEntry): InterviewHistoryEntry {
+  const next = { ...entry };
+  delete next.recoveryToken;
+  delete next.recoveryTokenExpiresAt;
+  return next;
+}
+
 function pruneExpiredSessionTokens(shape: StoredShape): StoredShape {
   let changed = false;
   const now = Date.now();
   const entries = shape.entries.map((entry) => {
-    if (!entry.sessionToken) return entry;
-    if (!isExpiredToken(entry, now)) {
-      const expiresAt =
-        entry.sessionTokenExpiresAt ??
-        new Date(now + SESSION_TOKEN_TTL_MS).toISOString();
-      writeSessionToken(entry.sessionId, entry.sessionToken, expiresAt);
-    } else {
-      removeSessionToken(entry.sessionId);
+    let next = entry;
+    if (next.sessionToken) {
+      if (!isExpiredToken(next, now)) {
+        const expiresAt =
+          next.sessionTokenExpiresAt ??
+          new Date(now + SESSION_TOKEN_TTL_MS).toISOString();
+        writeSessionToken(next.sessionId, next.sessionToken, expiresAt);
+      } else {
+        removeSessionToken(next.sessionId);
+      }
+      changed = true;
+      next = withoutSessionToken(next);
     }
-    changed = true;
-    return withoutSessionToken(entry);
+    if (next.recoveryToken && isExpiredRecoveryToken(next, now)) {
+      changed = true;
+      next = withoutRecoveryToken(next);
+    }
+    return next;
   });
   const next = changed ? { version: SCHEMA_VERSION, entries } : shape;
   if (changed) writeRaw(next);
@@ -278,9 +303,20 @@ export function getSessionToken(sessionId: string): string | undefined {
   return readSessionToken(sessionId);
 }
 
+export function getRecoveryToken(sessionId: string): string | undefined {
+  const entry = getEntry(sessionId);
+  if (!entry?.recoveryToken || isExpiredRecoveryToken(entry)) {
+    return undefined;
+  }
+  return entry.recoveryToken;
+}
+
 export interface UpsertInput {
   sessionId: string;
   sessionToken?: string;
+  sessionTokenExpiresAt?: string;
+  recoveryToken?: string;
+  recoveryTokenExpiresAt?: string;
   jdTitle?: string;
   candidateName?: string;
   jobLevel?: string;
@@ -303,7 +339,7 @@ export function upsertEntry(input: UpsertInput): InterviewHistoryEntry {
   const shape = pruneExpiredSessionTokens(readRaw());
   const existingIdx = shape.entries.findIndex((e) => e.sessionId === input.sessionId);
   const sessionTokenExpiresAt = input.sessionToken
-    ? new Date(Date.now() + SESSION_TOKEN_TTL_MS).toISOString()
+    ? input.sessionTokenExpiresAt ?? new Date(Date.now() + SESSION_TOKEN_TTL_MS).toISOString()
     : undefined;
   if (input.sessionToken && sessionTokenExpiresAt) {
     writeSessionToken(input.sessionId, input.sessionToken, sessionTokenExpiresAt);
@@ -319,6 +355,8 @@ export function upsertEntry(input: UpsertInput): InterviewHistoryEntry {
         candidateName: input.candidateName,
         jobLevel: input.jobLevel,
         rubricDimensions: input.rubricDimensions,
+        recoveryToken: input.recoveryToken,
+        recoveryTokenExpiresAt: input.recoveryTokenExpiresAt,
         status: input.status,
         overallScore: input.overallScore,
         dimensionScores: input.dimensionScores,
@@ -337,6 +375,8 @@ export function upsertEntry(input: UpsertInput): InterviewHistoryEntry {
       candidateName: input.candidateName,
       jobLevel: input.jobLevel,
       rubricDimensions: input.rubricDimensions,
+      recoveryToken: input.recoveryToken,
+      recoveryTokenExpiresAt: input.recoveryTokenExpiresAt,
       createdAt: now,
       lastVisitedAt: now,
       status: input.status ?? "running",

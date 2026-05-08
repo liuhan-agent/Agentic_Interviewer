@@ -846,6 +846,12 @@ def test_session_route_auth_scan_includes_all_session_id_routes() -> None:
             method_normalised = method.lower()
             if method_normalised in {"head", "options"}:
                 continue
+            if path.endswith("/recover"):
+                # Recovery intentionally cannot require the short
+                # X-Session-Token because it exists to mint a fresh one
+                # after the browser lost sessionStorage. Dedicated
+                # recovery-token tests cover that auth boundary.
+                continue
             session_id_routes.add((method_normalised, path))
 
     covered: set[tuple[str, str]] = set()

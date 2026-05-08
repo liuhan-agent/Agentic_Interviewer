@@ -106,6 +106,10 @@ def __getattr__(name: str) -> Engine:
 _SQLITE_UPGRADES: dict[str, dict[str, str]] = {
     "interview_sessions": {
         "session_token_hash": "VARCHAR(128)",
+        "session_token_expires_at": "DATETIME",
+        "recovery_token_hash": "VARCHAR(128)",
+        "recovery_token_expires_at": "DATETIME",
+        "recovery_token_revoked_at": "DATETIME",
         "current_question": "JSON",
         "llm_config_meta": "JSON",
         "turn_idx": "INTEGER DEFAULT 0",
@@ -132,6 +136,10 @@ _SQLITE_UPGRADES: dict[str, dict[str, str]] = {
 _POSTGRES_UPGRADES: dict[str, dict[str, str]] = {
     "interview_sessions": {
         "session_token_hash": "VARCHAR(128)",
+        "session_token_expires_at": "TIMESTAMP WITH TIME ZONE",
+        "recovery_token_hash": "VARCHAR(128)",
+        "recovery_token_expires_at": "TIMESTAMP WITH TIME ZONE",
+        "recovery_token_revoked_at": "TIMESTAMP WITH TIME ZONE",
         "current_question": "JSONB",
         "llm_config_meta": "JSONB",
         "turn_idx": "INTEGER DEFAULT 0",

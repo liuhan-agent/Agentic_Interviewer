@@ -12,6 +12,7 @@ import type {
   ParseJobSpecResponse,
   ParseResumeResponse,
   PollQuestionResponse,
+  RecoverSessionResponse,
   ReplayResponse,
   RetryQuestionResponse,
   ResumeResponse,
@@ -25,13 +26,37 @@ import type {
 } from "./types";
 import { jobTemplateRequestPath } from "@/lib/job-template";
 import { buildLLMPayload } from "@/lib/llm-config";
-import { getSessionToken } from "@/lib/storage/interviewHistory";
+import {
+  getRecoveryToken,
+  getSessionToken,
+  writeSessionToken,
+} from "@/lib/storage/interviewHistory";
 
 const BASE = "/api/v1/interview";
 
 function sessionHeaders(sessionId: string): HeadersInit | undefined {
   const token = getSessionToken(sessionId);
   return token ? { "X-Session-Token": token } : undefined;
+}
+
+async function withSessionRecovery<T>(
+  sessionId: string,
+  requestFactory: () => Promise<T>,
+): Promise<T> {
+  try {
+    return await requestFactory();
+  } catch (err) {
+    if (!(err instanceof ApiError && err.status === 401)) {
+      throw err;
+    }
+    const recoveryToken = getRecoveryToken(sessionId);
+    if (!recoveryToken) {
+      throw err;
+    }
+    const recovered = await recoverSession(sessionId, recoveryToken);
+    writeSessionToken(sessionId, recovered.session_token, recovered.session_token_expires_at);
+    return requestFactory();
+  }
 }
 
 export function isReauthRequired(err: unknown): boolean {
@@ -54,6 +79,16 @@ export function startSession(
   req: StartSessionRequest,
 ): Promise<StartSessionResponse> {
   return request(`${BASE}/sessions`, { method: "POST", body: req });
+}
+
+export function recoverSession(
+  sessionId: string,
+  recoveryToken: string,
+): Promise<RecoverSessionResponse> {
+  return request(`${BASE}/sessions/${encodeURIComponent(sessionId)}/recover`, {
+    method: "POST",
+    body: { recovery_token: recoveryToken },
+  });
 }
 
 /**
@@ -126,15 +161,15 @@ export function pollQuestion(
   opts: { timeout?: number; signal?: AbortSignal } = {},
 ): Promise<PollQuestionResponse> {
   const timeout = opts.timeout ?? 30;
-  return request(
-    `${BASE}/sessions/${encodeURIComponent(sessionId)}/question?timeout=${timeout}`,
-    // Server will block up to ``timeout`` seconds; give the client a
-    // margin above that so AbortController does not fire first.
-    {
-      headers: sessionHeaders(sessionId),
-      signal: opts.signal,
-      timeoutMs: (timeout + 5) * 1000,
-    },
+  return withSessionRecovery(sessionId, () =>
+    request(
+      `${BASE}/sessions/${encodeURIComponent(sessionId)}/question?timeout=${timeout}`,
+      {
+        headers: sessionHeaders(sessionId),
+        signal: opts.signal,
+        timeoutMs: (timeout + 5) * 1000,
+      },
+    ),
   );
 }
 
@@ -209,9 +244,11 @@ export function deleteSession(sessionId: string): Promise<DeleteSessionResponse>
 }
 
 export function getReport(sessionId: string): Promise<GetReportResponse> {
-  return request(`${BASE}/sessions/${encodeURIComponent(sessionId)}/report`, {
-    headers: sessionHeaders(sessionId),
-  });
+  return withSessionRecovery(sessionId, () =>
+    request(`${BASE}/sessions/${encodeURIComponent(sessionId)}/report`, {
+      headers: sessionHeaders(sessionId),
+    }),
+  );
 }
 
 export function getReplay(sessionId: string): Promise<ReplayResponse> {
@@ -221,9 +258,11 @@ export function getReplay(sessionId: string): Promise<ReplayResponse> {
 }
 
 export function resumeSession(sessionId: string): Promise<ResumeResponse> {
-  return request(`${BASE}/sessions/${encodeURIComponent(sessionId)}/resume`, {
-    headers: sessionHeaders(sessionId),
-  });
+  return withSessionRecovery(sessionId, () =>
+    request(`${BASE}/sessions/${encodeURIComponent(sessionId)}/resume`, {
+      headers: sessionHeaders(sessionId),
+    }),
+  );
 }
 
 export function submitFeedback(

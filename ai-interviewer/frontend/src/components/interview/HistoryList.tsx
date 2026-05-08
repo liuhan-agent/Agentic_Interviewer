@@ -396,6 +396,8 @@ export function HistoryList() {
                         const safeEntry = { ...entry };
                         delete safeEntry.sessionToken;
                         delete safeEntry.sessionTokenExpiresAt;
+                        delete safeEntry.recoveryToken;
+                        delete safeEntry.recoveryTokenExpiresAt;
                         const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(safeEntry, null, 2));
                         const dlAnchorElem = document.createElement("a");
                         dlAnchorElem.setAttribute("href", dataStr);
