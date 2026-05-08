@@ -54,6 +54,7 @@ import type {
   TraceHealth,
   VideoAnalysis,
 } from "@/lib/api/types";
+import { verdictShortLabel, verdictTone } from "@/lib/constants/verdicts";
 import { inferLLMErrorKind, llmErrorKindLabel } from "@/lib/llm-config";
 import {
   buildGrowthHints,
@@ -183,7 +184,7 @@ function translateReportText(value?: string | null): string {
 
   const overall = text.match(/^Overall verdict: ([^@.]+)(?: @ ([^.\s]+))?\.?(?: Focus next on (.+)\.)?$/);
   if (overall) {
-    const verdict = formatVerdict(overall[1].trim());
+    const verdict = verdictShortLabel(overall[1].trim());
     const scoreValue = overall[2] ? Number(overall[2]) : null;
     const score =
       scoreValue !== null && Number.isFinite(scoreValue)
@@ -487,7 +488,7 @@ function Summary({ report }: { report: FinalReport }) {
           <div className="flex flex-col items-end gap-2">
             {verdict && (
               <Badge variant={variant} className="px-3 py-1 text-sm">
-                {formatVerdict(verdict)}
+                {verdictShortLabel(verdict)}
               </Badge>
             )}
             {typeof report.overall_score === "number" && (
@@ -1786,26 +1787,6 @@ function Actions({
   );
 }
 
-function formatVerdict(v: string): string {
-  const map: Record<string, string> = {
-    strong_pass: "表现优秀",
-    pass: "达到目标水平",
-    borderline: "接近达标",
-    fail: "重点补齐",
-    excellent: "表现优秀",
-    target_met: "达到目标水平",
-    near_target: "接近达标",
-    needs_focus: "重点补齐",
-    strong_hire: "表现优秀",
-    hire: "达到目标水平",
-    lean_hire: "接近达标",
-    lean_no_hire: "重点补齐",
-    no_hire: "重点补齐",
-    cancelled: "已取消",
-  };
-  return map[v.toLowerCase()] ?? v.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
-}
-
 function reportGrowthSignal(report: FinalReport): string | undefined {
   const growthSignal =
     typeof report.growth_signal === "string" ? report.growth_signal : undefined;
@@ -1869,26 +1850,9 @@ function buildWeakPracticeHref(report: FinalReport): string | null {
 function verdictVariant(
   v?: string,
 ): "success" | "warn" | "destructive" | "outline" {
-  if (!v) return "outline";
-  const s = v.toLowerCase();
-  if (
-    s === "excellent" ||
-    s === "target_met" ||
-    s === "strong_pass" ||
-    s === "pass" ||
-    s === "strong_hire" ||
-    s === "hire"
-  ) {
-    return "success";
-  }
-  if (s === "near_target" || s === "borderline" || s.includes("lean")) return "warn";
-  if (
-    s === "needs_focus" ||
-    s === "fail" ||
-    s.includes("no_hire") ||
-    s.includes("no-hire")
-  ) {
-    return "destructive";
-  }
+  const tone = verdictTone(v);
+  if (tone === "positive") return "success";
+  if (tone === "mixed") return "warn";
+  if (tone === "negative") return "destructive";
   return "outline";
 }

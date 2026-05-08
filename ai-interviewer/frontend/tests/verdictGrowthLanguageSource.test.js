@@ -9,24 +9,23 @@ function read(relPath) {
   return fs.readFileSync(path.join(root, relPath), "utf8");
 }
 
-test("candidate verdict labels use growth language and support legacy hire values", () => {
+test("candidate verdict labels use centralized growth-language mapping", () => {
   const constants = read("src/lib/constants/verdicts.ts");
   const report = read("src/components/interview/ReportView.tsx");
 
   for (const value of ["excellent", "target_met", "near_target", "needs_focus"]) {
     assert.match(constants, new RegExp(value));
-    assert.match(report, new RegExp(value));
   }
 
   assert.match(constants, /strong_hire/);
   assert.match(constants, /no_hire/);
-  assert.match(report, /strong_hire/);
-  assert.match(report, /no_hire/);
 
   assert.match(constants, /达到目标水平/);
   assert.match(constants, /重点补齐/);
-  assert.match(report, /达到目标水平/);
-  assert.match(report, /重点补齐/);
+  assert.match(report, /verdictShortLabel/);
+  assert.match(report, /verdictTone/);
+  assert.doesNotMatch(report, /function formatVerdict/);
+  assert.doesNotMatch(report, /strong_hire|lean_hire|lean_no_hire|no_hire/);
 
   assert.doesNotMatch(constants, /录用|不推荐/);
   assert.doesNotMatch(report, /录用|不推荐录用/);

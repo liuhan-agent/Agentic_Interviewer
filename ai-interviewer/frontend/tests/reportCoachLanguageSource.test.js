@@ -47,7 +47,7 @@ test("verdict legacy mapping stays intact for old data", () => {
   // Verdict legacy values must remain mapped — they unblock older
   // database rows that still carry hire-language verdicts. Removing
   // them would render existing reports blank.
-  const source = read("src/components/interview/ReportView.tsx");
+  const source = read("src/lib/constants/verdicts.ts");
 
   assert.match(source, /strong_hire/);
   assert.match(source, /no_hire/);
