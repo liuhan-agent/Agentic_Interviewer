@@ -22,6 +22,15 @@ def _settings_with_open_admin() -> Any:
     return Settings(api_token="")
 
 
+def _patch_open_admin(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(
+        "app.core.settings.get_settings", lambda: _settings_with_open_admin()
+    )
+    monkeypatch.setattr(
+        "app.api.v1.admin.get_settings", lambda: _settings_with_open_admin()
+    )
+
+
 class _FakeTraceRow:
     def __init__(
         self,
@@ -68,9 +77,7 @@ def _patch_db(monkeypatch: pytest.MonkeyPatch, rows: list[Any]) -> None:
 def test_evidence_rollup_counts_evaluator_and_verifier_coverage(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    monkeypatch.setattr(
-        "app.core.settings.get_settings", lambda: _settings_with_open_admin()
-    )
+    _patch_open_admin(monkeypatch)
     rows = [
         _FakeTraceRow(
             node="evaluator",
