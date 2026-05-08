@@ -87,7 +87,7 @@
 | P2-3.3 | P2 | PR 切分规则 | AFK | PR-5 | P2-3.1 | Done |
 | P2-3.4 | P2 | HITL 决策清单 | HITL | PR-5 | P2-3.1 | Done |
 | P2-3.5 | P2 | 完成定义与 release gate | AFK | PR-5 | P2-3.2、P2-3.3、P2-3.4 | Done |
-| P2-3.6 | P2 | 是否发布到 GitHub Issues | HITL | PR-5 | P2-3.1 - P2-3.5 | Needs decision |
+| P2-3.6 | P2 | 是否发布到 GitHub Issues | HITL | PR-5 | P2-3.1 - P2-3.5 | Done |
 
 ### 验证命令矩阵
 
