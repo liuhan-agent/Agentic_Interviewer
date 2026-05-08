@@ -2,6 +2,23 @@
 
 > **当前阶段**：dev / test 仍允许低门槛启动；当 `APP_ENV=prod` 时，`app/core/deployment_preflight.py` 会在启动期强制拦截高风险配置。本清单仍作为上线前人工核对入口。
 
+## 自动预检命令
+
+上线前先运行生产 smoke CLI，确保启动期 preflight 与依赖连通性检查在当前环境中可执行：
+
+```powershell
+cd D:\Agent\Agentic_Interviewer\ai-interviewer\backend
+interviewer-prod-smoke --check-deps
+```
+
+如果没有安装脚本入口，也可以直接使用模块方式：
+
+```powershell
+python -m app.scripts.production_smoke --check-deps
+```
+
+CLI 输出只包含脱敏配置摘要和 Postgres / Redis / Chroma 探测状态，不会打印 API token、数据库密码或 Redis 密码。`APP_ENV=prod` 时 preflight 失败或依赖探测失败会返回非零退出码；dev / test 下依赖探测失败只作为预览环境告警。
+
 ## 适用范围
 
 仅当 `APP_ENV=prod` 真正部署上线时手工核对下面项目。staging 可以参考 1 / 2 / 4 / 6，按需启用。
