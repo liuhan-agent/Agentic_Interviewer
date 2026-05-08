@@ -24,6 +24,21 @@ def _force_offline_runtime() -> None:
     os.environ["LLM_PROVIDER"] = "stub"
     os.environ["EMBEDDING_PROVIDER"] = "stub"
     os.environ["CHECKPOINT_BACKEND"] = "memory"
+    os.environ["DATABASE_URL"] = "sqlite:///:memory:"
+    os.environ["ANONYMIZED_TELEMETRY"] = "False"
+
+
+def _install_offline_vectorstore() -> None:
+    """Route smoke retrieval through one in-memory store instead of Chroma."""
+    from app.engine.rag import ingestion
+    from app.engine.rag import retriever
+    from app.engine.rag.vectorstore import InMemoryVectorStore
+    from app.scripts import run_demo
+
+    store = InMemoryVectorStore()
+    run_demo.get_vectorstore = lambda: store
+    ingestion.get_vectorstore = lambda: store
+    retriever.get_vectorstore = lambda: store
 
 
 def _is_non_empty_dict(value: Any) -> bool:
@@ -91,10 +106,11 @@ def run_smoke(*, turns: int, threshold: float, budget: int) -> int:
     _force_offline_runtime()
 
     from app.core.settings import get_settings
-    from app.scripts.run_demo import run
+    from app.scripts import run_demo
 
     get_settings.cache_clear()
-    result = run(max_turns=turns, quality_threshold=threshold, turn_budget=budget)
+    _install_offline_vectorstore()
+    result = run_demo.run(max_turns=turns, quality_threshold=threshold, turn_budget=budget)
     errors = collect_smoke_errors(result, min_turns=turns)
 
     print("\n" + "=" * 78)
