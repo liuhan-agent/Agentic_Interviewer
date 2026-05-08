@@ -112,6 +112,7 @@ export function AdminPanel() {
   const [tokenSaved, setTokenSaved] = useState("");
   const [tick, setTick] = useState(0);
   const [recentNode, setRecentNode] = useState<string>("evaluator");
+  const [activeTab, setActiveTab] = useState<"health" | "scoring" | "strategy">("health");
 
   useEffect(() => {
     const t = loadAdminToken();
@@ -210,6 +211,12 @@ export function AdminPanel() {
     setTick((t) => t + 1);
   }
 
+  const ADMIN_TABS = [
+    { id: "health" as const, label: "运行健康", icon: Activity },
+    { id: "scoring" as const, label: "评分质量", icon: ClipboardList },
+    { id: "strategy" as const, label: "策略学习", icon: BookMarked },
+  ];
+
   return (
     <div className="space-y-6">
       <TokenBar
@@ -228,37 +235,64 @@ export function AdminPanel() {
         strategies={strategies}
       />
 
-      <InterviewQualityOverview
-        trace={traceRollup}
-        fallback={fallbackRollup}
-        evidence={evidenceRollup}
-        question={questionQualityRollup}
-      />
-
-      <div className="grid gap-6 lg:grid-cols-2 xl:grid-cols-4">
-        <TraceHealthRollUp state={traceRollup} />
-        <FallbackRollUp state={fallbackRollup} />
-        <EvidenceRollUp state={evidenceRollup} />
-        <QuestionQualityRollUp state={questionQualityRollup} />
+      <div className="flex gap-1 rounded-lg border bg-muted/40 p-1">
+        {ADMIN_TABS.map((tab) => (
+          <button
+            key={tab.id}
+            onClick={() => setActiveTab(tab.id)}
+            className={cn(
+              "flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium transition-colors",
+              activeTab === tab.id
+                ? "bg-background text-foreground shadow-sm"
+                : "text-muted-foreground hover:text-foreground",
+            )}
+          >
+            <tab.icon className="h-3.5 w-3.5" />
+            {tab.label}
+          </button>
+        ))}
       </div>
 
-      <FallbackKindCounts state={fallbackRates} />
+      {activeTab === "health" && (
+        <>
+          <InterviewQualityOverview
+            trace={traceRollup}
+            fallback={fallbackRollup}
+            evidence={evidenceRollup}
+            question={questionQualityRollup}
+          />
+          <div className="grid gap-6 lg:grid-cols-2 xl:grid-cols-4">
+            <TraceHealthRollUp state={traceRollup} />
+            <FallbackRollUp state={fallbackRollup} />
+          </div>
+          <FallbackKindCounts state={fallbackRates} />
+          <SessionsCard state={sessions} />
+          <HistoricalSessionsCard state={history} onRefresh={() => setTick((t) => t + 1)} />
+        </>
+      )}
 
-      <div className="grid gap-6 lg:grid-cols-2">
-        <BanditCard state={bandit} />
-        <DriftCard state={drift} />
-      </div>
+      {activeTab === "scoring" && (
+        <>
+          <div className="grid gap-6 lg:grid-cols-2">
+            <EvidenceRollUp state={evidenceRollup} />
+            <QuestionQualityRollUp state={questionQualityRollup} />
+          </div>
+          <DriftCard state={drift} />
+          <RagEvalSection />
+        </>
+      )}
 
-      <RecentTracesByNode
-        state={recentTraces}
-        node={recentNode}
-        onNodeChange={setRecentNode}
-      />
-
-      <SessionsCard state={sessions} />
-      <HistoricalSessionsCard state={history} onRefresh={() => setTick((t) => t + 1)} />
-      <StrategiesCard state={strategies} />
-      <RagEvalSection />
+      {activeTab === "strategy" && (
+        <>
+          <BanditCard state={bandit} />
+          <StrategiesCard state={strategies} />
+          <RecentTracesByNode
+            state={recentTraces}
+            node={recentNode}
+            onNodeChange={setRecentNode}
+          />
+        </>
+      )}
     </div>
   );
 }

@@ -76,12 +76,12 @@
 | P2-1.4 | P2 | 后端 focus 维度校验与状态落位 | AFK | PR-4 | P2-1.3 | Ready |
 | P2-1.5 | P2 | Director 优先调度 focus 维度 | AFK | PR-4 | P2-1.4 | Ready |
 | P2-1.6 | P2 | 非法 focus 策略确认 | HITL | PR-4 | P2-1.4 | Needs decision |
-| P2-2.1 | P2 | Admin 信息架构骨架 | AFK | PR-5 | None | Ready |
-| P2-2.2 | P2 | 运行健康区域迁移 | AFK | PR-5 | P2-2.1 | Ready |
-| P2-2.3 | P2 | 评分质量区域迁移 | AFK | PR-5 | P2-2.1 | Ready |
-| P2-2.4 | P2 | 策略学习区域迁移 | AFK | PR-5 | P2-2.1 | Ready |
+| P2-2.1 | P2 | Admin 信息架构骨架 | AFK | PR-5 | None | Done |
+| P2-2.2 | P2 | 运行健康区域迁移 | AFK | PR-5 | P2-2.1 | Done |
+| P2-2.3 | P2 | 评分质量区域迁移 | AFK | PR-5 | P2-2.1 | Done |
+| P2-2.4 | P2 | 策略学习区域迁移 | AFK | PR-5 | P2-2.1 | Done |
 | P2-2.5 | P2 | `AdminPanel` 组件拆分清理 | AFK | PR-5 | P2-2.2、P2-2.3、P2-2.4 | Ready |
-| P2-2.6 | P2 | admin 默认视角确认 | HITL | PR-5 | P2-2.1 | Needs decision |
+| P2-2.6 | P2 | admin 默认视角确认 | HITL | PR-5 | P2-2.1 | Done |
 | P2-3.1 | P2 | P0/P1/P2 执行看板文档 | AFK | PR-5 | 当前 issue 拆分完成 | Done |
 | P2-3.2 | P2 | 验证命令矩阵 | AFK | PR-5 | P2-3.1 | Ready |
 | P2-3.3 | P2 | PR 切分规则 | AFK | PR-5 | P2-3.1 | Ready |
