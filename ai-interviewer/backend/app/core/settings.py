@@ -367,8 +367,10 @@ class Settings(BaseSettings):
     jd_parse_rate_limit_per_minute: int = 30
     llm_test_rate_limit_per_minute: int = 120
 
-    # Privacy lifecycle defaults. Cleanup is manual/script-driven unless
-    # operators wire it into their scheduler.
+    # Privacy lifecycle defaults. Cleanup is disabled by default so dev/test
+    # and preview deployments must opt in before hard-deleting retained rows.
+    enable_privacy_cleanup: bool = False
+    privacy_cleanup_interval_minutes: int = 60
     session_retention_days: int = 30
     trace_retention_days: int = 30
     outcome_retention_days: int = 180
