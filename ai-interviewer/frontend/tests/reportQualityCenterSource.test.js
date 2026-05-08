@@ -59,3 +59,18 @@ test("quality center surfaces evidence traceability", () => {
   assert.match(reportSource, /evidence_summary/);
   assert.match(reportSource, /unmatched_quotes/);
 });
+
+test("quality center consumes backend credibility summary contract", () => {
+  const reportSource = read("src/components/interview/ReportView.tsx");
+  const typesSource = read("src/lib/api/types.ts");
+
+  assert.match(typesSource, /interface ScoringCredibility/);
+  assert.match(typesSource, /credibility_summary\?: ScoringCredibility/);
+  assert.match(typesSource, /credibility_level\?: "high" \| "medium" \| "low" \| string/);
+  assert.match(reportSource, /report\.credibility_summary/);
+  assert.match(reportSource, /credibility_level/);
+  assert.match(reportSource, /fallback_rate/);
+  assert.match(reportSource, /evidence_span_miss_rate/);
+  assert.match(reportSource, /contract_no_rate/);
+  assert.match(reportSource, /信号充分|部分信号不足|信号不足/);
+});
