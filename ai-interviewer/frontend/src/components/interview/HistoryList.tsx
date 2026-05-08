@@ -37,6 +37,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { deleteSession, resumeSession, getReport } from "@/lib/api/interview";
+import type { DeleteSessionResponse } from "@/lib/api/types";
 import {
   DEFAULT_SORT,
   jobLevelShortLabel,
@@ -129,11 +130,14 @@ export function HistoryList() {
       const sessionId = deleteTarget.sessionId;
       setDeletingSessionId(sessionId);
       try {
-        await deleteSession(sessionId);
+        const result = await deleteSession(sessionId);
         removeEntry(sessionId);
         setDeleteTarget(null);
         reload();
-        toast({ title: "面试数据已删除" });
+        toast({
+          title: result.deleted ? "面试数据已删除" : "服务端数据未找到",
+          description: describeDeleteSessionResult(result),
+        });
       } catch (err) {
         const message = err instanceof Error ? err.message : "请稍后再试";
         toast({
@@ -430,6 +434,25 @@ function compareScoreEntries(
       : b.overallScore! - a.overallScore!;
   }
   return b.createdAt.localeCompare(a.createdAt);
+}
+
+function describeDeleteSessionResult(result: DeleteSessionResponse): string {
+  const sessionsDeleted = result.sessions_deleted;
+  const tracesDeleted = result.traces_deleted;
+  const outcomesDeleted = result.outcomes_deleted;
+  if (!result.deleted) {
+    return result.checkpoint_deleted
+      ? "服务端没有找到可删除的数据；已清理运行恢复状态，并从本机列表移除。"
+      : "服务端没有找到可删除的数据；已从本机列表移除。";
+  }
+
+  const checkpointText =
+    result.checkpoint_deleted === false
+      ? "运行恢复状态暂未清理。"
+      : result.checkpoint_deleted
+        ? "运行恢复状态已清理。"
+        : "";
+  return `服务端已删除：会话 ${sessionsDeleted} 条、Trace ${tracesDeleted} 条、结果 ${outcomesDeleted} 条。${checkpointText}`;
 }
 
 function FilteredEmptyState({ onClear }: { onClear: () => void }) {
