@@ -34,32 +34,39 @@
 | PR-4 | P1-3 + P2-1 | 统一 C 端语言并打通专项练习入口 | 后端相关 pytest + `npm run typecheck` |
 | PR-5 | P2-2 + P2-3 | 整理 admin 信息架构并固化执行流程 | `npm run typecheck && npm run lint` |
 
+### 当前实施快照
+
+截至 2026-05-08，P0/P1/P2 主体实现已对照源码完成，并通过 release gate：
+
+- 后端：`python -m pytest tests/unit -q` -> `1240 passed, 1 skipped`
+- 前端：`npm run typecheck`、`npm run lint`、`npm run build` 均通过
+
 ### Issue 状态表
 
 | ID | 阶段 | Issue | 类型 | 建议批次 | Blocked by | 状态 |
 | --- | --- | --- | --- | --- | --- | --- |
-| P0-1.1 | P0 | Production smoke CLI 最小可运行 | AFK | PR-1 | None | Ready |
-| P0-1.2 | P0 | P0 生产失败契约测试 | AFK | PR-1 | P0-1.1 | Ready |
-| P0-1.3 | P0 | 依赖连通性 probe | AFK | PR-1 | P0-1.1 | Ready |
-| P0-1.4 | P0 | 脚本入口与文档接入 | AFK | PR-1 | P0-1.1 | Ready |
-| P0-1.5 | P0 | probe 严格度决策 | HITL | PR-1 | P0-1.3 | Needs decision |
-| P0-2.1 | P0 | 共享状态 backend 配置契约 | AFK | PR-2 | None | Ready |
-| P0-2.2 | P0 | RateLimiter 接口与 memory parity | AFK | PR-2 | P0-2.1 | Ready |
-| P0-2.3 | P0 | Redis-backed rate limit | AFK | PR-2 | P0-2.2 | Ready |
-| P0-2.4 | P0 | VoiceTicketStore 抽象与 Redis store | AFK | PR-2 | P0-2.1 | Ready |
-| P0-2.5 | P0 | Verifier drift Redis backend | AFK | PR-2 | P0-2.1 | Ready |
-| P0-2.6 | P0 | 生产 preflight 与部署文档接入 | HITL | PR-2 | P0-2.3、P0-2.4、P0-2.5 | Needs decision |
-| P0-3.1 | P0 | `turn_idx` 防重复提交回归 | AFK | PR-1 | None | Ready |
-| P0-3.2 | P0 | skip / submit 交叉路径回归 | AFK | PR-1 | P0-3.1 | Ready |
-| P0-3.3 | P0 | cancel 终态保护回归 | AFK | PR-1 | None | Ready |
-| P0-3.4 | P0 | rehydrate 冷启动恢复回归 | AFK | PR-1 | P0-3.1、P0-3.2 | Ready |
-| P0-3.5 | P0 | voice disconnect / text resume 回归 | AFK | PR-1 | P0-3.3 | Ready |
-| P0-3.6 | P0 | 暴露问题后的最小修复 | HITL | PR-1 | P0-3.1 - P0-3.5 | Conditional |
-| P1-1.1 | P1 | `final_report` 可信度字段契约 | AFK | PR-3 | None | Ready |
-| P1-1.2 | P1 | 后端可信度规则回归 | AFK | PR-3 | P1-1.1 | Ready |
-| P1-1.3 | P1 | 前端类型与兼容处理 | AFK | PR-3 | P1-1.1 | Ready |
-| P1-1.4 | P1 | `ReportView` 可信度卡片 | AFK | PR-3 | P1-1.3 | Ready |
-| P1-1.5 | P1 | 用户文案口径确认 | HITL | PR-3 | P1-1.4 | Needs decision |
+| P0-1.1 | P0 | Production smoke CLI 最小可运行 | AFK | PR-1 | None | Done |
+| P0-1.2 | P0 | P0 生产失败契约测试 | AFK | PR-1 | P0-1.1 | Done |
+| P0-1.3 | P0 | 依赖连通性 probe | AFK | PR-1 | P0-1.1 | Done |
+| P0-1.4 | P0 | 脚本入口与文档接入 | AFK | PR-1 | P0-1.1 | Done |
+| P0-1.5 | P0 | probe 严格度决策 | HITL | PR-1 | P0-1.3 | Done |
+| P0-2.1 | P0 | 共享状态 backend 配置契约 | AFK | PR-2 | None | Done |
+| P0-2.2 | P0 | RateLimiter 接口与 memory parity | AFK | PR-2 | P0-2.1 | Done |
+| P0-2.3 | P0 | Redis-backed rate limit | AFK | PR-2 | P0-2.2 | Done |
+| P0-2.4 | P0 | VoiceTicketStore 抽象与 Redis store | AFK | PR-2 | P0-2.1 | Done |
+| P0-2.5 | P0 | Verifier drift Redis backend | AFK | PR-2 | P0-2.1 | Done |
+| P0-2.6 | P0 | 生产 preflight 与部署文档接入 | HITL | PR-2 | P0-2.3、P0-2.4、P0-2.5 | Done |
+| P0-3.1 | P0 | `turn_idx` 防重复提交回归 | AFK | PR-1 | None | Done |
+| P0-3.2 | P0 | skip / submit 交叉路径回归 | AFK | PR-1 | P0-3.1 | Done |
+| P0-3.3 | P0 | cancel 终态保护回归 | AFK | PR-1 | None | Done |
+| P0-3.4 | P0 | rehydrate 冷启动恢复回归 | AFK | PR-1 | P0-3.1、P0-3.2 | Done |
+| P0-3.5 | P0 | voice disconnect / text resume 回归 | AFK | PR-1 | P0-3.3 | Done |
+| P0-3.6 | P0 | 暴露问题后的最小修复 | HITL | PR-1 | P0-3.1 - P0-3.5 | Done |
+| P1-1.1 | P1 | `final_report` 可信度字段契约 | AFK | PR-3 | None | Done |
+| P1-1.2 | P1 | 后端可信度规则回归 | AFK | PR-3 | P1-1.1 | Done |
+| P1-1.3 | P1 | 前端类型与兼容处理 | AFK | PR-3 | P1-1.1 | Done |
+| P1-1.4 | P1 | `ReportView` 可信度卡片 | AFK | PR-3 | P1-1.3 | Done |
+| P1-1.5 | P1 | 用户文案口径确认 | HITL | PR-3 | P1-1.4 | Done |
 | P1-2.1 | P1 | privacy cleanup 调度器 | AFK | PR-3 | None | Done |
 | P1-2.2 | P1 | `main.py` startup/shutdown 接入 | AFK | PR-3 | P1-2.1 | Done |
 | P1-2.3 | P1 | 删除结果 API 契约加固 | AFK | PR-3 | None | Done |
@@ -70,12 +77,12 @@
 | P1-3.3 | P1 | 报告页与历史页文案替换 | AFK | PR-4 | P1-3.2 | Done |
 | P1-3.4 | P1 | 产品边界文档补强 | AFK | PR-4 | P1-3.1 | Done |
 | P1-3.5 | P1 | 产品词表确认 | HITL | PR-4 | P1-3.2、P1-3.3 | Done |
-| P2-1.1 | P2 | 弱项专项练习入口 URL | AFK | PR-4 | None | Ready |
-| P2-1.2 | P2 | `SetupForm` 读取 focus 并预填 | AFK | PR-4 | P2-1.1 | Ready |
-| P2-1.3 | P2 | start session 请求契约扩展 | AFK | PR-4 | P2-1.2 | Ready |
-| P2-1.4 | P2 | 后端 focus 维度校验与状态落位 | AFK | PR-4 | P2-1.3 | Ready |
-| P2-1.5 | P2 | Director 优先调度 focus 维度 | AFK | PR-4 | P2-1.4 | Ready |
-| P2-1.6 | P2 | 非法 focus 策略确认 | HITL | PR-4 | P2-1.4 | Needs decision |
+| P2-1.1 | P2 | 弱项专项练习入口 URL | AFK | PR-4 | None | Done |
+| P2-1.2 | P2 | `SetupForm` 读取 focus 并预填 | AFK | PR-4 | P2-1.1 | Done |
+| P2-1.3 | P2 | start session 请求契约扩展 | AFK | PR-4 | P2-1.2 | Done |
+| P2-1.4 | P2 | 后端 focus 维度校验与状态落位 | AFK | PR-4 | P2-1.3 | Done |
+| P2-1.5 | P2 | Director 优先调度 focus 维度 | AFK | PR-4 | P2-1.4 | Done |
+| P2-1.6 | P2 | 非法 focus 策略确认 | HITL | PR-4 | P2-1.4 | Done |
 | P2-2.1 | P2 | Admin 信息架构骨架 | AFK | PR-5 | None | Done |
 | P2-2.2 | P2 | 运行健康区域迁移 | AFK | PR-5 | P2-2.1 | Done |
 | P2-2.3 | P2 | 评分质量区域迁移 | AFK | PR-5 | P2-2.1 | Done |
