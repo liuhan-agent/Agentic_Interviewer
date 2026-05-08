@@ -107,6 +107,91 @@ function useAutoFetch<T>(
   return state;
 }
 
+function AdminHealthSection({
+  traceRollup,
+  fallbackRollup,
+  evidenceRollup,
+  questionQualityRollup,
+  fallbackRates,
+  sessions,
+  history,
+  onRefresh,
+}: {
+  traceRollup: Loadable<TraceRollupResponse>;
+  fallbackRollup: Loadable<TraceRollupResponse>;
+  evidenceRollup: Loadable<EvidenceRollupResponse>;
+  questionQualityRollup: Loadable<QuestionQualityRollupResponse>;
+  fallbackRates: Loadable<FallbackRatesResponse>;
+  sessions: Loadable<AdminSessions>;
+  history: Loadable<InterviewSessionHistory>;
+  onRefresh: () => void;
+}) {
+  return (
+    <>
+      <InterviewQualityOverview
+        trace={traceRollup}
+        fallback={fallbackRollup}
+        evidence={evidenceRollup}
+        question={questionQualityRollup}
+      />
+      <div className="grid gap-6 lg:grid-cols-2 xl:grid-cols-4">
+        <TraceHealthRollUp state={traceRollup} />
+        <FallbackRollUp state={fallbackRollup} />
+      </div>
+      <FallbackKindCounts state={fallbackRates} />
+      <SessionsCard state={sessions} />
+      <HistoricalSessionsCard state={history} onRefresh={onRefresh} />
+    </>
+  );
+}
+
+function AdminScoringSection({
+  evidenceRollup,
+  questionQualityRollup,
+  drift,
+}: {
+  evidenceRollup: Loadable<EvidenceRollupResponse>;
+  questionQualityRollup: Loadable<QuestionQualityRollupResponse>;
+  drift: Loadable<VerifierDriftSnapshot>;
+}) {
+  return (
+    <>
+      <div className="grid gap-6 lg:grid-cols-2">
+        <EvidenceRollUp state={evidenceRollup} />
+        <QuestionQualityRollUp state={questionQualityRollup} />
+      </div>
+      <DriftCard state={drift} />
+      <RagEvalSection />
+    </>
+  );
+}
+
+function AdminStrategySection({
+  bandit,
+  strategies,
+  recentTraces,
+  recentNode,
+  onNodeChange,
+}: {
+  bandit: Loadable<BanditSnapshot>;
+  strategies: Loadable<Strategies>;
+  recentTraces: Loadable<RecentTracesResponse>;
+  recentNode: string;
+  onNodeChange: (node: string) => void;
+}) {
+  return (
+    <>
+      <BanditCard state={bandit} />
+      <StrategiesCard state={strategies} />
+      <RecentTracesByNode
+        state={recentTraces}
+        node={recentNode}
+        onNodeChange={onNodeChange}
+      />
+    </>
+  );
+}
+
 export function AdminPanel() {
   const [tokenInput, setTokenInput] = useState("");
   const [tokenSaved, setTokenSaved] = useState("");
@@ -254,44 +339,34 @@ export function AdminPanel() {
       </div>
 
       {activeTab === "health" && (
-        <>
-          <InterviewQualityOverview
-            trace={traceRollup}
-            fallback={fallbackRollup}
-            evidence={evidenceRollup}
-            question={questionQualityRollup}
-          />
-          <div className="grid gap-6 lg:grid-cols-2 xl:grid-cols-4">
-            <TraceHealthRollUp state={traceRollup} />
-            <FallbackRollUp state={fallbackRollup} />
-          </div>
-          <FallbackKindCounts state={fallbackRates} />
-          <SessionsCard state={sessions} />
-          <HistoricalSessionsCard state={history} onRefresh={() => setTick((t) => t + 1)} />
-        </>
+        <AdminHealthSection
+          traceRollup={traceRollup}
+          fallbackRollup={fallbackRollup}
+          evidenceRollup={evidenceRollup}
+          questionQualityRollup={questionQualityRollup}
+          fallbackRates={fallbackRates}
+          sessions={sessions}
+          history={history}
+          onRefresh={() => setTick((t) => t + 1)}
+        />
       )}
 
       {activeTab === "scoring" && (
-        <>
-          <div className="grid gap-6 lg:grid-cols-2">
-            <EvidenceRollUp state={evidenceRollup} />
-            <QuestionQualityRollUp state={questionQualityRollup} />
-          </div>
-          <DriftCard state={drift} />
-          <RagEvalSection />
-        </>
+        <AdminScoringSection
+          evidenceRollup={evidenceRollup}
+          questionQualityRollup={questionQualityRollup}
+          drift={drift}
+        />
       )}
 
       {activeTab === "strategy" && (
-        <>
-          <BanditCard state={bandit} />
-          <StrategiesCard state={strategies} />
-          <RecentTracesByNode
-            state={recentTraces}
-            node={recentNode}
-            onNodeChange={setRecentNode}
-          />
-        </>
+        <AdminStrategySection
+          bandit={bandit}
+          strategies={strategies}
+          recentTraces={recentTraces}
+          recentNode={recentNode}
+          onNodeChange={setRecentNode}
+        />
       )}
     </div>
   );
