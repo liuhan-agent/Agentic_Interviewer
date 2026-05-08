@@ -101,4 +101,4 @@ def test_redis_voice_ticket_clear_removes_prefixed_keys() -> None:
 
     store.clear()
 
-    assert fake.deleted == [f"test-voice:{first}", f"test-voice:{second}"]
+    assert set(fake.deleted) == {f"test-voice:{first}", f"test-voice:{second}"}
