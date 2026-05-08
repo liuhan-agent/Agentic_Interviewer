@@ -129,14 +129,18 @@ test("setup stores a local interview history entry after session creation", () =
 
 test("setup accepts weak-focus query prefill", () => {
   const source = readSetupForm();
+  const types = readApiTypes();
 
   assert.match(source, /useSearchParams/);
   assert.match(source, /focus/);
   assert.match(source, /length/);
   assert.match(source, /job_title/);
   assert.match(source, /applyPracticeFocusQuery/);
+  assert.match(source, /practiceFocusDims/);
   assert.match(source, /setSelectedDims\(resolvedFocus\.slice\(0,\s*5\)\)/);
+  assert.match(source, /focus_dimensions:\s*practiceFocusDims\.map\(\(d\)\s*=>\s*d\.id\)/);
   assert.match(source, /setValue\("length",\s*queryLength/);
+  assert.match(types, /focus_dimensions\?: string\[\]/);
 });
 
 test("interview room creates a fallback local history entry on deep links", () => {
@@ -180,6 +184,13 @@ test("report page keeps dimension names user-facing", () => {
   assert.match(source, /coding_quality:\s*"代码质量"/);
   assert.match(source, /product_thinking:\s*"产品思维"/);
   assert.match(source, /customer_discovery:\s*"客户发现"/);
+});
+
+test("report page avoids recruitment-facing candidate copy", () => {
+  const source = readReportView();
+
+  assert.doesNotMatch(source, /候选人回答/);
+  assert.match(source, /你的回答/);
 });
 
 test("report page localizes evaluator fallback rationale", () => {

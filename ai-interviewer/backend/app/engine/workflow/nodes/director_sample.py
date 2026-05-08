@@ -55,10 +55,32 @@ log = get_logger(__name__)
 def _pick_next_dimension(state: InterviewState) -> str:
     dims = state.get("dimensions", [])
     status = state.get("dimension_status", {})
-    for d in dims:
-        if status.get(d) in {None, "pending", "active"}:
-            return d
+    pending = _pending_dimensions(state, status=status, include_active=True)
+    if pending:
+        return pending[0]
     return dims[-1] if dims else "technical_depth"
+
+
+def _pending_dimensions(
+    state: InterviewState,
+    *,
+    status: dict[str, Any],
+    current_dim: str | None = None,
+    include_active: bool = False,
+) -> list[str]:
+    dims = state.get("dimensions", []) or []
+    eligible = {None, "pending", "active"} if include_active else {None, "pending"}
+    focus = [
+        d
+        for d in state.get("focus_dimensions", [])
+        if d in dims and d != current_dim and status.get(d) in eligible
+    ]
+    rest = [
+        d
+        for d in dims
+        if d not in focus and d != current_dim and status.get(d) in eligible
+    ]
+    return focus + rest
 
 
 def _allowed_actions_template(
@@ -174,14 +196,12 @@ def _apply_dimension_effect(
     if action.dimension_effect != "switch":
         return current_dim, dict(state.get("dimension_status", {}) or {})
 
-    dims = state.get("dimensions", []) or []
     status = dict(state.get("dimension_status", {}) or {})
     if current_dim and status.get(current_dim) == "active":
         status[current_dim] = "pending"
-    for d in dims:
-        if status.get(d) in {None, "pending"} and d != current_dim:
-            status[d] = "active"
-            return d, status
+    for d in _pending_dimensions(state, status=status, current_dim=current_dim):
+        status[d] = "active"
+        return d, status
 
     return current_dim, status
 
@@ -310,10 +330,9 @@ def apply_action_side_effects(state: InterviewState) -> dict[str, Any]:
     current = state.get("current_dimension")
     if current and status.get(current) == "active":
         status[current] = "pending"
-    for d in dims:
-        if status.get(d) in {None, "pending"}:
-            status[d] = "active"
-            return {"current_dimension": d, "dimension_status": status}
+    for d in _pending_dimensions(state, status=status, current_dim=current):
+        status[d] = "active"
+        return {"current_dimension": d, "dimension_status": status}
     return {}
 
 
