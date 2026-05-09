@@ -1230,6 +1230,8 @@ export function SetupForm() {
             sessionTokenExpiresAt: res.session_token_expires_at,
             recoveryToken: res.recovery_token,
             recoveryTokenExpiresAt: res.recovery_token_expires_at,
+            createdAt: res.created_at,
+            updatedAt: res.updated_at,
             jdTitle: values.job_title,
             candidateName: values.candidate_name,
             jobLevel: values.job_level,

@@ -19,6 +19,7 @@ import { TrainingPlanSourceBadge } from "@/components/interview/TrainingPlanSour
 import { ApiError } from "@/lib/api/client";
 import { getReplay } from "@/lib/api/interview";
 import type { ReplayResponse, ReplayTurn, TrainingPlanStep } from "@/lib/api/types";
+import { upsertEntry } from "@/lib/storage/interviewHistory";
 
 const DIMENSION_LABELS: Record<string, string> = {
   technical_depth: "技术深度",
@@ -46,7 +47,10 @@ export function ReplayView({ sessionId }: { sessionId: string }) {
     (async () => {
       try {
         const replay = await getReplay(sessionId);
-        if (!cancelled) setState({ phase: "ready", replay });
+        if (!cancelled) {
+          syncReplayHistory(sessionId, replay);
+          setState({ phase: "ready", replay });
+        }
       } catch (err) {
         if (cancelled) return;
         setState({
@@ -153,6 +157,27 @@ function buildReplayPracticeHref(replay: ReplayResponse): string | null {
   if (replay.summary.job_title) params.set("job_title", replay.summary.job_title);
   if (replay.summary.job_level) params.set("job_level", String(replay.summary.job_level));
   return `/interview/setup?${params.toString()}`;
+}
+
+function syncReplayHistory(sessionId: string, replay: ReplayResponse): void {
+  upsertEntry({
+    sessionId,
+    createdAt: replay.created_at ?? undefined,
+    updatedAt: replay.updated_at ?? undefined,
+    status: "done",
+    overallScore:
+      typeof replay.summary.overall_score === "number"
+        ? replay.summary.overall_score
+        : undefined,
+    growthSignal:
+      typeof replay.summary.growth_signal === "string"
+        ? replay.summary.growth_signal
+        : undefined,
+    overallVerdict:
+      typeof replay.summary.overall_verdict === "string"
+        ? replay.summary.overall_verdict
+        : undefined,
+  });
 }
 
 function SummaryCard({ replay }: { replay: ReplayResponse }) {

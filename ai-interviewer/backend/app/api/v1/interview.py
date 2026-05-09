@@ -93,22 +93,9 @@ from app.core.session_ids import SESSION_ID_MAX_LENGTH, SESSION_ID_PATTERN
 from app.core.settings import get_settings
 from app.core.video_signals_schema import VideoSignalsInput
 from app.core.voice_ticket import issue_voice_ticket
+from app.engine.workflow.nodes.self_intro import SELF_INTRO_QUESTION
 from app.models.base import get_session as get_db_session
 from app.models.interview_session import InterviewSession
-from app.services.jd_parser import (
-    JDParseError,
-    parse_job_spec,
-)
-from app.services.job_templates import JobTemplateNotFound
-from app.services.interview_setup import (
-    ResumeTextExtractionError,
-    default_job_template_payload,
-    list_dimensions_payload,
-    list_directions_payload,
-    parse_jd_setup_payload,
-    parse_resume_setup_upload,
-    resume_parse_payload,
-)
 from app.services.interview_feedback import (
     FEEDBACK_OUTCOME_MAP,
     save_interview_feedback,
@@ -123,6 +110,20 @@ from app.services.interview_runtime import (
     terminal_error_payload,
     terminal_payload_from_persisted_session,
 )
+from app.services.interview_setup import (
+    ResumeTextExtractionError,
+    default_job_template_payload,
+    list_dimensions_payload,
+    list_directions_payload,
+    parse_jd_setup_payload,
+    parse_resume_setup_upload,
+    resume_parse_payload,
+)
+from app.services.jd_parser import (
+    JDParseError,
+    parse_job_spec,
+)
+from app.services.job_templates import JobTemplateNotFound
 from app.services.privacy_cleanup import delete_session_data
 from app.services.resume_parse_cache import (
     get_resume_parse_cache,
@@ -143,6 +144,7 @@ from app.services.session_manager import get_session_manager
 from app.services.session_replay import (
     ReplayNotFound,
     ReplayNotReady,
+    build_resume_history,
     build_session_replay,
 )
 
@@ -347,6 +349,10 @@ class HintRequest(BaseModel):
     llm_config: LLMConfigOverride | None = None
 
 
+class RetryQuestionRequest(BaseModel):
+    llm_config: LLMConfigOverride | None = None
+
+
 async def _read_upload_limited(
     file: UploadFile,
     *,
@@ -389,6 +395,128 @@ def _ensure_aware_utc(value: datetime | None) -> datetime | None:
 def _is_expired(value: datetime | None) -> bool:
     expires_at = _ensure_aware_utc(value)
     return expires_at is not None and expires_at <= datetime.now(UTC)
+
+
+def _iso_datetime(value: Any) -> str | None:
+    if not isinstance(value, datetime):
+        return None
+    return _ensure_aware_utc(value).isoformat()
+
+
+def _compact_dimension_scores(scores: Any) -> dict[str, float]:
+    if not isinstance(scores, dict):
+        return {}
+    out: dict[str, float] = {}
+    for dimension, value in scores.items():
+        if not isinstance(dimension, str) or not dimension:
+            continue
+        raw_score: Any
+        if isinstance(value, dict):
+            raw_score = value.get("score")
+        else:
+            raw_score = value
+        if isinstance(raw_score, bool):
+            continue
+        if isinstance(raw_score, (int, float)):
+            out[dimension] = float(raw_score)
+    return out
+
+
+def _session_time_payload_from_row(row: InterviewSession | None) -> dict[str, str]:
+    if row is None:
+        return {}
+    payload: dict[str, str] = {}
+    created_at = _iso_datetime(row.created_at)
+    updated_at = _iso_datetime(row.updated_at)
+    if created_at:
+        payload["created_at"] = created_at
+    if updated_at:
+        payload["updated_at"] = updated_at
+    return payload
+
+
+def _session_time_payload_from_handle(handle: Any | None) -> dict[str, str]:
+    if handle is None:
+        return {}
+    payload: dict[str, str] = {}
+    created_at = _iso_datetime(getattr(handle, "created_at", None))
+    updated_at = _iso_datetime(
+        getattr(handle, "updated_at", None)
+        or getattr(handle, "last_activity_at", None)
+        or getattr(handle, "created_at", None)
+    )
+    if created_at:
+        payload["created_at"] = created_at
+    if updated_at:
+        payload["updated_at"] = updated_at
+    return payload
+
+
+def _session_time_payload_from_db(session_id: str) -> dict[str, str]:
+    try:
+        with get_db_session() as db:
+            return _session_time_payload_from_row(db.get(InterviewSession, session_id))
+    except Exception as e:
+        log.warning("session metadata time lookup failed for %s: %s", session_id, e)
+        return {}
+
+
+def _session_metadata_from_row(row: InterviewSession) -> dict[str, Any]:
+    report = row.final_report if isinstance(row.final_report, dict) else {}
+    return {
+        "session_id": row.session_id,
+        "status": row.status,
+        **_session_time_payload_from_row(row),
+        "job_title": row.job_title,
+        "candidate_name": row.candidate_name,
+        "job_level": row.job_level,
+        "overall_score": report.get("overall_score"),
+        "growth_signal": report.get("growth_signal"),
+        "overall_verdict": report.get("overall_verdict"),
+        "dimension_scores": _compact_dimension_scores(report.get("dimension_scores")),
+    }
+
+
+def _session_metadata_from_db(session_id: str) -> dict[str, Any] | None:
+    try:
+        with get_db_session() as db:
+            row = db.get(InterviewSession, session_id)
+            if row is None:
+                return None
+            return _session_metadata_from_row(row)
+    except Exception as e:
+        log.warning("session metadata lookup failed for %s: %s", session_id, e)
+        return None
+
+
+def _session_metadata_from_handle(session_id: str, handle: Any) -> dict[str, Any]:
+    final_state = getattr(handle, "final_state", None)
+    report = (
+        final_state.get("final_report")
+        if isinstance(final_state, dict) and isinstance(final_state.get("final_report"), dict)
+        else {}
+    )
+    final_status = final_state.get("status") if isinstance(final_state, dict) else None
+    if getattr(handle, "cancelled", False) or final_status == "cancelled":
+        status = "cancelled"
+    elif getattr(handle, "error", None):
+        status = "error"
+    elif getattr(handle, "done_event", None) is not None and handle.done_event.is_set():
+        status = final_status or "completed"
+    else:
+        status = "running"
+    return {
+        "session_id": session_id,
+        "status": status,
+        **_session_time_payload_from_handle(handle),
+        "job_title": getattr(handle, "job_title", None),
+        "candidate_name": getattr(handle, "candidate_name", None),
+        "job_level": getattr(handle, "job_level", None),
+        "overall_score": report.get("overall_score"),
+        "growth_signal": report.get("growth_signal"),
+        "overall_verdict": report.get("overall_verdict"),
+        "dimension_scores": _compact_dimension_scores(report.get("dimension_scores")),
+    }
 
 
 def _session_token_meta_from_db(session_id: str) -> tuple[str | None, datetime | None]:
@@ -486,7 +614,10 @@ def _terminal_payload_from_persisted_session(
     browser still keeps a local history entry. When that happens, give the
     frontend a structured terminal state instead of a vague 404.
     """
-    return terminal_payload_from_persisted_session(session_id, retryable=retryable)
+    payload = terminal_payload_from_persisted_session(session_id, retryable=retryable)
+    if payload is not None:
+        payload.update(_session_time_payload_from_db(session_id))
+    return payload
 
 
 def _load_terminal_payload_from_persisted_session(
@@ -509,7 +640,10 @@ def _load_terminal_payload_from_persisted_session(
 def _report_payload_from_persisted_session(
     session_id: str,
 ) -> dict[str, Any] | None:
-    return report_payload_from_persisted_session(session_id)
+    payload = report_payload_from_persisted_session(session_id)
+    if payload is not None:
+        payload.update(_session_time_payload_from_db(session_id))
+    return payload
 
 
 def _attach_trace_health(payload: dict[str, Any], session_id: str) -> dict[str, Any]:
@@ -521,6 +655,109 @@ def _attach_trace_health(payload: dict[str, Any], session_id: str) -> dict[str, 
     because the observability stack is having a bad day.
     """
     return attach_trace_health(payload, session_id)
+
+
+def _turn_idx_or_none(value: Any) -> int | None:
+    if isinstance(value, bool):
+        return None
+    if isinstance(value, int):
+        return value
+    if isinstance(value, str) and value.strip():
+        try:
+            return int(value.strip())
+        except ValueError:
+            return None
+    return None
+
+
+def _current_formal_turn_idx(
+    current_question: Any,
+    fallback_turn_idx: Any,
+) -> int | None:
+    if isinstance(current_question, dict):
+        idx = _turn_idx_or_none(current_question.get("formal_turn_idx"))
+        if idx is not None:
+            return idx
+        idx = _turn_idx_or_none(current_question.get("turn_idx"))
+        if idx is not None:
+            return idx
+    return _turn_idx_or_none(fallback_turn_idx)
+
+
+def _checkpoint_values_for_resume(manager: Any, session_id: str) -> dict[str, Any]:
+    checkpoint_waiting = getattr(manager, "_checkpoint_waiting_question", None)
+    if not callable(checkpoint_waiting):
+        return {}
+    try:
+        values = checkpoint_waiting(session_id)
+    except Exception as e:
+        log.debug("resume checkpoint lookup failed for %s: %s", session_id, e)
+        return {}
+    return values if isinstance(values, dict) else {}
+
+
+def _self_intro_history_payload(
+    manager: Any,
+    session_id: str,
+    handle: Any,
+) -> dict[str, Any] | None:
+    values = _checkpoint_values_for_resume(manager, session_id)
+    answer = str(
+        values.get("self_intro_answer")
+        or getattr(handle, "self_intro_answer", "")
+        or ""
+    ).strip()
+    if not answer:
+        return None
+    return {
+        "turn_idx": None,
+        "question_type": "self_intro",
+        "dimension": "communication",
+        "question": SELF_INTRO_QUESTION,
+        "answer": answer,
+        "score": None,
+        "passed": None,
+        "rationale": "",
+        "strengths": [],
+        "weaknesses": [],
+        "next_step": "",
+    }
+
+
+def _prepend_self_intro_history(
+    history: list[dict[str, Any]],
+    opening_turn: dict[str, Any] | None,
+) -> list[dict[str, Any]]:
+    if opening_turn is None:
+        return history
+    if any(item.get("question_type") == "self_intro" for item in history):
+        return history
+    return [opening_turn, *history]
+
+
+def _resume_history_payload(
+    session_id: str,
+    *,
+    before_formal_turn_idx: int | None = None,
+) -> list[dict[str, Any]]:
+    """Best-effort answered-turn history for ``GET /resume``.
+
+    Continuing an in-flight interview should restore the already-evaluated
+    Q&A context. If trace lookup has a transient problem, resuming the current
+    question is still better than failing the whole request.
+    """
+    try:
+        with get_db_session() as db:
+            return build_resume_history(
+                db,
+                session_id,
+                before_formal_turn_idx=before_formal_turn_idx,
+            )
+    except ReplayNotFound:
+        return []
+    except Exception as e:
+        log.warning("resume history lookup failed for %s: %s", session_id, e)
+        return []
 
 
 def _delete_checkpoint_thread(session_id: str) -> bool | None:
@@ -626,7 +863,7 @@ def start_session(req: StartSessionRequest) -> dict[str, Any]:
                     "restart_session",
                 ),
             )
-        manager.start(
+        handle = manager.start(
             session_id,
             trace_id,
             initial,
@@ -648,6 +885,12 @@ def start_session(req: StartSessionRequest) -> dict[str, Any]:
             ) from e
         raise
     else:
+        time_payload = _session_time_payload_from_handle(handle)
+        if not time_payload:
+            time_payload = {
+                "created_at": now.isoformat(),
+                "updated_at": now.isoformat(),
+            }
         return {
             "session_id": session_id,
             "session_token": session_token,
@@ -657,6 +900,7 @@ def start_session(req: StartSessionRequest) -> dict[str, Any]:
             "trace_id": trace_id,
             "status": "running",
             "max_turns": initial.get("max_turns"),
+            **time_payload,
         }
     finally:
         reset_log_context(token)
@@ -678,6 +922,7 @@ def recover_session(
     settings = get_settings()
     now = datetime.now(UTC)
     new_token = new_session_token()
+    new_token_hash = hash_session_token(new_token)
     expires_at = now + timedelta(
         hours=max(1, int(settings.session_token_ttl_hours))
     )
@@ -697,7 +942,7 @@ def recover_session(
             ):
                 raise HTTPException(status_code=401, detail=invalid_detail)
 
-            row.session_token_hash = hash_session_token(new_token)
+            row.session_token_hash = new_token_hash
             row.session_token_expires_at = expires_at
     except HTTPException:
         raise
@@ -711,6 +956,13 @@ def recover_session(
                 "retry_later",
             ),
         ) from e
+
+    manager = get_session_manager()
+    get_handle = getattr(manager, "get", None)
+    handle = get_handle(session_id) if callable(get_handle) else None
+    if handle is not None:
+        handle.session_token_hash = new_token_hash
+        handle.session_token_expires_at = expires_at
 
     return {
         "session_id": session_id,
@@ -958,6 +1210,7 @@ def request_hint(
 @router.post("/sessions/{session_id}/retry-question")
 def retry_failed_question(
     session_id: SessionIdPath,
+    body: RetryQuestionRequest | None = None,
     session_token: str | None = Header(default=None, alias="X-Session-Token"),
 ) -> dict[str, Any]:
     manager = get_session_manager()
@@ -966,7 +1219,12 @@ def retry_failed_question(
         session_token,
         handle=_get_or_recover_session(manager, session_id),
     )
-    handle = manager.retry_failed_question(session_id)
+    llm_override = (
+        body.llm_config.model_dump(exclude_none=True)
+        if body and body.llm_config
+        else None
+    )
+    handle = manager.retry_failed_question(session_id, llm_config=llm_override)
     if handle is None:
         raise HTTPException(
             status_code=409,
@@ -1077,6 +1335,32 @@ def submit_feedback(
     return {"session_id": session_id, "accepted": True}
 
 
+@router.get("/sessions/{session_id}/metadata")
+def get_session_metadata(
+    session_id: SessionIdPath,
+    session_token: str | None = Header(default=None, alias="X-Session-Token"),
+) -> dict[str, Any]:
+    manager = get_session_manager()
+    handle = manager.get(session_id)
+    _require_session_access(session_id, session_token, handle=handle)
+
+    persisted = _session_metadata_from_db(session_id)
+    if handle is None:
+        if persisted is None:
+            raise HTTPException(status_code=404, detail="session not found")
+        return persisted
+
+    live = _session_metadata_from_handle(session_id, handle)
+    if persisted is None:
+        return live
+    return {
+        **persisted,
+        **live,
+        "created_at": live.get("created_at") or persisted.get("created_at"),
+        "updated_at": persisted.get("updated_at") or live.get("updated_at"),
+    }
+
+
 @router.get("/sessions/{session_id}/report")
 def get_report(
     session_id: SessionIdPath,
@@ -1099,12 +1383,16 @@ def get_report(
         error = handle.error
     finally:
         reset_log_context(token)
+    time_payload = _session_time_payload_from_handle(handle) or _session_time_payload_from_db(
+        session_id
+    )
     if not done:
         raise HTTPException(status_code=409, detail="interview still running")
     if cancelled or final_status == "cancelled":
         return _attach_trace_health(
             {
                 "session_id": session_id,
+                **time_payload,
                 "final_report": final_report,
                 "error": "session cancelled",
                 "error_kind": None,
@@ -1115,6 +1403,7 @@ def get_report(
         return _attach_trace_health(
             {
                 "session_id": session_id,
+                **time_payload,
                 "final_report": final_report,
                 "error": error,
                 "error_kind": getattr(handle, "error_kind", None),
@@ -1124,6 +1413,7 @@ def get_report(
     return _attach_trace_health(
         {
             "session_id": session_id,
+            **time_payload,
             "final_report": final_report,
             "error": error,
         },
@@ -1192,15 +1482,34 @@ def resume_session(
         current_question = handle.current_question
         turn_idx = handle.turn_idx
         max_turns = handle.max_turns
+        previous_turn_evaluation = getattr(handle, "last_turn_evaluation", None)
     finally:
         reset_log_context(token)
+    history_cutoff = (
+        _current_formal_turn_idx(current_question, turn_idx)
+        if current_question and not cancelled and not done and final_status != "cancelled"
+        else None
+    )
+    history = _resume_history_payload(
+        session_id,
+        before_formal_turn_idx=history_cutoff,
+    )
+    history = _prepend_self_intro_history(
+        history,
+        _self_intro_history_payload(manager, session_id, handle),
+    )
+    time_payload = _session_time_payload_from_handle(handle) or _session_time_payload_from_db(
+        session_id
+    )
 
     if cancelled or final_status == "cancelled":
         return {
             "session_id": session_id,
             "status": "cancelled",
+            **time_payload,
             "question": None,
             "max_turns": max_turns,
+            "history": history,
         }
 
     if done:
@@ -1218,17 +1527,22 @@ def resume_session(
         return {
             "session_id": session_id,
             "status": "completed",
+            **time_payload,
             "question": None,
             "final_report": final_report,
             "max_turns": max_turns,
+            "history": history,
         }
 
     return {
         "session_id": session_id,
         "status": "waiting_for_answer" if current_question else "running",
+        **time_payload,
         "turn_idx": turn_idx,
         "question": current_question,
         "max_turns": max_turns,
+        "previous_turn_evaluation": previous_turn_evaluation,
+        "history": history,
     }
 
 

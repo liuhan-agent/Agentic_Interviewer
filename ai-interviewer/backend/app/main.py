@@ -36,6 +36,7 @@ from app.tasks.outcome_sync_tasks import (
     start_background_scheduler,
     start_decay_scheduler,
 )
+from app.tasks.privacy_cleanup_tasks import start_privacy_cleanup_scheduler
 
 configure_logging()
 log = get_logger(__name__)
@@ -121,9 +122,17 @@ def _run_startup(app: FastAPI, settings: Settings) -> None:
         except Exception as e:  # pragma: no cover
             log.warning("strategy dream scheduler startup failed: %s", e)
 
+    if settings.enable_privacy_cleanup:
+        try:
+            app.state.privacy_cleanup_scheduler = start_privacy_cleanup_scheduler(
+                interval_hours=settings.privacy_cleanup_interval_hours,
+            )
+        except Exception as e:  # pragma: no cover
+            log.warning("privacy cleanup scheduler startup failed: %s", e)
+
 
 def _run_shutdown(app: FastAPI) -> None:
-    for attr in ("scheduler", "decay_scheduler", "dream_scheduler"):
+    for attr in ("scheduler", "decay_scheduler", "dream_scheduler", "privacy_cleanup_scheduler"):
         s = getattr(app.state, attr, None)
         if s is not None:
             try:
@@ -184,6 +193,7 @@ def create_app() -> FastAPI:
     app.state.scheduler = None
     app.state.decay_scheduler = None
     app.state.dream_scheduler = None
+    app.state.privacy_cleanup_scheduler = None
 
     @app.get("/health")
     async def health() -> dict[str, str]:

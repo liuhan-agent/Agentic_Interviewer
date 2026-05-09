@@ -96,6 +96,19 @@ class _ExpiredManager:
         return _ExpiredHandle() if session_id == "sess-expired" else None
 
 
+class _ActiveRecoverHandle:
+    session_token_hash = hash_session_token("old-secret")
+    session_token_expires_at = datetime.now(UTC) - timedelta(minutes=1)
+
+
+class _ActiveRecoverManager:
+    def __init__(self) -> None:
+        self.handle = _ActiveRecoverHandle()
+
+    def get(self, session_id: str) -> _ActiveRecoverHandle | None:
+        return self.handle if session_id == "sess-recover" else None
+
+
 def _client_with_manager(monkeypatch: pytest.MonkeyPatch, manager: Any) -> TestClient:
     monkeypatch.setattr(interview_api, "get_session_manager", lambda: manager)
     app = FastAPI()
@@ -148,6 +161,11 @@ def test_start_session_returns_recovery_token(
     assert body["session_token_expires_at"]
     assert body["recovery_token"]
     assert body["recovery_token_expires_at"]
+    assert body["created_at"]
+    assert body["updated_at"]
+    assert datetime.fromisoformat(body["created_at"]) <= datetime.fromisoformat(
+        body["updated_at"]
+    )
     assert manager.started is not None
     assert manager.started["session_token_hash"]
     assert manager.started["session_token_expires_at"]
@@ -181,6 +199,30 @@ def test_recover_session_returns_fresh_session_token(
             if expires_at.tzinfo is None:
                 expires_at = expires_at.replace(tzinfo=UTC)
             assert expires_at > datetime.now(UTC)
+
+
+def test_recover_session_refreshes_active_handle_token(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    with _isolated_db(monkeypatch) as testing_session_local:
+        _seed_recoverable_session(testing_session_local)
+        manager = _ActiveRecoverManager()
+        client = _client_with_manager(monkeypatch, manager)
+
+        resp = client.post(
+            "/api/v1/interview/sessions/sess-recover/recover",
+            json={"recovery_token": "recover-secret-123"},
+        )
+
+        assert resp.status_code == 200
+        body = resp.json()
+        assert manager.handle.session_token_hash == hash_session_token(
+            body["session_token"]
+        )
+        expires_at = manager.handle.session_token_expires_at
+        if expires_at.tzinfo is None:
+            expires_at = expires_at.replace(tzinfo=UTC)
+        assert expires_at > datetime.now(UTC)
 
 
 @pytest.mark.parametrize(

@@ -226,6 +226,40 @@ def test_retry_failed_question_rehydrates_missing_handle_from_retryable_checkpoi
     assert started == [("sess-retry", None)]
 
 
+def test_retry_failed_question_accepts_fresh_llm_config():
+    manager = SessionManager.__new__(SessionManager)
+    manager._sessions = {}
+    manager._lock = threading.Lock()
+    handle = SessionHandle(session_id="sess-retry-llm", trace_id="trace-retry")
+    handle.error = "invalid api key"
+    handle.error_kind = "auth"
+    handle.llm_config_meta = {"requires_reauth": True}
+    handle.done_event.set()
+    manager._sessions[handle.session_id] = handle
+    manager._checkpoint_retryable_question_failure = lambda session_id: True  # type: ignore[attr-defined]
+    manager._checkpoint_retryable_evaluator_failure = lambda session_id: False  # type: ignore[attr-defined]
+    manager._wait_until_idle = lambda _handle: True  # type: ignore[method-assign]
+    manager._start_segment = lambda _handle, stream_input: True  # type: ignore[method-assign]
+    manager._mark_retry_running = lambda _session_id: None  # type: ignore[method-assign]
+    llm_config = {
+        "provider": "qwen",
+        "api_key": "fresh-key",
+        "model": "qwen3.6-flash",
+    }
+
+    retried = manager.retry_failed_question("sess-retry-llm", llm_config=llm_config)
+
+    assert retried is handle
+    assert handle.llm_config == llm_config
+    assert handle.llm_config_meta == {
+        "provider": "qwen",
+        "model": "qwen3.6-flash",
+        "requires_reauth": True,
+    }
+    assert handle.error is None
+    assert handle.error_kind is None
+
+
 def test_retry_failed_question_rejects_non_retryable_checkpoint():
     manager = SessionManager.__new__(SessionManager)
     manager._sessions = {}

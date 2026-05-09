@@ -25,7 +25,61 @@ test("history list keeps unscored entries behind scored entries", () => {
   assert.match(source, /compareScoreEntries/);
   assert.match(source, /hasAScore/);
   assert.match(source, /hasBScore/);
-  assert.match(source, /createdAt\.localeCompare/);
+  assert.match(source, /lastVisitedAt\.localeCompare/);
+});
+
+test("history list splits sort field and direction controls", () => {
+  const source = fs.readFileSync(
+    path.join(__dirname, "..", "src", "components", "interview", "HistoryList.tsx"),
+    "utf8",
+  );
+  const constants = fs.readFileSync(
+    path.join(__dirname, "..", "src", "lib", "constants", "interview.ts"),
+    "utf8",
+  );
+
+  assert.match(constants, /SORT_FIELD_OPTIONS/);
+  assert.doesNotMatch(constants, /SORT_OPTIONS/);
+  assert.match(source, /activeSortField/);
+  assert.match(source, /activeSortDirection/);
+  assert.match(constants, /最近访问/);
+  assert.match(constants, /创建时间/);
+  assert.match(constants, /面试分数/);
+  assert.match(source, /ArrowDownAZ|ArrowUpAZ/);
+});
+
+test("history list backfills server metadata without touching visit time", () => {
+  const source = fs.readFileSync(
+    path.join(__dirname, "..", "src", "components", "interview", "HistoryList.tsx"),
+    "utf8",
+  );
+
+  assert.match(source, /getSessionMetadata/);
+  assert.match(source, /mergeServerEntryMetadata/);
+  assert.match(source, /updatedAt/);
+  assert.match(source, /最近访问/);
+  assert.match(source, /最近继续/);
+  assert.match(source, /创建于/);
+  assert.match(source, /加入列表/);
+});
+
+test("history card exposes full session id in styled tooltip", () => {
+  const source = fs.readFileSync(
+    path.join(__dirname, "..", "src", "components", "interview", "HistoryList.tsx"),
+    "utf8",
+  );
+
+  assert.match(source, /from "@\/components\/ui\/tooltip"/);
+  assert.match(source, /SessionIdTooltip/);
+  assert.match(source, /<TooltipTrigger asChild>/);
+  assert.match(source, /完整 Session ID/);
+  assert.match(source, /aria-label=\{`完整 Session ID/);
+  assert.match(source, /cursor-default/);
+  assert.doesNotMatch(source, /cursor-help/);
+  assert.match(source, /side="bottom"/);
+  assert.match(source, /text-emerald-300/);
+  assert.match(source, /<span className="break-all">\{sessionId\}<\/span>/);
+  assert.match(source, /shortId\(sessionId\)/);
 });
 
 test("history list has a filtered empty state", () => {
@@ -47,4 +101,17 @@ test("history export strips browser recovery credential", () => {
 
   assert.match(source, /delete safeEntry\.recoveryToken/);
   assert.match(source, /delete safeEntry\.recoveryTokenExpiresAt/);
+});
+
+test("history list does not expose a bulk local clear action", () => {
+  const source = fs.readFileSync(
+    path.join(__dirname, "..", "src", "components", "interview", "HistoryList.tsx"),
+    "utf8",
+  );
+
+  assert.doesNotMatch(source, /window\.confirm/);
+  assert.doesNotMatch(source, /ClearHistoryDialog/);
+  assert.doesNotMatch(source, /handleClearAll/);
+  assert.doesNotMatch(source, /clearAll\(/);
+  assert.doesNotMatch(source, /清空本地列表/);
 });

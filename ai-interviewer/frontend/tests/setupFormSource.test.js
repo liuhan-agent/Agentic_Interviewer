@@ -102,7 +102,8 @@ test("history export and copy explain session token privacy", () => {
   assert.match(source, /sessionTokenExpiresAt/);
   assert.match(source, /delete safeEntry\.sessionToken/);
   assert.match(source, /delete safeEntry\.sessionTokenExpiresAt/);
-  assert.match(source, /当前标签页会话/);
+  assert.match(source, /导出历史只包含面试记录/);
+  assert.match(source, /不会包含继续访问会话的临时凭证/);
 });
 
 test("setup form stores browser recovery credential from start response", () => {

@@ -735,9 +735,9 @@ function connectionStatusMessage(statusKind: LLMConfigStatus): string {
     case "misconfig":
       return "有一项配置不完整或不匹配，请检查模型名称、服务商和 Base URL。";
     case "error":
-      return "有配置测试失败，下面会标出具体是哪一项。请检查对应密钥、模型和 Base URL。";
+      return "部分配置测试未通过。请根据下方结果检查失败项的密钥、模型和 Base URL。";
     default:
-      return "有配置测试失败，下面会标出具体是哪一项。请检查对应密钥、模型和 Base URL。";
+      return "部分配置测试未通过。请根据下方结果检查失败项的密钥、模型和 Base URL。";
   }
 }
 
@@ -834,7 +834,12 @@ function ConnectionResult({
           {results.map((result) => (
             <div
               key={result.fingerprint}
-              className="flex items-center justify-between gap-3 rounded border border-current/10 px-2 py-1"
+              className={cn(
+                "flex items-center justify-between gap-3 rounded border px-2 py-1",
+                result.ok
+                  ? "border-emerald-400/30 bg-emerald-400/10 text-emerald-200"
+                  : "border-destructive/30 bg-destructive/10 text-destructive",
+              )}
             >
               <span className="min-w-0 truncate">
                 {result.label}：{providerInfo(result.provider).label} {result.model}

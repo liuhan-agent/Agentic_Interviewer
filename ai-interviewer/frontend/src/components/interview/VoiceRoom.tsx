@@ -19,6 +19,7 @@ import {
 import { AnimatePresence, motion } from "framer-motion";
 
 import { LLMSettingsDialog } from "@/components/layout/LLMSettingsDialog";
+import { CollapsibleAnswerBubble } from "@/components/interview/CollapsibleAnswerBubble";
 import { DigitalHumanStage } from "@/components/interview/DigitalHumanStage";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -767,17 +768,11 @@ function Bubble({ entry }: { entry: QaEntry }) {
       </div>
 
       {entry.answer !== null && (
-        <div className="ml-6 rounded-lg border border-primary/10 bg-primary/[0.03] p-4 text-sm leading-relaxed">
-          <div className="mb-1.5 flex items-center gap-1.5">
-            <span className="flex h-5 w-5 items-center justify-center rounded bg-primary/10 font-mono text-[10px] font-bold text-primary">
-              A
-            </span>
-            <span className="font-mono text-[10px] text-muted-foreground">
-              你（转录）
-            </span>
-          </div>
-          {entry.answer}
-        </div>
+        <CollapsibleAnswerBubble
+          text={entry.answer}
+          className="ml-6"
+          label="你（转录）"
+        />
       )}
     </div>
   );

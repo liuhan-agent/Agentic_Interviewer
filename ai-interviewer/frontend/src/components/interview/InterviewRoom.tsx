@@ -8,8 +8,10 @@ import {
   ArrowRight,
   CheckCircle2,
   Loader2,
+  Maximize2,
   MessageSquare,
   Mic,
+  Minimize2,
   Pause,
   Send,
   SkipForward,
@@ -25,8 +27,8 @@ import ReactMarkdown from "react-markdown";
 import TextareaAutosize from "react-textarea-autosize";
 
 import { LLMSettingsDialog } from "@/components/layout/LLMSettingsDialog";
+import { CollapsibleAnswerBubble } from "@/components/interview/CollapsibleAnswerBubble";
 import { NextQuestionLoader } from "@/components/interview/NextQuestionLoader";
-import { PreviousTurnFeedback } from "@/components/interview/PreviousTurnFeedback";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -39,9 +41,16 @@ import {
   skipQuestion,
   submitAnswer,
 } from "@/lib/api/interview";
-import type { LLMErrorKind, PollQuestion, ResumeAnchor } from "@/lib/api/types";
+import type {
+  LLMErrorKind,
+  PollQuestion,
+  PreviousTurnEvaluation,
+  ResumeAnchor,
+  ResumeHistoryTurn,
+} from "@/lib/api/types";
 import { useQuestionPoller } from "@/lib/hooks/useQuestionPoller";
 import { useToast } from "@/lib/hooks/useToast";
+import { cn } from "@/lib/utils";
 import {
   canSpeakQuestions,
   loadQuestionSpeechEnabled,
@@ -59,15 +68,26 @@ const ENCOURAGEMENTS = [
   "提交成功，正在生成下一轮问题。",
 ];
 const ANSWER_MAX_LENGTH = 50000;
+const DIMENSION_LABELS: Record<string, string> = {
+  technical_depth: "技术深度",
+  problem_solving: "问题解决",
+  communication: "沟通表达",
+  system_design: "系统设计",
+  project_experience: "项目经验",
+  culture_fit: "文化匹配",
+  leadership: "领导力",
+};
 
 type QaEntry = {
   turnIdx: number | null;
   formalTurnIdx?: number | null;
+  displayTurnIdx?: number | null;
   questionType?: string;
   dimension?: string;
   resumeAnchor?: ResumeAnchor;
   question: string;
   answer: string | null;
+  evaluation?: PreviousTurnEvaluation | null;
 };
 
 export function InterviewRoom({ sessionId }: { sessionId: string }) {
@@ -83,6 +103,7 @@ export function InterviewRoom({ sessionId }: { sessionId: string }) {
   const [lastSubmittedTurn, setLastSubmittedTurn] = useState<number | null>(
     null,
   );
+  const [finalTurnSubmitted, setFinalTurnSubmitted] = useState(false);
   const [readQuestions, setReadQuestions] = useState(false);
   const [questionSpeechSupported, setQuestionSpeechSupported] = useState(false);
   const [reauthRequired, setReauthRequired] = useState(false);
@@ -92,6 +113,10 @@ export function InterviewRoom({ sessionId }: { sessionId: string }) {
     state.phase === "waiting_for_answer" && state.question
       ? extractQuestionType(state.question)
       : undefined;
+  const currentDisplayTurnIdx =
+    state.phase === "waiting_for_answer" && history.length > 0
+      ? visibleTurnIdx(history[history.length - 1])
+      : null;
 
   useEffect(() => {
     setQuestionSpeechSupported(canSpeakQuestions());
@@ -100,16 +125,43 @@ export function InterviewRoom({ sessionId }: { sessionId: string }) {
   }, []);
 
   useEffect(() => {
+    const restored = state.restoredHistory
+      .map(restoredTurnToQaEntry)
+      .filter((entry): entry is QaEntry => Boolean(entry));
+    if (restored.length === 0) return;
+    const currentTurnIdxForDisplay =
+      state.phase === "waiting_for_answer" && state.question
+        ? extractFormalTurnIdx(state.question) ?? state.turnIdx
+        : null;
+    const priorRestored = filterRestoredHistoryForCurrentQuestion(
+      restored,
+      currentTurnIdxForDisplay,
+    );
+    setHistory((prev) => {
+      const openEntry = prev.find((entry) => entry.answer === null);
+      const answered = prev.filter((entry) => entry.answer !== null);
+      const alreadyRestored =
+        answered.length === priorRestored.length &&
+        answered.every((entry, index) => sameQaEntry(entry, priorRestored[index]));
+      if (alreadyRestored) return prev;
+      return openEntry ? [...priorRestored, openEntry] : priorRestored;
+    });
+  }, [state.phase, state.question, state.restoredHistory, state.turnIdx]);
+
+  useEffect(() => {
     if (state.phase !== "waiting_for_answer" || !state.question) return;
     const q = state.question;
     const turnIdx = state.turnIdx;
     setHistory((prev) => {
       const lastOpen = prev[prev.length - 1];
       const qText = extractQuestion(q);
+      const formalTurnIdx = extractFormalTurnIdx(q);
+      const currentTurnIdxForDisplay = formalTurnIdx ?? turnIdx;
       if (
         lastOpen &&
         lastOpen.answer === null &&
-        lastOpen.turnIdx === turnIdx
+        (lastOpen.turnIdx === turnIdx ||
+          visibleTurnIdx(lastOpen) === currentTurnIdxForDisplay)
       ) {
         return prev;
       }
@@ -117,7 +169,8 @@ export function InterviewRoom({ sessionId }: { sessionId: string }) {
         ...prev,
         {
           turnIdx,
-          formalTurnIdx: extractFormalTurnIdx(q),
+          formalTurnIdx,
+          displayTurnIdx: currentTurnIdxForDisplay,
           questionType: extractQuestionType(q),
           dimension: typeof q.dimension === "string" ? q.dimension : undefined,
           resumeAnchor: extractResumeAnchor(q),
@@ -129,7 +182,20 @@ export function InterviewRoom({ sessionId }: { sessionId: string }) {
   }, [state.phase, state.question, state.turnIdx]);
 
   useEffect(() => {
+    const evaluation = state.previousEvaluation;
+    if (!evaluation) return;
+    setHistory((prev) =>
+      prev.map((entry) =>
+        qaEntryMatchesEvaluation(entry, evaluation)
+          ? { ...entry, evaluation }
+          : entry,
+      ),
+    );
+  }, [state.previousEvaluation]);
+
+  useEffect(() => {
     setPaused(false);
+    setFinalTurnSubmitted(false);
   }, [state.turnIdx]);
 
   useEffect(() => {
@@ -210,6 +276,11 @@ export function InterviewRoom({ sessionId }: { sessionId: string }) {
       return false;
     }
     setSubmitting(true);
+    const submittedWasFinal = isFinalFormalTurn({
+      question: state.question,
+      turnIdx: state.turnIdx,
+      maxTurns: state.maxTurns,
+    });
     try {
       await submitAnswer(sessionId, text, state.turnIdx);
       setReauthRequired(false);
@@ -221,10 +292,13 @@ export function InterviewRoom({ sessionId }: { sessionId: string }) {
         return next;
       });
       setLastSubmittedTurn(state.turnIdx ?? null);
+      setFinalTurnSubmitted(submittedWasFinal);
       afterAnswerSubmitted();
       // Lightweight encouragement so users feel acknowledged between turns.
       toast({
-        title: ENCOURAGEMENTS[Math.floor(Math.random() * ENCOURAGEMENTS.length)],
+        title: submittedWasFinal
+          ? "最后一题已提交，正在整理本场面试总结。"
+          : ENCOURAGEMENTS[Math.floor(Math.random() * ENCOURAGEMENTS.length)],
       });
       return true;
     } catch (err) {
@@ -250,6 +324,11 @@ export function InterviewRoom({ sessionId }: { sessionId: string }) {
   async function handleSkipCurrentQuestion() {
     if (skipping || state.turnIdx === null) return false;
     setSkipping(true);
+    const skippedWasFinal = isFinalFormalTurn({
+      question: state.question,
+      turnIdx: state.turnIdx,
+      maxTurns: state.maxTurns,
+    });
     try {
       await skipQuestion(sessionId, state.turnIdx, "candidate_skip");
       setHistory((prev) => {
@@ -263,8 +342,13 @@ export function InterviewRoom({ sessionId }: { sessionId: string }) {
       });
       setPaused(false);
       setLastSubmittedTurn(state.turnIdx ?? null);
+      setFinalTurnSubmitted(skippedWasFinal);
       afterAnswerSubmitted();
-      toast({ title: "已跳过本题，继续下一轮练习。" });
+      toast({
+        title: skippedWasFinal
+          ? "已跳过最后一题，正在整理本场面试总结。"
+          : "已跳过本题，继续下一轮练习。",
+      });
       return true;
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
@@ -286,6 +370,7 @@ export function InterviewRoom({ sessionId }: { sessionId: string }) {
       upsertEntry({ sessionId, status: "running" });
       setHistory((prev) => prev.filter((entry) => entry.answer !== null));
       setLastSubmittedTurn(null);
+      setFinalTurnSubmitted(false);
       afterQuestionRetryRequested();
       toast({ title: "正在继续处理" });
     } catch (err) {
@@ -301,7 +386,11 @@ export function InterviewRoom({ sessionId }: { sessionId: string }) {
 
   return (
     <div className="space-y-6">
-      <StatusBar state={state} sessionId={sessionId} />
+      <StatusBar
+        state={state}
+        sessionId={sessionId}
+        currentDisplayTurnIdx={currentDisplayTurnIdx}
+      />
 
       {reauthRequired && <ReauthRequiredBanner />}
 
@@ -371,21 +460,15 @@ export function InterviewRoom({ sessionId }: { sessionId: string }) {
           </AnimatePresence>
 
           {state.phase === "loading" && lastSubmittedTurn !== null && (
-            <NextQuestionLoader etaMs={state.lastServerLatencyMs} />
+            <NextQuestionLoader
+              etaMs={state.lastServerLatencyMs}
+              isFinalTurn={finalTurnSubmitted}
+            />
           )}
 
           <div ref={transcriptEnd} />
         </CardContent>
       </Card>
-
-      {state.phase === "waiting_for_answer" && state.previousEvaluation ? (
-        <PreviousTurnFeedback
-          evaluation={state.previousEvaluation}
-          currentDimension={
-            (state.question?.dimension as string | undefined) ?? null
-          }
-        />
-      ) : null}
 
       <AnimatePresence>
         {state.phase === "waiting_for_answer" && (
@@ -480,9 +563,11 @@ export function InterviewRoom({ sessionId }: { sessionId: string }) {
 function StatusBar({
   state,
   sessionId,
+  currentDisplayTurnIdx,
 }: {
   state: ReturnType<typeof useQuestionPoller>["state"];
   sessionId: string;
+  currentDisplayTurnIdx?: number | null;
 }) {
   const label = phaseLabel(state.phase);
   const isActive = state.phase === "waiting_for_answer";
@@ -499,7 +584,9 @@ function StatusBar({
     questionType === "self_intro"
       ? "开场"
       : `第 ${
-          formalTurnIdx !== null
+          currentDisplayTurnIdx !== null && currentDisplayTurnIdx !== undefined
+            ? currentDisplayTurnIdx + 1
+            : formalTurnIdx !== null
             ? formalTurnIdx + 1
             : state.turnIdx !== null
               ? state.turnIdx + 1
@@ -631,6 +718,7 @@ function AnswerBox({
   const [hintSource, setHintSource] = useState<string | null>(null);
   const [hintError, setHintError] = useState<string | null>(null);
   const [hintLoading, setHintLoading] = useState(false);
+  const [answerExpanded, setAnswerExpanded] = useState(false);
   const isSelfIntro = questionType === "self_intro";
   const trimmedLength = draft.trim().length;
   const nearLimit = draft.length >= ANSWER_MAX_LENGTH * 0.9;
@@ -661,6 +749,7 @@ function AnswerBox({
     setHintSource(null);
     setHintError(null);
     setHintLoading(false);
+    setAnswerExpanded(false);
   }, [draftKey]);
 
   async function handleLocalSubmit() {
@@ -704,17 +793,35 @@ function AnswerBox({
           <Send className="h-4 w-4 text-emerald-400" />
           你的回答
         </CardTitle>
-        <Button
-          asChild
-          variant="outline"
-          size="sm"
-          className="h-8 gap-1.5"
-        >
-          <Link href={`/interview/${sessionId}/voice`}>
-            <Mic className="h-3.5 w-3.5" />
-            用语音回答
-          </Link>
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            aria-expanded={answerExpanded}
+            aria-controls="answer-draft-input"
+            onClick={() => setAnswerExpanded((value) => !value)}
+            className="h-8 gap-1.5 text-muted-foreground"
+          >
+            {answerExpanded ? (
+              <Minimize2 className="h-3.5 w-3.5" />
+            ) : (
+              <Maximize2 className="h-3.5 w-3.5" />
+            )}
+            {answerExpanded ? "收起" : "展开"}
+          </Button>
+          <Button
+            asChild
+            variant="outline"
+            size="sm"
+            className="h-8 gap-1.5"
+          >
+            <Link href={`/interview/${sessionId}/voice`}>
+              <Mic className="h-3.5 w-3.5" />
+              用语音回答
+            </Link>
+          </Button>
+        </div>
       </CardHeader>
       <CardContent className="space-y-3">
         {paused ? (
@@ -726,8 +833,9 @@ function AnswerBox({
           </div>
         ) : (
           <TextareaAutosize
-            minRows={3}
-            maxRows={15}
+            id="answer-draft-input"
+            minRows={answerExpanded ? 10 : 3}
+            maxRows={answerExpanded ? 24 : 8}
             maxLength={ANSWER_MAX_LENGTH}
             aria-label="输入你的回答"
             placeholder={
@@ -743,7 +851,10 @@ function AnswerBox({
                 void handleLocalSubmit();
               }
             }}
-            className="flex w-full rounded-md border border-input px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 resize-none border-border/50 bg-secondary/30 focus:border-emerald-500/30"
+            className={cn(
+              "flex w-full resize-none overflow-y-auto rounded-md border border-input border-border/50 bg-secondary/30 px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus:border-emerald-500/30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50",
+              answerExpanded ? "min-h-[18rem]" : "",
+            )}
           />
         )}
         <div className="flex items-center justify-between">
@@ -879,13 +990,15 @@ const QaBubble = React.memo(function QaBubble({
   onSpeak: (question: string) => void;
 }) {
   const isSelfIntro = entry.questionType === "self_intro";
+  const displayTurnIdx =
+    entry.displayTurnIdx ?? entry.formalTurnIdx ?? entry.turnIdx;
   const turnLabel = isSelfIntro
     ? "开场"
-    : entry.formalTurnIdx !== null && entry.formalTurnIdx !== undefined
-      ? String(entry.formalTurnIdx + 1)
-      : entry.turnIdx !== null
-        ? String(entry.turnIdx + 1)
-        : "?";
+    : displayTurnIdx !== null && displayTurnIdx !== undefined
+      ? String(displayTurnIdx + 1)
+      : "?";
+  const turnBadgeText = isSelfIntro ? turnLabel : `第 ${turnLabel} 题`;
+  const answerContentId = `answer-content-${entry.turnIdx ?? "intro"}`;
 
   const safeQuestion = useMemo(() => {
     return DOMPurify.sanitize(entry.question);
@@ -902,11 +1015,12 @@ const QaBubble = React.memo(function QaBubble({
     <div className="space-y-2">
       <div className="flex items-center gap-2 text-xs font-mono text-muted-foreground">
         <span
-          className={`flex h-5 items-center justify-center rounded bg-secondary text-[10px] font-bold ${
-            isSelfIntro ? "w-10" : "w-5"
-          }`}
+          className={cn(
+            "flex h-8 min-w-[4.5rem] items-center justify-center rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-3 text-sm font-black text-emerald-200 shadow-sm",
+            isSelfIntro ? "min-w-[4rem]" : "",
+          )}
         >
-          {turnLabel}
+          {turnBadgeText}
         </span>
         {isSelfIntro && (
           <Badge
@@ -917,8 +1031,16 @@ const QaBubble = React.memo(function QaBubble({
           </Badge>
         )}
         {!isSelfIntro && entry.dimension && (
-          <Badge variant="outline" className="font-mono text-[10px]">
-            {entry.dimension}
+          <Badge
+            variant="outline"
+            aria-label={`维度：${formatDimensionName(entry.dimension)}`}
+            className="h-6 gap-1.5 rounded-md border-border/70 bg-secondary/30 px-2.5 text-[11px] font-medium text-muted-foreground shadow-none"
+          >
+            <span
+              aria-hidden="true"
+              className="h-1.5 w-1.5 rounded-full bg-emerald-400/70"
+            />
+            {formatDimensionName(entry.dimension)}
           </Badge>
         )}
         {resumeAnchorLabel(entry.resumeAnchor) && (
@@ -967,28 +1089,149 @@ const QaBubble = React.memo(function QaBubble({
       </div>
 
       {entry.answer !== null && (
-        <motion.div
-          initial={{ opacity: 0, y: 8 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.3 }}
-          className="ml-6 rounded-lg border border-primary/10 bg-primary/[0.03] p-4 text-sm leading-relaxed"
-        >
-          <div className="mb-1.5 flex items-center gap-1.5">
-            <span className="flex h-5 w-5 items-center justify-center rounded bg-primary/10 font-mono text-[10px] font-bold text-primary">
-              A
-            </span>
-            <span className="font-mono text-[10px] text-muted-foreground">
-              你
-            </span>
-          </div>
-          <div className="whitespace-pre-wrap">
-            {entry.answer}
-          </div>
-        </motion.div>
+        <CollapsibleAnswerBubble
+          text={entry.answer}
+          contentId={answerContentId}
+          className="ml-6"
+        />
+      )}
+      {entry.answer !== null && entry.evaluation && (
+        <TurnFeedbackSummary evaluation={entry.evaluation} />
       )}
     </div>
   );
 });
+
+function TurnFeedbackSummary({
+  evaluation,
+}: {
+  evaluation: PreviousTurnEvaluation;
+}) {
+  const label = evaluation.passed
+    ? "本题通过"
+    : typeof evaluation.score === "number" && evaluation.score >= 4
+      ? "接近通过线"
+      : "可以再补齐";
+
+  return (
+    <div className="ml-6 rounded-lg border border-emerald-500/15 bg-emerald-500/[0.04] p-3 text-xs">
+      <div className="mb-2 flex flex-wrap items-center gap-2">
+        <Sparkles className="h-3.5 w-3.5 text-emerald-400" />
+        <span className="font-medium text-emerald-200">本题反馈</span>
+        <Badge
+          variant={evaluation.passed ? "success" : "outline"}
+          className="text-[10px]"
+        >
+          {label}
+        </Badge>
+      </div>
+      <div className="grid gap-2 sm:grid-cols-2">
+        {evaluation.strengths.length > 0 && (
+          <div>
+            <p className="mb-1 font-medium text-muted-foreground">做得好</p>
+            <ul className="space-y-1 text-muted-foreground">
+              {evaluation.strengths.map((item, index) => (
+                <li key={`strength-${index}-${item.slice(0, 12)}`}>{item}</li>
+              ))}
+            </ul>
+          </div>
+        )}
+        {evaluation.weaknesses.length > 0 && (
+          <div>
+            <p className="mb-1 font-medium text-muted-foreground">可补齐</p>
+            <ul className="space-y-1 text-muted-foreground">
+              {evaluation.weaknesses.map((item, index) => (
+                <li key={`weakness-${index}-${item.slice(0, 12)}`}>{item}</li>
+              ))}
+            </ul>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function restoredTurnToQaEntry(turn: ResumeHistoryTurn): QaEntry | null {
+  if (!turn.question && !turn.answer) return null;
+  const isSelfIntro = turn.question_type === "self_intro";
+  const turnIdx = typeof turn.turn_idx === "number" ? turn.turn_idx : null;
+  return {
+    turnIdx: isSelfIntro ? null : turnIdx,
+    formalTurnIdx: isSelfIntro ? null : turnIdx,
+    displayTurnIdx: isSelfIntro ? null : turnIdx,
+    questionType: turn.question_type,
+    dimension: turn.dimension ?? undefined,
+    question: turn.question ?? "",
+    answer: turn.answer ?? "",
+    evaluation: resumeTurnEvaluation(turn),
+  };
+}
+
+function resumeTurnEvaluation(
+  turn: ResumeHistoryTurn,
+): PreviousTurnEvaluation | null {
+  const strengths = listStrings(turn.strengths);
+  const weaknesses = listStrings(turn.weaknesses);
+  const hasFeedback =
+    typeof turn.score === "number" ||
+    typeof turn.passed === "boolean" ||
+    strengths.length > 0 ||
+    weaknesses.length > 0;
+  if (!hasFeedback) return null;
+  return {
+    turn_idx: turn.turn_idx,
+    dimension: turn.dimension ?? null,
+    score: typeof turn.score === "number" ? turn.score : null,
+    passed: Boolean(turn.passed),
+    strengths,
+    weaknesses,
+  };
+}
+
+function listStrings(value: string[] | undefined): string[] {
+  return Array.isArray(value)
+    ? value.filter((item) => typeof item === "string" && item.trim())
+    : [];
+}
+
+function visibleTurnIdx(entry: QaEntry): number | null {
+  if (typeof entry.displayTurnIdx === "number") return entry.displayTurnIdx;
+  if (typeof entry.formalTurnIdx === "number") return entry.formalTurnIdx;
+  return typeof entry.turnIdx === "number" ? entry.turnIdx : null;
+}
+
+function filterRestoredHistoryForCurrentQuestion(
+  entries: QaEntry[],
+  currentTurnIdxForDisplay: number | null,
+): QaEntry[] {
+  if (typeof currentTurnIdxForDisplay !== "number") return entries;
+  return entries.filter((entry) => {
+    const entryTurnIdx = visibleTurnIdx(entry);
+    return (
+      typeof entryTurnIdx !== "number" ||
+      entryTurnIdx < currentTurnIdxForDisplay
+    );
+  });
+}
+
+function sameQaEntry(left: QaEntry, right: QaEntry): boolean {
+  return (
+    left.turnIdx === right.turnIdx &&
+    left.question === right.question &&
+    left.answer === right.answer
+  );
+}
+
+function qaEntryMatchesEvaluation(
+  entry: QaEntry,
+  evaluation: PreviousTurnEvaluation,
+): boolean {
+  if (typeof evaluation.turn_idx !== "number") return false;
+  return (
+    entry.formalTurnIdx === evaluation.turn_idx ||
+    entry.turnIdx === evaluation.turn_idx
+  );
+}
 
 function phaseLabel(p: string): string {
   switch (p) {
@@ -1051,6 +1294,31 @@ function extractFormalTurnIdx(q: PollQuestion): number | null {
     if (typeof v === "number") return v;
   }
   return null;
+}
+
+function isFinalFormalTurn({
+  question,
+  turnIdx,
+  maxTurns,
+}: {
+  question: PollQuestion | null;
+  turnIdx: number | null;
+  maxTurns: number | null;
+}): boolean {
+  if (!question || typeof maxTurns !== "number" || maxTurns <= 0) return false;
+  if (extractQuestionType(question) === "self_intro") return false;
+  const formalTurnIdx = extractFormalTurnIdx(question);
+  const currentTurn =
+    formalTurnIdx !== null
+      ? formalTurnIdx + 1
+      : turnIdx !== null
+        ? turnIdx + 1
+        : 0;
+  return currentTurn >= maxTurns;
+}
+
+function formatDimensionName(id: string): string {
+  return DIMENSION_LABELS[id] ?? id.replaceAll("_", " ");
 }
 
 function resumeAnchorLabel(anchor?: ResumeAnchor): string {

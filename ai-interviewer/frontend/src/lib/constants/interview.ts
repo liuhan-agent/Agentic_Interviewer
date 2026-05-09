@@ -14,24 +14,22 @@ export const STATUS_FILTER_OPTIONS: readonly StatusFilterOption[] = [
   { id: "cancelled", label: "已取消" },
 ] as const;
 
-export type SortField = "createdAt" | "overallScore" | "lastVisitedAt" | "status";
+export type SortField = "lastVisitedAt" | "createdAt" | "overallScore";
 export type SortDirection = "asc" | "desc";
 
-export interface SortOption {
+export interface SortFieldOption {
   field: SortField;
-  direction: SortDirection;
   label: string;
 }
 
-export const SORT_OPTIONS: readonly SortOption[] = [
-  { field: "createdAt", direction: "desc", label: "最新创建" },
-  { field: "createdAt", direction: "asc", label: "最早创建" },
-  { field: "overallScore", direction: "desc", label: "分数最高" },
-  { field: "overallScore", direction: "asc", label: "分数最低" },
-  { field: "lastVisitedAt", direction: "desc", label: "最近访问" },
+export const SORT_FIELD_OPTIONS: readonly SortFieldOption[] = [
+  { field: "lastVisitedAt", label: "最近访问" },
+  { field: "createdAt", label: "创建时间" },
+  { field: "overallScore", label: "面试分数" },
 ] as const;
 
-export const DEFAULT_SORT: SortOption = SORT_OPTIONS[0];
+export const DEFAULT_SORT_FIELD: SortField = "lastVisitedAt";
+export const DEFAULT_SORT_DIRECTION: SortDirection = "desc";
 
 export function mapPollStatusToLocal(status: PollStatus | string): InterviewHistoryStatus {
   switch (status) {

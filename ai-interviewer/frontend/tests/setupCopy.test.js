@@ -164,6 +164,13 @@ test("interview room offers retry when a backend segment failed", () => {
   assert.match(source, /retryable/);
 });
 
+test("retrying a failed question resends saved LLM config", () => {
+  const source = readInterviewApi();
+
+  assert.match(source, /const llmConfig = buildLLMPayload\(\)/);
+  assert.match(source, /llm_config: llmConfig/);
+});
+
 test("interview room does not redirect completed sessions without a report", () => {
   const source = readQuestionPoller();
 

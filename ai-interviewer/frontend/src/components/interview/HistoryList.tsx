@@ -4,7 +4,9 @@ import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   AlertTriangle,
+  ArrowDownAZ,
   ArrowRight,
+  ArrowUpAZ,
   CheckCircle2,
   ClipboardList,
   Loader2,
@@ -36,21 +38,34 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { deleteSession, resumeSession, getReport } from "@/lib/api/interview";
 import {
-  DEFAULT_SORT,
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
+import {
+  deleteSession,
+  getReport,
+  getSessionMetadata,
+  resumeSession,
+} from "@/lib/api/interview";
+import {
+  DEFAULT_SORT_DIRECTION,
+  DEFAULT_SORT_FIELD,
   jobLevelShortLabel,
   mapPollStatusToLocal,
-  SORT_OPTIONS,
+  SORT_FIELD_OPTIONS,
   STATUS_FILTER_OPTIONS,
   verdictShortLabel,
-  type SortOption,
+  type SortDirection,
+  type SortField,
   type StatusFilterOption,
 } from "@/lib/constants";
 import { useToast } from "@/lib/hooks/useToast";
 import {
-  clearAll,
   getHistory,
+  mergeServerEntryMetadata,
   removeEntry,
   upsertEntry,
   type InterviewHistoryEntry,
@@ -64,7 +79,10 @@ export function HistoryList() {
   const [deleteTarget, setDeleteTarget] =
     useState<InterviewHistoryEntry | null>(null);
   const [activeFilter, setActiveFilter] = useState<StatusFilterOption["id"]>("all");
-  const [activeSort, setActiveSort] = useState<SortOption>(DEFAULT_SORT);
+  const [activeSortField, setActiveSortField] =
+    useState<SortField>(DEFAULT_SORT_FIELD);
+  const [activeSortDirection, setActiveSortDirection] =
+    useState<SortDirection>(DEFAULT_SORT_DIRECTION);
   const { toast } = useToast();
 
   const reload = useCallback(() => {
@@ -87,6 +105,47 @@ export function HistoryList() {
     };
   }, [reload]);
 
+  useEffect(() => {
+    if (!entries) return;
+    const targets = entries.filter((entry) => !entry.updatedAt);
+    if (targets.length === 0) return;
+
+    let cancelled = false;
+    void (async () => {
+      let changed = false;
+      await Promise.all(
+        targets.map(async (entry) => {
+          try {
+            const meta = await getSessionMetadata(entry.sessionId);
+            const merged = mergeServerEntryMetadata({
+              sessionId: entry.sessionId,
+              createdAt: meta.created_at,
+              updatedAt: meta.updated_at,
+              jdTitle: meta.job_title,
+              candidateName: meta.candidate_name,
+              jobLevel: meta.job_level,
+              status: mapBackendStatusToLocal(meta.status),
+              overallScore: meta.overall_score ?? undefined,
+              dimensionScores: meta.dimension_scores,
+              growthSignal: meta.growth_signal,
+              overallVerdict: meta.overall_verdict,
+            });
+            if (merged) changed = true;
+          } catch {
+            // Keep the local fallback when a historical row cannot be refreshed.
+          }
+        }),
+      );
+      if (!cancelled && changed) {
+        reload();
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [entries, reload]);
+
   const runningCount = useMemo(
     () => (entries ?? []).filter((e) => e.status === "running").length,
     [entries],
@@ -97,22 +156,19 @@ export function HistoryList() {
     if (activeFilter !== "all") {
       list = list.filter((e) => e.status === activeFilter);
     }
-    const { field, direction } = activeSort;
-    const dir = direction === "asc" ? 1 : -1;
+    const dir = activeSortDirection === "asc" ? 1 : -1;
     return [...list].sort((a, b) => {
-      switch (field) {
+      switch (activeSortField) {
         case "overallScore":
-          return compareScoreEntries(a, b, direction);
+          return compareScoreEntries(a, b, activeSortDirection);
         case "lastVisitedAt":
           return dir * a.lastVisitedAt.localeCompare(b.lastVisitedAt);
-        case "status":
-          return dir * a.status.localeCompare(b.status);
         case "createdAt":
         default:
           return dir * a.createdAt.localeCompare(b.createdAt);
       }
     });
-  }, [entries, activeFilter, activeSort]);
+  }, [entries, activeFilter, activeSortField, activeSortDirection]);
 
   const handleRemoveLocal = useCallback(
     (sessionId: string) => {
@@ -147,20 +203,6 @@ export function HistoryList() {
     [deleteTarget, reload, toast],
   );
 
-  const handleClearAll = useCallback(() => {
-    if (!entries || entries.length === 0) return;
-    if (
-      !window.confirm(
-        `确认清空全部 ${entries.length} 条记录吗？\n\n仅会清空当前浏览器看到的列表，已完成面试的评分数据不会丢失。`,
-      )
-    ) {
-      return;
-    }
-    clearAll();
-    reload();
-    toast({ title: "列表已清空" });
-  }, [entries, reload, toast]);
-
   const handleRefresh = useCallback(async () => {
     if (!entries) return;
     const targets = entries.filter((e) => e.status === "running");
@@ -183,6 +225,8 @@ export function HistoryList() {
               const rep = await getReport(entry.sessionId);
               upsertEntry({
                 sessionId: entry.sessionId,
+                createdAt: rep.created_at ?? r.created_at ?? undefined,
+                updatedAt: rep.updated_at ?? r.updated_at ?? undefined,
                 status: "done",
                 overallScore:
                   typeof rep.final_report?.overall_score === "number"
@@ -203,15 +247,27 @@ export function HistoryList() {
                     : undefined,
               });
             } catch {
-              upsertEntry({ sessionId: entry.sessionId, status: "done" });
+              upsertEntry({
+                sessionId: entry.sessionId,
+                createdAt: r.created_at ?? undefined,
+                updatedAt: r.updated_at ?? undefined,
+                status: "done",
+              });
             }
             updated += 1;
           } else if (next === "cancelled") {
-            upsertEntry({ sessionId: entry.sessionId, status: "cancelled" });
+            upsertEntry({
+              sessionId: entry.sessionId,
+              createdAt: r.created_at ?? undefined,
+              updatedAt: r.updated_at ?? undefined,
+              status: "cancelled",
+            });
             updated += 1;
           } else {
             upsertEntry({
               sessionId: entry.sessionId,
+              createdAt: r.created_at ?? undefined,
+              updatedAt: r.updated_at ?? undefined,
               maxTurns: typeof r.max_turns === "number" ? r.max_turns : undefined,
             });
           }
@@ -279,42 +335,31 @@ export function HistoryList() {
               </>
             )}
           </p>
-          <div className="flex items-center gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={handleRefresh}
-              disabled={refreshing || runningCount === 0}
-              className="gap-1.5"
-              aria-label={
-                runningCount === 0
-                  ? "当前没有进行中的面试"
-                  : "同步进行中面试的最新状态"
-              }
-            >
-              {refreshing ? (
-                <Loader2 className="h-3.5 w-3.5 animate-spin" />
-              ) : (
-                <RefreshCcw className="h-3.5 w-3.5" />
-              )}
-              刷新状态
-            </Button>
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={handleClearAll}
-              className="gap-1.5 text-muted-foreground hover:text-destructive"
-            >
-              <Trash2 className="h-3.5 w-3.5" />
-              清空
-            </Button>
-          </div>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleRefresh}
+            disabled={refreshing || runningCount === 0}
+            className="gap-1.5"
+            aria-label={
+              runningCount === 0
+                ? "当前没有进行中的面试"
+                : "同步进行中面试的最新状态"
+            }
+          >
+            {refreshing ? (
+              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+            ) : (
+              <RefreshCcw className="h-3.5 w-3.5" />
+            )}
+            刷新状态
+          </Button>
         </div>
 
         <div className="flex items-start gap-2 rounded-md border border-amber-500/30 bg-amber-500/[0.04] p-3 text-xs text-muted-foreground">
           <AlertCircle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-amber-400" />
           <p>
-            会话继续访问凭证仅保存在当前标签页会话中；导出历史不会包含 token。
+            导出历史只包含面试记录，不会包含继续访问会话的临时凭证。
           </p>
         </div>
 
@@ -336,27 +381,47 @@ export function HistoryList() {
             ))}
           </div>
 
-          <select
-            value={`${activeSort.field}:${activeSort.direction}`}
-            onChange={(e) => {
-              const found = SORT_OPTIONS.find(
-                (o) => `${o.field}:${o.direction}` === e.target.value,
-              );
-              if (found) setActiveSort(found);
-            }}
+          <div className="flex items-center gap-1.5">
+            <select
+            value={activeSortField}
+            onChange={(e) => setActiveSortField(e.target.value as SortField)}
             className="h-8 rounded-md border border-input bg-background px-2 text-xs text-foreground shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
             aria-label="排序方式"
           >
-            {SORT_OPTIONS.map((opt) => (
+            {SORT_FIELD_OPTIONS.map((opt) => (
               <option
-                key={`${opt.field}:${opt.direction}`}
-                value={`${opt.field}:${opt.direction}`}
+                key={opt.field}
+                value={opt.field}
                 className="bg-background text-foreground"
               >
                 {opt.label}
               </option>
             ))}
-          </select>
+            </select>
+            <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="h-8 gap-1.5 px-2 text-xs"
+            onClick={() =>
+              setActiveSortDirection((direction) =>
+                direction === "asc" ? "desc" : "asc",
+              )
+            }
+            aria-label={
+              activeSortDirection === "desc"
+                ? "当前为降序，点击改为升序"
+                : "当前为升序，点击改为降序"
+            }
+          >
+            {activeSortDirection === "desc" ? (
+              <ArrowDownAZ className="h-3.5 w-3.5" />
+            ) : (
+              <ArrowUpAZ className="h-3.5 w-3.5" />
+            )}
+            {activeSortDirection === "desc" ? "降序" : "升序"}
+            </Button>
+          </div>
         </div>
       </div>
 
@@ -431,7 +496,7 @@ function compareScoreEntries(
       ? a.overallScore! - b.overallScore!
       : b.overallScore! - a.overallScore!;
   }
-  return b.createdAt.localeCompare(a.createdAt);
+  return b.lastVisitedAt.localeCompare(a.lastVisitedAt);
 }
 
 function FilteredEmptyState({ onClear }: { onClear: () => void }) {
@@ -494,11 +559,9 @@ function HistoryCard({
                 {" · "}
               </>
             ) : null}
-            <span className="font-mono">{shortId(entry.sessionId)}</span>
+            <SessionIdTooltip sessionId={entry.sessionId} />
             <span className="mx-1 text-muted-foreground/40">·</span>
-            <span aria-label={new Date(entry.createdAt).toLocaleString()}>
-              {formatRelative(entry.createdAt)}
-            </span>
+            <HistoryTimeMeta entry={entry} />
           </p>
         </div>
 
@@ -590,6 +653,61 @@ function HistoryCard({
   );
 }
 
+function HistoryTimeMeta({ entry }: { entry: InterviewHistoryEntry }) {
+  const accessLabel = entry.status === "running" ? "最近继续" : "最近访问";
+  const createdLabel = entry.updatedAt ? "创建于" : "加入列表";
+  const createdText = entry.updatedAt
+    ? formatDateTimeShort(entry.createdAt)
+    : formatRelative(entry.createdAt);
+
+  return (
+    <>
+      <span aria-label={`${accessLabel} ${formatDateTimeFull(entry.lastVisitedAt)}`}>
+        {accessLabel} {formatRelative(entry.lastVisitedAt)}
+      </span>
+      <span className="mx-1 text-muted-foreground/40">·</span>
+      <span aria-label={`${createdLabel} ${formatDateTimeFull(entry.createdAt)}`}>
+        {createdLabel} {createdText}
+      </span>
+    </>
+  );
+}
+
+function historyTimeSummary(entry: InterviewHistoryEntry): string {
+  const accessLabel = entry.status === "running" ? "最近继续" : "最近访问";
+  const createdLabel = entry.updatedAt ? "创建于" : "加入列表";
+  const createdText = entry.updatedAt
+    ? formatDateTimeShort(entry.createdAt)
+    : formatRelative(entry.createdAt);
+  return `${accessLabel} ${formatRelative(entry.lastVisitedAt)} · ${createdLabel} ${createdText}`;
+}
+
+function SessionIdTooltip({ sessionId }: { sessionId: string }) {
+  return (
+    <TooltipProvider delayDuration={150}>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <span
+            tabIndex={0}
+            aria-label={`完整 Session ID：${sessionId}`}
+            className="inline-flex max-w-full cursor-default rounded-sm font-mono outline-none ring-emerald-400/40 transition-colors hover:text-foreground focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+          >
+            {shortId(sessionId)}
+          </span>
+        </TooltipTrigger>
+        <TooltipContent
+          side="bottom"
+          align="start"
+          sideOffset={6}
+          className="max-w-[28rem] border-border/80 bg-popover px-2.5 py-1.5 font-mono text-xs text-emerald-300 shadow-lg"
+        >
+          <span className="break-all">{sessionId}</span>
+        </TooltipContent>
+      </Tooltip>
+    </TooltipProvider>
+  );
+}
+
 function DeleteSessionDialog({
   entry,
   deleting,
@@ -623,9 +741,9 @@ function DeleteSessionDialog({
               <p className="mt-1 text-xs text-muted-foreground">
                 {entry.candidateName ? `${entry.candidateName} · ` : ""}
                 {entry.jobLevel ? `${jobLevelLabel(entry.jobLevel)} · ` : ""}
-                <span className="font-mono">{shortId(entry.sessionId)}</span>
+                <SessionIdTooltip sessionId={entry.sessionId} />
                 <span className="mx-1 text-muted-foreground/40">·</span>
-                {formatRelative(entry.createdAt)}
+                {historyTimeSummary(entry)}
               </p>
             </div>
 
@@ -782,6 +900,27 @@ function formatRelative(iso: string): string {
   const day = Math.round(hr / 24);
   if (day < 30) return `${day} 天前`;
   return d.toLocaleDateString();
+}
+
+function formatDateTimeShort(iso: string): string {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "未知时间";
+  const now = new Date();
+  return d.toLocaleString(undefined, {
+    ...(d.getFullYear() !== now.getFullYear()
+      ? { year: "numeric" as const }
+      : {}),
+    month: "numeric",
+    day: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+
+function formatDateTimeFull(iso: string): string {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "未知时间";
+  return d.toLocaleString();
 }
 
 const formatVerdictShort = verdictShortLabel;

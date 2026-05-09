@@ -59,3 +59,11 @@ test("InterviewRoom delegates loading state to NextQuestionLoader with etaMs", (
   );
   assert.match(source, /<NextQuestionLoader\s+etaMs=\{state\.lastServerLatencyMs\}/);
 });
+
+test("NextQuestionLoader has final-turn copy that does not promise another question", () => {
+  const source = read("src/components/interview/NextQuestionLoader.tsx");
+
+  assert.match(source, /isFinalTurn/);
+  assert.match(source, /正在整理本场面试总结/);
+  assert.match(source, /最后一题已提交/);
+});

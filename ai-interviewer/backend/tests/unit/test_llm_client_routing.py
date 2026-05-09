@@ -749,6 +749,42 @@ def test_invoke_provider_uses_custom_openai_compatible_base_url(
     assert captured["override"]["api_key"] == "secret"
 
 
+@pytest.mark.parametrize(
+    "base_url",
+    [
+        "https://api.deepseek.com/v1",
+        "https://api.moonshot.cn/v1",
+        "https://dashscope.aliyuncs.com/compatible-mode/v1",
+        "https://open.bigmodel.cn/api/paas/v4/",
+        "https://api.mistral.ai/v1",
+    ],
+)
+def test_validate_llm_base_url_allows_known_provider_fake_ip_dns(
+    monkeypatch: pytest.MonkeyPatch,
+    base_url: str,
+) -> None:
+    monkeypatch.setattr(
+        llm_client.socket,
+        "getaddrinfo",
+        lambda *args, **kwargs: [(None, None, None, None, ("198.18.0.147", 443))],
+    )
+
+    llm_client.validate_llm_base_url(base_url)
+
+
+def test_validate_llm_base_url_rejects_unknown_host_fake_ip_dns(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        llm_client.socket,
+        "getaddrinfo",
+        lambda *args, **kwargs: [(None, None, None, None, ("198.18.0.147", 443))],
+    )
+
+    with pytest.raises(llm_client.LLMFatal, match="disallowed address"):
+        llm_client.validate_llm_base_url("https://example.com/v1")
+
+
 def test_invoke_provider_rejects_custom_openai_compatible_without_base_url() -> None:
     with pytest.raises(LLMFatal, match="requires a base_url"):
         llm_client._invoke_provider(

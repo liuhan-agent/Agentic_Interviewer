@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import threading
+from datetime import UTC, datetime
 from typing import Any
 
 from fastapi import FastAPI
@@ -9,6 +10,10 @@ from fastapi.testclient import TestClient
 from app.api.v1 import interview as interview_api
 from app.core.idempotency import reset_idempotency_store
 from app.core.session_auth import hash_session_token
+
+
+LIVE_CREATED_AT = datetime(2026, 5, 1, 9, 0, tzinfo=UTC)
+LIVE_UPDATED_AT = datetime(2026, 5, 1, 9, 15, tzinfo=UTC)
 
 
 class _RuntimeHandle:
@@ -26,6 +31,8 @@ class _RuntimeHandle:
     final_state: dict[str, Any] | None = None
     last_turn_evaluation: dict[str, Any] | None = None
     last_segment_latency_ms: int | None = None
+    created_at = LIVE_CREATED_AT
+    last_activity_at = LIVE_UPDATED_AT
 
     def __init__(self) -> None:
         self.done_event = threading.Event()
@@ -112,7 +119,12 @@ class _RuntimeManager:
             "source": "contract",
         }
 
-    def retry_failed_question(self, session_id: str) -> _RuntimeHandle | None:
+    def retry_failed_question(
+        self,
+        session_id: str,
+        *,
+        llm_config: dict[str, Any] | None = None,
+    ) -> _RuntimeHandle | None:
         self.retry_calls.append(session_id)
         return self.handle
 
@@ -327,12 +339,16 @@ def test_report_resume_and_replay_status_contracts(monkeypatch) -> None:
     assert resume.json() == {
         "session_id": "sess-contract",
         "status": "waiting_for_answer",
+        "created_at": LIVE_CREATED_AT.isoformat(),
+        "updated_at": LIVE_UPDATED_AT.isoformat(),
         "turn_idx": 3,
         "question": {
             "question": "请介绍一个你主导的系统设计。",
             "dimension": "system_design",
         },
         "max_turns": 8,
+        "previous_turn_evaluation": None,
+        "history": [],
     }
 
     manager.handle.done_event.set()
@@ -348,6 +364,8 @@ def test_report_resume_and_replay_status_contracts(monkeypatch) -> None:
     assert report.status_code == 200
     assert report.json() == {
         "session_id": "sess-contract",
+        "created_at": LIVE_CREATED_AT.isoformat(),
+        "updated_at": LIVE_UPDATED_AT.isoformat(),
         "final_report": {"overall_score": 8.2},
         "error": None,
         "trace_health": "ok",

@@ -34,3 +34,19 @@ def test_generator_stub_uses_prompt_dimension_anchor_and_target_skills() -> None
     assert "walk me through" not in data["question"].lower()
     assert "what did you" not in data["question"].lower()
     assert data["difficulty"] == "hard"
+
+
+def test_evaluator_stub_uses_chinese_candidate_feedback() -> None:
+    raw = _stub_response(
+        [ChatMessage("user", "CANDIDATE_ANSWER = 我用 Redis 和 Lua 保证扣减原子性。")],
+        json_mode=True,
+        agent_role="evaluator",
+    )
+
+    data = json.loads(raw)
+
+    assert data["strengths"]
+    assert data["weaknesses"]
+    assert all("stub" not in item.lower() for item in data["strengths"])
+    assert any("\u4e00" <= char <= "\u9fff" for item in data["strengths"] for char in item)
+    assert any("\u4e00" <= char <= "\u9fff" for item in data["weaknesses"] for char in item)
