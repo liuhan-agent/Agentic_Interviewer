@@ -799,6 +799,13 @@ _SESSION_ROUTE_AUTH_CASES: list[dict[str, Any]] = [
         "json": None,
         "params": None,
     },
+    {
+        "id": "GET /metadata",
+        "method": "get",
+        "url": "/api/v1/interview/sessions/sess-auth/metadata",
+        "json": None,
+        "params": None,
+    },
 ]
 
 

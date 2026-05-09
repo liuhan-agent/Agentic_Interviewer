@@ -367,8 +367,11 @@ class Settings(BaseSettings):
     jd_parse_rate_limit_per_minute: int = 30
     llm_test_rate_limit_per_minute: int = 120
 
-    # Privacy lifecycle defaults. Cleanup is manual/script-driven unless
-    # operators wire it into their scheduler.
+    # Privacy lifecycle defaults. When ``enable_privacy_cleanup`` is True
+    # an in-process APScheduler job runs ``cleanup_expired_data`` every
+    # ``privacy_cleanup_interval_hours`` hours on startup.
+    enable_privacy_cleanup: bool = False
+    privacy_cleanup_interval_hours: int = 24
     session_retention_days: int = 30
     trace_retention_days: int = 30
     outcome_retention_days: int = 180

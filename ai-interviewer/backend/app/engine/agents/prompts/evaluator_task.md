@@ -76,6 +76,13 @@ Rules:
   we keep those for backwards compatibility.
 - ``passed`` is true IFF score >= QUALITY_THRESHOLD AND every
   item in CONTRACT.must_cover has at least "partial" coverage.
+- Candidate-visible feedback fields MUST be written in 简体中文:
+  ``strengths``, ``weaknesses``, ``failure_reason`` and ``rationale``.
+  Do not write English feedback unless you are quoting a technology
+  name, product name, code identifier, API name, or an exact candidate
+  phrase.
+- Keep ``acceptance_check_results.evidence`` verbatim and unchanged:
+  evidence quotes MUST stay in the candidate's original language.
 
 DIMENSION         = {dimension}
 QUESTION          = {question}

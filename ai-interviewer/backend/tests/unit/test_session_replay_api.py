@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import threading
 from contextlib import contextmanager
 from datetime import UTC, datetime
 
@@ -17,9 +18,60 @@ from app.models.generation_trace import GenerationTrace
 from app.models.interview_session import InterviewSession
 
 
+SESSION_CREATED_AT = datetime(2026, 5, 1, 10, 0, tzinfo=UTC)
+SESSION_UPDATED_AT = datetime(2026, 5, 1, 10, 30, tzinfo=UTC)
+
+
 class _Manager:
     def get(self, session_id: str) -> None:
         return None
+
+
+class _ResumeHandle:
+    trace_id = "trace-replay"
+    cancelled = False
+    error = None
+    error_kind = None
+    current_question = {
+        "question": "Follow-up: explain one performance optimization.",
+        "dimension": "technical_depth",
+        "formal_turn_idx": 1,
+    }
+    turn_idx = 1
+    max_turns = 3
+    final_state: dict | None = None
+    session_token_hash = None
+    session_token_expires_at = None
+    last_turn_evaluation = {
+        "turn_idx": 0,
+        "dimension": "technical_depth",
+        "score": 7.5,
+        "passed": True,
+        "strengths": ["Explains cache eviction"],
+        "weaknesses": ["Capacity estimate is thin"],
+    }
+
+    def __init__(self) -> None:
+        self.done_event = threading.Event()
+
+
+class _ResumeManager:
+    def __init__(self) -> None:
+        self.handle = _ResumeHandle()
+
+    def get(self, session_id: str) -> _ResumeHandle | None:
+        return self.handle if session_id == "sess-replay" else None
+
+
+class _ResumeManagerWithCheckpointIntro(_ResumeManager):
+    def _checkpoint_waiting_question(self, session_id: str) -> dict | None:
+        if session_id != "sess-replay":
+            return None
+        return {
+            "current_question": self.handle.current_question,
+            "turn_idx": self.handle.turn_idx,
+            "self_intro_answer": "I am a backend engineer focused on Redis and workflow systems.",
+        }
 
 
 @contextmanager
@@ -60,13 +112,20 @@ def _client(monkeypatch: pytest.MonkeyPatch) -> TestClient:
     return TestClient(app)
 
 
+def _client_with_manager(monkeypatch: pytest.MonkeyPatch, manager) -> TestClient:
+    monkeypatch.setattr(interview_api, "get_session_manager", lambda: manager)
+    app = FastAPI()
+    app.include_router(interview_api.router)
+    return TestClient(app)
+
+
 def _seed_session(
     testing_session_local,
     *,
     status: str = "completed",
     token_hash: str | None = None,
 ) -> None:
-    now = datetime.now(UTC)
+    now = SESSION_CREATED_AT
     with testing_session_local() as sess:
         sess.add(
             InterviewSession(
@@ -80,7 +139,14 @@ def _seed_session(
                 status=status,
                 final_report={
                     "overall_score": 8.1,
+                    "growth_signal": "near_target",
                     "overall_verdict": "hire",
+                    "dimension_scores": {
+                        "technical_depth": {
+                            "score": 7.5,
+                            "passed": True,
+                        }
+                    },
                     "total_turns": 1,
                     "training_plan": {
                         "priority_weaknesses": [
@@ -95,7 +161,7 @@ def _seed_session(
                     },
                 },
                 created_at=now,
-                updated_at=now,
+                updated_at=SESSION_UPDATED_AT,
             )
         )
         sess.add(
@@ -172,10 +238,13 @@ def test_replay_returns_user_facing_timeline(
 
     assert resp.status_code == 200
     payload = resp.json()
+    assert payload["created_at"] == SESSION_CREATED_AT.isoformat()
+    assert payload["updated_at"] == SESSION_UPDATED_AT.isoformat()
     assert payload["summary"] == {
         "job_title": "Java 后端",
         "job_level": "junior",
         "overall_score": 8.1,
+        "growth_signal": "near_target",
         "overall_verdict": "hire",
         "total_turns": 1,
         "priority_weaknesses": ["容量估算"],
@@ -201,6 +270,179 @@ def test_replay_returns_user_facing_timeline(
     assert "state_snapshot" not in str(payload)
     assert "langsmith_run_id" not in str(payload)
     assert "policy_context_keys" not in str(payload)
+
+
+def test_metadata_returns_persisted_session_times_and_summary(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    with _isolated_db(monkeypatch) as testing_session_local:
+        _seed_session(
+            testing_session_local,
+            token_hash=hash_session_token("session-secret"),
+        )
+        client = _client(monkeypatch)
+
+        missing = client.get("/api/v1/interview/sessions/sess-replay/metadata")
+        wrong = client.get(
+            "/api/v1/interview/sessions/sess-replay/metadata",
+            headers={"X-Session-Token": "wrong"},
+        )
+        ok = client.get(
+            "/api/v1/interview/sessions/sess-replay/metadata",
+            headers={"X-Session-Token": "session-secret"},
+        )
+
+    assert missing.status_code == 401
+    assert wrong.status_code == 403
+    assert ok.status_code == 200
+    assert ok.json() == {
+        "session_id": "sess-replay",
+        "status": "completed",
+        "created_at": SESSION_CREATED_AT.isoformat(),
+        "updated_at": SESSION_UPDATED_AT.isoformat(),
+        "job_title": "Java 后端",
+        "candidate_name": "刘韩",
+        "job_level": "junior",
+        "overall_score": 8.1,
+        "growth_signal": "near_target",
+        "overall_verdict": "hire",
+        "dimension_scores": {"technical_depth": 7.5},
+    }
+
+
+def test_resume_returns_prior_turn_history_for_running_session(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    with _isolated_db(monkeypatch) as testing_session_local:
+        _seed_session(testing_session_local, status="interrupted")
+        client = _client_with_manager(monkeypatch, _ResumeManager())
+
+        resp = client.get("/api/v1/interview/sessions/sess-replay/resume")
+
+    assert resp.status_code == 200
+    payload = resp.json()
+    assert payload["status"] == "waiting_for_answer"
+    assert payload["created_at"] == SESSION_CREATED_AT.isoformat()
+    assert payload["updated_at"] == SESSION_UPDATED_AT.isoformat()
+    assert payload["question"]["question"].startswith("Follow-up")
+    assert payload["previous_turn_evaluation"] == _ResumeHandle.last_turn_evaluation
+    assert len(payload["history"]) == 1
+    turn = payload["history"][0]
+    assert turn["turn_idx"] == 0
+    assert turn["dimension"] == "technical_depth"
+    assert "Redis" in turn["answer"]
+    assert turn["score"] == 7.5
+    assert turn["passed"] is True
+    assert turn["strengths"]
+    assert turn["weaknesses"]
+    assert turn["next_step"]
+
+
+def test_resume_history_includes_self_intro_without_counting_it_as_a_question(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    with _isolated_db(monkeypatch) as testing_session_local:
+        _seed_session(testing_session_local, status="interrupted")
+        client = _client_with_manager(
+            monkeypatch,
+            _ResumeManagerWithCheckpointIntro(),
+        )
+
+        resp = client.get("/api/v1/interview/sessions/sess-replay/resume")
+
+    assert resp.status_code == 200
+    history = resp.json()["history"]
+    assert history[0]["question_type"] == "self_intro"
+    assert history[0]["turn_idx"] is None
+    assert history[0]["answer"].startswith("I am a backend engineer")
+    assert history[1]["turn_idx"] == 0
+
+
+def test_resume_history_uses_formal_turn_indexes_and_skips_current_question(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    with _isolated_db(monkeypatch) as testing_session_local:
+        _seed_session(testing_session_local, status="interrupted")
+        now = datetime.now(UTC)
+        with testing_session_local() as sess:
+            first_trace = (
+                sess.query(GenerationTrace)
+                .filter(GenerationTrace.session_id == "sess-replay")
+                .filter(GenerationTrace.node == "evaluator")
+                .one()
+            )
+            first_trace.turn_idx = 1
+            first_trace.dimension = "communication"
+            first_trace.question = "Introduce a project you owned."
+            first_trace.answer = "I described the goal, tradeoffs, and outcome."
+            first_trace.state_snapshot = {
+                "qa_history": [
+                    {
+                        "turn_idx": 0,
+                        "dimension": "communication",
+                        "question": first_trace.question,
+                        "answer": first_trace.answer,
+                    }
+                ]
+            }
+            sess.add(
+                GenerationTrace(
+                    trace_id="trace-replay",
+                    session_id="sess-replay",
+                    turn_idx=8,
+                    node="evaluator",
+                    dimension="problem_solving",
+                    action_id="internal-action",
+                    policy_id="policy",
+                    context_key="junior:problem_solving",
+                    policy_context_keys=["junior:problem_solving"],
+                    score=7.0,
+                    passed=True,
+                    immediate_reward=0.3,
+                    delayed_reward=None,
+                    applied_to_bandit=False,
+                    immediate_reward_applied=True,
+                    state_snapshot={
+                        "qa_history": [
+                            {
+                                "turn_idx": 7,
+                                "dimension": "problem_solving",
+                                "question": "This stale answered turn matches the pending question.",
+                                "answer": "Already answered.",
+                            }
+                        ]
+                    },
+                    question="This stale answered turn matches the pending question.",
+                    answer="Already answered.",
+                    evaluation={
+                        "score": 7.0,
+                        "passed": True,
+                        "strengths": ["Clear"],
+                        "weaknesses": [],
+                    },
+                    langsmith_run_id="run-stale-current",
+                    created_at=now,
+                )
+            )
+            sess.commit()
+
+        manager = _ResumeManager()
+        manager.handle.current_question = {
+            "question": "Pending eighth formal question.",
+            "dimension": "problem_solving",
+            "formal_turn_idx": 7,
+        }
+        manager.handle.turn_idx = 8
+        manager.handle.max_turns = 8
+        client = _client_with_manager(monkeypatch, manager)
+
+        resp = client.get("/api/v1/interview/sessions/sess-replay/resume")
+
+    assert resp.status_code == 200
+    payload = resp.json()
+    assert payload["question"]["formal_turn_idx"] == 7
+    assert [turn["turn_idx"] for turn in payload["history"]] == [0]
+    assert payload["history"][0]["dimension"] == "communication"
 
 
 def test_replay_falls_back_to_final_report_evidence_when_traces_missing(

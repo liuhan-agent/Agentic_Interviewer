@@ -15,6 +15,7 @@ import type {
   RecoverSessionResponse,
   ReplayResponse,
   RetryQuestionResponse,
+  SessionMetadataResponse,
   ResumeResponse,
   SkipQuestionRequest,
   SkipQuestionResponse,
@@ -39,6 +40,21 @@ function sessionHeaders(sessionId: string): HeadersInit | undefined {
   return token ? { "X-Session-Token": token } : undefined;
 }
 
+function isRecoverableSessionAuthError(err: unknown): boolean {
+  if (!(err instanceof ApiError)) return false;
+  if (err.status === 401) return true;
+  if (err.status !== 403) return false;
+
+  const body = err.body;
+  if (body && typeof body === "object" && "detail" in body) {
+    const detail = (body as { detail?: unknown }).detail;
+    if (typeof detail === "string") {
+      return detail.includes("invalid session token");
+    }
+  }
+  return err.message.includes("invalid session token");
+}
+
 async function withSessionRecovery<T>(
   sessionId: string,
   requestFactory: () => Promise<T>,
@@ -46,7 +62,7 @@ async function withSessionRecovery<T>(
   try {
     return await requestFactory();
   } catch (err) {
-    if (!(err instanceof ApiError && err.status === 401)) {
+    if (!isRecoverableSessionAuthError(err)) {
       throw err;
     }
     const recoveryToken = getRecoveryToken(sessionId);
@@ -229,17 +245,24 @@ export function createVoiceTicket(sessionId: string): Promise<VoiceTicketRespons
 export function retryFailedQuestion(
   sessionId: string,
 ): Promise<RetryQuestionResponse> {
+  const llmConfig = buildLLMPayload();
   return request(
     `${BASE}/sessions/${encodeURIComponent(sessionId)}/retry-question`,
-    { method: "POST", headers: sessionHeaders(sessionId) },
+    {
+      method: "POST",
+      headers: sessionHeaders(sessionId),
+      body: llmConfig ? { llm_config: llmConfig } : undefined,
+    },
   );
 }
 
 export function deleteSession(sessionId: string): Promise<DeleteSessionResponse> {
   const encoded = encodeURIComponent(sessionId);
-  return request(
-    `${BASE}/sessions/${encoded}?confirm_session_id=${encodeURIComponent(sessionId)}`,
-    { method: "DELETE", headers: sessionHeaders(sessionId) },
+  return withSessionRecovery(sessionId, () =>
+    request(
+      `${BASE}/sessions/${encoded}?confirm_session_id=${encodeURIComponent(sessionId)}`,
+      { method: "DELETE", headers: sessionHeaders(sessionId) },
+    ),
   );
 }
 
@@ -255,6 +278,16 @@ export function getReplay(sessionId: string): Promise<ReplayResponse> {
   return request(`${BASE}/sessions/${encodeURIComponent(sessionId)}/replay`, {
     headers: sessionHeaders(sessionId),
   });
+}
+
+export function getSessionMetadata(
+  sessionId: string,
+): Promise<SessionMetadataResponse> {
+  return withSessionRecovery(sessionId, () =>
+    request(`${BASE}/sessions/${encodeURIComponent(sessionId)}/metadata`, {
+      headers: sessionHeaders(sessionId),
+    }),
+  );
 }
 
 export function resumeSession(sessionId: string): Promise<ResumeResponse> {

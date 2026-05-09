@@ -10,6 +10,7 @@ import type {
   PollQuestionResponse,
   PreviousTurnEvaluation,
   LLMErrorKind,
+  ResumeHistoryTurn,
 } from "@/lib/api/types";
 import { inferLLMErrorKind } from "@/lib/llm-config";
 
@@ -39,6 +40,7 @@ export interface PollerState {
    * the ``SUBMITTING`` transition does not flicker the panel away.
    */
   previousEvaluation: PreviousTurnEvaluation | null;
+  restoredHistory: ResumeHistoryTurn[];
   /**
    * Wall-clock duration of the most recent server-side segment in
    * milliseconds (#11). The InterviewRoom can use it to render an ETA
@@ -55,6 +57,8 @@ type Action =
       question: PollQuestion | null;
       turnIdx: number | null;
       maxTurns: number | null;
+      previousEvaluation: PreviousTurnEvaluation | null;
+      history: ResumeHistoryTurn[];
     }
   | {
       type: "QUESTION";
@@ -84,6 +88,7 @@ const initial: PollerState = {
   errorKind: null,
   retryable: false,
   previousEvaluation: null,
+  restoredHistory: [],
   lastServerLatencyMs: null,
 };
 
@@ -107,6 +112,8 @@ function reducer(state: PollerState, a: Action): PollerState {
         question: a.question,
         turnIdx: a.turnIdx,
         maxTurns: a.maxTurns,
+        previousEvaluation: a.previousEvaluation,
+        restoredHistory: a.history,
         error: null,
         errorKind: null,
         retryable: false,
@@ -284,6 +291,8 @@ export function useQuestionPoller(sessionId: string) {
             question: r.question,
             turnIdx: r.turn_idx ?? null,
             maxTurns: r.max_turns ?? null,
+            previousEvaluation: r.previous_turn_evaluation ?? null,
+            history: r.history ?? [],
           });
           return;
         }

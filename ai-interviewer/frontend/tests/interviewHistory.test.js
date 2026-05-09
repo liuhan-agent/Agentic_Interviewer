@@ -8,6 +8,7 @@ const {
   getHistory,
   getRecoveryToken,
   getSessionToken,
+  mergeServerEntryMetadata,
   SESSION_TOKEN_TTL_DAYS,
   upsertEntry,
 } = require("../src/lib/storage/interviewHistory.ts");
@@ -257,6 +258,45 @@ test("upsertEntry persists progress chart fields", () => {
     system_design: 6.8,
     coding_quality: 8.1,
   });
+});
+
+test("mergeServerEntryMetadata updates server fields without touching visit time", () => {
+  installLocalStorage();
+
+  upsertEntry({
+    sessionId: "session-server-meta",
+    jdTitle: "Local title",
+    status: "running",
+  });
+
+  const raw = JSON.parse(window.localStorage.getItem("interviewHistory"));
+  const stored = raw.entries.find((e) => e.sessionId === "session-server-meta");
+  stored.createdAt = "2026-05-09T12:00:00.000Z";
+  stored.lastVisitedAt = "2026-05-09T12:30:00.000Z";
+  window.localStorage.setItem("interviewHistory", JSON.stringify(raw));
+
+  const merged = mergeServerEntryMetadata({
+    sessionId: "session-server-meta",
+    createdAt: "2026-05-01T10:00:00.000Z",
+    updatedAt: "2026-05-02T11:00:00.000Z",
+    status: "done",
+    jdTitle: "Server title",
+    candidateName: "Alex",
+    jobLevel: "senior",
+    overallScore: 8.2,
+    growthSignal: "near_target",
+    overallVerdict: "hire",
+    dimensionScores: { technical_depth: 7.5 },
+  });
+
+  assert.equal(merged.createdAt, "2026-05-01T10:00:00.000Z");
+  assert.equal(merged.updatedAt, "2026-05-02T11:00:00.000Z");
+  assert.equal(merged.lastVisitedAt, "2026-05-09T12:30:00.000Z");
+  assert.equal(merged.jdTitle, "Server title");
+  assert.equal(merged.status, "done");
+  assert.equal(merged.overallScore, 8.2);
+  assert.deepEqual(merged.dimensionScores, { technical_depth: 7.5 });
+  assert.deepEqual(getEntry("session-server-meta"), merged);
 });
 
 test("getCompletedBefore returns null when there is no other completed session", () => {

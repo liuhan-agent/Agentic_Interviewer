@@ -87,8 +87,45 @@ test("interview API exposes browser recovery flow", () => {
   assert.match(source, /export function recoverSession/);
   assert.match(source, /\/recover/);
   assert.match(source, /getRecoveryToken\(sessionId\)/);
-  assert.match(source, /err instanceof ApiError && err\.status === 401/);
+  assert.match(source, /isRecoverableSessionAuthError\(err\)/);
   assert.match(source, /writeSessionToken\(sessionId/);
+});
+
+test("delete session uses browser recovery before giving up", () => {
+  const source = fs.readFileSync(
+    path.join(__dirname, "..", "src", "lib", "api", "interview.ts"),
+    "utf8",
+  );
+
+  assert.match(source, /function isRecoverableSessionAuthError/);
+  assert.match(source, /err\.status === 401/);
+  assert.match(source, /err\.status !== 403/);
+  assert.match(source, /invalid session token/);
+  assert.match(
+    source,
+    /export function deleteSession[\s\S]*return withSessionRecovery\(sessionId/,
+  );
+});
+
+test("interview API exposes session metadata for history backfill", () => {
+  const source = fs.readFileSync(
+    path.join(__dirname, "..", "src", "lib", "api", "interview.ts"),
+    "utf8",
+  );
+  const types = fs.readFileSync(
+    path.join(__dirname, "..", "src", "lib", "api", "types.ts"),
+    "utf8",
+  );
+
+  assert.match(types, /export interface SessionMetadataResponse/);
+  assert.match(types, /created_at: string/);
+  assert.match(types, /updated_at: string/);
+  assert.match(source, /export function getSessionMetadata/);
+  assert.match(source, /\/metadata/);
+  assert.match(
+    source,
+    /export function getSessionMetadata[\s\S]*withSessionRecovery\(sessionId/,
+  );
 });
 
 test("api client preserves structured error code and action", () => {

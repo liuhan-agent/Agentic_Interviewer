@@ -26,6 +26,9 @@ class _FakeManager:
         *,
         llm_config: dict[str, Any] | None = None,
         session_token_hash: str | None = None,
+        session_token_expires_at: Any = None,
+        recovery_token_hash: str | None = None,
+        recovery_token_expires_at: Any = None,
     ) -> None:
         self.started.append((session_id, trace_id, initial))
         self.llm_configs.append(llm_config)

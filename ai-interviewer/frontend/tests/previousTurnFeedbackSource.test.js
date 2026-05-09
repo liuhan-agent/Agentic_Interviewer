@@ -55,7 +55,18 @@ test("PollQuestionResponse types expose PreviousTurnEvaluation contract", () => 
   // (``string[]``) so future changes to the cap don't ripple into the type.
   assert.match(types, /strengths:\s*string\[\]/);
   assert.match(types, /weaknesses:\s*string\[\]/);
-  assert.match(types, /rubric_coverage:\s*Record<string,\s*string>/);
+  assert.match(types, /rubric_coverage\?:\s*Record<string,\s*unknown>/);
+  assert.match(
+    types,
+    /previous_turn_evaluation\?:\s*PreviousTurnEvaluation\s*\|\s*null/,
+  );
+});
+
+test("ResumeResponse exposes prior turns so continue interview can restore context", () => {
+  const types = read("src/lib/api/types.ts");
+
+  assert.match(types, /export interface ResumeHistoryTurn/);
+  assert.match(types, /history\?:\s*ResumeHistoryTurn\[\]/);
   assert.match(
     types,
     /previous_turn_evaluation\?:\s*PreviousTurnEvaluation\s*\|\s*null/,
@@ -74,19 +85,54 @@ test("useQuestionPoller pipes previousEvaluation through QUESTION action only", 
   assert.match(source, /res\.previous_turn_evaluation\s*\?\?\s*null/);
 });
 
-test("InterviewRoom mounts PreviousTurnFeedback only while waiting for an answer", () => {
+test("useQuestionPoller restores prior turns from resume response", () => {
+  const source = read("src/lib/hooks/useQuestionPoller.ts");
+
+  assert.match(source, /restoredHistory:\s*ResumeHistoryTurn\[\]/);
+  assert.match(source, /history:\s*r\.history\s*\?\?\s*\[\]/);
+});
+
+test("InterviewRoom attaches previous turn feedback to the matching answered bubble only", () => {
   const source = read("src/components/interview/InterviewRoom.tsx");
 
-  assert.match(
-    source,
-    /import \{ PreviousTurnFeedback \} from "@\/components\/interview\/PreviousTurnFeedback"/,
-  );
+  assert.doesNotMatch(source, /<PreviousTurnFeedback/);
   // The card is gated on both the waiting phase and a non-null evaluation —
   // showing it on terminal phases (completed / cancelled / error) would
   // confuse candidates because the loop is over.
+  assert.match(source, /qaEntryMatchesEvaluation\(entry, evaluation\)/);
+  assert.match(source, /<TurnFeedbackSummary evaluation=\{entry\.evaluation\}/);
+});
+
+test("InterviewRoom renders restored QA history with per-turn feedback", () => {
+  const source = read("src/components/interview/InterviewRoom.tsx");
+
+  assert.match(source, /state\.restoredHistory/);
+  assert.match(source, /restoredTurnToQaEntry/);
+  assert.match(source, /entry\.evaluation/);
+  assert.match(source, /function TurnFeedbackSummary/);
+});
+
+test("InterviewRoom treats resumed current-question numbering as canonical", () => {
+  const source = read("src/components/interview/InterviewRoom.tsx");
+
+  assert.match(source, /displayTurnIdx\?:\s*number\s*\|\s*null/);
   assert.match(
     source,
-    /state\.phase === "waiting_for_answer" && state\.previousEvaluation/,
+    /filterRestoredHistoryForCurrentQuestion\(\s*restored,\s*currentTurnIdxForDisplay,\s*\)/,
   );
-  assert.match(source, /<PreviousTurnFeedback/);
+  assert.match(source, /entryTurnIdx\s*<\s*currentTurnIdxForDisplay/);
+  assert.match(source, /displayTurnIdx:\s*currentTurnIdxForDisplay/);
+  assert.doesNotMatch(source, /resolveCurrentDisplayTurnIdx/);
+  assert.doesNotMatch(source, /Math\.min\(nextDisplayTurnIdx,\s*maxTurns - 1\)/);
+  assert.match(source, /entry\.displayTurnIdx/);
+});
+
+test("InterviewRoom shows prominent turn labels and user-facing dimension labels", () => {
+  const source = read("src/components/interview/InterviewRoom.tsx");
+
+  assert.match(source, /formatDimensionName\(entry\.dimension\)/);
+  assert.match(source, /DIMENSION_LABELS/);
+  assert.match(source, /第 \$\{turnLabel\} 题/);
+  assert.match(source, /min-w-\[4\.5rem\]/);
+  assert.match(source, /text-emerald-200/);
 });

@@ -30,11 +30,13 @@ export interface NextQuestionLoaderProps {
    *  by ``GET /question`` as ``server_latency_ms``. ``null`` on the very
    *  first turn (no prior segment to learn from). */
   etaMs: number | null;
+  isFinalTurn?: boolean;
   className?: string;
 }
 
 export function NextQuestionLoader({
   etaMs,
+  isFinalTurn = false,
   className,
 }: NextQuestionLoaderProps) {
   const effectiveEta = etaMs && etaMs > 0 ? etaMs : FALLBACK_ETA_MS;
@@ -55,14 +57,22 @@ export function NextQuestionLoader({
   const elapsedSeconds = Math.max(1, Math.round(elapsedMs / 1000));
   const etaSeconds = Math.max(1, Math.round(effectiveEta / 1000));
 
-  const headline = overrun
-    ? "AI 还在思考，这一题重点多"
-    : "AI 正在出下一题";
+  const headline = isFinalTurn
+    ? overrun
+      ? "正在整理本场面试总结，内容比单题更完整"
+      : "正在整理本场面试总结"
+    : overrun
+      ? "AI 还在思考，这一题重点多"
+      : "AI 正在出下一题";
   const subline =
     etaMs && etaMs > 0
-      ? overrun
-        ? `已用时 ${elapsedSeconds}s · 上一轮 ${etaSeconds}s`
-        : `预计 ≈ ${etaSeconds}s · 已用时 ${elapsedSeconds}s`
+      ? isFinalTurn
+        ? overrun
+          ? `最后一题已提交 · 已用时 ${elapsedSeconds}s`
+          : `最后一题已提交 · 预计 ≈ ${etaSeconds}s`
+        : overrun
+          ? `已用时 ${elapsedSeconds}s · 上一轮 ${etaSeconds}s`
+          : `预计 ≈ ${etaSeconds}s · 已用时 ${elapsedSeconds}s`
       : `已用时 ${elapsedSeconds}s`;
 
   return (
@@ -91,7 +101,7 @@ export function NextQuestionLoader({
         aria-valuemin={0}
         aria-valuemax={100}
         aria-valuenow={Math.round(progress * 100)}
-        aria-label="下一题准备进度"
+        aria-label={isFinalTurn ? "面试总结整理进度" : "下一题准备进度"}
       >
         <div
           className={cn(

@@ -61,6 +61,30 @@ test("LLM credentials default to session-only browser storage", () => {
   assert.doesNotMatch(dialogSource, /localStorage/);
 });
 
+test("LLM test failure copy points users to failed items", () => {
+  const dialogSource = fs.readFileSync(
+    path.join(__dirname, "..", "src", "components", "layout", "LLMSettingsDialog.tsx"),
+    "utf8",
+  );
+
+  assert.match(dialogSource, /部分配置测试未通过。请根据下方结果检查失败项的密钥、模型和 Base URL。/);
+  assert.doesNotMatch(dialogSource, /下面会标出具体是哪一项/);
+});
+
+test("LLM test result rows style passing targets separately from failed targets", () => {
+  const dialogSource = fs.readFileSync(
+    path.join(__dirname, "..", "src", "components", "layout", "LLMSettingsDialog.tsx"),
+    "utf8",
+  );
+
+  const rowsBlock = dialogSource.match(/results\.map\(\(result\) => \([\s\S]*?<\/div>\s*\)\)\}/);
+  assert.ok(rowsBlock, "connection result rows should be rendered from per-target results");
+  assert.match(rowsBlock[0], /className=\{cn\(/);
+  assert.match(rowsBlock[0], /result\.ok\s*\?/);
+  assert.match(rowsBlock[0], /border-emerald-400\/30 bg-emerald-400\/10 text-emerald-200/);
+  assert.match(rowsBlock[0], /border-destructive\/30 bg-destructive\/10 text-destructive/);
+});
+
 test("package exposes frontend source test script", () => {
   const pkg = JSON.parse(
     fs.readFileSync(path.join(__dirname, "..", "package.json"), "utf8"),

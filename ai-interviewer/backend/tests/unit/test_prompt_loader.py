@@ -239,6 +239,26 @@ def test_render_generator_task_end_to_end() -> None:
     assert "Do not output English" in out
 
 
+def test_evaluator_task_requires_candidate_visible_feedback_in_chinese() -> None:
+    out = prompt_loader.render_prompt(
+        "evaluator_task.md",
+        dimension="system_design",
+        question="Q",
+        contract="{}",
+        rubric_points="[]",
+        answer="A",
+        threshold=7.0,
+        user_material_boundary="USER_MATERIAL_BOUNDARY",
+        video_signals="",
+    )
+
+    assert "strengths" in out
+    assert "weaknesses" in out
+    assert "rationale" in out
+    assert "\u7b80\u4f53\u4e2d\u6587" in out
+    assert "Do not write English feedback" in out
+
+
 def test_generator_task_documents_quick_review_positioning() -> None:
     out = prompt_loader.render_prompt(
         "generator_task.md",

@@ -60,18 +60,18 @@ function HeroSection() {
   return (
     <section className="relative isolate overflow-hidden border-b border-border/40">
       <div className="landing-hero-image absolute inset-0 bg-cover bg-no-repeat opacity-[0.64] dark:opacity-[0.72] md:opacity-[0.78] md:dark:opacity-[0.82]" />
-      <div className="absolute inset-0 bg-gradient-to-r from-background via-background/88 to-background/55 dark:via-background/88 dark:to-background/45 md:via-background/72 md:to-background/10 md:dark:via-background/80 md:dark:to-background/20" />
+      <div className="absolute inset-0 bg-gradient-to-r from-background via-background/90 to-background/60 dark:via-background/90 dark:to-background/50 md:via-background/82 md:to-background/18 md:dark:via-background/86 md:dark:to-background/24" />
       <div className="absolute inset-x-0 bottom-0 h-40 bg-gradient-to-b from-transparent to-background" />
       <div className="bg-grid absolute inset-0 opacity-[0.08] mask-fade-bottom" />
       <div className="absolute -top-36 left-1/3 h-[420px] w-[620px] rounded-full bg-emerald-500/[0.035] blur-[120px]" />
 
       <motion.div
-        className="container relative grid gap-12 py-20 md:min-h-[600px] md:grid-cols-[minmax(0,0.92fr)_minmax(0,1.08fr)] md:items-center md:py-24 lg:py-28"
+        className="relative mx-auto grid w-full max-w-[1680px] gap-12 px-6 py-20 sm:px-8 md:min-h-[600px] md:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)] md:items-center md:px-14 md:py-24 lg:px-20 lg:py-28 xl:px-28 2xl:px-32"
         initial="hidden"
         animate="visible"
         variants={stagger}
       >
-        <div className="flex max-w-[34rem] flex-col items-start gap-5">
+        <div className="flex max-w-[35rem] flex-col items-start gap-5">
           <motion.div variants={fadeUp}>
             <Badge
               variant="outline"

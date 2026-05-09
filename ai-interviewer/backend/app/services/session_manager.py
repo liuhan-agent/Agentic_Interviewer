@@ -1250,7 +1250,12 @@ class SessionManager:
     def _mark_retry_running(self, session_id: str) -> None:
         self._session_persistence().mark_retry_running(session_id)
 
-    def retry_failed_question(self, session_id: str) -> SessionHandle | None:
+    def retry_failed_question(
+        self,
+        session_id: str,
+        *,
+        llm_config: dict[str, Any] | None = None,
+    ) -> SessionHandle | None:
         """Retry a failed graph segment from the latest checkpoint.
 
         The frontend uses this when the generator times out before a question
@@ -1296,11 +1301,16 @@ class SessionManager:
         previous_error = handle.error
         previous_error_kind = handle.error_kind
         previous_cancelled = handle.cancelled
+        previous_llm_config = handle.llm_config
+        previous_llm_config_meta = handle.llm_config_meta
         previous_current_question = handle.current_question
         previous_final_state = handle.final_state
         previous_question_event_set = handle.question_event.is_set()
         previous_done_event_set = handle.done_event.is_set()
         previous_cancel_event_set = handle._cancel_event.is_set()
+        if llm_config is not None:
+            handle.llm_config = llm_config
+            handle.llm_config_meta = _safe_llm_config_meta(llm_config)
         handle.touch()
         handle.error = None
         handle.error_kind = None
@@ -1314,6 +1324,8 @@ class SessionManager:
             handle.error = previous_error
             handle.error_kind = previous_error_kind
             handle.cancelled = previous_cancelled
+            handle.llm_config = previous_llm_config
+            handle.llm_config_meta = previous_llm_config_meta
             handle.current_question = previous_current_question
             handle.final_state = previous_final_state
             if previous_question_event_set:

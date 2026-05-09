@@ -74,6 +74,12 @@ def test_llm_test_endpoint_returns_latency_on_success(
         (LLMRateLimit("429 too many requests"), "rate_limit"),
         (LLMTransient("request timeout"), "timeout"),
         (LLMTransient("connection reset by peer"), "network"),
+        (
+            ImportError(
+                "Using SOCKS proxy, but the 'socksio' package is not installed."
+            ),
+            "network",
+        ),
         (LLMFatal("unsupported provider: nope"), "misconfig"),
     ],
 )

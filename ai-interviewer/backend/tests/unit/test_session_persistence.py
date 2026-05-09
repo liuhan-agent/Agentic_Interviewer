@@ -112,6 +112,7 @@ def test_load_session_for_retry_returns_minimal_metadata() -> None:
         "job_level": "senior",
         "mode": "mixed",
         "session_token_hash": "token-hash",
+        "session_token_expires_at": None,
         "llm_config_meta": {"provider": "stub"},
         "turn_idx": 3,
         "asked_turn": 2,

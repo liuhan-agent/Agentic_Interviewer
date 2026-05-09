@@ -141,6 +141,8 @@ export interface StartSessionResponse {
   recovery_token_expires_at: string;
   trace_id: string;
   status: string;
+  created_at: string;
+  updated_at: string;
   max_turns?: number | null;
 }
 
@@ -307,9 +309,16 @@ export interface ReplayTurn {
   next_step?: string;
 }
 
+export interface ResumeHistoryTurn extends Omit<ReplayTurn, "turn_idx"> {
+  turn_idx?: number | null;
+  question_type?: "self_intro" | "technical" | string;
+}
+
 export interface ReplayResponse {
   session_id: string;
   status: PollStatus | "completed" | string;
+  created_at?: string | null;
+  updated_at?: string | null;
   summary: ReplaySummary;
   timeline: ReplayTurn[];
   training_plan?: TrainingPlan;
@@ -383,18 +392,38 @@ export type TraceHealth = "missing" | "partial" | "complete";
 
 export interface GetReportResponse {
   session_id: string;
+  created_at?: string | null;
+  updated_at?: string | null;
   final_report: FinalReport | null;
   trace_health?: TraceHealth | null;
   error?: string | null;
   error_kind?: LLMErrorKind | null;
 }
 
+export interface SessionMetadataResponse {
+  session_id: string;
+  status: PollStatus | "completed" | string;
+  created_at: string;
+  updated_at: string;
+  job_title?: string | null;
+  candidate_name?: string | null;
+  job_level?: string | null;
+  overall_score?: number | null;
+  growth_signal?: string | null;
+  overall_verdict?: string | null;
+  dimension_scores?: Record<string, number>;
+}
+
 export interface ResumeResponse {
   session_id: string;
   status: PollStatus;
+  created_at?: string | null;
+  updated_at?: string | null;
   turn_idx?: number;
   question?: PollQuestion | null;
   max_turns?: number | null;
+  history?: ResumeHistoryTurn[];
+  previous_turn_evaluation?: PreviousTurnEvaluation | null;
   final_report?: FinalReport | null;
   error?: string | null;
   error_kind?: LLMErrorKind | null;

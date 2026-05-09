@@ -32,6 +32,7 @@ export interface InterviewHistoryEntry {
   rubricDimensions?: string[];
   createdAt: string;
   lastVisitedAt: string;
+  updatedAt?: string;
   status: InterviewHistoryStatus;
   overallScore?: number;
   dimensionScores?: Record<string, number>;
@@ -173,6 +174,7 @@ function isValidEntry(x: unknown): x is InterviewHistoryEntry {
     (e.overallVerdict === undefined || isTextField(e.overallVerdict)) &&
     isValidIsoDate(e.createdAt) &&
     isValidIsoDate(e.lastVisitedAt) &&
+    (e.updatedAt === undefined || isValidIsoDate(e.updatedAt)) &&
     isValidScore(e.overallScore) &&
     isDimensionScoreMap(e.dimensionScores) &&
     isValidPositiveInt(e.maxTurns) &&
@@ -192,6 +194,10 @@ function isTextField(value: unknown): value is string {
 function isValidIsoDate(value: unknown): value is string {
   if (typeof value !== "string") return false;
   return Number.isFinite(Date.parse(value));
+}
+
+function isoOrUndefined(value: unknown): string | undefined {
+  return isValidIsoDate(value) ? value : undefined;
 }
 
 function isValidScore(value: unknown): value is number | undefined {
@@ -321,6 +327,8 @@ export interface UpsertInput {
   candidateName?: string;
   jobLevel?: string;
   rubricDimensions?: string[];
+  createdAt?: string;
+  updatedAt?: string;
   status?: InterviewHistoryStatus;
   overallScore?: number;
   dimensionScores?: Record<string, number>;
@@ -355,6 +363,8 @@ export function upsertEntry(input: UpsertInput): InterviewHistoryEntry {
         candidateName: input.candidateName,
         jobLevel: input.jobLevel,
         rubricDimensions: input.rubricDimensions,
+        createdAt: isoOrUndefined(input.createdAt),
+        updatedAt: isoOrUndefined(input.updatedAt),
         recoveryToken: input.recoveryToken,
         recoveryTokenExpiresAt: input.recoveryTokenExpiresAt,
         status: input.status,
@@ -377,7 +387,8 @@ export function upsertEntry(input: UpsertInput): InterviewHistoryEntry {
       rubricDimensions: input.rubricDimensions,
       recoveryToken: input.recoveryToken,
       recoveryTokenExpiresAt: input.recoveryTokenExpiresAt,
-      createdAt: now,
+      createdAt: isoOrUndefined(input.createdAt) ?? now,
+      updatedAt: isoOrUndefined(input.updatedAt),
       lastVisitedAt: now,
       status: input.status ?? "running",
       overallScore: input.overallScore,
@@ -400,6 +411,49 @@ export function upsertEntry(input: UpsertInput): InterviewHistoryEntry {
     }
   }
 
+  return next;
+}
+
+export interface ServerEntryMetadataInput {
+  sessionId: string;
+  createdAt?: string;
+  updatedAt?: string;
+  jdTitle?: string | null;
+  candidateName?: string | null;
+  jobLevel?: string | null;
+  status?: InterviewHistoryStatus;
+  overallScore?: number | null;
+  dimensionScores?: Record<string, number>;
+  growthSignal?: string | null;
+  overallVerdict?: string | null;
+}
+
+export function mergeServerEntryMetadata(
+  input: ServerEntryMetadataInput,
+): InterviewHistoryEntry | null {
+  const shape = pruneExpiredSessionTokens(readRaw());
+  const idx = shape.entries.findIndex((e) => e.sessionId === input.sessionId);
+  if (idx < 0) return null;
+
+  const prev = shape.entries[idx];
+  const next: InterviewHistoryEntry = {
+    ...prev,
+    ...stripUndefined({
+      createdAt: isoOrUndefined(input.createdAt),
+      updatedAt: isoOrUndefined(input.updatedAt),
+      jdTitle: normaliseTextInput(input.jdTitle),
+      candidateName: normaliseTextInput(input.candidateName),
+      jobLevel: normaliseTextInput(input.jobLevel),
+      status: input.status,
+      overallScore:
+        typeof input.overallScore === "number" ? input.overallScore : undefined,
+      dimensionScores: input.dimensionScores,
+      growthSignal: normaliseTextInput(input.growthSignal),
+      overallVerdict: normaliseTextInput(input.overallVerdict),
+    }),
+  };
+  shape.entries[idx] = next;
+  writeRaw(shape);
   return next;
 }
 
@@ -492,4 +546,10 @@ function stripUndefined<T extends Record<string, unknown>>(obj: T): Partial<T> {
     if (v !== undefined) (out as Record<string, unknown>)[k] = v;
   }
   return out;
+}
+
+function normaliseTextInput(value: string | null | undefined): string | undefined {
+  if (typeof value !== "string") return undefined;
+  const trimmed = value.trim();
+  return trimmed ? trimmed : undefined;
 }

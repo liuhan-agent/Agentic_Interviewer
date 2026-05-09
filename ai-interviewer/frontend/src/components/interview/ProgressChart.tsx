@@ -33,7 +33,21 @@ const DIMENSION_LABELS: Record<string, string> = {
 
 type ChartPoint = {
   label: string;
+  tooltipLabel: string;
   score: number;
+};
+
+type RawChartPoint = {
+  label: string;
+  tooltipLabel: string;
+  score: number;
+};
+
+type ProgressTooltipProps = {
+  active?: boolean;
+  label?: string | number;
+  metricLabel: string;
+  payload?: Array<{ value?: unknown; payload?: { tooltipLabel?: string } }>;
 };
 
 export function ProgressChart({
@@ -60,7 +74,11 @@ export function ProgressChart({
   const [activeDimension, setActiveDimension] = useState<string>("overallScore");
 
   const chartData = useMemo<ChartPoint[]>(() => {
-    return scoredEntries
+    const includesFullYear =
+      new Set(
+        scoredEntries.map((entry) => new Date(entry.createdAt).getFullYear()),
+      ).size > 1;
+    const rawPoints = scoredEntries
       .map((entry) => {
         const raw =
           activeDimension === "overallScore"
@@ -68,14 +86,14 @@ export function ProgressChart({
             : entry.dimensionScores?.[activeDimension];
         if (typeof raw !== "number") return null;
         return {
-          label: new Date(entry.createdAt).toLocaleDateString(undefined, {
-            month: "numeric",
-            day: "numeric",
-          }),
+          label: formatChartDate(entry.createdAt, { includeYear: includesFullYear }),
+          tooltipLabel: formatChartDate(entry.createdAt, { includeYear: true }),
           score: Number(raw.toFixed(1)),
         };
       })
-      .filter((point): point is ChartPoint => Boolean(point));
+      .filter((point): point is RawChartPoint => Boolean(point));
+
+    return disambiguateSameDayLabels(rawPoints);
   }, [activeDimension, scoredEntries]);
 
   const latest = scoredEntries[scoredEntries.length - 1];
@@ -92,6 +110,10 @@ export function ProgressChart({
       ? recentFive[recentFive.length - 1].overallScore! - recentFive[0].overallScore!
       : null;
   const weakPracticeHref = buildWeakPracticeHref(scoredEntries);
+  const currentMetricLabel =
+    activeDimension === "overallScore"
+      ? "总分"
+      : formatDimensionName(activeDimension);
 
   return (
     <Card>
@@ -150,6 +172,11 @@ export function ProgressChart({
             </button>
           ))}
         </div>
+        <p className="rounded-md border border-border/30 bg-secondary/10 px-3 py-2 text-[11px] leading-5 text-muted-foreground/70">
+          当前查看：<span className="text-foreground/80">{currentMetricLabel}</span>
+          {" · "}
+          {WEAK_DIMENSION_THRESHOLD} 分为达标线。
+        </p>
 
         {chartData.length < 2 ? (
           <div className="rounded-lg border border-dashed p-6 text-center text-sm text-muted-foreground">
@@ -164,7 +191,8 @@ export function ProgressChart({
                 <YAxis domain={[0, 10]} tickLine={false} axisLine={false} fontSize={11} />
                 <Tooltip
                   cursor={{ strokeDasharray: "3 3" }}
-                  formatter={(value) => [`${Number(value).toFixed(1)} / 10`, "分数"]}
+                  content={<ProgressTooltip metricLabel={currentMetricLabel} />}
+                  wrapperStyle={{ outline: "none" }}
                 />
                 {/*
                  * Threshold line so users can read "below this is weak"
@@ -207,6 +235,69 @@ function Stat({ label, value }: { label: string; value: string }) {
       <p className="mt-1 font-mono text-lg font-semibold">{value}</p>
     </div>
   );
+}
+
+function ProgressTooltip({
+  active,
+  metricLabel,
+  payload,
+}: ProgressTooltipProps) {
+  if (!active || !payload?.length) return null;
+
+  const raw = payload[0]?.value;
+  const tooltipLabel = payload[0]?.payload?.tooltipLabel;
+  const score = Array.isArray(raw) ? Number(raw[0]) : Number(raw);
+  const scoreText = Number.isFinite(score) ? `${score.toFixed(1)} / 10` : "-";
+
+  return (
+    <div className="rounded-md border border-white/10 bg-zinc-950/95 px-3 py-2 shadow-[0_12px_30px_rgba(0,0,0,0.28)] backdrop-blur">
+      <p className="text-[11px] leading-none text-zinc-500">{tooltipLabel}</p>
+      <p className="mt-2 flex items-baseline gap-2 text-sm">
+        <span className="text-zinc-300">{metricLabel}</span>
+        <span className="font-mono text-base font-semibold text-emerald-300">
+          {scoreText}
+        </span>
+      </p>
+    </div>
+  );
+}
+
+function formatChartDate(
+  value: string,
+  { includeYear }: { includeYear: boolean },
+): string {
+  return new Date(value).toLocaleDateString(undefined, {
+    ...(includeYear ? { year: "numeric" as const } : {}),
+    month: "numeric",
+    day: "numeric",
+  });
+}
+
+function disambiguateSameDayLabels(points: RawChartPoint[]): ChartPoint[] {
+  const counts = new Map<string, number>();
+  for (const point of points) {
+    counts.set(point.tooltipLabel, (counts.get(point.tooltipLabel) ?? 0) + 1);
+  }
+
+  const seen = new Map<string, number>();
+  return points.map((point) => {
+    const count = counts.get(point.tooltipLabel) ?? 0;
+    if (count <= 1) {
+      return {
+        label: point.label,
+        tooltipLabel: point.tooltipLabel,
+        score: point.score,
+      };
+    }
+
+    const occurrence = (seen.get(point.tooltipLabel) ?? 0) + 1;
+    seen.set(point.tooltipLabel, occurrence);
+    return {
+      label: `${point.label} 第${occurrence}场`,
+      tooltipLabel: `${point.tooltipLabel} 第${occurrence}场`,
+      score: point.score,
+    };
+  });
 }
 
 function formatScore(score: number | undefined): string {

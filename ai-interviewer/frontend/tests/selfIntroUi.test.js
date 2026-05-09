@@ -14,8 +14,24 @@ test("poll question type exposes self-intro metadata", () => {
 
   assert.match(source, /question_type\?: "self_intro" \| "technical" \| string/);
   assert.match(source, /formal_turn_idx\?: number/);
+  assert.match(source, /question_type\?: "self_intro" \| "technical" \| string/);
   assert.match(source, /export interface SelfIntroProfile/);
   assert.match(source, /self_intro\?: SelfIntroReport/);
+});
+
+test("resumed self-intro history renders as opening instead of a numbered question", () => {
+  const source = read("src", "components", "interview", "InterviewRoom.tsx");
+
+  assert.match(source, /questionType:\s*turn\.question_type/);
+  assert.match(source, /turn\.question_type === "self_intro"/);
+});
+
+test("submitted self-intro answer uses the shared collapsible answer bubble", () => {
+  const source = read("src", "components", "interview", "InterviewRoom.tsx");
+
+  assert.match(source, /const isSelfIntro = entry\.questionType === "self_intro"/);
+  assert.match(source, /entry\.answer !== null && \(\s*<CollapsibleAnswerBubble/);
+  assert.doesNotMatch(source, /!isSelfIntro && entry\.answer !== null/);
 });
 
 test("interview room renders opening intro differently from technical turns", () => {
