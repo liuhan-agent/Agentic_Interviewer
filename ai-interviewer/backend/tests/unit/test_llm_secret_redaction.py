@@ -69,6 +69,35 @@ class TestSafeLLMConfigMeta:
         assert coach_meta["model"] == "claude-3"
         assert meta["requires_reauth"] is True
 
+    def test_strips_nested_api_key_inside_voice_overrides(self) -> None:
+        meta = _safe_llm_config_meta(
+            {
+                "provider": "openai",
+                "voice_overrides": {
+                    "asr": {
+                        "provider": "openai",
+                        "api_key": "sk-voice-asr-secret",
+                        "model": "whisper-1",
+                    },
+                    "tts": {
+                        "provider": "openai",
+                        "api_key": "sk-voice-tts-secret",
+                        "model": "gpt-4o-mini-tts",
+                        "voice": "alloy",
+                    },
+                },
+            }
+        )
+
+        assert meta is not None
+        asr_meta = meta["voice_overrides"]["asr"]
+        tts_meta = meta["voice_overrides"]["tts"]
+        assert "api_key" not in asr_meta
+        assert "api_key" not in tts_meta
+        assert asr_meta["model"] == "whisper-1"
+        assert tts_meta["voice"] == "alloy"
+        assert meta["requires_reauth"] is True
+
 
 class TestRedactLLMSecrets:
     def test_returns_text_unchanged_when_text_empty(self) -> None:
@@ -98,6 +127,19 @@ class TestRedactLLMSecrets:
         redacted = redact_llm_secrets(text, config)
 
         assert "sk-ant-nested-secret" not in redacted
+        assert "[redacted-api-key]" in redacted
+
+    def test_replaces_nested_api_key_in_voice_overrides(self) -> None:
+        text = "OpenAI audio rejected key sk-voice-tts-secret"
+        config = {
+            "voice_overrides": {
+                "tts": {"api_key": "sk-voice-tts-secret"},
+            }
+        }
+
+        redacted = redact_llm_secrets(text, config)
+
+        assert "sk-voice-tts-secret" not in redacted
         assert "[redacted-api-key]" in redacted
 
     def test_leaves_text_unchanged_when_config_has_no_api_key(self) -> None:

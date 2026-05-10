@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { Mic } from "lucide-react";
 
-import { VoiceRoom } from "@/components/interview/VoiceRoom";
+import { InterviewRoom } from "@/components/interview/InterviewRoom";
 
 type PageProps = {
   params: { sessionId: string };
@@ -30,14 +30,13 @@ export default function VoiceInterviewPage({ params }: PageProps) {
           </p>
         </div>
         <h1 className="text-2xl font-semibold tracking-tight">
-          与面试官语音对话
+          面试进行中
         </h1>
         <p className="mt-1 text-sm text-muted-foreground">
-          用语音直接回答面试问题，AI 面试官会自动识别你的回答内容，
-          并语音播放下一个问题。
+          语音只作为回答输入方式：先转写成可编辑文本，确认后再提交。
         </p>
       </div>
-      <VoiceRoom sessionId={params.sessionId} />
+      <InterviewRoom sessionId={params.sessionId} defaultAnswerMode="voice" />
     </section>
   );
 }

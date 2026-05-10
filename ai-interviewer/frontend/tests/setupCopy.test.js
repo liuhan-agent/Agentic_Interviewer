@@ -240,6 +240,15 @@ test("interview room exposes progress pause skip and draft persistence", () => {
   assert.doesNotMatch(source, /将丢失/);
 });
 
+test("interview room keeps answer length aligned with backend validation", () => {
+  const source = readInterviewRoom();
+
+  assert.match(source, /const ANSWER_MAX_LENGTH = 8000;/);
+  assert.match(source, /maxLength=\{ANSWER_MAX_LENGTH\}/);
+  assert.match(source, /<VoiceAnswerPanel[\s\S]*maxLength=\{ANSWER_MAX_LENGTH\}/);
+  assert.doesNotMatch(source, /const ANSWER_MAX_LENGTH = 50000;/);
+});
+
 test("interview room exposes directional hint without submitting or clearing draft", () => {
   const source = readInterviewRoom();
   const hintHandler = source.match(

@@ -148,11 +148,14 @@ class Settings(BaseSettings):
     embedding_model: str = "text-embedding-3-small"
     allow_stub_embeddings_in_prod: bool = False
 
-    asr_provider: Literal["openai", "deepgram", "stub"] = "openai"
-    asr_model: str = "whisper-1"
-    tts_provider: Literal["openai", "stub"] = "openai"
-    tts_model: str = "gpt-4o-mini-tts"
-    tts_voice: str = "alloy"
+    asr_provider: Literal["qwen", "dashscope", "openai", "deepgram", "stub"] = "qwen"
+    asr_model: str = "qwen3-asr-flash-realtime"
+    tts_provider: Literal["qwen", "dashscope", "openai", "stub"] = "qwen"
+    tts_model: str = "qwen3-tts-flash-realtime"
+    tts_voice: str = "Cherry"
+    qwen_api_key: str | None = None
+    dashscope_api_key: str | None = None
+    qwen_realtime_base_url: str = "wss://dashscope.aliyuncs.com/api-ws/v1/realtime"
 
     # "postgres" enables durable HITL: interviews survive process restarts
     # via PostgresSaver checkpoints + DB-persisted session state.

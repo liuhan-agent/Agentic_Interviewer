@@ -9,6 +9,7 @@ import {
   Camera,
   CameraOff,
   CheckCircle2,
+  RotateCcw,
   Keyboard,
   Loader2,
   Mic,
@@ -21,6 +22,7 @@ import { AnimatePresence, motion } from "framer-motion";
 import { LLMSettingsDialog } from "@/components/layout/LLMSettingsDialog";
 import { CollapsibleAnswerBubble } from "@/components/interview/CollapsibleAnswerBubble";
 import { DigitalHumanStage } from "@/components/interview/DigitalHumanStage";
+import { SessionIdTooltip } from "@/components/interview/SessionIdTooltip";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -52,6 +54,7 @@ type Phase =
   | "ready_to_record"
   | "recording"
   | "uploading"
+  | "reviewing_transcript"
   | "completed"
   | "error";
 
@@ -76,6 +79,9 @@ export function VoiceRoom({ sessionId }: { sessionId: string }) {
   const [history, setHistory] = useState<QaEntry[]>([]);
   const [pendingQuestion, setPendingQuestion] =
     useState<VoiceServerQuestion | null>(null);
+  const [transcriptDraft, setTranscriptDraft] = useState("");
+  const [draftTurnIdx, setDraftTurnIdx] = useState<number | null>(null);
+  const pendingVideoSignalsRef = useRef<Record<string, unknown> | null>(null);
 
   const {
     cameraOn,
@@ -199,6 +205,16 @@ export function VoiceRoom({ sessionId }: { sessionId: string }) {
           );
         }
       },
+      onDraftTranscript: (t) => {
+        setTranscriptDraft((prev) => {
+          const next = t.content.trim();
+          if (!prev.trim()) return next;
+          if (!next) return prev;
+          return `${prev.trim()}\n${next}`;
+        });
+        setDraftTurnIdx(t.turn_idx);
+        setPhase("reviewing_transcript");
+      },
       onTranscript: (t) => {
         setHistory((prev) => {
           if (prev.length === 0) return prev;
@@ -317,7 +333,9 @@ export function VoiceRoom({ sessionId }: { sessionId: string }) {
         streamRef.current?.getAudioTracks().forEach((t) => t.enabled = false);
         const videoSigs = stopFaceCapture();
         const full = new Blob(chunks, { type: recorder.mimeType || "audio/webm" });
-        const buf = await full.arrayBuffer();
+        const normalized = await normalizeRecordingForASR(full);
+        const buf = await normalized.blob.arrayBuffer();
+        const recordingMimeType = normalized.mimeType || full.type || recorder.mimeType;
         const turnIdx = pendingQuestion?.turn_idx;
         if (turnIdx === undefined) {
           setErrorMsg("Question state is not ready. Please refresh and try again.");
@@ -328,12 +346,12 @@ export function VoiceRoom({ sessionId }: { sessionId: string }) {
         clientRef.current?.sendStop(
           turnIdx,
           videoSigs as Record<string, unknown> | null,
+          recordingMimeType,
         );
+        pendingVideoSignalsRef.current = videoSigs as Record<string, unknown> | null;
         setPhase("uploading");
-        // After we've uploaded, the server will either produce the
-        // next question + TTS frames or close the socket at the end.
-        // ``onQuestion`` flips us back to ``playing_question``;
-        // ``onFinal`` routes to the report.
+        // After upload, the server returns an editable draft transcript.
+        // The reviewed text is only submitted after explicit confirmation.
       });
 
       recorder.start();
@@ -354,6 +372,41 @@ export function VoiceRoom({ sessionId }: { sessionId: string }) {
       recorderRef.current.stop();
     }
   }, [stopFaceCapture]);
+
+  const handleConfirmTranscript = useCallback(() => {
+    const content = transcriptDraft.trim();
+    const turnIdx = draftTurnIdx ?? pendingQuestion?.turn_idx;
+    if (!content) {
+      setErrorMsg("转写内容为空，请重新录制或补充回答后再提交。");
+      return;
+    }
+    if (turnIdx === undefined || turnIdx === null) {
+      setErrorMsg("Question state is not ready. Please refresh and try again.");
+      setPhase("ready_to_record");
+      return;
+    }
+    setErrorMsg(null);
+    clientRef.current?.submitTranscript(
+      turnIdx,
+      content,
+      pendingVideoSignalsRef.current,
+    );
+    pendingVideoSignalsRef.current = null;
+    setPhase("uploading");
+  }, [draftTurnIdx, pendingQuestion?.turn_idx, transcriptDraft]);
+
+  const handleRerecordTranscript = useCallback(() => {
+    setTranscriptDraft("");
+    setDraftTurnIdx(null);
+    pendingVideoSignalsRef.current = null;
+    setErrorMsg(null);
+    setPhase("ready_to_record");
+  }, []);
+
+  const handleContinueRecording = useCallback(() => {
+    setErrorMsg(null);
+    setPhase("ready_to_record");
+  }, []);
 
   useEffect(() => {
     if (phase === "recording" && recordSecs >= MAX_RECORD_SECONDS) {
@@ -470,6 +523,11 @@ export function VoiceRoom({ sessionId }: { sessionId: string }) {
         onStart={startRecording}
         onStop={stopRecording}
         recordSecs={recordSecs}
+        transcriptDraft={transcriptDraft}
+        onTranscriptDraftChange={setTranscriptDraft}
+        onConfirmTranscript={handleConfirmTranscript}
+        onRerecordTranscript={handleRerecordTranscript}
+        onContinueRecording={handleContinueRecording}
       />
 
       {cameraOn && (
@@ -589,7 +647,9 @@ function StatusStrip({
       <span className="text-muted-foreground/40">·</span>
       <span className="font-mono text-muted-foreground">
         会话{" "}
-        <span className="text-foreground">{truncateId(sessionId)}</span>
+        <span className="text-foreground">
+          <SessionIdTooltip sessionId={sessionId} />
+        </span>
       </span>
       {typeof maxTurns === "number" && maxTurns > 0 && (
         <span className="flex min-w-[120px] items-center gap-2 text-muted-foreground">
@@ -637,17 +697,28 @@ function RecorderControls({
   onStart,
   onStop,
   recordSecs,
+  transcriptDraft,
+  onTranscriptDraftChange,
+  onConfirmTranscript,
+  onRerecordTranscript,
+  onContinueRecording,
 }: {
   phase: Phase;
   onStart: () => void;
   onStop: () => void;
   recordSecs: number;
+  transcriptDraft: string;
+  onTranscriptDraftChange: (value: string) => void;
+  onConfirmTranscript: () => void;
+  onRerecordTranscript: () => void;
+  onContinueRecording: () => void;
 }) {
   const disabled =
     phase === "connecting" ||
     phase === "awaiting_question" ||
     phase === "playing_question" ||
     phase === "uploading" ||
+    phase === "reviewing_transcript" ||
     phase === "completed" ||
     phase === "error";
 
@@ -696,6 +767,58 @@ function RecorderControls({
           <CheckCircle2 className="h-4 w-4 text-emerald-400" />
           面试完成，正在跳转到报告…
           <Loader2 className="h-4 w-4 animate-spin" />
+        </CardContent>
+      </Card>
+    );
+  }
+
+  if (phase === "reviewing_transcript") {
+    return (
+      <Card className="border-emerald-500/30 bg-emerald-500/[0.03]">
+        <CardContent className="space-y-4 pt-6">
+          <div className="space-y-1">
+            <p className="text-sm font-medium text-emerald-300">
+              确认语音转写
+            </p>
+            <p className="text-xs text-muted-foreground">
+              你可以先修正识别结果，再作为本题回答提交。
+            </p>
+          </div>
+          <textarea
+            value={transcriptDraft}
+            onChange={(event) => onTranscriptDraftChange(event.target.value)}
+            className="min-h-28 w-full resize-y rounded-md border border-border bg-background px-3 py-2 text-sm leading-relaxed outline-none transition focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20"
+            placeholder="检查并编辑你的回答转写..."
+          />
+          <div className="flex flex-col gap-2 sm:flex-row sm:justify-end">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={onRerecordTranscript}
+              className="gap-2"
+            >
+              <RotateCcw className="h-4 w-4" />
+              重新录制
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={onContinueRecording}
+              className="gap-2"
+            >
+              <Mic className="h-4 w-4" />
+              继续回答
+            </Button>
+            <Button
+              type="button"
+              onClick={onConfirmTranscript}
+              disabled={!transcriptDraft.trim()}
+              className="gap-2 bg-emerald-600 text-white hover:bg-emerald-500"
+            >
+              <CheckCircle2 className="h-4 w-4" />
+              确认提交
+            </Button>
+          </div>
         </CardContent>
       </Card>
     );
@@ -792,6 +915,8 @@ function phaseLabel(p: Phase): string {
       return "录音中";
     case "uploading":
       return "转录中";
+    case "reviewing_transcript":
+      return "确认转写";
     case "completed":
       return "已完成";
     case "error":
@@ -799,7 +924,83 @@ function phaseLabel(p: Phase): string {
   }
 }
 
-function truncateId(v: string): string {
-  if (v.length <= 12) return v;
-  return `${v.slice(0, 4)}…${v.slice(-4)}`;
+async function normalizeRecordingForASR(
+  blob: Blob,
+): Promise<{ blob: Blob; mimeType: string }> {
+  if (typeof window === "undefined") {
+    return { blob, mimeType: blob.type || "audio/webm" };
+  }
+  const AudioContextCtor =
+    window.AudioContext ||
+    (window as typeof window & { webkitAudioContext?: typeof AudioContext })
+      .webkitAudioContext;
+  if (!AudioContextCtor) {
+    return { blob, mimeType: blob.type || "audio/webm" };
+  }
+  let context: AudioContext | null = null;
+  try {
+    context = new AudioContextCtor({ sampleRate: 16000 });
+    const decoded = await context.decodeAudioData(await blob.arrayBuffer());
+    const wav = encodeWav(decoded, 16000);
+    return { blob: new Blob([wav], { type: "audio/wav" }), mimeType: "audio/wav" };
+  } catch (e) {
+    console.warn("Audio normalization failed; sending original recording", e);
+    return { blob, mimeType: blob.type || "audio/webm" };
+  } finally {
+    await context?.close().catch(() => undefined);
+  }
+}
+
+function encodeWav(buffer: AudioBuffer, sampleRate: number): ArrayBuffer {
+  const samples = downmixToMono(buffer, sampleRate);
+  const out = new ArrayBuffer(44 + samples.length * 2);
+  const view = new DataView(out);
+
+  writeAscii(view, 0, "RIFF");
+  view.setUint32(4, 36 + samples.length * 2, true);
+  writeAscii(view, 8, "WAVE");
+  writeAscii(view, 12, "fmt ");
+  view.setUint32(16, 16, true);
+  view.setUint16(20, 1, true);
+  view.setUint16(22, 1, true);
+  view.setUint32(24, sampleRate, true);
+  view.setUint32(28, sampleRate * 2, true);
+  view.setUint16(32, 2, true);
+  view.setUint16(34, 16, true);
+  writeAscii(view, 36, "data");
+  view.setUint32(40, samples.length * 2, true);
+
+  let offset = 44;
+  for (const sample of samples) {
+    const clamped = Math.max(-1, Math.min(1, sample));
+    view.setInt16(offset, clamped < 0 ? clamped * 0x8000 : clamped * 0x7fff, true);
+    offset += 2;
+  }
+  return out;
+}
+
+function downmixToMono(buffer: AudioBuffer, targetSampleRate: number): Float32Array {
+  const sourceRate = buffer.sampleRate;
+  const outputLength = Math.max(1, Math.round((buffer.duration || 0) * targetSampleRate));
+  const output = new Float32Array(outputLength);
+  const channels = Math.max(1, buffer.numberOfChannels);
+
+  for (let i = 0; i < outputLength; i += 1) {
+    const sourceIndex = Math.min(
+      buffer.length - 1,
+      Math.floor((i * sourceRate) / targetSampleRate),
+    );
+    let sum = 0;
+    for (let channel = 0; channel < channels; channel += 1) {
+      sum += buffer.getChannelData(channel)[sourceIndex] ?? 0;
+    }
+    output[i] = sum / channels;
+  }
+  return output;
+}
+
+function writeAscii(view: DataView, offset: number, text: string): void {
+  for (let i = 0; i < text.length; i += 1) {
+    view.setUint8(offset + i, text.charCodeAt(i));
+  }
 }

@@ -68,18 +68,30 @@ test("history card exposes full session id in styled tooltip", () => {
     path.join(__dirname, "..", "src", "components", "interview", "HistoryList.tsx"),
     "utf8",
   );
+  const tooltip = fs.readFileSync(
+    path.join(
+      __dirname,
+      "..",
+      "src",
+      "components",
+      "interview",
+      "SessionIdTooltip.tsx",
+    ),
+    "utf8",
+  );
 
-  assert.match(source, /from "@\/components\/ui\/tooltip"/);
+  assert.match(source, /from "@\/components\/interview\/SessionIdTooltip"/);
   assert.match(source, /SessionIdTooltip/);
-  assert.match(source, /<TooltipTrigger asChild>/);
-  assert.match(source, /完整 Session ID/);
-  assert.match(source, /aria-label=\{`完整 Session ID/);
-  assert.match(source, /cursor-default/);
-  assert.doesNotMatch(source, /cursor-help/);
-  assert.match(source, /side="bottom"/);
-  assert.match(source, /text-emerald-300/);
-  assert.match(source, /<span className="break-all">\{sessionId\}<\/span>/);
-  assert.match(source, /shortId\(sessionId\)/);
+  assert.match(tooltip, /from "@\/components\/ui\/tooltip"/);
+  assert.match(tooltip, /<TooltipTrigger asChild>/);
+  assert.match(tooltip, /完整 Session ID/);
+  assert.match(tooltip, /aria-label=\{`完整 Session ID/);
+  assert.match(tooltip, /cursor-default/);
+  assert.doesNotMatch(tooltip, /cursor-help/);
+  assert.match(tooltip, /side="bottom"/);
+  assert.match(tooltip, /text-emerald-300/);
+  assert.match(tooltip, /<span className="break-all">\{sessionId\}<\/span>/);
+  assert.match(tooltip, /shortSessionId\(sessionId\)/);
 });
 
 test("history list has a filtered empty state", () => {
