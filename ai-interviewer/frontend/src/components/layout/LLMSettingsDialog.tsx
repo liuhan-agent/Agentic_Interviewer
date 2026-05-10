@@ -38,9 +38,13 @@ import type {
   LLMRoleOverrideConfig,
   LLMTestStatus,
   LLMTestTargetStatus,
+  LLMVoiceOverrideConfig,
+  LLMVoiceRouteId,
 } from "@/lib/llm-config";
 import {
+  defaultVoiceOverride,
   effectiveRoleConfig,
+  effectiveVoiceConfig,
   configFingerprint,
   getLLMConfigStatus,
   LLM_ROLE_GROUPS,
@@ -55,6 +59,8 @@ import {
   saveLLMConfig,
   testAllConnections,
   testTargets,
+  voiceProviderInfo,
+  VOICE_PROVIDERS,
 } from "@/lib/llm-config";
 
 const selectClass =
@@ -69,12 +75,29 @@ const ROUTE_SUMMARY_LABELS: Record<LLMRoleGroupId, string> = {
   safety: "安全检查",
 };
 
+const VOICE_ROUTE_LABELS: Record<LLMVoiceRouteId, string> = {
+  asr: "语音识别",
+  tts: "语音合成",
+};
+
+function routeProviderLabel(provider: string): string {
+  return voiceProviderInfo(provider).label || providerInfo(provider).label;
+}
+
 function isTestable(config: LLMConfig): boolean {
   return (
     config.apiKey.trim().length > 0 &&
     config.model.trim().length > 0 &&
     (!providerRequiresBaseUrl(config.provider) || config.baseUrl.trim().length > 0)
   );
+}
+
+function isTestTargetReady(target: ReturnType<typeof testTargets>[number]): boolean {
+  if (target.kind === "chat") {
+    return Boolean(target.config && isTestable(target.config));
+  }
+  const voice = target.voice;
+  return Boolean(voice?.apiKey.trim() && voice.model.trim());
 }
 
 type LLMValidation = {
@@ -124,7 +147,7 @@ function validateLLMConfig(config: LLMConfig): LLMValidation {
     canTestMessage = "填写 API Key 后才能测试连接；不填写时会使用系统默认练习模式。";
   } else if (saveMessage) {
     canTestMessage = saveMessage;
-  } else if (!targets.every((target) => isTestable(target.config))) {
+  } else if (!targets.every(isTestTargetReady)) {
     canTestMessage = "还有启用的模型配置缺少 Key、模型或 Base URL。";
   }
 
@@ -230,6 +253,23 @@ export function LLMSettingsDialog({ children }: { children: React.ReactNode }) {
     setTestError(null);
   }
 
+  function updateVoiceOverride(
+    routeId: LLMVoiceRouteId,
+    patch: Partial<LLMVoiceOverrideConfig>,
+  ) {
+    setConfig((prev) => {
+      const current = prev.voiceOverrides[routeId] ?? defaultVoiceOverride(routeId);
+      return {
+        ...prev,
+        voiceOverrides: {
+          ...prev.voiceOverrides,
+          [routeId]: { ...current, ...patch },
+        },
+      };
+    });
+    setTestError(null);
+  }
+
   const currentProvider = providerInfo(config.provider);
   const showBaseUrl = providerShowsBaseUrl(config.provider);
   const needsBaseUrl = providerRequiresBaseUrl(config.provider);
@@ -238,7 +278,7 @@ export function LLMSettingsDialog({ children }: { children: React.ReactNode }) {
   const validation = validateLLMConfig(config);
   const canTest =
     targets.length > 0 &&
-    targets.every((target) => isTestable(target.config)) &&
+    targets.every(isTestTargetReady) &&
     !validation.canTestMessage &&
     !testing;
   const showConnectionResult =
@@ -416,6 +456,28 @@ export function LLMSettingsDialog({ children }: { children: React.ReactNode }) {
 
           <details className="group rounded-md border bg-background/40 p-4">
             <summary className="flex cursor-pointer list-none items-center justify-between gap-3 text-sm font-medium">
+              <span>语音能力</span>
+              <ChevronDown className="h-4 w-4 text-muted-foreground transition-transform group-open:rotate-180" />
+            </summary>
+            <p className="mt-2 text-xs text-muted-foreground">
+              默认使用 Qwen 语音能力；也可以显式切换 OpenAI。语音 Key 只会继承同厂商的默认 Key。
+            </p>
+            <div className="mt-4 grid gap-3">
+              <VoiceRouteCard
+                routeId="asr"
+                config={config}
+                onChange={updateVoiceOverride}
+              />
+              <VoiceRouteCard
+                routeId="tts"
+                config={config}
+                onChange={updateVoiceOverride}
+              />
+            </div>
+          </details>
+
+          <details className="group rounded-md border bg-background/40 p-4">
+            <summary className="flex cursor-pointer list-none items-center justify-between gap-3 text-sm font-medium">
               <span>高级：按简历与面试环节配置模型</span>
               <ChevronDown className="h-4 w-4 text-muted-foreground transition-transform group-open:rotate-180" />
             </summary>
@@ -507,7 +569,27 @@ export function LLMSettingsDialog({ children }: { children: React.ReactNode }) {
 }
 
 function ModelRouteSummary({ config }: { config: LLMConfig }) {
-  const routes = modelRouteSummary(config);
+  const routes = [
+    ...modelRouteSummary(config),
+    ...(["asr", "tts"] as const).map((routeId) => {
+      const configured = config.voiceOverrides[routeId] ?? defaultVoiceOverride(routeId);
+      const effective = effectiveVoiceConfig(config, routeId);
+      const provider = voiceProviderInfo(effective.provider);
+      return {
+        id: `voice-${routeId}`,
+        label: VOICE_ROUTE_LABELS[routeId],
+        providerLabel: provider.label,
+        model:
+          routeId === "tts"
+            ? `${effective.model || provider.ttsModel} / ${effective.voice || provider.ttsVoice}`
+            : effective.model || provider.asrModel,
+        source:
+          configured.apiKey.trim() || config.provider === effective.provider
+            ? "单独配置"
+            : "默认配置",
+      };
+    }),
+  ];
   return (
     <section className="rounded-md border bg-background/40 p-4">
       <div className="flex items-start gap-2">
@@ -561,6 +643,176 @@ function ModelStrategyHint() {
       <p className="mt-1">
         想进一步控制成本时，可以把简历/JD 解析交给理解力更强的模型，评分、提问和建议优先选择响应稳定的轻量模型。
       </p>
+    </div>
+  );
+}
+
+function VoiceRouteCard({
+  routeId,
+  config,
+  onChange,
+}: {
+  routeId: LLMVoiceRouteId;
+  config: LLMConfig;
+  onChange: (
+    routeId: LLMVoiceRouteId,
+    patch: Partial<LLMVoiceOverrideConfig>,
+  ) => void;
+}) {
+  const [showVoiceKey, setShowVoiceKey] = useState(false);
+  const override = config.voiceOverrides[routeId] ?? defaultVoiceOverride(routeId);
+  const effective = effectiveVoiceConfig(config, routeId);
+  const provider = voiceProviderInfo(override.provider);
+  const effectiveProvider = voiceProviderInfo(effective.provider);
+  const overrideEnabled = Boolean(override.enabled);
+  const inheritsDefaultKey =
+    !override.apiKey.trim() && config.provider === override.provider && config.apiKey.trim();
+  const label = VOICE_ROUTE_LABELS[routeId];
+  const modelPlaceholder = routeId === "asr" ? provider.asrModel : provider.ttsModel;
+  const effectiveModel =
+    routeId === "tts"
+      ? `${effective.model || effectiveProvider.ttsModel} / ${effective.voice || effectiveProvider.ttsVoice}`
+      : effective.model || effectiveProvider.asrModel;
+
+  return (
+    <div
+      className={cn(
+        "rounded-md border p-3",
+        overrideEnabled ? "bg-secondary/20" : "bg-secondary/10",
+      )}
+    >
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <div className="text-sm font-medium">{label}</div>
+          <p className="mt-1 text-xs text-muted-foreground">
+            {routeId === "asr"
+              ? "把录音转成可编辑文字草稿，默认使用 Qwen 实时语音识别。"
+              : "把面试官问题合成为可播放语音，默认使用 Qwen 实时语音合成。"}
+          </p>
+          <p className="mt-1 text-[11px] text-muted-foreground">
+            推荐：{effectiveProvider.label} {effectiveModel}
+          </p>
+        </div>
+        <label className="flex shrink-0 items-center gap-2 text-xs text-muted-foreground">
+          <input
+            type="checkbox"
+            checked={overrideEnabled}
+            onChange={(e) => {
+              if (e.target.checked) {
+                onChange(routeId, { ...defaultVoiceOverride(routeId), enabled: true });
+              } else {
+                onChange(routeId, { enabled: false });
+              }
+            }}
+            className="h-4 w-4 accent-emerald-500"
+          />
+          单独配置
+        </label>
+      </div>
+
+      {overrideEnabled && (
+        <div className="mt-3 grid gap-3">
+          <div className="flex flex-wrap items-center gap-2">
+            <Button
+              type="button"
+              size="sm"
+              variant="secondary"
+              className="gap-1"
+              onClick={() => onChange(routeId, defaultVoiceOverride(routeId))}
+            >
+              <Sparkles className="h-3.5 w-3.5" />
+              使用建议配置
+            </Button>
+            <span className="text-[11px] text-muted-foreground">
+              当前有效模型：{effectiveProvider.label} {effectiveModel}
+            </span>
+          </div>
+
+          <div className="grid gap-3 sm:grid-cols-2">
+            <div className="space-y-1.5">
+              <Label>服务商</Label>
+              <select
+                value={override.provider}
+                onChange={(e) => {
+                  const nextProvider = voiceProviderInfo(e.target.value);
+                  onChange(routeId, defaultVoiceOverride(routeId, nextProvider.id));
+                }}
+                className={selectClass}
+              >
+                {VOICE_PROVIDERS.map((p) => (
+                  <option
+                    key={p.id}
+                    value={p.id}
+                    className="bg-background text-foreground"
+                  >
+                    {p.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="space-y-1.5">
+              <Label>模型</Label>
+              <Input
+                placeholder={modelPlaceholder}
+                value={override.model}
+                onChange={(e) => onChange(routeId, { model: e.target.value })}
+              />
+            </div>
+          </div>
+
+          {routeId === "tts" && (
+            <div className="space-y-1.5">
+              <Label>Voice</Label>
+              <Input
+                placeholder={provider.ttsVoice}
+                value={override.voice ?? provider.ttsVoice}
+                onChange={(e) => onChange(routeId, { voice: e.target.value })}
+              />
+            </div>
+          )}
+
+          <div className="space-y-1.5">
+            <Label>{provider.label} API 密钥（可选）</Label>
+            <div className="relative">
+              <Input
+                type={showVoiceKey ? "text" : "password"}
+                placeholder={
+                  inheritsDefaultKey ? `沿用默认 ${provider.label} Key` : provider.keyPlaceholder
+                }
+                value={override.apiKey}
+                onChange={(e) => onChange(routeId, { apiKey: e.target.value })}
+                className="pr-10"
+              />
+              <button
+                type="button"
+                onClick={() => setShowVoiceKey(!showVoiceKey)}
+                className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                aria-label={showVoiceKey ? "隐藏 API 密钥" : "显示 API 密钥"}
+              >
+                {showVoiceKey ? (
+                  <EyeOff className="h-4 w-4" />
+                ) : (
+                  <Eye className="h-4 w-4" />
+                )}
+              </button>
+            </div>
+            <p className="text-[11px] text-muted-foreground">
+              {inheritsDefaultKey
+                ? `沿用默认 ${provider.label} Key。`
+                : `不填时，仅在默认配置同为 ${provider.label} 时继承默认 Key。`}
+            </p>
+          </div>
+
+          <div className="space-y-1.5">
+            <Label>Base URL（可选）</Label>
+            <Input
+              placeholder={provider.baseUrl || "https://api.openai.com/v1"}
+              value={override.baseUrl}
+              onChange={(e) => onChange(routeId, { baseUrl: e.target.value })}
+            />
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -841,10 +1093,17 @@ function ConnectionResult({
                   : "border-destructive/30 bg-destructive/10 text-destructive",
               )}
             >
-              <span className="min-w-0 truncate">
-                {result.label}：{providerInfo(result.provider).label} {result.model}
+              <span className="min-w-0">
+                <span className="block truncate">
+                  {result.label}：{routeProviderLabel(result.provider)} {result.model}
+                </span>
+                {!result.ok && result.error ? (
+                  <span className="mt-0.5 block break-words opacity-90">
+                    {result.error}
+                  </span>
+                ) : null}
               </span>
-              <span className="shrink-0" aria-label={result.ok ? undefined : result.error}>
+              <span className="shrink-0">
                 {result.ok ? `${result.latencyMs} ms` : llmErrorKindLabel(result.errorKind)}
               </span>
             </div>

@@ -502,6 +502,47 @@ def test_submit_answer_accepts_answer_at_max_length(
     assert manager.submitted[0]["video_signals"] is None
 
 
+def test_submit_answer_accepts_qwen_voice_realtime_overrides(
+    client: tuple[TestClient, _Manager],
+) -> None:
+    http, manager = client
+
+    resp = http.post(
+        "/api/v1/interview/sessions/sess-auth/answer",
+        headers={"X-Session-Token": "session-secret"},
+        json={
+            "answer": "ok",
+            "turn_idx": 2,
+            "llm_config": {
+                "provider": "qwen",
+                "api_key": "dashscope-key",
+                "model": "qwen-plus",
+                "base_url": "https://dashscope.aliyuncs.com/compatible-mode/v1",
+                "voice_overrides": {
+                    "asr": {
+                        "provider": "qwen",
+                        "api_key": "dashscope-key",
+                        "model": "qwen3-asr-flash-realtime",
+                        "base_url": "wss://dashscope.aliyuncs.com/api-ws/v1/realtime",
+                    },
+                    "tts": {
+                        "provider": "qwen",
+                        "api_key": "dashscope-key",
+                        "model": "qwen3-tts-flash-realtime",
+                        "voice": "Cherry",
+                        "base_url": "wss://dashscope.aliyuncs.com/api-ws/v1/realtime",
+                    },
+                },
+            },
+        },
+    )
+
+    assert resp.status_code == 200
+    assert manager.submitted[-1]["llm_config"]["voice_overrides"]["asr"][
+        "base_url"
+    ] == "wss://dashscope.aliyuncs.com/api-ws/v1/realtime"
+
+
 def test_submit_answer_accepts_valid_video_signals(
     client: tuple[TestClient, _Manager],
 ) -> None:

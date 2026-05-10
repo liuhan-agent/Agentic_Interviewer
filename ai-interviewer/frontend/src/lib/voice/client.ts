@@ -5,13 +5,15 @@
  *
  *   client → server
  *     - binary frame  : audio bytes appended to the server buffer
- *     - text  {"type":"stop"}     → end-of-utterance; server transcribes,
- *                                   submits the answer, streams next question
+ *     - text  {"type":"stop"}     → end-of-utterance; server transcribes
+ *                                   and returns an editable draft
+ *     - text  {"type":"submit_transcript"} → submit the reviewed answer
  *     - text  {"type":"cancel"}   → ask the server to tear the session down
  *
  *   server → client
  *     - text  {"type":"question", "turn_idx":N, "content":"...", "dimension":"..."}
  *     - binary frame × N         → TTS audio chunks (mp3 from OpenAI TTS)
+ *     - text  {"type":"draft_transcript", "turn_idx":N, "content":"..."}
  *     - text  {"type":"transcript", "content":"..."}
  *     - text  {"type":"final_report", "report":{...}}
  *     - text  {"type":"error", "error":"empty_transcription", "message":"..."}
@@ -40,6 +42,12 @@ export type VoiceServerTranscript = {
   content: string;
 };
 
+export type VoiceServerDraftTranscript = {
+  type: "draft_transcript";
+  turn_idx: number;
+  content: string;
+};
+
 export type VoiceServerFinal = {
   type: "final_report";
   report: FinalReport | null;
@@ -58,13 +66,21 @@ export type VoiceServerError = {
 
 export type VoiceServerEvent =
   | VoiceServerQuestion
+  | VoiceServerDraftTranscript
   | VoiceServerTranscript
   | VoiceServerFinal
   | VoiceServerTtsEnd
   | VoiceServerError;
 
+export type VoiceClientMode = "voice" | "asr_only";
+
+export interface VoiceClientOptions {
+  mode?: VoiceClientMode;
+}
+
 export interface VoiceClientCallbacks {
   onQuestion(q: VoiceServerQuestion): void;
+  onDraftTranscript(t: VoiceServerDraftTranscript): void;
   onTranscript(t: VoiceServerTranscript): void;
   onFinal(r: VoiceServerFinal): void;
   onError(e: VoiceServerError): void;
@@ -100,6 +116,7 @@ export class VoiceClient {
   constructor(
     private readonly sessionId: string,
     private readonly cb: VoiceClientCallbacks,
+    private readonly options: VoiceClientOptions = {},
   ) {}
 
   connect(): void {
@@ -117,6 +134,7 @@ export class VoiceClient {
             type: "auth",
                 ticket: ticket,
           };
+          if (this.options.mode) auth.mode = this.options.mode;
           const llmConfig = buildLLMPayload();
           if (llmConfig) auth.llm_config = llmConfig;
           ws.send(JSON.stringify(auth));
@@ -152,9 +170,29 @@ export class VoiceClient {
     this.ws.send(data);
   }
 
-  sendStop(turnIdx: number, videoSignals?: Record<string, unknown> | null): void {
+  sendStop(
+    turnIdx: number,
+    videoSignals?: Record<string, unknown> | null,
+    mimeType?: string,
+  ): void {
     if (!this.ws || this.ws.readyState !== WebSocket.OPEN) return;
     const payload: Record<string, unknown> = { type: "stop", turn_idx: turnIdx };
+    if (videoSignals) payload.video_signals = videoSignals;
+    if (mimeType) payload.mime_type = mimeType;
+    this.ws.send(JSON.stringify(payload));
+  }
+
+  submitTranscript(
+    turnIdx: number,
+    content: string,
+    videoSignals?: Record<string, unknown> | null,
+  ): void {
+    if (!this.ws || this.ws.readyState !== WebSocket.OPEN) return;
+    const payload: Record<string, unknown> = {
+      type: "submit_transcript",
+      turn_idx: turnIdx,
+      content,
+    };
     if (videoSignals) payload.video_signals = videoSignals;
     const llmConfig = buildLLMPayload();
     if (llmConfig) payload.llm_config = llmConfig;
@@ -218,6 +256,9 @@ export class VoiceClient {
     switch (parsed.type) {
       case "question":
         this.cb.onQuestion(parsed);
+        return;
+      case "draft_transcript":
+        this.cb.onDraftTranscript(parsed);
         return;
       case "transcript":
         this.cb.onTranscript(parsed);

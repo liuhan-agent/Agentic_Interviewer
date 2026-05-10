@@ -114,6 +114,21 @@ export interface LLMConfigPayload {
       base_url?: string;
     }
   >;
+  voice_overrides?: {
+    asr?: {
+      provider?: "qwen" | "openai";
+      api_key?: string;
+      model?: string;
+      base_url?: string;
+    };
+    tts?: {
+      provider?: "qwen" | "openai";
+      api_key?: string;
+      model?: string;
+      voice?: string;
+      base_url?: string;
+    };
+  };
 }
 
 export interface StartSessionRequest {

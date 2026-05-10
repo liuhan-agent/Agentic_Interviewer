@@ -16,6 +16,7 @@ import {
   Send,
   SkipForward,
   Lightbulb,
+  Play,
   Sparkles,
   Volume2,
   VolumeX,
@@ -29,11 +30,12 @@ import TextareaAutosize from "react-textarea-autosize";
 import { LLMSettingsDialog } from "@/components/layout/LLMSettingsDialog";
 import { CollapsibleAnswerBubble } from "@/components/interview/CollapsibleAnswerBubble";
 import { NextQuestionLoader } from "@/components/interview/NextQuestionLoader";
+import { SessionIdTooltip } from "@/components/interview/SessionIdTooltip";
+import { VoiceAnswerPanel } from "@/components/interview/VoiceAnswerPanel";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Textarea } from "@/components/ui/textarea";
 import {
   isReauthRequired,
   requestHint,
@@ -54,6 +56,8 @@ import { cn } from "@/lib/utils";
 import {
   canSpeakQuestions,
   loadQuestionSpeechEnabled,
+  pauseQuestionSpeech,
+  resumeQuestionSpeech,
   speakQuestion,
   stopQuestionSpeech,
   storeQuestionSpeechEnabled,
@@ -67,7 +71,7 @@ const ENCOURAGEMENTS = [
   "已保存本轮回答，继续保持节奏。",
   "提交成功，正在生成下一轮问题。",
 ];
-const ANSWER_MAX_LENGTH = 50000;
+const ANSWER_MAX_LENGTH = 8000;
 const DIMENSION_LABELS: Record<string, string> = {
   technical_depth: "技术深度",
   problem_solving: "问题解决",
@@ -89,8 +93,30 @@ type QaEntry = {
   answer: string | null;
   evaluation?: PreviousTurnEvaluation | null;
 };
+type QuestionSpeechStatus = "idle" | "speaking" | "paused";
+type QuestionSpeechState = {
+  key: string | null;
+  status: QuestionSpeechStatus;
+  runId: number | null;
+};
+type AnswerMode = "text" | "voice";
+type AnswerSelection = {
+  start: number;
+  end: number;
+};
+type VoiceInsertRecord = {
+  start: number;
+  end: number;
+  text: string;
+};
 
-export function InterviewRoom({ sessionId }: { sessionId: string }) {
+export function InterviewRoom({
+  sessionId,
+  defaultAnswerMode = "text",
+}: {
+  sessionId: string;
+  defaultAnswerMode?: AnswerMode;
+}) {
   const router = useRouter();
   const { state, afterAnswerSubmitted, afterQuestionRetryRequested } =
     useQuestionPoller(sessionId);
@@ -106,9 +132,12 @@ export function InterviewRoom({ sessionId }: { sessionId: string }) {
   const [finalTurnSubmitted, setFinalTurnSubmitted] = useState(false);
   const [readQuestions, setReadQuestions] = useState(false);
   const [questionSpeechSupported, setQuestionSpeechSupported] = useState(false);
+  const [questionSpeechState, setQuestionSpeechState] =
+    useState<QuestionSpeechState>({ key: null, status: "idle", runId: null });
   const [reauthRequired, setReauthRequired] = useState(false);
   const transcriptEnd = useRef<HTMLDivElement>(null);
   const lastSpokenQuestionRef = useRef<string | null>(null);
+  const questionSpeechRunRef = useRef(0);
   const currentQuestionType =
     state.phase === "waiting_for_answer" && state.question
       ? extractQuestionType(state.question)
@@ -224,15 +253,43 @@ export function InterviewRoom({ sessionId }: { sessionId: string }) {
   }, [state.phase, sessionId]);
 
   useEffect(() => {
-    if (!readQuestions || paused || state.phase !== "waiting_for_answer" || !state.question) {
+    if (
+      !readQuestions ||
+      !questionSpeechSupported ||
+      paused ||
+      state.phase !== "waiting_for_answer" ||
+      !state.question
+    ) {
       return;
     }
     const qText = extractQuestion(state.question);
-    const speechKey = `${state.turnIdx ?? "intro"}:${qText}`;
-    if (lastSpokenQuestionRef.current === speechKey) return;
-    lastSpokenQuestionRef.current = speechKey;
-    speakQuestion(qText);
-  }, [paused, readQuestions, state.phase, state.question, state.turnIdx]);
+    const lastSpokenKey = `${state.turnIdx ?? "intro"}:${qText}`;
+    if (lastSpokenQuestionRef.current === lastSpokenKey) return;
+    lastSpokenQuestionRef.current = lastSpokenKey;
+    const speechKey = questionSpeechKey(qText);
+    const runId = nextQuestionSpeechRunId();
+    if (
+      !speakQuestion(qText, undefined, {
+        onEnd: () => resetQuestionSpeechState(runId),
+        onError: () => resetQuestionSpeechState(runId),
+      })
+    ) {
+      setQuestionSpeechState({ key: null, status: "idle", runId: null });
+      return;
+    }
+    setQuestionSpeechState({
+      key: speechKey,
+      status: "speaking",
+      runId,
+    });
+  }, [
+    paused,
+    questionSpeechSupported,
+    readQuestions,
+    state.phase,
+    state.question,
+    state.turnIdx,
+  ]);
 
   function notifySpeechUnavailable() {
     toast({
@@ -242,9 +299,62 @@ export function InterviewRoom({ sessionId }: { sessionId: string }) {
   }
 
   function handleSpeakQuestion(text: string) {
-    if (!questionSpeechSupported || !speakQuestion(text)) {
+    const speechKey = questionSpeechKey(text);
+    const runId = nextQuestionSpeechRunId();
+    if (
+      !questionSpeechSupported ||
+      !speakQuestion(text, undefined, {
+        onEnd: () => resetQuestionSpeechState(runId),
+        onError: () => resetQuestionSpeechState(runId),
+      })
+    ) {
+      setQuestionSpeechState({ key: null, status: "idle", runId: null });
       notifySpeechUnavailable();
+      return;
     }
+    setQuestionSpeechState({ key: speechKey, status: "speaking", runId });
+  }
+
+  function nextQuestionSpeechRunId() {
+    questionSpeechRunRef.current += 1;
+    return questionSpeechRunRef.current;
+  }
+
+  function resetQuestionSpeechState(runId: number) {
+    setQuestionSpeechState((current) =>
+      current.runId === runId
+        ? { key: null, status: "idle", runId: null }
+        : current,
+    );
+  }
+
+  function handleStopQuestionSpeech() {
+    stopQuestionSpeech();
+    setQuestionSpeechState({ key: null, status: "idle", runId: null });
+  }
+
+  function handlePauseQuestionSpeech() {
+    if (!pauseQuestionSpeech()) {
+      handleStopQuestionSpeech();
+      return;
+    }
+    setQuestionSpeechState((current) => ({
+      key: current.key,
+      status: current.key ? "paused" : "idle",
+      runId: current.runId,
+    }));
+  }
+
+  function handleResumeQuestionSpeech() {
+    if (!resumeQuestionSpeech()) {
+      handleStopQuestionSpeech();
+      return;
+    }
+    setQuestionSpeechState((current) => ({
+      key: current.key,
+      status: current.key ? "speaking" : "idle",
+      runId: current.runId,
+    }));
   }
 
   function handleToggleQuestionSpeech() {
@@ -256,7 +366,7 @@ export function InterviewRoom({ sessionId }: { sessionId: string }) {
     setReadQuestions(next);
     storeQuestionSpeechEnabled(next);
     if (!next) {
-      stopQuestionSpeech();
+      handleStopQuestionSpeech();
       return;
     }
     if (state.phase === "waiting_for_answer" && state.question) {
@@ -453,7 +563,10 @@ export function InterviewRoom({ sessionId }: { sessionId: string }) {
                     idx === history.length - 1 &&
                     state.phase === "waiting_for_answer"
                   }
+                  questionSpeechState={questionSpeechState}
                   onSpeak={handleSpeakQuestion}
+                  onPauseSpeaking={handlePauseQuestionSpeech}
+                  onResumeSpeaking={handleResumeQuestionSpeech}
                 />
               </motion.div>
             ))}
@@ -492,6 +605,7 @@ export function InterviewRoom({ sessionId }: { sessionId: string }) {
               submitting={submitting}
               skipping={skipping}
               questionType={currentQuestionType}
+              defaultMode={defaultAnswerMode}
             />
           </motion.div>
         )}
@@ -634,7 +748,9 @@ function StatusBar({
       <span className="text-muted-foreground/40">·</span>
       <span className="font-mono text-muted-foreground">
         会话{" "}
-        <span className="text-foreground">{truncateSession(sessionId)}</span>
+        <span className="text-foreground">
+          <SessionIdTooltip sessionId={sessionId} />
+        </span>
       </span>
       <span className="text-muted-foreground/40">·</span>
       <span className="font-mono text-muted-foreground">
@@ -701,6 +817,7 @@ function AnswerBox({
   submitting,
   skipping,
   questionType,
+  defaultMode,
 }: {
   sessionId: string;
   turnIdx: number | null;
@@ -712,13 +829,19 @@ function AnswerBox({
   submitting: boolean;
   skipping: boolean;
   questionType?: string;
+  defaultMode: AnswerMode;
 }) {
   const [draft, setDraft] = useState("");
+  const [voiceToolsOpen, setVoiceToolsOpen] = useState(defaultMode === "voice");
   const [hintText, setHintText] = useState<string | null>(null);
   const [hintSource, setHintSource] = useState<string | null>(null);
   const [hintError, setHintError] = useState<string | null>(null);
   const [hintLoading, setHintLoading] = useState(false);
   const [answerExpanded, setAnswerExpanded] = useState(false);
+  const answerInputRef = useRef<HTMLTextAreaElement | null>(null);
+  const answerSelectionRef = useRef<AnswerSelection | null>(null);
+  const pendingSelectionRef = useRef<number | null>(null);
+  const lastVoiceInsertRef = useRef<VoiceInsertRecord | null>(null);
   const isSelfIntro = questionType === "self_intro";
   const trimmedLength = draft.trim().length;
   const nearLimit = draft.length >= ANSWER_MAX_LENGTH * 0.9;
@@ -750,7 +873,21 @@ function AnswerBox({
     setHintError(null);
     setHintLoading(false);
     setAnswerExpanded(false);
+    answerSelectionRef.current = null;
+    pendingSelectionRef.current = null;
+    lastVoiceInsertRef.current = null;
   }, [draftKey]);
+
+  useEffect(() => {
+    const position = pendingSelectionRef.current;
+    if (position === null) return;
+    pendingSelectionRef.current = null;
+    const input = answerInputRef.current;
+    if (!input) return;
+    input.focus();
+    input.setSelectionRange(position, position);
+    updateAnswerSelection(input);
+  }, [draft]);
 
   async function handleLocalSubmit() {
     const text = draft.trim();
@@ -760,6 +897,37 @@ function AnswerBox({
       clearAnswerDraft(draftKey);
       setDraft("");
     }
+  }
+
+  function handleVoiceTranscript(text: string) {
+    setDraft((current) => {
+      const result = insertTranscriptAtSelection(
+        current,
+        text,
+        answerSelectionRef.current,
+        ANSWER_MAX_LENGTH,
+      );
+      pendingSelectionRef.current = result.cursor;
+      lastVoiceInsertRef.current = result.inserted;
+      return result.value;
+    });
+  }
+
+  function handleUndoVoiceTranscript() {
+    setDraft((current) => {
+      const result = removeLastVoiceInsert(current, lastVoiceInsertRef.current);
+      pendingSelectionRef.current = result.cursor;
+      lastVoiceInsertRef.current = null;
+      return result.value;
+    });
+  }
+
+  function updateAnswerSelection(input = answerInputRef.current) {
+    if (!input) return;
+    answerSelectionRef.current = {
+      start: input.selectionStart,
+      end: input.selectionEnd,
+    };
   }
 
   async function handleLocalSkip() {
@@ -811,15 +979,15 @@ function AnswerBox({
             {answerExpanded ? "收起" : "展开"}
           </Button>
           <Button
-            asChild
-            variant="outline"
+            type="button"
+            variant={voiceToolsOpen ? "outline" : "ghost"}
             size="sm"
+            aria-expanded={voiceToolsOpen}
+            onClick={() => setVoiceToolsOpen((value) => !value)}
             className="h-8 gap-1.5"
           >
-            <Link href={`/interview/${sessionId}/voice`}>
-              <Mic className="h-3.5 w-3.5" />
-              用语音回答
-            </Link>
+            <Mic className="h-3.5 w-3.5" />
+            用语音回答
           </Button>
         </div>
       </CardHeader>
@@ -833,6 +1001,7 @@ function AnswerBox({
           </div>
         ) : (
           <TextareaAutosize
+            ref={answerInputRef}
             id="answer-draft-input"
             minRows={answerExpanded ? 10 : 3}
             maxRows={answerExpanded ? 24 : 8}
@@ -844,7 +1013,14 @@ function AnswerBox({
                 : "在此输入你的回答… 按 Ctrl/Cmd+Enter 提交。"
             }
             value={draft}
-            onChange={(e) => setDraft(e.target.value)}
+            onChange={(e) => {
+              setDraft(e.target.value);
+              updateAnswerSelection(e.currentTarget);
+            }}
+            onClick={(e) => updateAnswerSelection(e.currentTarget)}
+            onKeyUp={(e) => updateAnswerSelection(e.currentTarget)}
+            onSelect={(e) => updateAnswerSelection(e.currentTarget)}
+            onFocus={(e) => updateAnswerSelection(e.currentTarget)}
             onKeyDown={(e) => {
               if ((e.ctrlKey || e.metaKey) && e.key === "Enter" && !submitting) {
                 e.preventDefault();
@@ -855,6 +1031,18 @@ function AnswerBox({
               "flex w-full resize-none overflow-y-auto rounded-md border border-input border-border/50 bg-secondary/30 px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus:border-emerald-500/30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50",
               answerExpanded ? "min-h-[18rem]" : "",
             )}
+          />
+        )}
+        {voiceToolsOpen && (
+          <VoiceAnswerPanel
+            sessionId={sessionId}
+            turnIdx={turnIdx}
+            disabled={paused || draft.trim().length >= ANSWER_MAX_LENGTH}
+            submitting={submitting}
+            maxLength={ANSWER_MAX_LENGTH}
+            onTranscript={handleVoiceTranscript}
+            canUndoTranscript={lastVoiceInsertRef.current !== null}
+            onUndoTranscript={handleUndoVoiceTranscript}
           />
         )}
         <div className="flex items-center justify-between">
@@ -894,42 +1082,38 @@ function AnswerBox({
               暂停休息
             </Button>
           )}
-          {!isSelfIntro && (
-            <Button
-              type="button"
-              variant="ghost"
-              size="sm"
-              className="gap-1.5 text-muted-foreground"
-              onClick={() => void handleLocalHint()}
-              disabled={hintLoading || turnIdx === null}
-            >
-              {hintLoading ? (
-                <Loader2 className="h-3.5 w-3.5 animate-spin" />
-              ) : (
-                <Lightbulb className="h-3.5 w-3.5" />
-              )}
-              求一点思路
-            </Button>
-          )}
-          {!isSelfIntro && (
-            <Button
-              type="button"
-              variant="ghost"
-              size="sm"
-              className="gap-1.5 text-muted-foreground"
-              onClick={() => void handleLocalSkip()}
-              disabled={submitting || skipping}
-            >
-              {skipping ? (
-                <Loader2 className="h-3.5 w-3.5 animate-spin" />
-              ) : (
-                <SkipForward className="h-3.5 w-3.5" />
-              )}
-              跳过本题
-            </Button>
-          )}
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            className="gap-1.5 text-muted-foreground"
+            onClick={() => void handleLocalHint()}
+            disabled={hintLoading || turnIdx === null}
+          >
+            {hintLoading ? (
+              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+            ) : (
+              <Lightbulb className="h-3.5 w-3.5" />
+            )}
+            求一点思路
+          </Button>
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            className="gap-1.5 text-muted-foreground"
+            onClick={() => void handleLocalSkip()}
+            disabled={submitting || skipping}
+          >
+            {skipping ? (
+              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+            ) : (
+              <SkipForward className="h-3.5 w-3.5" />
+            )}
+            跳过本题
+          </Button>
         </div>
-        {!isSelfIntro && (hintText || hintError || hintLoading) && (
+        {(hintText || hintError || hintLoading) && (
           <div className="rounded-lg border border-emerald-500/25 bg-emerald-500/[0.04] p-3 text-sm">
             <div className="mb-1 flex items-center gap-2 font-medium text-emerald-200">
               {hintLoading ? (
@@ -972,6 +1156,96 @@ function answerDraftKey(sessionId: string, turnIdx: number | null): string {
   return `interviewAnswerDraft:${sessionId}:${turnIdx ?? "pending"}`;
 }
 
+function appendTranscriptToDraft(current: string, transcript: string): {
+  value: string;
+  cursor: number;
+  inserted: VoiceInsertRecord | null;
+} {
+  const addition = transcript.trim();
+  if (!addition) return { value: current, cursor: current.length, inserted: null };
+  const base = current.trimEnd();
+  if (!base) {
+    return {
+      value: addition,
+      cursor: addition.length,
+      inserted: { start: 0, end: addition.length, text: addition },
+    };
+  }
+  const value = `${base}\n${addition}`;
+  return {
+    value,
+    cursor: value.length,
+    inserted: { start: base.length + 1, end: value.length, text: addition },
+  };
+}
+
+function insertTranscriptAtSelection(
+  current: string,
+  transcript: string,
+  selection: AnswerSelection | null,
+  maxLength: number,
+): { value: string; cursor: number; inserted: VoiceInsertRecord | null } {
+  const addition = transcript.trim();
+  if (!addition) {
+    const cursor = selection?.end ?? current.length;
+    return { value: current, cursor, inserted: null };
+  }
+  if (!selection) {
+    return appendTranscriptToDraft(current, addition);
+  }
+  const start = Math.max(0, Math.min(selection.start, current.length));
+  const end = Math.max(start, Math.min(selection.end, current.length));
+  const prefix = current.slice(0, start);
+  const suffix = current.slice(end);
+  const needsLeadingSpace = prefix.length > 0 && !/\s$/.test(prefix);
+  const needsTrailingSpace = suffix.length > 0 && !/^\s/.test(suffix);
+  const inserted = `${needsLeadingSpace ? " " : ""}${addition}${
+    needsTrailingSpace ? " " : ""
+  }`;
+  const value = `${prefix}${inserted}${suffix}`.slice(0, maxLength);
+  const startIndex = prefix.length + (needsLeadingSpace ? 1 : 0);
+  const endIndex = Math.min(startIndex + addition.length, value.length);
+  return {
+    value,
+    cursor: Math.min(prefix.length + inserted.length, value.length),
+    inserted:
+      endIndex > startIndex
+        ? { start: startIndex, end: endIndex, text: value.slice(startIndex, endIndex) }
+        : null,
+  };
+}
+
+function removeLastVoiceInsert(
+  current: string,
+  record: VoiceInsertRecord | null,
+): { value: string; cursor: number } {
+  if (!record) return { value: current, cursor: current.length };
+  const actual = current.slice(record.start, record.end);
+  if (actual !== record.text) return { value: current, cursor: current.length };
+  return {
+    value: `${current.slice(0, record.start)}${current.slice(record.end)}`,
+    cursor: record.start,
+  };
+}
+
+function questionSpeechKey(question: string): string {
+  return question;
+}
+
+function getQuestionSpeechLabel(status: QuestionSpeechStatus): {
+  ariaLabel: string;
+  icon: "replay" | "pause" | "resume";
+  text: string;
+} {
+  if (status === "speaking") {
+    return { ariaLabel: "暂停读题", icon: "pause", text: "暂停" };
+  }
+  if (status === "paused") {
+    return { ariaLabel: "继续读题", icon: "resume", text: "继续" };
+  }
+  return { ariaLabel: "重播本题", icon: "replay", text: "重播" };
+}
+
 function clearAnswerDraft(key: string): void {
   try {
     window.sessionStorage.removeItem(key);
@@ -983,13 +1257,24 @@ function clearAnswerDraft(key: string): void {
 const QaBubble = React.memo(function QaBubble({
   entry,
   isCurrent,
+  questionSpeechState,
   onSpeak,
+  onPauseSpeaking,
+  onResumeSpeaking,
 }: {
   entry: QaEntry;
   isCurrent: boolean;
+  questionSpeechState: QuestionSpeechState;
   onSpeak: (question: string) => void;
+  onPauseSpeaking: () => void;
+  onResumeSpeaking: () => void;
 }) {
   const isSelfIntro = entry.questionType === "self_intro";
+  const isCurrentSpeech =
+    questionSpeechState.key === questionSpeechKey(entry.question);
+  const questionSpeechLabel = getQuestionSpeechLabel(
+    isCurrentSpeech ? questionSpeechState.status : "idle",
+  );
   const displayTurnIdx =
     entry.displayTurnIdx ?? entry.formalTurnIdx ?? entry.turnIdx;
   const turnLabel = isSelfIntro
@@ -1073,12 +1358,28 @@ const QaBubble = React.memo(function QaBubble({
             type="button"
             variant="ghost"
             size="sm"
-            aria-label="重播本题"
-            onClick={() => onSpeak(entry.question)}
+            aria-label={questionSpeechLabel.ariaLabel}
+            onClick={() => {
+              if (!isCurrentSpeech || questionSpeechState.status === "idle") {
+                onSpeak(entry.question);
+              } else if (questionSpeechState.status === "speaking") {
+                onPauseSpeaking();
+              } else {
+                onResumeSpeaking();
+              }
+            }}
             className="ml-auto h-7 gap-1 px-2 text-xs text-muted-foreground hover:text-emerald-300"
           >
-            <Volume2 className="h-3.5 w-3.5" />
-            <span className="hidden sm:inline">重播</span>
+            {questionSpeechLabel.icon === "pause" ? (
+              <Pause className="h-3.5 w-3.5" />
+            ) : questionSpeechLabel.icon === "resume" ? (
+              <Play className="h-3.5 w-3.5" />
+            ) : (
+              <Volume2 className="h-3.5 w-3.5" />
+            )}
+            <span className="hidden sm:inline">
+              {questionSpeechLabel.text}
+            </span>
           </Button>
         </div>
         <div className="prose prose-sm prose-neutral dark:prose-invert max-w-none">
@@ -1323,11 +1624,6 @@ function formatDimensionName(id: string): string {
 
 function resumeAnchorLabel(anchor?: ResumeAnchor): string {
   return anchor?.project_name || anchor?.label || "";
-}
-
-function truncateSession(id: string): string {
-  if (id.length <= 12) return id;
-  return `${id.slice(0, 4)}…${id.slice(-4)}`;
 }
 
 function friendlyConnectionMessage(

@@ -43,6 +43,17 @@ test("interview room renders opening intro differently from technical turns", ()
   assert.match(source, /开场介绍/);
 });
 
+test("opening self-intro still exposes hint and skip controls", () => {
+  const source = read("src", "components", "interview", "InterviewRoom.tsx");
+
+  assert.match(source, /求一点思路/);
+  assert.match(source, /跳过本题/);
+  assert.match(source, /面试官提示/);
+  assert.doesNotMatch(source, /!\s*isSelfIntro && \(\s*<Button[\s\S]*?求一点思路/);
+  assert.doesNotMatch(source, /!\s*isSelfIntro && \(\s*<Button[\s\S]*?跳过本题/);
+  assert.doesNotMatch(source, /!\s*isSelfIntro && \(hintText \|\| hintError \|\| hintLoading\)/);
+});
+
 test("report page displays self-intro profile", () => {
   const source = read("src", "components", "interview", "ReportView.tsx");
 
