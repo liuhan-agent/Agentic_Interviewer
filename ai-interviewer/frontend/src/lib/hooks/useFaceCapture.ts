@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState, type RefObject } from "react";
 
 import { analyzeFrame, preloadFaceMesh } from "@/lib/video/faceAnalyzer";
 import {
@@ -13,10 +13,13 @@ const CAPTURE_INTERVAL_MS = 3000;
 
 export interface UseFaceCaptureReturn {
   cameraOn: boolean;
-  videoRef: React.RefObject<HTMLVideoElement | null>;
+  videoRef: RefObject<HTMLVideoElement>;
+  startCamera: () => Promise<boolean>;
+  releaseCamera: () => void;
   toggleCamera: () => Promise<void>;
   startCapture: () => void;
   stopCapture: () => AggregatedVideoSignal | null;
+  resetCapture: () => void;
   cameraError: string | null;
   analysisWarning: string | null;
 }
@@ -26,56 +29,98 @@ export function useFaceCapture(): UseFaceCaptureReturn {
   const [cameraError, setCameraError] = useState<string | null>(null);
   const [analysisWarning, setAnalysisWarning] = useState<string | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
-  const videoRef = useRef<HTMLVideoElement | null>(null);
+  const videoRef = useRef<HTMLVideoElement>(null);
   const signalBufferRef = useRef<VideoSignal[]>([]);
   const captureIntervalRef = useRef<ReturnType<typeof setInterval> | null>(
     null,
   );
 
-  const startCapture = useCallback(() => {
-    if (!videoRef.current) return;
+  const clearCaptureInterval = useCallback(() => {
+    if (!captureIntervalRef.current) return;
+    clearInterval(captureIntervalRef.current);
+    captureIntervalRef.current = null;
+  }, []);
+
+  const resetCapture = useCallback(() => {
     signalBufferRef.current = [];
-    captureIntervalRef.current = setInterval(async () => {
-      if (!videoRef.current) return;
-      const result = await analyzeFrame(videoRef.current);
-      if (result.ok) signalBufferRef.current.push(result.signal);
-    }, CAPTURE_INTERVAL_MS);
   }, []);
 
-  const stopCapture = useCallback((): AggregatedVideoSignal | null => {
-    if (captureIntervalRef.current) {
-      clearInterval(captureIntervalRef.current);
-      captureIntervalRef.current = null;
-    }
-    return aggregateSignals(signalBufferRef.current);
-  }, []);
-
-  const toggleCamera = useCallback(async () => {
-    if (cameraOn && streamRef.current) {
-      streamRef.current.getTracks().forEach((t) => t.stop());
-      streamRef.current = null;
-      setCameraOn(false);
-      setCameraError(null);
-      setAnalysisWarning(null);
-      return;
-    }
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({ video: true });
-      streamRef.current = stream;
+  const startCamera = useCallback(async (): Promise<boolean> => {
+    if (streamRef.current) {
+      if (videoRef.current) videoRef.current.srcObject = streamRef.current;
       setCameraOn(true);
       setCameraError(null);
+      return true;
+    }
+
+    if (typeof navigator === "undefined" || !navigator.mediaDevices) {
+      setCameraOn(false);
+      setCameraError("摄像头不可用，不影响继续面试。");
+      setAnalysisWarning(null);
+      return false;
+    }
+
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: true,
+        audio: false,
+      });
+      streamRef.current = stream;
       if (videoRef.current) videoRef.current.srcObject = stream;
+      setCameraOn(true);
+      setCameraError(null);
+
       const canAnalyze = await preloadFaceMesh();
       setAnalysisWarning(
-        canAnalyze
-          ? null
-          : "摄像头可用，但本地表情分析暂未加载。你仍可正常作答。",
+        canAnalyze ? null : "摄像头可用，本地表情分析暂不可用。",
       );
+      return true;
     } catch {
-      setCameraError("摄像头权限被拒绝或设备不可用。");
+      setCameraOn(false);
+      setCameraError("摄像头权限被拒绝或设备不可用，不影响继续面试。");
       setAnalysisWarning(null);
+      return false;
     }
-  }, [cameraOn]);
+  }, []);
+
+  const releaseCamera = useCallback(() => {
+    clearCaptureInterval();
+    resetCapture();
+    streamRef.current?.getTracks().forEach((track) => track.stop());
+    streamRef.current = null;
+    if (videoRef.current) videoRef.current.srcObject = null;
+    setCameraOn(false);
+    setCameraError(null);
+    setAnalysisWarning(null);
+  }, [clearCaptureInterval, resetCapture]);
+
+  const startCapture = useCallback(() => {
+    if (!videoRef.current || !streamRef.current) return;
+    clearCaptureInterval();
+    resetCapture();
+    captureIntervalRef.current = setInterval(async () => {
+      if (!videoRef.current) return;
+      try {
+        const result = await analyzeFrame(videoRef.current);
+        if (result.ok) signalBufferRef.current.push(result.signal);
+      } catch {
+        setAnalysisWarning("视频分析暂不可用，不影响继续面试。");
+      }
+    }, CAPTURE_INTERVAL_MS);
+  }, [clearCaptureInterval, resetCapture]);
+
+  const stopCapture = useCallback((): AggregatedVideoSignal | null => {
+    clearCaptureInterval();
+    return aggregateSignals(signalBufferRef.current);
+  }, [clearCaptureInterval]);
+
+  const toggleCamera = useCallback(async () => {
+    if (cameraOn) {
+      releaseCamera();
+      return;
+    }
+    await startCamera();
+  }, [cameraOn, releaseCamera, startCamera]);
 
   useEffect(() => {
     if (videoRef.current && streamRef.current) {
@@ -85,19 +130,22 @@ export function useFaceCapture(): UseFaceCaptureReturn {
 
   useEffect(() => {
     return () => {
-      streamRef.current?.getTracks().forEach((t) => t.stop());
-      if (captureIntervalRef.current) {
-        clearInterval(captureIntervalRef.current);
-      }
+      clearCaptureInterval();
+      signalBufferRef.current = [];
+      streamRef.current?.getTracks().forEach((track) => track.stop());
+      streamRef.current = null;
     };
-  }, []);
+  }, [clearCaptureInterval]);
 
   return {
     cameraOn,
     videoRef,
+    startCamera,
+    releaseCamera,
     toggleCamera,
     startCapture,
     stopCapture,
+    resetCapture,
     cameraError,
     analysisWarning,
   };

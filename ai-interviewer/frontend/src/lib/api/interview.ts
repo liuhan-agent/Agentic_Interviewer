@@ -1,10 +1,12 @@
 import { ApiError, request } from "./client";
+import { apiUrl } from "@/lib/config";
 import type {
   AnswerRequest,
   DeleteSessionResponse,
   GetReportResponse,
   HintRequest,
   HintResponse,
+  InterviewWaitingTipsResponse,
   JobTemplateResponse,
   ListDirectionsResponse,
   ListDimensionsResponse,
@@ -12,9 +14,11 @@ import type {
   ParseJobSpecResponse,
   ParseResumeResponse,
   PollQuestionResponse,
+  QuestionAudioRequest,
   RecoverSessionResponse,
   ReplayResponse,
   RetryQuestionResponse,
+  ResumeParseJobResponse,
   SessionMetadataResponse,
   ResumeResponse,
   SkipQuestionRequest,
@@ -129,7 +133,31 @@ export function parseResume(
   return request(`${BASE}/resume/parse`, {
     method: "POST",
     body: fd,
-    timeoutMs: 90_000,
+    timeoutMs: 180_000,
+  });
+}
+
+export function createResumeParseJob(
+  file: File,
+  llmConfig?: LLMConfigPayload,
+): Promise<ResumeParseJobResponse> {
+  const fd = new FormData();
+  fd.append("file", file, file.name);
+  if (llmConfig) {
+    fd.append("llm_config", JSON.stringify(llmConfig));
+  }
+  return request(`${BASE}/resume/parse-jobs`, {
+    method: "POST",
+    body: fd,
+    timeoutMs: 45_000,
+  });
+}
+
+export function getResumeParseJob(
+  jobId: string,
+): Promise<ResumeParseJobResponse> {
+  return request(`${BASE}/resume/parse-jobs/${encodeURIComponent(jobId)}`, {
+    timeoutMs: 15_000,
   });
 }
 
@@ -172,6 +200,11 @@ export function listDirections(): Promise<ListDirectionsResponse> {
   return request(`${BASE}/directions`);
 }
 
+/** Static waiting-tip catalog used by the in-interview loading panel. */
+export function listInterviewWaitingTips(): Promise<InterviewWaitingTipsResponse> {
+  return request(`${BASE}/waiting-tips`);
+}
+
 export function pollQuestion(
   sessionId: string,
   opts: { timeout?: number; signal?: AbortSignal } = {},
@@ -193,11 +226,11 @@ export function submitAnswer(
   sessionId: string,
   answer: string,
   turnIdx: number,
-  videoSignals?: Record<string, unknown>,
+  videoSignals?: object,
 ): Promise<{ session_id: string; accepted: boolean }> {
   const llmConfig = buildLLMPayload();
   const body: AnswerRequest = { answer, turn_idx: turnIdx };
-  if (videoSignals) body.video_signals = videoSignals;
+  if (videoSignals) body.video_signals = videoSignals as Record<string, unknown>;
   if (llmConfig) body.llm_config = llmConfig;
   return request(`${BASE}/sessions/${encodeURIComponent(sessionId)}/answer`, {
     method: "POST",
@@ -240,6 +273,43 @@ export function createVoiceTicket(sessionId: string): Promise<VoiceTicketRespons
     `${BASE}/sessions/${encodeURIComponent(sessionId)}/voice-ticket`,
     { method: "POST", headers: sessionHeaders(sessionId) },
   );
+}
+
+export async function synthesizeQuestionAudio(
+  sessionId: string,
+  text: string,
+  turnIdx: number,
+  signal?: AbortSignal,
+): Promise<Blob> {
+  void text;
+  const llmConfig = buildLLMPayload();
+  const body: QuestionAudioRequest = { turn_idx: turnIdx };
+  if (llmConfig) body.llm_config = llmConfig;
+  const res = await fetch(apiUrl(`${BASE}/sessions/${encodeURIComponent(sessionId)}/question-audio`), {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      ...(sessionHeaders(sessionId) ?? {}),
+    },
+    body: JSON.stringify(body),
+    signal,
+    cache: "no-store",
+  });
+  if (!res.ok) {
+    let message = res.statusText || `HTTP ${res.status}`;
+    let parsed: unknown = null;
+    try {
+      parsed = await res.json();
+      if (parsed && typeof parsed === "object" && "detail" in parsed) {
+        const detail = (parsed as { detail?: unknown }).detail;
+        message = typeof detail === "string" ? detail : JSON.stringify(detail);
+      }
+    } catch {
+      /* keep status text */
+    }
+    throw new ApiError(res.status, message, parsed);
+  }
+  return res.blob();
 }
 
 export function retryFailedQuestion(

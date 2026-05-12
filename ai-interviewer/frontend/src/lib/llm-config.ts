@@ -84,6 +84,7 @@ export interface VoiceProviderInfo {
   asrModel: string;
   ttsModel: string;
   ttsVoice: string;
+  ttsVoices: readonly string[];
   baseUrl: string;
   keyPlaceholder: string;
 }
@@ -173,6 +174,7 @@ export const VOICE_PROVIDERS = [
     asrModel: "qwen3-asr-flash-realtime",
     ttsModel: "qwen3-tts-flash-realtime",
     ttsVoice: "Cherry",
+    ttsVoices: ["Cherry", "Serena", "Ethan", "Chelsie"],
     baseUrl: "wss://dashscope.aliyuncs.com/api-ws/v1/realtime",
     keyPlaceholder: "sk-...",
   },
@@ -182,6 +184,7 @@ export const VOICE_PROVIDERS = [
     asrModel: "whisper-1",
     ttsModel: "gpt-4o-mini-tts",
     ttsVoice: "alloy",
+    ttsVoices: ["alloy"],
     baseUrl: "",
     keyPlaceholder: "sk-...",
   },

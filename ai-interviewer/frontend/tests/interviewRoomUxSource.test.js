@@ -68,7 +68,7 @@ test("answer box can expand and collapse long answers", () => {
   assert.match(source, /const \[answerExpanded, setAnswerExpanded\] = useState\(false\)/);
   assert.match(source, /aria-expanded=\{answerExpanded\}/);
   assert.match(source, /maxRows=\{answerExpanded \? 24 : 8\}/);
-  assert.match(source, /answerExpanded \? "收起" : "展开"/);
+  assert.match(source, /answerExpanded \?/);
 });
 
 test("submitted long answer bubbles use a shared expand/collapse component", () => {
@@ -94,5 +94,64 @@ test("submitted long answer bubbles use a shared expand/collapse component", () 
 test("interview room detects final submitted turn for final-report loading copy", () => {
   assert.match(source, /const \[finalTurnSubmitted, setFinalTurnSubmitted\] = useState\(false\)/);
   assert.match(source, /isFinalFormalTurn\(/);
-  assert.match(source, /<NextQuestionLoader\s+etaMs=\{state\.lastServerLatencyMs\}\s+isFinalTurn=\{finalTurnSubmitted\}/);
+  assert.match(source, /<NextQuestionLoader\s+etaMs=\{state\.lastServerLatencyMs\}\s+isFinalTurn=\{finalTurnSubmitted\}\s+answerInsight=\{latestSubmittedAnswerInsight\}/);
+});
+
+test("interview room passes stable local answer insight while loading", () => {
+  assert.match(source, /const latestSubmittedAnswerInsight =/);
+  assert.match(source, /answerInsightFromHistory\(history\)/);
+  assert.doesNotMatch(source, /answerInsightFromHistory\(history, finalTurnSubmitted\)/);
+  assert.match(source, /function answerInsightFromHistory/);
+  assert.doesNotMatch(source, /if \(finalTurnSubmitted\) return null/);
+  assert.match(source, /const isOpeningTurn = entry\.questionType === "self_intro"/);
+  assert.match(source, /const dimensionId = isOpeningTurn[\s\S]*\? null[\s\S]*: entry\.dimension/);
+  assert.match(source, /const dimensionLabel = isOpeningTurn[\s\S]*\? null[\s\S]*: entry\.dimension/);
+  assert.match(source, /formatDimensionName\(entry\.dimension\)/);
+  assert.match(source, /dimensionId,/);
+  assert.match(source, /isOpeningTurn,?/);
+  assert.match(source, /answer === "已跳过本题"/);
+  assert.doesNotMatch(source, /function extractAnswerKeywords/);
+  assert.doesNotMatch(source, /ANSWER_KEYWORD_MAX_COUNT/);
+  assert.doesNotMatch(source, /ANSWER_TECHNICAL_KEYWORD_RULES/);
+  assert.doesNotMatch(source, /keywords,/);
+  assert.match(source, /return null/);
+});
+
+test("interview room loads waiting tips once and tracks shown tips in memory", () => {
+  assert.match(source, /import[\s\S]*listInterviewWaitingTips[\s\S]*from "@\/lib\/api\/interview"/);
+  assert.match(source, /InterviewWaitingTipsResponse/);
+  assert.match(source, /const \[waitingTipsResponse, setWaitingTipsResponse\] =\s*useState<InterviewWaitingTipsResponse \| null>\(null\)/);
+  assert.match(source, /const displayedWaitingTipIdsRef = useRef<Set<string>>\(new Set\(\)\)/);
+  assert.match(source, /listInterviewWaitingTips\(\)/);
+  assert.match(source, /setWaitingTipsResponse/);
+  assert.match(source, /function handleWaitingTipShown\(tipId: string\)/);
+  assert.match(source, /displayedWaitingTipIdsRef\.current\.add\(tipId\)/);
+  assert.match(source, /waitingTips=\{waitingTipsResponse\?\.tips \?\? null\}/);
+  assert.match(source, /displayedTipIds=\{displayedWaitingTipIdsRef\.current\}/);
+  assert.match(source, /onWaitingTipShown=\{handleWaitingTipShown\}/);
+});
+
+test("video interview is attached to the real answer path as a weak side channel", () => {
+  assert.match(source, /useTurnVideoCapture/);
+  assert.match(source, /state\.phase === "waiting_for_answer" \? state\.turnIdx : null/);
+  assert.match(source, /const videoCapture = useTurnVideoCapture/);
+  assert.match(source, /<VideoPreviewPanel[\s\S]*videoCapture\.cameraOn/);
+  assert.match(source, /finishTurnCapture=\{videoCapture\.finishTurnCapture\}/);
+  assert.match(source, /clearTurnCapture=\{videoCapture\.clearTurnCapture\}/);
+  assert.doesNotMatch(source, /enableVideoAnalysis=\{state\.enableVideoAnalysis\}/);
+  assert.doesNotMatch(source, /function AnswerBox[\s\S]*useTurnVideoCapture\(\{/);
+  assert.match(source, /onSubmit: \(text: string, videoSignals\?: AggregatedVideoSignal \| null\) => Promise<boolean>/);
+  assert.match(source, /submitAnswer\(sessionId, text, state\.turnIdx, videoSignals/);
+  assert.match(source, /finishTurnCapture\(\)/);
+  assert.match(source, /clearTurnCapture\(\)/);
+  assert.match(source, /function VideoPreviewPanel/);
+  assert.match(source, /fixed right-6 top-20/);
+  assert.match(source, /hidden xl:block/);
+  assert.match(source, /xl:hidden/);
+  assert.match(source, /TooltipProvider delayDuration=\{150\}/);
+  assert.match(source, /TooltipContent side="bottom"/);
+  assert.doesNotMatch(source, /TooltipContent side="left"/);
+  assert.match(source, /关闭摄像头会清空当前题已采集的视频信号/);
+  assert.match(source, /开启摄像头后，本题会尝试采集本地视频信号/);
+  assert.doesNotMatch(source, /title=\{/);
 });

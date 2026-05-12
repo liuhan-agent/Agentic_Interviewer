@@ -80,6 +80,8 @@ const VOICE_ROUTE_LABELS: Record<LLMVoiceRouteId, string> = {
   tts: "语音合成",
 };
 
+const CUSTOM_VOICE_VALUE = "__custom_voice__";
+
 function routeProviderLabel(provider: string): string {
   return voiceProviderInfo(provider).label || providerInfo(provider).label;
 }
@@ -669,6 +671,13 @@ function VoiceRouteCard({
     !override.apiKey.trim() && config.provider === override.provider && config.apiKey.trim();
   const label = VOICE_ROUTE_LABELS[routeId];
   const modelPlaceholder = routeId === "asr" ? provider.asrModel : provider.ttsModel;
+  const voiceOptions = provider.ttsVoices;
+  const currentVoice = override.voice ?? provider.ttsVoice;
+  const customVoiceSelected =
+    routeId === "tts" && !voiceOptions.includes(currentVoice);
+  const selectedPresetVoice = customVoiceSelected
+    ? CUSTOM_VOICE_VALUE
+    : currentVoice || provider.ttsVoice;
   const effectiveModel =
     routeId === "tts"
       ? `${effective.model || effectiveProvider.ttsModel} / ${effective.voice || effectiveProvider.ttsVoice}`
@@ -761,13 +770,46 @@ function VoiceRouteCard({
           </div>
 
           {routeId === "tts" && (
-            <div className="space-y-1.5">
-              <Label>Voice</Label>
-              <Input
-                placeholder={provider.ttsVoice}
-                value={override.voice ?? provider.ttsVoice}
-                onChange={(e) => onChange(routeId, { voice: e.target.value })}
-              />
+            <div className="grid gap-3 sm:grid-cols-2">
+              <div className="space-y-1.5">
+                <Label>Voice</Label>
+                <select
+                  value={selectedPresetVoice}
+                  onChange={(e) => {
+                    const nextVoice = e.target.value;
+                    onChange(routeId, {
+                      voice: nextVoice === CUSTOM_VOICE_VALUE ? "" : nextVoice,
+                    });
+                  }}
+                  className={selectClass}
+                >
+                  {voiceOptions.map((voice) => (
+                    <option
+                      key={voice}
+                      value={voice}
+                      className="bg-background text-foreground"
+                    >
+                      {voice}
+                    </option>
+                  ))}
+                  <option
+                    value={CUSTOM_VOICE_VALUE}
+                    className="bg-background text-foreground"
+                  >
+                    自定义音色
+                  </option>
+                </select>
+              </div>
+              {customVoiceSelected && (
+                <div className="space-y-1.5">
+                  <Label>自定义音色</Label>
+                  <Input
+                    placeholder={provider.ttsVoice}
+                    value={currentVoice}
+                    onChange={(e) => onChange(routeId, { voice: e.target.value })}
+                  />
+                </div>
+              )}
             </div>
           )}
 

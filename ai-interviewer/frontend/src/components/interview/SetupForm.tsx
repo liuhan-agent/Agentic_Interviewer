@@ -57,17 +57,18 @@ import { Textarea } from "@/components/ui/textarea";
 import { LLMSettingsDialog } from "@/components/layout/LLMSettingsDialog";
 import { ApiError } from "@/lib/api/client";
 import {
+  createResumeParseJob,
   getJobTemplate,
+  getResumeParseJob,
   listDirections,
   listDimensions,
   parseJobSpec,
-  parseResume,
   startSession,
 } from "@/lib/api/interview";
 import { jobTemplateAutofillValue } from "@/lib/job-template";
 import {
   candidateNameAutofillValue,
-  parseResumeForSetup,
+  createResumeParseJobForSetup,
   resumeReuploadInputValue,
   resumeJobAutofillValues,
   resumeParsedForSession,
@@ -77,6 +78,8 @@ import type {
   InterviewDirection,
   ParseJobSpecResponse,
   ParseResumeStatus,
+  ParseResumeResponse,
+  ResumeParseJobResponse,
   ResumeCandidateProfile,
   ResumeFocusArea,
   ResumeProject,
@@ -91,6 +94,12 @@ import {
   type LLMConfigStatus,
 } from "@/lib/llm-config";
 import { upsertEntry } from "@/lib/storage/interviewHistory";
+import {
+  getSetupDraft,
+  removeSetupDraft,
+  upsertSetupDraft,
+  type SetupDraftStatus,
+} from "@/lib/storage/setupDrafts";
 
 // ---------------------------------------------------------------------------
 // Schema & defaults
@@ -627,15 +636,60 @@ function normaliseFocusAreas(focusAreas?: ResumeFocusArea[]): ResumeFocusArea[] 
 
 type UploadStatus =
   | { kind: "idle" }
-  | { kind: "parsing"; filename: string }
-  | { kind: "success"; filename: string; parseStatus?: ParseResumeStatus }
-  | { kind: "error"; filename: string; message: string };
+  | {
+      kind: "parsing";
+      filename: string;
+      draftId?: string;
+      jobId?: string;
+      expiresAt?: string;
+    }
+  | {
+      kind: "success";
+      filename: string;
+      parseStatus?: ParseResumeStatus;
+      draftId?: string;
+    }
+  | {
+      kind: "error";
+      filename: string;
+      message: string;
+      draftId?: string;
+      jobId?: string;
+      expiresAt?: string;
+    };
 
 type JdStatus =
   | { kind: "idle" }
   | { kind: "parsing" }
   | { kind: "success"; rationale: string }
   | { kind: "error"; message: string };
+
+function createSetupDraftId(): string {
+  if (
+    typeof crypto !== "undefined" &&
+    typeof crypto.randomUUID === "function"
+  ) {
+    return crypto.randomUUID();
+  }
+  return `draft-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+}
+
+function uploadDraftId(status: UploadStatus): string | undefined {
+  return status.kind === "idle" ? undefined : status.draftId;
+}
+
+function setupDraftStatusFromResult(result: ParseResumeResponse): SetupDraftStatus {
+  return result.parse_status?.mode === "basic" ? "basic_ready" : "ready";
+}
+
+function setupDraftStatusFromJob(job: ResumeParseJobResponse): SetupDraftStatus {
+  if (job.status === "expired") return "expired";
+  if (job.status === "failed") return "failed";
+  if (job.status === "completed" && job.result) {
+    return setupDraftStatusFromResult(job.result);
+  }
+  return "parsing";
+}
 
 // ---------------------------------------------------------------------------
 // SetupForm root
@@ -644,6 +698,7 @@ type JdStatus =
 export function SetupForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const draftIdFromQuery = searchParams.get("draft_id");
   const [step, setStep] = useState(0);
   const [serverError, setServerError] = useState<string | null>(null);
   const [enableVideoAnalysis, setEnableVideoAnalysis] = useState(false);
@@ -665,6 +720,7 @@ export function SetupForm() {
   const [isDragging, setIsDragging] = useState(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const uploadRequestRef = useRef(0);
+  const restoredDraftRef = useRef<string | null>(null);
 
   const [hasDraft, setHasDraft] = useState(false);
 
@@ -733,6 +789,7 @@ export function SetupForm() {
   const watchedSummary = watch("candidate_summary");
   const watchedSkills = watch("candidate_skills");
   const watchedHighlights = watch("candidate_highlights");
+  const resumeFieldsLocked = upload.kind === "parsing";
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -931,33 +988,8 @@ export function SetupForm() {
     applyPracticeFocusQuery();
   }, [applyPracticeFocusQuery]);
 
-  // ---- Step 1: resume file upload --------------------------------------
-
-  async function handleFile(file: File) {
-    const requestId = ++uploadRequestRef.current;
-    if (!isAcceptedResumeFile(file)) {
-      setUpload({
-        kind: "error",
-        filename: file.name,
-        message: "暂时只支持 PDF / DOCX / TXT / Markdown。可以换个格式再试。",
-      });
-      return;
-    }
-    if (file.size > MAX_UPLOAD_BYTES) {
-      setUpload({
-        kind: "error",
-        filename: file.name,
-        message: "文件过大（>5MB），请压缩或裁剪后再上传",
-      });
-      return;
-    }
-    setUpload({ kind: "parsing", filename: file.name });
-    try {
-      const result = await parseResumeForSetup(file, {
-        parseResume,
-        buildLLMPayload,
-      });
-      if (requestId !== uploadRequestRef.current) return;
+  const applyResumeResult = useCallback(
+    (result: ParseResumeResponse) => {
       const candidateName = candidateNameAutofillValue(
         result,
         getValues("candidate_name"),
@@ -999,22 +1031,195 @@ export function SetupForm() {
       setResumeProjects(normaliseProjects(result.projects));
       setResumeFocusAreas(normaliseFocusAreas(result.focus_areas));
       setResumeConcerns(result.concerns ?? []);
-      setUpload({
-        kind: "success",
-        filename: file.name,
-        parseStatus: result.parse_status,
+    },
+    [getValues, jobLevelEdited, jobTitleEdited, setValue],
+  );
+
+  const handleResumeJobSnapshot = useCallback(
+    (
+      job: ResumeParseJobResponse,
+      draftId: string,
+      fallbackFilename: string,
+    ): boolean => {
+      const filename = job.filename ?? fallbackFilename;
+      if (job.status === "running") {
+        upsertSetupDraft({
+          draftId,
+          jobId: job.job_id,
+          filename,
+          status: "parsing",
+          expiresAt: job.expires_at,
+        });
+        return false;
+      }
+      if (job.status === "completed" && job.result) {
+        applyResumeResult(job.result);
+        upsertSetupDraft({
+          draftId,
+          jobId: job.job_id,
+          filename,
+          status: setupDraftStatusFromResult(job.result),
+          expiresAt: job.expires_at,
+        });
+        setUpload({
+          kind: "success",
+          filename,
+          parseStatus: job.result.parse_status,
+          draftId,
+        });
+        return true;
+      }
+      const status = setupDraftStatusFromJob(job);
+      upsertSetupDraft({
+        draftId,
+        jobId: job.job_id,
+        filename,
+        status,
+        expiresAt: job.expires_at,
       });
+      setUpload({
+        kind: "error",
+        filename,
+        draftId,
+        jobId: job.job_id,
+        expiresAt: job.expires_at,
+        message:
+          job.status === "expired"
+            ? "简历解析草稿已过期，请重新上传。"
+            : job.error || "简历解析失败，请重新上传或手动填写。",
+      });
+      return true;
+    },
+    [applyResumeResult],
+  );
+
+  useEffect(() => {
+    if (upload.kind !== "parsing" || !upload.jobId || !upload.draftId) return;
+    let cancelled = false;
+    let timer: number | null = null;
+    const poll = async () => {
+      try {
+        const job = await getResumeParseJob(upload.jobId!);
+        if (cancelled) return;
+        const done = handleResumeJobSnapshot(
+          job,
+          upload.draftId!,
+          upload.filename,
+        );
+        if (!done) {
+          timer = window.setTimeout(poll, 2500);
+        }
+      } catch {
+        if (!cancelled) {
+          timer = window.setTimeout(poll, 5000);
+        }
+      }
+    };
+    timer = window.setTimeout(poll, 1200);
+    return () => {
+      cancelled = true;
+      if (timer) window.clearTimeout(timer);
+    };
+  }, [handleResumeJobSnapshot, upload]);
+
+  useEffect(() => {
+    if (!draftIdFromQuery || restoredDraftRef.current === draftIdFromQuery) return;
+    restoredDraftRef.current = draftIdFromQuery;
+    const draft = getSetupDraft(draftIdFromQuery);
+    if (!draft) {
+      setStep((prev) => Math.max(prev, 1));
+      setUpload({
+        kind: "error",
+        filename: "resume",
+        message: "简历解析草稿已失效，请重新上传。",
+      });
+      return;
+    }
+    setStep((prev) => Math.max(prev, 1));
+    setUpload({
+      kind: "parsing",
+      filename: draft.filename,
+      draftId: draft.draftId,
+      jobId: draft.jobId,
+      expiresAt: draft.expiresAt,
+    });
+    void getResumeParseJob(draft.jobId)
+      .then((job) => handleResumeJobSnapshot(job, draft.draftId, draft.filename))
+      .catch(() => {
+        setUpload({
+          kind: "error",
+          filename: draft.filename,
+          draftId: draft.draftId,
+          jobId: draft.jobId,
+          expiresAt: draft.expiresAt,
+          message: "暂时无法恢复解析状态，请稍后重试或重新上传。",
+        });
+      });
+  }, [draftIdFromQuery, handleResumeJobSnapshot]);
+
+  // ---- Step 1: resume file upload --------------------------------------
+
+  async function handleFile(file: File) {
+    const requestId = ++uploadRequestRef.current;
+    if (!isAcceptedResumeFile(file)) {
+      setUpload({
+        kind: "error",
+        filename: file.name,
+        message: "暂时只支持 PDF / DOCX / TXT / Markdown。可以换个格式再试。",
+      });
+      return;
+    }
+    if (file.size > MAX_UPLOAD_BYTES) {
+      setUpload({
+        kind: "error",
+        filename: file.name,
+        message: "文件过大（>5MB），请压缩或裁剪后再上传",
+      });
+      return;
+    }
+    const draftId = createSetupDraftId();
+    setUpload({ kind: "parsing", filename: file.name, draftId });
+    try {
+      const job = await createResumeParseJobForSetup(file, {
+        createResumeParseJob,
+        buildLLMPayload,
+      });
+      if (requestId !== uploadRequestRef.current) return;
+      const filename = job.filename ?? file.name;
+      if (job.status === "running") {
+        upsertSetupDraft({
+          draftId,
+          jobId: job.job_id,
+          filename,
+          status: "parsing",
+          expiresAt: job.expires_at,
+        });
+        setUpload({
+          kind: "parsing",
+          filename,
+          draftId,
+          jobId: job.job_id,
+          expiresAt: job.expires_at,
+        });
+      } else {
+        handleResumeJobSnapshot(job, draftId, file.name);
+      }
     } catch (err) {
       if (requestId !== uploadRequestRef.current) return;
       setUpload({
         kind: "error",
         filename: file.name,
+        draftId,
         message: friendlyResumeUploadError(err),
       });
     }
   }
 
   function clearUpload() {
+    const draftId = uploadDraftId(upload);
+    if (draftId) {
+      removeSetupDraft(draftId);
+    }
     uploadRequestRef.current += 1;
     setUpload({ kind: "idle" });
     setResumeCandidateProfile({});
@@ -1165,6 +1370,11 @@ export function SetupForm() {
   const onSubmit = handleSubmit(
     async (values) => {
       setServerError(null);
+      if (resumeFieldsLocked) {
+        setServerError("AI 简历解析还在进行中，完成后会自动填入表单。");
+        setStep(1);
+        return;
+      }
       if (selectedDims.length === 0) {
         setServerError("请至少保留一个考察维度");
         setStep(2);
@@ -1242,6 +1452,10 @@ export function SetupForm() {
         } catch {
           /* ignore */
         }
+        const draftId = uploadDraftId(upload);
+        if (draftId) {
+          removeSetupDraft(draftId);
+        }
         safeSessionRemoveItem(RESUME_DRAFT_KEY);
         router.push(`/interview/${res.session_id}`);
       } catch (err) {
@@ -1314,6 +1528,7 @@ export function SetupForm() {
                     aria-describedby={
                       errors.candidate_name ? fieldErrorId("candidate_name") : undefined
                     }
+                    disabled={resumeFieldsLocked}
                   />
                   {errors.candidate_name && (
                     <p id={fieldErrorId("candidate_name")} className="text-xs text-destructive">
@@ -1357,23 +1572,6 @@ export function SetupForm() {
                   }}
                 />
 
-                {hasDraft && (
-                  <div className="flex items-center justify-between rounded-md border border-emerald-500/20 bg-emerald-500/5 px-4 py-3 text-sm">
-                    <div className="flex items-center gap-2">
-                      <Sparkles className="h-4 w-4 text-emerald-400" />
-                      <span>检测到你有未提交的简历精修草稿</span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <Button type="button" variant="outline" size="sm" onClick={clearDraft}>
-                        丢弃
-                      </Button>
-                      <Button type="button" variant="default" size="sm" className="bg-emerald-600 text-white hover:bg-emerald-500" onClick={loadDraft}>
-                        恢复
-                      </Button>
-                    </div>
-                  </div>
-                )}
-
                 <ResumePreviewCard
                   candidateProfile={resumeCandidateProfile}
                   summary={watch("candidate_summary") ?? ""}
@@ -1383,6 +1581,7 @@ export function SetupForm() {
                   focusAreas={resumeFocusAreas}
                   concerns={resumeConcerns}
                   showHint={upload.kind === "success"}
+                  readOnly={resumeFieldsLocked}
                   onChangeSummary={(v) =>
                     setValue("candidate_summary", v, { shouldValidate: true })
                   }
@@ -1438,6 +1637,7 @@ export function SetupForm() {
                     aria-describedby={
                       errors.job_title ? fieldErrorId("job_title") : undefined
                     }
+                    disabled={resumeFieldsLocked}
                   />
                   {errors.job_title && (
                     <p id={fieldErrorId("job_title")} className="text-xs text-destructive">
@@ -1461,6 +1661,7 @@ export function SetupForm() {
                         setJobLevelFromResume(false);
                       },
                     })}
+                    disabled={resumeFieldsLocked}
                     className="h-9 w-full rounded-md border border-input bg-background px-3 text-sm text-foreground shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
                   >
                     <option value="junior" className="bg-background text-foreground">
@@ -1608,7 +1809,7 @@ export function SetupForm() {
             <Button
               type="submit"
               size="lg"
-              disabled={isSubmitting}
+              disabled={isSubmitting || resumeFieldsLocked}
               className="gap-2 bg-emerald-600 hover:bg-emerald-500 text-white"
             >
               {isSubmitting && <Loader2 className="h-4 w-4 animate-spin" />}
@@ -1980,6 +2181,56 @@ function ResumeUploader({
   const parseStatus = isSuccess ? status.parseStatus : undefined;
   const successIsBasic = parseStatus?.mode === "basic";
 
+  if (isParsing) {
+    return (
+      <div className="space-y-2">
+        <div className="flex items-center justify-between gap-3">
+          <Label className="text-sm">从简历自动填写（推荐）</Label>
+          <Button type="button" variant="ghost" size="sm" onClick={onClear}>
+            取消解析
+          </Button>
+        </div>
+        <div className="rounded-md border border-emerald-500/25 bg-emerald-500/[0.04] px-3 py-3">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex min-w-0 items-start gap-3">
+              <div className="mt-0.5 rounded-full bg-emerald-500/10 p-2">
+                <Loader2 className="h-4 w-4 animate-spin text-emerald-300" />
+              </div>
+              <div className="min-w-0 space-y-1">
+                <div className="flex flex-wrap items-center gap-2">
+                  <Badge
+                    variant="outline"
+                    className="border-emerald-500/40 bg-emerald-500/10 text-emerald-200"
+                  >
+                    AI 解析中
+                  </Badge>
+                  <span className="truncate text-sm font-medium">
+                    {status.filename}
+                  </span>
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  解析可能需要几分钟。你可以离开当前页面，之后从首页“接着练”或“我的面试”继续回来。
+                </p>
+              </div>
+            </div>
+            <div className="grid shrink-0 grid-cols-3 gap-1 text-[11px] text-muted-foreground sm:w-[260px]">
+              {["读取文件", "AI 精修", "自动补全"].map((label, idx) => (
+                <div
+                  key={label}
+                  className="rounded border border-emerald-500/15 bg-background/30 px-2 py-1 text-center"
+                >
+                  <span className={idx === 1 ? "text-emerald-200" : ""}>
+                    {label}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   if (isSuccess) {
     return (
       <div className="space-y-2">
@@ -2009,7 +2260,7 @@ function ResumeUploader({
               重新上传
             </Button>
             <Button type="button" variant="ghost" size="sm" onClick={onClear}>
-              移除文件状态
+              清除解析结果
             </Button>
           </div>
         </div>
@@ -2028,7 +2279,7 @@ function ResumeUploader({
             className="flex items-center gap-1 text-xs text-muted-foreground transition-colors hover:text-foreground"
           >
             <X className="h-3 w-3" />
-          移除文件状态
+          清除解析结果
           </button>
         )}
       </div>
@@ -2040,25 +2291,14 @@ function ResumeUploader({
         onDragOver={onDragOver}
         onDragLeave={onDragLeave}
         onDrop={onDrop}
-        disabled={isParsing}
         className={`flex w-full flex-col items-center justify-center gap-2 rounded-lg border-2 border-dashed px-6 py-8 text-center transition-all ${
           isDragging
             ? "border-emerald-400 bg-emerald-500/10"
             : isError
               ? "border-destructive/40 bg-destructive/5"
               : "border-border hover:border-emerald-500/40 hover:bg-emerald-500/5"
-        } ${isParsing ? "cursor-wait opacity-70" : "cursor-pointer"}`}
+        } cursor-pointer`}
       >
-        {isParsing && (
-          <>
-            <Loader2 className="h-6 w-6 animate-spin text-emerald-400" />
-            <p className="text-sm font-medium">正在解析 {status.filename}…</p>
-            <p className="text-xs text-muted-foreground">
-              正在解析为可编辑的简历信息
-            </p>
-          </>
-        )}
-
         {status.kind === "idle" && (
           <>
             <Upload className="h-6 w-6 text-muted-foreground" />
@@ -2146,6 +2386,7 @@ function ResumePreviewCard({
   focusAreas,
   concerns,
   showHint,
+  readOnly,
   onChangeSummary,
   onChangeSkills,
   onChangeHighlights,
@@ -2160,6 +2401,7 @@ function ResumePreviewCard({
   focusAreas: ResumeFocusArea[];
   concerns: string[];
   showHint: boolean;
+  readOnly?: boolean;
   onChangeSummary: (v: string) => void;
   onChangeSkills: (v: string) => void;
   onChangeHighlights: (v: string) => void;
@@ -2288,6 +2530,7 @@ function ResumePreviewCard({
             maxLength={CANDIDATE_SUMMARY_MAX_LENGTH}
             value={summary}
             onChange={(e) => onChangeSummary(e.target.value)}
+            disabled={readOnly}
             placeholder="一句话概述你的经验、领域和优势。例如：5 年后端经验，专注支付与消息系统，主导过…"
             className="resize-none border-0 bg-transparent p-0 text-sm shadow-none focus-visible:ring-0"
           />
@@ -2297,6 +2540,7 @@ function ResumePreviewCard({
             <Input
               value={skills}
               onChange={(e) => onChangeSkills(e.target.value)}
+              disabled={readOnly}
               maxLength={CANDIDATE_SKILLS_MAX_COUNT * (CANDIDATE_SKILL_MAX_LENGTH + 2)}
               placeholder="例如：React, TypeScript, Next.js"
               className="border-0 bg-transparent p-0 shadow-none focus-visible:ring-0"
@@ -2326,6 +2570,7 @@ function ResumePreviewCard({
               maxLength={CANDIDATE_HIGHLIGHTS_MAX_COUNT * CANDIDATE_HIGHLIGHT_MAX_LENGTH}
               value={highlights}
               onChange={(e) => onChangeHighlights(e.target.value)}
+              disabled={readOnly}
               placeholder="每行一条经历。建议带具体成果：例如「将首屏加载从 3.2s 优化到 0.9s」"
               className="resize-none border-0 bg-transparent p-0 text-sm shadow-none focus-visible:ring-0"
             />
@@ -2345,6 +2590,7 @@ function ResumePreviewCard({
                   <Input
                     value={project.name}
                     onChange={(e) => updateProject(idx, { name: e.target.value })}
+                    disabled={readOnly}
                     maxLength={RESUME_PROJECT_NAME_MAX_LENGTH}
                     placeholder="项目名称，例如：支付系统迁移"
                     className="h-8"
@@ -2353,6 +2599,7 @@ function ResumePreviewCard({
                     type="button"
                     variant="ghost"
                     size="icon"
+                    disabled={readOnly}
                     onClick={() =>
                       onChangeProjects(projects.filter((_, i) => i !== idx))
                     }
@@ -2364,6 +2611,7 @@ function ResumePreviewCard({
                 <Input
                   value={project.role ?? ""}
                   onChange={(e) => updateProject(idx, { role: e.target.value })}
+                  disabled={readOnly}
                   maxLength={RESUME_PROJECT_ROLE_MAX_LENGTH}
                   placeholder="你的角色，例如：负责人 / 核心开发"
                   className="h-8"
@@ -2373,6 +2621,7 @@ function ResumePreviewCard({
                   onChange={(e) =>
                     updateProject(idx, { tech_stack: splitCsv(e.target.value) })
                   }
+                  disabled={readOnly}
                   maxLength={CANDIDATE_SKILLS_MAX_COUNT * (CANDIDATE_SKILL_MAX_LENGTH + 2)}
                   placeholder="技术栈，用逗号分隔，例如：Java, Kafka, Redis"
                   className="h-8"
@@ -2385,6 +2634,7 @@ function ResumePreviewCard({
                       question_anchors: splitCsv(e.target.value),
                     })
                   }
+                  disabled={readOnly}
                   maxLength={RESUME_PROJECT_ANCHOR_MAX_COUNT * RESUME_PROJECT_ANCHOR_MAX_LENGTH}
                   placeholder="建议追问点，每行一条，例如：一致性、性能优化、故障恢复"
                   className="resize-none"
@@ -2396,7 +2646,7 @@ function ResumePreviewCard({
               variant="outline"
               size="sm"
               onClick={addProject}
-              disabled={projects.length >= RESUME_PROJECTS_MAX_COUNT}
+              disabled={readOnly || projects.length >= RESUME_PROJECTS_MAX_COUNT}
             >
               添加项目
             </Button>
@@ -2413,6 +2663,7 @@ function ResumePreviewCard({
                   <Input
                     value={focus.label}
                     onChange={(e) => updateFocus(idx, { label: e.target.value })}
+                    disabled={readOnly}
                     maxLength={RESUME_FOCUS_LABEL_MAX_LENGTH}
                     placeholder="考察重点，例如：支付迁移中的幂等和一致性"
                     className="h-8"
@@ -2421,6 +2672,7 @@ function ResumePreviewCard({
                     type="button"
                     variant="ghost"
                     size="icon"
+                    disabled={readOnly}
                     onClick={() =>
                       onChangeFocusAreas(focusAreas.filter((_, i) => i !== idx))
                     }
@@ -2434,6 +2686,7 @@ function ResumePreviewCard({
                   onChange={(e) =>
                     updateFocus(idx, { skills: splitCsv(e.target.value) })
                   }
+                  disabled={readOnly}
                   maxLength={CANDIDATE_SKILLS_MAX_COUNT * (CANDIDATE_SKILL_MAX_LENGTH + 2)}
                   placeholder="关联技能，用逗号分隔"
                   className="h-8"
@@ -2445,7 +2698,7 @@ function ResumePreviewCard({
               variant="outline"
               size="sm"
               onClick={addFocusArea}
-              disabled={focusAreas.length >= RESUME_FOCUS_AREAS_MAX_COUNT}
+              disabled={readOnly || focusAreas.length >= RESUME_FOCUS_AREAS_MAX_COUNT}
             >
               添加重点
             </Button>

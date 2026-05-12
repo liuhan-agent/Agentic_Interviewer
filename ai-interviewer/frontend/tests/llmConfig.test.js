@@ -81,6 +81,27 @@ test("voice route cards match role override card interaction style", () => {
   assert.doesNotMatch(voiceBlock[0], /grid gap-3 sm:grid-cols-2">\s*<VoiceRouteCard/);
 });
 
+test("voice synthesis route offers preset voices and custom voice input", () => {
+  const configSource = fs.readFileSync(
+    path.join(__dirname, "..", "src", "lib", "llm-config.ts"),
+    "utf8",
+  );
+  const dialogSource = fs.readFileSync(
+    path.join(__dirname, "..", "src", "components", "layout", "LLMSettingsDialog.tsx"),
+    "utf8",
+  );
+
+  assert.match(configSource, /ttsVoices/);
+  assert.match(configSource, /"Cherry"/);
+  assert.match(configSource, /"Serena"/);
+  assert.match(configSource, /"Ethan"/);
+  assert.match(configSource, /"Chelsie"/);
+  assert.match(dialogSource, /voiceOptions/);
+  assert.match(dialogSource, /value=\{selectedPresetVoice\}/);
+  assert.match(dialogSource, /自定义音色/);
+  assert.match(dialogSource, /customVoiceSelected/);
+});
+
 test("voice capability section is independently collapsible", () => {
   const dialogSource = fs.readFileSync(
     path.join(__dirname, "..", "src", "components", "layout", "LLMSettingsDialog.tsx"),
