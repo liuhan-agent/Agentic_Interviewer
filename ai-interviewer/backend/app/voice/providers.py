@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import base64
 import json
+import uuid
 from collections.abc import AsyncIterator, Callable
 from dataclasses import dataclass
 from typing import Any, Protocol
@@ -260,11 +261,13 @@ class QwenVoiceProvider:
             await ws.send(
                 json.dumps(
                     {
+                        "event_id": f"event_{uuid.uuid4().hex}",
                         "type": "session.update",
                         "session": {
                             "voice": route.voice or "Cherry",
-                            "output_audio_format": "mp3",
-                            "modalities": ["audio"],
+                            "mode": "commit",
+                            "language_type": "Auto",
+                            "response_format": "mp3",
                         },
                     },
                     ensure_ascii=False,
@@ -273,14 +276,29 @@ class QwenVoiceProvider:
             await ws.send(
                 json.dumps(
                     {
+                        "event_id": f"event_{uuid.uuid4().hex}",
                         "type": "input_text_buffer.append",
                         "text": text,
                     },
                     ensure_ascii=False,
                 )
             )
-            await ws.send(json.dumps({"type": "input_text_buffer.commit"}))
-            await ws.send(json.dumps({"type": "session.finish"}))
+            await ws.send(
+                json.dumps(
+                    {
+                        "event_id": f"event_{uuid.uuid4().hex}",
+                        "type": "input_text_buffer.commit",
+                    }
+                )
+            )
+            await ws.send(
+                json.dumps(
+                    {
+                        "event_id": f"event_{uuid.uuid4().hex}",
+                        "type": "session.finish",
+                    }
+                )
+            )
             for _ in range(500):
                 event = _parse_event(await ws.recv())
                 event_type = str(event.get("type") or "")

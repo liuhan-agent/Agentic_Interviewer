@@ -40,4 +40,5 @@ def test_init_db_adds_durable_hitl_columns_to_existing_sqlite(monkeypatch, tmp_p
         "llm_config_meta",
         "turn_idx",
         "asked_turn",
+        "enable_video_analysis",
     } <= columns

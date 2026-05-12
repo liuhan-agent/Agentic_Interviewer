@@ -39,8 +39,8 @@ from typing import Any
 from app.core.logging import bind_log_context, get_logger, reset_log_context
 from app.core.settings import get_settings
 from app.core.timing import reset_timing_trace, start_timing_trace
-from app.services.session_recovery import RecoveryService
 from app.services.session_persistence import SessionPersistence
+from app.services.session_recovery import RecoveryService
 from app.services.session_registry import SessionRegistry
 
 # Per-session LLM override, readable by call_chat via get_llm_override().
@@ -348,6 +348,7 @@ class SessionHandle:
     job_title: str | None = None
     job_level: str | None = None
     mode: str | None = None
+    enable_video_analysis: bool = False
 
     # Compact projection of ``state.qa_history[-1].evaluation`` cached at
     # interrupt time so ``GET /question`` can ship the previous turn's
@@ -865,6 +866,7 @@ class SessionManager:
             "job_title": job_spec.get("title"),
             "job_level": job_spec.get("level"),
             "mode": initial.get("mode"),
+            "enable_video_analysis": bool(runtime_cfg.get("enable_video_analysis")),
             "max_turns": int(initial.get("max_turns") or 0) or None,
         }
         llm_config_meta = _safe_llm_config_meta(llm_config)
@@ -1231,6 +1233,10 @@ class SessionManager:
             job_title=data.get("job_title") or job_spec.get("title"),
             job_level=data.get("job_level") or job_spec.get("level"),
             mode=data.get("mode") or values.get("mode"),
+            enable_video_analysis=bool(
+                data.get("enable_video_analysis")
+                or (values.get("runtime_config") or {}).get("enable_video_analysis")
+            ),
             last_turn_evaluation=_extract_last_turn_evaluation(
                 values.get("qa_history")
             ),
@@ -1281,6 +1287,7 @@ class SessionManager:
                 job_title=data.get("job_title"),
                 job_level=data.get("job_level"),
                 mode=data.get("mode"),
+                enable_video_analysis=bool(data.get("enable_video_analysis")),
                 turn_idx=int(data.get("turn_idx") or 0),
                 asked_turn=int(
                     data.get("asked_turn")
@@ -1418,6 +1425,9 @@ class SessionManager:
                 job_title=row.job_title,
                 job_level=row.job_level,
                 mode=row.mode,
+                enable_video_analysis=bool(
+                    getattr(row, "enable_video_analysis", False)
+                ),
             )
             if row.current_question:
                 handle.question_event.set()

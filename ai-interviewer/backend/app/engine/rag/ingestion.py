@@ -17,6 +17,10 @@ log = get_logger(__name__)
 
 CHUNK_SIZE = 600
 CHUNK_OVERLAP = 80
+NON_RAG_JSON_SOURCES = {
+    "interview_waiting_tips.json",
+    "job_templates.json",
+}
 
 
 def _split(text: str) -> list[str]:
@@ -49,7 +53,7 @@ def _iter_documents(root: Path) -> list[tuple[str, dict]]:
             log.warning("Skipping %s: %s", path, e)
             continue
         rel = path.relative_to(root).as_posix()
-        if rel == "job_templates.json":
+        if rel in NON_RAG_JSON_SOURCES:
             continue
         source_type = rel.split("/", 1)[0] if "/" in rel else "misc"
         for idx, chunk in enumerate(_split(text)):

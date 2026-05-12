@@ -512,6 +512,8 @@ def test_default_llm_budget_is_interactive_bounded() -> None:
     assert settings.llm_request_timeout_seconds <= 20.0
     assert settings.generator_llm_timeout_seconds >= 40.0
     assert settings.evaluator_llm_timeout_seconds >= 40.0
+    assert settings.resume_parser_llm_timeout_seconds == 120.0
+    assert settings.resume_parse_job_llm_timeout_seconds == 300.0
     assert settings.verifier_llm_timeout_seconds == 30.0
     assert settings.llm_max_retries <= 1
     assert settings.llm_retry_backoff_cap_seconds <= 2.0

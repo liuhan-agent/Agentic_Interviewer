@@ -16,18 +16,19 @@ import asyncio
 import concurrent.futures
 import json
 import time
+from collections.abc import AsyncIterator
 from typing import Any, Literal
 from uuid import uuid4
 
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
-from pydantic import BaseModel, ConfigDict, Field, ValidationError
+from pydantic import BaseModel, ConfigDict, ValidationError
 
 from app.core.logging import get_logger
 from app.core.metrics import record_ws_invalid_frame
 from app.core.session_auth import verify_session_token
 from app.core.session_ids import is_valid_session_id
 from app.core.settings import get_settings
-from app.core.video_signals_schema import VideoSignalsInput
+from app.core.video_signals_schema import normalize_video_signals
 from app.core.voice_ticket import consume_voice_ticket
 from app.services.session_manager import SessionHandle, get_session_manager
 from app.voice.asr import get_asr
@@ -70,7 +71,7 @@ class StopFrame(BaseModel):
     # handling returns the user-facing "invalid_turn" error.
     turn_idx: Any = None
     mime_type: str | None = None
-    video_signals: VideoSignalsInput | None = None
+    video_signals: Any | None = None
 
 
 class SubmitTranscriptFrame(BaseModel):
@@ -79,7 +80,7 @@ class SubmitTranscriptFrame(BaseModel):
     type: Literal["submit_transcript"]
     turn_idx: Any = None
     content: str
-    video_signals: VideoSignalsInput | None = None
+    video_signals: Any | None = None
     llm_config: dict[str, Any] | None = None
 
 
@@ -287,7 +288,7 @@ async def voice_channel(ws: WebSocket, session_id: str) -> None:
     voice_rejected = False
     invalid_frame_count = 0
     audio_too_large_count = 0
-    pending_video_signals: VideoSignalsInput | None = None
+    pending_video_signals: dict[str, Any] | None = None
 
     # Anything that exits the receive loop - normal end, disconnect,
     # explicit cancel, uncaught exception - must tear the workflow
@@ -351,7 +352,7 @@ async def voice_channel(ws: WebSocket, session_id: str) -> None:
                     mime_type = str(payload.get("mime_type") or "audio/webm")
                     transcript = await asyncio.get_running_loop().run_in_executor(
                         _VOICE_EXECUTOR,
-                        lambda: asr.transcribe(
+                        lambda audio=audio, mime_type=mime_type, llm_config=llm_config: asr.transcribe(
                             audio,
                             mime_type=mime_type,
                             llm_config=llm_config,
@@ -497,18 +498,27 @@ def _parse_text(text: str) -> dict[str, Any]:
         if frame_type == "cancel":
             return CancelFrame.model_validate(raw).model_dump()
         if frame_type == "stop":
-            return StopFrame.model_validate(raw).model_dump(exclude_none=True)
+            return _dump_frame_with_soft_video_signals(StopFrame.model_validate(raw))
         if frame_type == "submit_transcript":
-            return SubmitTranscriptFrame.model_validate(raw).model_dump(exclude_none=True)
-    except ValidationError as e:
-        if frame_type == "stop" and any(
-            tuple(err.get("loc") or ())[:1] == ("video_signals",)
-            for err in e.errors()
-        ):
-            return {"type": "invalid", "error": "invalid_video_signals"}
+            return _dump_frame_with_soft_video_signals(
+                SubmitTranscriptFrame.model_validate(raw)
+            )
+    except ValidationError:
         return {"type": "invalid", "error": "invalid_frame"}
 
     return {"type": "invalid", "error": "invalid_frame"}
+
+
+def _dump_frame_with_soft_video_signals(frame: BaseModel) -> dict[str, Any]:
+    payload = frame.model_dump(exclude_none=True)
+    if "video_signals" not in payload:
+        return payload
+    normalized = normalize_video_signals(payload.get("video_signals"))
+    if normalized is None:
+        payload.pop("video_signals", None)
+    else:
+        payload["video_signals"] = normalized
+    return payload
 
 
 def _submit_voice_answer(

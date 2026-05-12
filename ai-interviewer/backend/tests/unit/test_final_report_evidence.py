@@ -415,6 +415,60 @@ def test_final_report_node_new_shape_end_to_end(monkeypatch) -> None:
     assert per_turn["Explains a failure mode."]["verdict"] == "partial"
 
 
+def test_final_report_node_aggregates_per_turn_video_signals(monkeypatch) -> None:
+    monkeypatch.setattr(fr, "get_tracer", lambda: _NoopTracer())
+
+    qa_history = [
+        _mk_qa_turn(
+            turn_idx=0,
+            dimension="system_design",
+            passed=True,
+            score=8.0,
+            acceptance={"Names a trade-off.": "yes"},
+        ),
+        _mk_qa_turn(
+            turn_idx=1,
+            dimension="communication",
+            passed=True,
+            score=8.2,
+            acceptance={"Explains a failure mode.": "yes"},
+        ),
+    ]
+    qa_history[0]["video_signals"] = {
+        "confidence": 0.6,
+        "engagement": 0.4,
+        "dominant_emotion": "neutral",
+        "sample_count": 2,
+    }
+    qa_history[1]["video_signals"] = {
+        "confidence": 0.9,
+        "engagement": 0.8,
+        "dominant_emotion": "positive",
+        "sample_count": 6,
+    }
+
+    out = fr.final_report_node(_mk_state(qa_history))  # type: ignore[arg-type]
+    video = out["final_report"]["video_analysis"]
+
+    assert video["avg_confidence"] == 0.83
+    assert video["avg_engagement"] == 0.7
+    assert video["dominant_emotion"] == "positive"
+    assert video["per_turn_signals"] == [
+        {
+            "turn_idx": 0,
+            "engagement": 0.4,
+            "confidence": 0.6,
+            "emotion": "neutral",
+        },
+        {
+            "turn_idx": 1,
+            "engagement": 0.8,
+            "confidence": 0.9,
+            "emotion": "positive",
+        },
+    ]
+
+
 def test_final_report_node_legacy_shape_end_to_end(monkeypatch) -> None:
     monkeypatch.setattr(fr, "get_tracer", lambda: _NoopTracer())
 

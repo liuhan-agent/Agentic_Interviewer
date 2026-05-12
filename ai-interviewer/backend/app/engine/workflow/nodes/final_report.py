@@ -12,7 +12,7 @@ from app.core.logging import get_logger
 from app.core.metrics import estimate_llm_cost_usd
 from app.core.settings import get_settings
 from app.core.tracer import get_tracer
-from app.services.scoring_credibility import compute_credibility
+from app.core.video_signals_schema import normalize_video_signals
 from app.engine.workflow.eval_helpers import (
     is_evaluator_fallback as _is_evaluator_fallback,
 )
@@ -20,6 +20,7 @@ from app.engine.workflow.eval_helpers import (
     is_system_fallback_text as _is_system_fallback_text,
 )
 from app.engine.workflow.state import InterviewState
+from app.services.scoring_credibility import compute_credibility
 
 log = get_logger(__name__)
 
@@ -332,6 +333,64 @@ def _build_cost_summary() -> dict[str, Any] | None:
     }
 
 
+def _video_analysis_summary(
+    qa_history: list[dict[str, Any]],
+    latest_video_signals: Any,
+) -> dict[str, Any] | None:
+    signals: list[tuple[int | None, dict[str, Any]]] = []
+    for qa in qa_history:
+        normalized = normalize_video_signals(qa.get("video_signals"))
+        if normalized is not None:
+            turn_idx = qa.get("turn_idx")
+            signals.append((turn_idx if isinstance(turn_idx, int) else None, normalized))
+
+    if not signals:
+        normalized = normalize_video_signals(latest_video_signals)
+        if normalized is None:
+            return None
+        signals.append((None, normalized))
+
+    total_samples = sum(int(signal["sample_count"]) for _, signal in signals)
+    if total_samples <= 0:
+        return None
+
+    avg_confidence = (
+        sum(float(signal["confidence"]) * int(signal["sample_count"]) for _, signal in signals)
+        / total_samples
+    )
+    avg_engagement = (
+        sum(float(signal["engagement"]) * int(signal["sample_count"]) for _, signal in signals)
+        / total_samples
+    )
+    emotion_counts: dict[str, int] = {}
+    for _, signal in signals:
+        emotion = str(signal["dominant_emotion"])
+        emotion_counts[emotion] = emotion_counts.get(emotion, 0) + int(
+            signal["sample_count"]
+        )
+    dominant_emotion = max(emotion_counts.items(), key=lambda item: item[1])[0]
+
+    per_turn_signals = [
+        {
+            "turn_idx": turn_idx,
+            "engagement": signal["engagement"],
+            "confidence": signal["confidence"],
+            "emotion": signal["dominant_emotion"],
+        }
+        for turn_idx, signal in signals
+        if turn_idx is not None
+    ]
+
+    payload = {
+        "avg_engagement": round(avg_engagement, 2),
+        "avg_confidence": round(avg_confidence, 2),
+        "dominant_emotion": dominant_emotion,
+    }
+    if per_turn_signals:
+        payload["per_turn_signals"] = per_turn_signals
+    return payload
+
+
 def _workflow_artifacts(state: InterviewState) -> dict[str, Any]:
     return {
         "qa_summary": state.get("qa_summary", ""),
@@ -496,13 +555,9 @@ def final_report_node(state: InterviewState) -> dict[str, Any]:
     cost_summary = _build_cost_summary()
     if cost_summary is not None:
         report["cost_summary"] = cost_summary
-    video_sigs = state.get("video_signals")
-    if isinstance(video_sigs, dict) and video_sigs:
-        report["video_analysis"] = {
-            "avg_engagement": video_sigs.get("engagement"),
-            "avg_confidence": video_sigs.get("confidence"),
-            "dominant_emotion": video_sigs.get("dominant_emotion"),
-        }
+    video_analysis = _video_analysis_summary(qa_history, state.get("video_signals"))
+    if video_analysis is not None:
+        report["video_analysis"] = video_analysis
     final_status = "cancelled" if incoming_status == "cancelled" else "completed"
     log.info(
         "final_report verdict=%s overall=%.2f turns=%d status=%s",

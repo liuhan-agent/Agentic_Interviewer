@@ -8,7 +8,7 @@ from types import SimpleNamespace
 from typing import Any
 
 from app.engine.rag import retriever, vectorstore
-from app.engine.rag.ingestion import ingest_folder
+from app.engine.rag.ingestion import _iter_documents, ingest_folder
 
 
 class _FakeCollection:
@@ -102,6 +102,27 @@ def test_stub_embeddings_persist_seeded_docs_in_chroma(monkeypatch):
     assert uvicorn_process_store.count() == 1
     assert docs
     assert docs[0].metadata["source"] == "tech_questions/backend_systems.md"
+
+
+def test_non_rag_runtime_catalogs_are_not_ingested(tmp_path: Path):
+    (tmp_path / "interview_waiting_tips.json").write_text(
+        '{"tips": [{"text": "runtime waiting copy"}]}',
+        encoding="utf-8",
+    )
+    (tmp_path / "job_templates.json").write_text(
+        '{"templates": [{"title": "runtime setup catalog"}]}',
+        encoding="utf-8",
+    )
+    (tmp_path / "interview_directions.json").write_text(
+        '{"directions": [{"id": "backend"}]}',
+        encoding="utf-8",
+    )
+
+    sources = {meta["source"] for _, meta in _iter_documents(tmp_path)}
+
+    assert "interview_waiting_tips.json" not in sources
+    assert "job_templates.json" not in sources
+    assert "interview_directions.json" in sources
 
 
 def test_seeded_default_senior_backend_query_retrieves_relevant_knowledge(monkeypatch):

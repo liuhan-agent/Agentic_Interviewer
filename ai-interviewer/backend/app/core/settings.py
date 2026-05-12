@@ -107,7 +107,12 @@ class Settings(BaseSettings):
     # Resume upload is an interactive setup step. If BYOK resume_parser
     # refinement is slow, return the heuristic parse instead of making
     # the browser wait until its upload request times out.
-    resume_parser_llm_timeout_seconds: float = 60.0
+    resume_parser_llm_timeout_seconds: float = 120.0
+    # Async resume parse jobs run in the background, so they can give
+    # slower high-quality models more room without blocking the upload
+    # request.
+    resume_parse_job_llm_timeout_seconds: float = 300.0
+    resume_parse_job_ttl_seconds: int = 3600
     # Resume parsing can involve a relatively slow LLM refinement. Cache
     # structured results briefly by extracted text + effective model config.
     # Redis is the production default; tests and local fallback can use memory.
