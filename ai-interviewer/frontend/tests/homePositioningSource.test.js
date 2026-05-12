@@ -19,3 +19,11 @@ test("home page centers AI interviewer workflow before training output", () => {
   assert.doesNotMatch(source, /个性化成长计划/);
   assert.doesNotMatch(source, /AI 教练/);
 });
+
+test("home resume hero can resume setup drafts before running interviews", () => {
+  const source = read("src/components/landing/ResumeHero.tsx");
+
+  assert.match(source, /getMostRecentSetupDraft/);
+  assert.match(source, /draft_id/);
+  assert.match(source, /继续完善/);
+});

@@ -25,6 +25,53 @@ test("interview API exposes voice ticket creation", () => {
   assert.match(source, /VoiceTicketResponse/);
 });
 
+test("resume parsing keeps a larger browser timeout than the backend LLM budget", () => {
+  const source = fs.readFileSync(
+    path.join(__dirname, "..", "src", "lib", "api", "interview.ts"),
+    "utf8",
+  );
+
+  assert.match(
+    source,
+    /export function parseResume[\s\S]*timeoutMs:\s*180_000/,
+  );
+});
+
+test("interview API exposes async resume parse job calls", () => {
+  const source = fs.readFileSync(
+    path.join(__dirname, "..", "src", "lib", "api", "interview.ts"),
+    "utf8",
+  );
+  const types = fs.readFileSync(
+    path.join(__dirname, "..", "src", "lib", "api", "types.ts"),
+    "utf8",
+  );
+
+  assert.match(types, /export interface ResumeParseJobResponse/);
+  assert.match(source, /export function createResumeParseJob/);
+  assert.match(source, /export function getResumeParseJob/);
+  assert.match(source, /\/resume\/parse-jobs/);
+  assert.match(source, /timeoutMs:\s*45_000/);
+});
+
+test("interview API exposes question audio synthesis", () => {
+  const source = fs.readFileSync(
+    path.join(__dirname, "..", "src", "lib", "api", "interview.ts"),
+    "utf8",
+  );
+  const types = fs.readFileSync(
+    path.join(__dirname, "..", "src", "lib", "api", "types.ts"),
+    "utf8",
+  );
+
+  assert.match(types, /export interface QuestionAudioRequest/);
+  assert.match(source, /export async function synthesizeQuestionAudio/);
+  assert.match(source, /question-audio/);
+  assert.match(source, /turn_idx: turnIdx/);
+  assert.match(source, /buildLLMPayload\(\)/);
+  assert.match(source, /res\.blob\(\)/);
+});
+
 test("interview API exposes skip question call", () => {
   const source = fs.readFileSync(
     path.join(__dirname, "..", "src", "lib", "api", "interview.ts"),
@@ -59,6 +106,24 @@ test("interview API exposes coach hint call", () => {
   assert.match(source, /\/hint/);
   assert.match(source, /turn_idx: turnIdx/);
   assert.match(source, /llm_config: llmConfig/);
+});
+
+test("interview API exposes waiting tips catalog", () => {
+  const source = fs.readFileSync(
+    path.join(__dirname, "..", "src", "lib", "api", "interview.ts"),
+    "utf8",
+  );
+  const types = fs.readFileSync(
+    path.join(__dirname, "..", "src", "lib", "api", "types.ts"),
+    "utf8",
+  );
+
+  assert.match(types, /export interface InterviewWaitingTip/);
+  assert.match(types, /scope: string/);
+  assert.match(types, /export interface InterviewWaitingTipsResponse/);
+  assert.match(types, /rotation_interval_ms: number/);
+  assert.match(source, /export function listInterviewWaitingTips/);
+  assert.match(source, /\/waiting-tips/);
 });
 
 test("interview API exposes reauth-required detection", () => {
@@ -127,6 +192,25 @@ test("interview API exposes session metadata for history backfill", () => {
     /export function getSessionMetadata[\s\S]*withSessionRecovery\(sessionId/,
   );
 });
+
+test("interview API and poller carry video capability to the room", () => {
+  const types = fs.readFileSync(
+    path.join(__dirname, "..", "src", "lib", "api", "types.ts"),
+    "utf8",
+  );
+  const poller = fs.readFileSync(
+    path.join(__dirname, "..", "src", "lib", "hooks", "useQuestionPoller.ts"),
+    "utf8",
+  );
+
+  assert.match(types, /export interface StartSessionResponse[\s\S]*enable_video_analysis\?: boolean/);
+  assert.match(types, /export interface PollQuestionResponse[\s\S]*enable_video_analysis\?: boolean/);
+  assert.match(types, /export interface ResumeResponse[\s\S]*enable_video_analysis\?: boolean/);
+  assert.match(poller, /enableVideoAnalysis: boolean/);
+  assert.match(poller, /enableVideoAnalysis: Boolean\(res\.enable_video_analysis\)/);
+  assert.match(poller, /enableVideoAnalysis: Boolean\(r\.enable_video_analysis\)/);
+}
+);
 
 test("api client preserves structured error code and action", () => {
   const source = fs.readFileSync(

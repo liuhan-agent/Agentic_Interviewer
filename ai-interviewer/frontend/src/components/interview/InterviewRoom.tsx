@@ -6,6 +6,8 @@ import React, { useEffect, useRef, useState, useMemo } from "react";
 import {
   Activity,
   ArrowRight,
+  Camera,
+  CameraOff,
   CheckCircle2,
   Loader2,
   Maximize2,
@@ -29,7 +31,10 @@ import TextareaAutosize from "react-textarea-autosize";
 
 import { LLMSettingsDialog } from "@/components/layout/LLMSettingsDialog";
 import { CollapsibleAnswerBubble } from "@/components/interview/CollapsibleAnswerBubble";
-import { NextQuestionLoader } from "@/components/interview/NextQuestionLoader";
+import {
+  NextQuestionLoader,
+  type AnswerInsight,
+} from "@/components/interview/NextQuestionLoader";
 import { SessionIdTooltip } from "@/components/interview/SessionIdTooltip";
 import { VoiceAnswerPanel } from "@/components/interview/VoiceAnswerPanel";
 import { Badge } from "@/components/ui/badge";
@@ -37,32 +42,41 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
+import {
   isReauthRequired,
+  listInterviewWaitingTips,
   requestHint,
   retryFailedQuestion,
   skipQuestion,
+  synthesizeQuestionAudio,
   submitAnswer,
 } from "@/lib/api/interview";
 import type {
   LLMErrorKind,
+  InterviewWaitingTipsResponse,
   PollQuestion,
   PreviousTurnEvaluation,
   ResumeAnchor,
   ResumeHistoryTurn,
 } from "@/lib/api/types";
 import { useQuestionPoller } from "@/lib/hooks/useQuestionPoller";
+import {
+  useTurnVideoCapture,
+  type TurnVideoStatus,
+} from "@/lib/hooks/useTurnVideoCapture";
 import { useToast } from "@/lib/hooks/useToast";
 import { cn } from "@/lib/utils";
 import {
-  canSpeakQuestions,
   loadQuestionSpeechEnabled,
-  pauseQuestionSpeech,
-  resumeQuestionSpeech,
-  speakQuestion,
-  stopQuestionSpeech,
   storeQuestionSpeechEnabled,
 } from "@/lib/question-speaker";
 import { upsertEntry } from "@/lib/storage/interviewHistory";
+import type { AggregatedVideoSignal } from "@/lib/video/types";
 
 const ENCOURAGEMENTS = [
   "已收到回答，正在准备下一题。",
@@ -131,13 +145,17 @@ export function InterviewRoom({
   );
   const [finalTurnSubmitted, setFinalTurnSubmitted] = useState(false);
   const [readQuestions, setReadQuestions] = useState(false);
-  const [questionSpeechSupported, setQuestionSpeechSupported] = useState(false);
+  const [waitingTipsResponse, setWaitingTipsResponse] =
+    useState<InterviewWaitingTipsResponse | null>(null);
   const [questionSpeechState, setQuestionSpeechState] =
     useState<QuestionSpeechState>({ key: null, status: "idle", runId: null });
   const [reauthRequired, setReauthRequired] = useState(false);
   const transcriptEnd = useRef<HTMLDivElement>(null);
   const lastSpokenQuestionRef = useRef<string | null>(null);
+  const displayedWaitingTipIdsRef = useRef<Set<string>>(new Set());
   const questionSpeechRunRef = useRef(0);
+  const questionAudioRef = useRef<HTMLAudioElement | null>(null);
+  const questionAudioUrlRef = useRef<string | null>(null);
   const currentQuestionType =
     state.phase === "waiting_for_answer" && state.question
       ? extractQuestionType(state.question)
@@ -146,11 +164,41 @@ export function InterviewRoom({
     state.phase === "waiting_for_answer" && history.length > 0
       ? visibleTurnIdx(history[history.length - 1])
       : null;
+  const latestSubmittedAnswerInsight = useMemo(
+    () => answerInsightFromHistory(history),
+    [history],
+  );
+  const videoTurnIdx =
+    state.phase === "waiting_for_answer" ? state.turnIdx : null;
+  const videoCapture = useTurnVideoCapture({
+    enableVideoAnalysis: state.enableVideoAnalysis,
+    turnIdx: videoTurnIdx,
+    paused,
+  });
 
   useEffect(() => {
-    setQuestionSpeechSupported(canSpeakQuestions());
     setReadQuestions(loadQuestionSpeechEnabled());
-    return () => stopQuestionSpeech();
+    return () => {
+      stopQuestionAudio();
+    };
+  }, []);
+
+  useEffect(() => {
+    let active = true;
+    listInterviewWaitingTips()
+      .then((payload) => {
+        if (active) {
+          setWaitingTipsResponse(payload);
+        }
+      })
+      .catch(() => {
+        if (active) {
+          setWaitingTipsResponse(null);
+        }
+      });
+    return () => {
+      active = false;
+    };
   }, []);
 
   useEffect(() => {
@@ -255,7 +303,6 @@ export function InterviewRoom({
   useEffect(() => {
     if (
       !readQuestions ||
-      !questionSpeechSupported ||
       paused ||
       state.phase !== "waiting_for_answer" ||
       !state.question
@@ -266,30 +313,18 @@ export function InterviewRoom({
     const lastSpokenKey = `${state.turnIdx ?? "intro"}:${qText}`;
     if (lastSpokenQuestionRef.current === lastSpokenKey) return;
     lastSpokenQuestionRef.current = lastSpokenKey;
-    const speechKey = questionSpeechKey(qText);
-    const runId = nextQuestionSpeechRunId();
-    if (
-      !speakQuestion(qText, undefined, {
-        onEnd: () => resetQuestionSpeechState(runId),
-        onError: () => resetQuestionSpeechState(runId),
-      })
-    ) {
-      setQuestionSpeechState({ key: null, status: "idle", runId: null });
-      return;
-    }
-    setQuestionSpeechState({
-      key: speechKey,
-      status: "speaking",
-      runId,
-    });
+    void handleSpeakQuestion(qText, state.turnIdx);
   }, [
     paused,
-    questionSpeechSupported,
     readQuestions,
     state.phase,
     state.question,
     state.turnIdx,
   ]);
+
+  function handleWaitingTipShown(tipId: string) {
+    displayedWaitingTipIdsRef.current.add(tipId);
+  }
 
   function notifySpeechUnavailable() {
     toast({
@@ -298,21 +333,75 @@ export function InterviewRoom({
     });
   }
 
-  function handleSpeakQuestion(text: string) {
+  function markQuestionAudioUnavailable(runId: number, message?: string) {
+    if (questionSpeechRunRef.current !== runId) return;
+    stopQuestionAudio();
+    setQuestionSpeechState({ key: null, status: "idle", runId: null });
+    toast({
+      title: "题目语音合成不可用",
+      description:
+        message ??
+        "没有收到可播放的后端 TTS 音频。请检查语音合成 Key、模型和 Base URL。",
+    });
+  }
+
+  async function handleSpeakQuestion(text: string, turnIdx?: number | null) {
     const speechKey = questionSpeechKey(text);
     const runId = nextQuestionSpeechRunId();
-    if (
-      !questionSpeechSupported ||
-      !speakQuestion(text, undefined, {
-        onEnd: () => resetQuestionSpeechState(runId),
-        onError: () => resetQuestionSpeechState(runId),
-      })
-    ) {
-      setQuestionSpeechState({ key: null, status: "idle", runId: null });
-      notifySpeechUnavailable();
+    setQuestionSpeechState({ key: speechKey, status: "speaking", runId });
+    stopQuestionAudio();
+    if (turnIdx === null || turnIdx === undefined) {
+      markQuestionAudioUnavailable(runId, "当前题目状态还没准备好，暂时无法合成语音。");
       return;
     }
-    setQuestionSpeechState({ key: speechKey, status: "speaking", runId });
+    try {
+      const blob = await synthesizeQuestionAudio(sessionId, text, turnIdx);
+      if (questionSpeechRunRef.current !== runId) return;
+      if (blob.size > 0 && (await playQuestionAudio(blob, text, runId))) {
+        return;
+      }
+      markQuestionAudioUnavailable(runId, "后端返回的题目音频为空或无法播放。");
+    } catch (error) {
+      const message =
+        error instanceof Error
+          ? `后端题目语音接口失败：${error.message}`
+          : "后端题目语音接口失败。";
+      markQuestionAudioUnavailable(runId, message);
+    }
+  }
+
+  async function playQuestionAudio(
+    blob: Blob,
+    text: string,
+    runId: number,
+  ): Promise<boolean> {
+    if (questionAudioUrlRef.current) {
+      URL.revokeObjectURL(questionAudioUrlRef.current);
+      questionAudioUrlRef.current = null;
+    }
+    const audio = questionAudioRef.current ?? new Audio();
+    questionAudioRef.current = audio;
+    const url = URL.createObjectURL(blob);
+    questionAudioUrlRef.current = url;
+    audio.onended = () => {
+      if (questionSpeechRunRef.current === runId) {
+        resetQuestionSpeechState(runId);
+      }
+    };
+    audio.onerror = () => {
+      if (questionSpeechRunRef.current === runId) {
+        markQuestionAudioUnavailable(runId, "题目音频加载失败，无法播放。");
+      }
+    };
+    audio.dataset.questionText = text;
+    audio.src = url;
+    try {
+      await audio.play();
+      return true;
+    } catch {
+      stopQuestionAudio();
+      return false;
+    }
   }
 
   function nextQuestionSpeechRunId() {
@@ -329,13 +418,31 @@ export function InterviewRoom({
   }
 
   function handleStopQuestionSpeech() {
-    stopQuestionSpeech();
+    stopQuestionAudio();
     setQuestionSpeechState({ key: null, status: "idle", runId: null });
   }
 
+  function stopQuestionAudio() {
+    const audio = questionAudioRef.current;
+    if (audio) {
+      audio.pause();
+      audio.removeAttribute("src");
+      audio.load();
+    }
+    if (questionAudioUrlRef.current) {
+      URL.revokeObjectURL(questionAudioUrlRef.current);
+      questionAudioUrlRef.current = null;
+    }
+  }
+
   function handlePauseQuestionSpeech() {
-    if (!pauseQuestionSpeech()) {
-      handleStopQuestionSpeech();
+    if (questionAudioRef.current && !questionAudioRef.current.paused) {
+      questionAudioRef.current.pause();
+      setQuestionSpeechState((current) => ({
+        key: current.key,
+        status: current.key ? "paused" : "idle",
+        runId: current.runId,
+      }));
       return;
     }
     setQuestionSpeechState((current) => ({
@@ -346,8 +453,21 @@ export function InterviewRoom({
   }
 
   function handleResumeQuestionSpeech() {
-    if (!resumeQuestionSpeech()) {
-      handleStopQuestionSpeech();
+    const audio = questionAudioRef.current;
+    if (audio && audio.paused && audio.src) {
+      audio
+        .play()
+        .catch(() =>
+          markQuestionAudioUnavailable(
+            questionSpeechRunRef.current,
+            "题目音频继续播放失败。",
+          ),
+        );
+      setQuestionSpeechState((current) => ({
+        key: current.key,
+        status: current.key ? "speaking" : "idle",
+        runId: current.runId,
+      }));
       return;
     }
     setQuestionSpeechState((current) => ({
@@ -358,10 +478,6 @@ export function InterviewRoom({
   }
 
   function handleToggleQuestionSpeech() {
-    if (!questionSpeechSupported) {
-      notifySpeechUnavailable();
-      return;
-    }
     const next = !readQuestions;
     setReadQuestions(next);
     storeQuestionSpeechEnabled(next);
@@ -372,11 +488,14 @@ export function InterviewRoom({
     if (state.phase === "waiting_for_answer" && state.question) {
       const qText = extractQuestion(state.question);
       lastSpokenQuestionRef.current = `${state.turnIdx ?? "intro"}:${qText}`;
-      handleSpeakQuestion(qText);
+      void handleSpeakQuestion(qText, state.turnIdx);
     }
   }
 
-  async function handleSubmit(text: string) {
+  async function handleSubmit(
+    text: string,
+    videoSignals?: AggregatedVideoSignal | null,
+  ) {
     if (!text || submitting) return false;
     if (state.turnIdx === null) {
       toast({
@@ -392,13 +511,17 @@ export function InterviewRoom({
       maxTurns: state.maxTurns,
     });
     try {
-      await submitAnswer(sessionId, text, state.turnIdx);
+      await submitAnswer(sessionId, text, state.turnIdx, videoSignals ?? undefined);
       setReauthRequired(false);
       setPaused(false);
       setHistory((prev) => {
         if (prev.length === 0) return prev;
         const next = prev.slice();
-        next[next.length - 1] = { ...next[next.length - 1], answer: text };
+        next[next.length - 1] = {
+          ...next[next.length - 1],
+          answer: text,
+          evaluation: undefined,
+        };
         return next;
       });
       setLastSubmittedTurn(state.turnIdx ?? null);
@@ -502,6 +625,24 @@ export function InterviewRoom({
         currentDisplayTurnIdx={currentDisplayTurnIdx}
       />
 
+      {state.enableVideoAnalysis && (
+        <>
+          <VideoMobileControl
+            cameraOn={videoCapture.cameraOn}
+            status={videoCapture.status}
+            onToggleCamera={videoCapture.toggleCamera}
+          />
+          <VideoPreviewPanel
+            cameraOn={videoCapture.cameraOn}
+            videoRef={videoCapture.videoRef}
+            status={videoCapture.status}
+            warning={videoCapture.warning}
+            onToggleCamera={videoCapture.toggleCamera}
+            className="hidden xl:block"
+          />
+        </>
+      )}
+
       {reauthRequired && <ReauthRequiredBanner />}
 
       <Card className="overflow-hidden">
@@ -563,8 +704,19 @@ export function InterviewRoom({
                     idx === history.length - 1 &&
                     state.phase === "waiting_for_answer"
                   }
+                  effectiveTurnIdx={
+                    idx === history.length - 1 &&
+                    state.phase === "waiting_for_answer"
+                      ? state.turnIdx
+                      : t.turnIdx
+                  }
                   questionSpeechState={questionSpeechState}
-                  onSpeak={handleSpeakQuestion}
+                  showTurnFeedback={
+                    !(state.phase === "loading" && idx === history.length - 1)
+                  }
+                  onSpeak={(question, turnIdx) =>
+                    void handleSpeakQuestion(question, turnIdx)
+                  }
                   onPauseSpeaking={handlePauseQuestionSpeech}
                   onResumeSpeaking={handleResumeQuestionSpeech}
                 />
@@ -576,6 +728,11 @@ export function InterviewRoom({
             <NextQuestionLoader
               etaMs={state.lastServerLatencyMs}
               isFinalTurn={finalTurnSubmitted}
+              answerInsight={latestSubmittedAnswerInsight}
+              waitingTips={waitingTipsResponse?.tips ?? null}
+              tipRotationIntervalMs={waitingTipsResponse?.rotation_interval_ms}
+              displayedTipIds={displayedWaitingTipIdsRef.current}
+              onWaitingTipShown={handleWaitingTipShown}
             />
           )}
 
@@ -598,7 +755,7 @@ export function InterviewRoom({
               onSkip={handleSkipCurrentQuestion}
               paused={paused}
               onPause={() => {
-                stopQuestionSpeech();
+                handleStopQuestionSpeech();
                 setPaused(true);
               }}
               onResume={() => setPaused(false)}
@@ -606,6 +763,8 @@ export function InterviewRoom({
               skipping={skipping}
               questionType={currentQuestionType}
               defaultMode={defaultAnswerMode}
+              finishTurnCapture={videoCapture.finishTurnCapture}
+              clearTurnCapture={videoCapture.clearTurnCapture}
             />
           </motion.div>
         )}
@@ -818,10 +977,12 @@ function AnswerBox({
   skipping,
   questionType,
   defaultMode,
+  finishTurnCapture,
+  clearTurnCapture,
 }: {
   sessionId: string;
   turnIdx: number | null;
-  onSubmit: (text: string) => Promise<boolean>;
+  onSubmit: (text: string, videoSignals?: AggregatedVideoSignal | null) => Promise<boolean>;
   onSkip: () => Promise<boolean>;
   paused: boolean;
   onPause: () => void;
@@ -830,6 +991,8 @@ function AnswerBox({
   skipping: boolean;
   questionType?: string;
   defaultMode: AnswerMode;
+  finishTurnCapture: () => AggregatedVideoSignal | null;
+  clearTurnCapture: () => void;
 }) {
   const [draft, setDraft] = useState("");
   const [voiceToolsOpen, setVoiceToolsOpen] = useState(defaultMode === "voice");
@@ -876,7 +1039,12 @@ function AnswerBox({
     answerSelectionRef.current = null;
     pendingSelectionRef.current = null;
     lastVoiceInsertRef.current = null;
-  }, [draftKey]);
+    clearTurnCapture();
+  }, [clearTurnCapture, draftKey]);
+
+  useEffect(() => {
+    if (paused) clearTurnCapture();
+  }, [clearTurnCapture, paused]);
 
   useEffect(() => {
     const position = pendingSelectionRef.current;
@@ -892,8 +1060,10 @@ function AnswerBox({
   async function handleLocalSubmit() {
     const text = draft.trim();
     if (!text || submitting) return;
-    const success = await onSubmit(text);
+    const videoSignals = finishTurnCapture();
+    const success = await onSubmit(text, videoSignals);
     if (success) {
+      clearTurnCapture();
       clearAnswerDraft(draftKey);
       setDraft("");
     }
@@ -934,6 +1104,7 @@ function AnswerBox({
     if (submitting || skipping) return;
     const success = await onSkip();
     if (success) {
+      clearTurnCapture();
       clearAnswerDraft(draftKey);
       setDraft("");
     }
@@ -1148,8 +1319,138 @@ function AnswerBox({
           </div>
         )}
       </CardContent>
-    </Card>
+      </Card>
   );
+}
+
+function VideoMobileControl({
+  cameraOn,
+  status,
+  onToggleCamera,
+}: {
+  cameraOn: boolean;
+  status: TurnVideoStatus;
+  onToggleCamera: () => Promise<void>;
+}) {
+  return (
+    <div className="xl:hidden flex items-center justify-between rounded-lg border border-emerald-500/20 bg-emerald-500/[0.04] px-3 py-2 text-sm">
+      <div className="flex min-w-0 items-center gap-2 text-muted-foreground">
+        {cameraOn ? (
+          <Camera className="h-4 w-4 shrink-0 text-emerald-300" />
+        ) : (
+          <CameraOff className="h-4 w-4 shrink-0 text-muted-foreground" />
+        )}
+        <span className="truncate">{videoStatusLabel(status, cameraOn)}</span>
+      </div>
+      <Button
+        type="button"
+        variant="outline"
+        size="sm"
+        onClick={() => void onToggleCamera()}
+        className="h-8 shrink-0 gap-1.5"
+      >
+        {cameraOn ? (
+          <CameraOff className="h-3.5 w-3.5" />
+        ) : (
+          <Camera className="h-3.5 w-3.5" />
+        )}
+        {cameraOn ? "关闭" : "开启"}
+      </Button>
+    </div>
+  );
+}
+
+function VideoPreviewPanel({
+  cameraOn,
+  videoRef,
+  status,
+  warning,
+  onToggleCamera,
+  className,
+}: {
+  cameraOn: boolean;
+  videoRef: React.RefObject<HTMLVideoElement>;
+  status: TurnVideoStatus;
+  warning: string | null;
+  onToggleCamera: () => Promise<void>;
+  className?: string;
+}) {
+  return (
+    <aside
+      aria-label="视频面试预览"
+      className={cn(
+        "fixed right-6 top-20 z-40 w-64 overflow-hidden rounded-lg border border-emerald-500/20 bg-background/95 shadow-2xl shadow-black/30 backdrop-blur",
+        className,
+      )}
+    >
+      <div className="relative aspect-video bg-black/80">
+        <video
+          ref={videoRef}
+          autoPlay
+          muted
+          playsInline
+          className={cn(
+            "h-full w-full scale-x-[-1] object-cover",
+            !cameraOn && "opacity-20",
+          )}
+        />
+        {!cameraOn && (
+          <div className="absolute inset-0 flex items-center justify-center text-muted-foreground">
+            <CameraOff className="h-7 w-7" />
+          </div>
+        )}
+      </div>
+      <div className="space-y-2 p-3">
+        <div className="flex items-center justify-between gap-2">
+          <div className="min-w-0">
+            <p className="truncate text-xs font-medium">
+              {videoStatusLabel(status, cameraOn)}
+            </p>
+            {warning && (
+              <p className="mt-1 line-clamp-2 text-[11px] text-amber-200/80">
+                {warning}
+              </p>
+            )}
+          </div>
+          <TooltipProvider delayDuration={150}>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  type="button"
+                  variant={cameraOn ? "outline" : "default"}
+                  size="icon"
+                  aria-label={cameraOn ? "关闭摄像头" : "开启摄像头"}
+                  onClick={() => void onToggleCamera()}
+                  className="h-8 w-8 shrink-0"
+                >
+                  {cameraOn ? (
+                    <CameraOff className="h-4 w-4" />
+                  ) : (
+                    <Camera className="h-4 w-4" />
+                  )}
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent side="bottom" align="end" className="max-w-56 text-xs leading-relaxed">
+                {cameraOn
+                  ? "关闭摄像头会清空当前题已采集的视频信号，不影响继续作答。"
+                  : "开启摄像头后，本题会尝试采集本地视频信号作为辅助反馈。"}
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
+        </div>
+      </div>
+    </aside>
+  );
+}
+
+function videoStatusLabel(status: TurnVideoStatus, cameraOn: boolean): string {
+  if (status === "disabled") return "未开启视频面试";
+  if (status === "starting") return "正在开启摄像头";
+  if (status === "capturing") return "摄像头已开启";
+  if (status === "paused") return "已暂停采集";
+  if (status === "unavailable") return "摄像头不可用";
+  if (!cameraOn || status === "camera_off") return "摄像头已关闭";
+  return "摄像头待命";
 }
 
 function answerDraftKey(sessionId: string, turnIdx: number | null): string {
@@ -1257,15 +1558,19 @@ function clearAnswerDraft(key: string): void {
 const QaBubble = React.memo(function QaBubble({
   entry,
   isCurrent,
+  effectiveTurnIdx,
   questionSpeechState,
+  showTurnFeedback,
   onSpeak,
   onPauseSpeaking,
   onResumeSpeaking,
 }: {
   entry: QaEntry;
   isCurrent: boolean;
+  effectiveTurnIdx: number | null;
   questionSpeechState: QuestionSpeechState;
-  onSpeak: (question: string) => void;
+  showTurnFeedback: boolean;
+  onSpeak: (question: string, turnIdx: number | null) => void;
   onPauseSpeaking: () => void;
   onResumeSpeaking: () => void;
 }) {
@@ -1361,7 +1666,7 @@ const QaBubble = React.memo(function QaBubble({
             aria-label={questionSpeechLabel.ariaLabel}
             onClick={() => {
               if (!isCurrentSpeech || questionSpeechState.status === "idle") {
-                onSpeak(entry.question);
+                onSpeak(entry.question, effectiveTurnIdx);
               } else if (questionSpeechState.status === "speaking") {
                 onPauseSpeaking();
               } else {
@@ -1396,9 +1701,11 @@ const QaBubble = React.memo(function QaBubble({
           className="ml-6"
         />
       )}
-      {entry.answer !== null && entry.evaluation && (
-        <TurnFeedbackSummary evaluation={entry.evaluation} />
-      )}
+      {showTurnFeedback &&
+        entry.answer !== null &&
+        hasDisplayableTurnFeedback(entry.evaluation) && (
+          <TurnFeedbackSummary evaluation={entry.evaluation} />
+        )}
     </div>
   );
 });
@@ -1408,47 +1715,159 @@ function TurnFeedbackSummary({
 }: {
   evaluation: PreviousTurnEvaluation;
 }) {
-  const label = evaluation.passed
-    ? "本题通过"
-    : typeof evaluation.score === "number" && evaluation.score >= 4
-      ? "接近通过线"
-      : "可以再补齐";
+  const verdict = getTurnFeedbackVerdict(evaluation);
+  const VerdictIcon = verdict.icon;
 
   return (
-    <div className="ml-6 rounded-lg border border-emerald-500/15 bg-emerald-500/[0.04] p-3 text-xs">
+    <div
+      className={cn(
+        "ml-6 rounded-lg border p-3 text-xs shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]",
+        verdict.containerClass,
+      )}
+    >
       <div className="mb-2 flex flex-wrap items-center gap-2">
-        <Sparkles className="h-3.5 w-3.5 text-emerald-400" />
+        <VerdictIcon className={cn("h-3.5 w-3.5", verdict.iconClass)} />
         <span className="font-medium text-emerald-200">本题反馈</span>
         <Badge
-          variant={evaluation.passed ? "success" : "outline"}
-          className="text-[10px]"
+          variant={verdict.badgeVariant}
+          className={cn("text-[10px]", verdict.badgeClass)}
         >
-          {label}
+          {verdict.label}
         </Badge>
       </div>
       <div className="grid gap-2 sm:grid-cols-2">
-        {evaluation.strengths.length > 0 && (
-          <div>
-            <p className="mb-1 font-medium text-muted-foreground">做得好</p>
-            <ul className="space-y-1 text-muted-foreground">
-              {evaluation.strengths.map((item, index) => (
-                <li key={`strength-${index}-${item.slice(0, 12)}`}>{item}</li>
-              ))}
-            </ul>
-          </div>
-        )}
-        {evaluation.weaknesses.length > 0 && (
-          <div>
-            <p className="mb-1 font-medium text-muted-foreground">可补齐</p>
-            <ul className="space-y-1 text-muted-foreground">
-              {evaluation.weaknesses.map((item, index) => (
-                <li key={`weakness-${index}-${item.slice(0, 12)}`}>{item}</li>
-              ))}
-            </ul>
-          </div>
-        )}
+        <TurnFeedbackList
+          tone="positive"
+          heading="做得好"
+          items={evaluation.strengths}
+          emptyText="这题暂未提炼出明确亮点，可以继续保持作答节奏。"
+        />
+        <TurnFeedbackList
+          tone="negative"
+          heading="可补齐"
+          items={evaluation.weaknesses}
+          emptyText="这题暂未识别出必须补齐项，下一题继续按这个颗粒度展开。"
+        />
       </div>
     </div>
+  );
+}
+
+type TurnFeedbackVerdict = {
+  label: string;
+  icon: typeof CheckCircle2;
+  badgeVariant: "success" | "warn" | "secondary";
+  containerClass: string;
+  iconClass: string;
+  badgeClass: string;
+};
+
+function getTurnFeedbackVerdict(
+  evaluation: PreviousTurnEvaluation,
+): TurnFeedbackVerdict {
+  if (evaluation.passed) {
+    return {
+      label: "本题通过",
+      icon: CheckCircle2,
+      badgeVariant: "success",
+      containerClass: "border-emerald-500/20 bg-emerald-500/[0.045]",
+      iconClass: "text-emerald-300",
+      badgeClass: "border-emerald-400/20",
+    };
+  }
+  if (typeof evaluation.score === "number" && evaluation.score >= 4) {
+    return {
+      label: "接近通过线",
+      icon: Sparkles,
+      badgeVariant: "warn",
+      containerClass: "border-amber-500/20 bg-amber-500/[0.045]",
+      iconClass: "text-amber-300",
+      badgeClass: "border-amber-400/20",
+    };
+  }
+  return {
+    label: "可以再补齐",
+    icon: Lightbulb,
+    badgeVariant: "secondary",
+    containerClass: "border-slate-500/20 bg-slate-500/[0.045]",
+    iconClass: "text-slate-300",
+    badgeClass: "border-slate-400/20 text-slate-200",
+  };
+}
+
+function TurnFeedbackList({
+  tone,
+  heading,
+  items,
+  emptyText,
+}: {
+  tone: "positive" | "negative";
+  heading: string;
+  items: string[];
+  emptyText: string;
+}) {
+  const toneClass =
+    tone === "positive"
+      ? {
+          panel: "border-emerald-500/15 bg-emerald-500/[0.035]",
+          marker: "bg-emerald-300",
+          heading: "text-emerald-200",
+          item: "border-emerald-500/10 bg-background/20 text-slate-300",
+          empty: "border-emerald-500/10 bg-background/10 text-emerald-100/70",
+        }
+      : {
+          panel: "border-amber-500/15 bg-amber-500/[0.035]",
+          marker: "bg-amber-300",
+          heading: "text-amber-200",
+          item: "border-amber-500/10 bg-background/20 text-slate-300",
+          empty: "border-amber-500/10 bg-background/10 text-amber-100/70",
+        };
+
+  return (
+    <section className={cn("rounded-md border p-2.5", toneClass.panel)}>
+      <div className="mb-2 flex items-center gap-2">
+        <span
+          aria-hidden="true"
+          className={cn("h-1.5 w-1.5 rounded-full", toneClass.marker)}
+        />
+        <p className={cn("text-[11px] font-semibold", toneClass.heading)}>
+          {heading}
+        </p>
+      </div>
+      {items.length > 0 ? (
+        <ul className="space-y-1.5">
+          {items.map((item, index) => (
+            <li
+              key={`${tone}-${index}-${item.slice(0, 12)}`}
+              className={cn(
+                "rounded-md border px-2 py-1.5 leading-relaxed",
+                toneClass.item,
+              )}
+            >
+              {item}
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <p
+          className={cn(
+            "rounded-md border px-2 py-1.5 leading-relaxed",
+            toneClass.empty,
+          )}
+        >
+          {emptyText}
+        </p>
+      )}
+    </section>
+  );
+}
+
+function hasDisplayableTurnFeedback(
+  evaluation: PreviousTurnEvaluation | null | undefined,
+): evaluation is PreviousTurnEvaluation {
+  return Boolean(
+    evaluation &&
+      (evaluation.strengths.length > 0 || evaluation.weaknesses.length > 0),
   );
 }
 
@@ -1501,6 +1920,29 @@ function visibleTurnIdx(entry: QaEntry): number | null {
   return typeof entry.turnIdx === "number" ? entry.turnIdx : null;
 }
 
+function answerInsightFromHistory(history: QaEntry[]): AnswerInsight | null {
+  for (let index = history.length - 1; index >= 0; index -= 1) {
+    const entry = history[index];
+    const answer = entry.answer;
+    if (!answer || answer === "已跳过本题") continue;
+    const isOpeningTurn = entry.questionType === "self_intro";
+    const dimensionId = isOpeningTurn ? null : entry.dimension;
+    const dimensionLabel = isOpeningTurn
+      ? null
+      : entry.dimension
+        ? formatDimensionName(entry.dimension)
+        : null;
+    if (isOpeningTurn || dimensionLabel) {
+      return {
+        dimensionId,
+        dimensionLabel,
+        isOpeningTurn,
+      };
+    }
+  }
+  return null;
+}
+
 function filterRestoredHistoryForCurrentQuestion(
   entries: QaEntry[],
   currentTurnIdxForDisplay: number | null,
@@ -1527,7 +1969,12 @@ function qaEntryMatchesEvaluation(
   entry: QaEntry,
   evaluation: PreviousTurnEvaluation,
 ): boolean {
+  if (entry.answer === null) return false;
   if (typeof evaluation.turn_idx !== "number") return false;
+  if (!evaluation.dimension || !entry.dimension) return false;
+  if (evaluation.dimension !== entry.dimension) {
+    return false;
+  }
   return (
     entry.formalTurnIdx === evaluation.turn_idx ||
     entry.turnIdx === evaluation.turn_idx

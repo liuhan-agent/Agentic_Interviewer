@@ -66,9 +66,15 @@ import {
   type InterviewHistoryEntry,
   type InterviewHistoryStatus,
 } from "@/lib/storage/interviewHistory";
+import {
+  getSetupDrafts,
+  removeSetupDraft,
+  type SetupDraft,
+} from "@/lib/storage/setupDrafts";
 
 export function HistoryList() {
   const [entries, setEntries] = useState<InterviewHistoryEntry[] | null>(null);
+  const [setupDrafts, setSetupDrafts] = useState<SetupDraft[]>([]);
   const [refreshing, setRefreshing] = useState(false);
   const [deletingSessionId, setDeletingSessionId] = useState<string | null>(null);
   const [deleteTarget, setDeleteTarget] =
@@ -82,13 +88,14 @@ export function HistoryList() {
 
   const reload = useCallback(() => {
     setEntries(getHistory());
+    setSetupDrafts(getSetupDrafts());
   }, []);
 
   useEffect(() => {
     reload();
     let timeoutId: ReturnType<typeof setTimeout> | null = null;
     const onStorage = (e: StorageEvent) => {
-      if (e.key === "interviewHistory" || e.key === null) {
+      if (e.key === "interviewHistory" || e.key === "setupDrafts" || e.key === null) {
         if (timeoutId) clearTimeout(timeoutId);
         timeoutId = setTimeout(() => reload(), 500);
       }
@@ -170,6 +177,15 @@ export function HistoryList() {
       removeEntry(sessionId);
       reload();
       toast({ title: "已从我的列表中移除" });
+    },
+    [reload, toast],
+  );
+
+  const handleRemoveSetupDraft = useCallback(
+    (draftId: string) => {
+      removeSetupDraft(draftId);
+      reload();
+      toast({ title: "已放弃草稿" });
     },
     [reload, toast],
   );
@@ -290,7 +306,7 @@ export function HistoryList() {
     return <SkeletonList />;
   }
 
-  if (entries.length === 0) {
+  if (entries.length === 0 && setupDrafts.length === 0) {
     return <EmptyState />;
   }
 
@@ -309,8 +325,15 @@ export function HistoryList() {
         onConfirm={handleDeleteData}
       />
 
+      {setupDrafts.length > 0 && (
+        <SetupDraftSection
+          drafts={setupDrafts}
+          onRemoveDraft={handleRemoveSetupDraft}
+        />
+      )}
+
       <div className="space-y-3">
-        <ProgressChart entries={entries} />
+        {entries.length > 0 && <ProgressChart entries={entries} />}
 
         <div className="flex flex-wrap items-center justify-between gap-3">
           <p className="text-sm text-muted-foreground">
@@ -476,6 +499,97 @@ export function HistoryList() {
       )}
     </div>
   );
+}
+
+function SetupDraftSection({
+  drafts,
+  onRemoveDraft,
+}: {
+  drafts: SetupDraft[];
+  onRemoveDraft: (draftId: string) => void;
+}) {
+  return (
+    <section className="space-y-3">
+      <div className="flex items-center justify-between gap-3">
+        <div>
+          <h2 className="text-base font-semibold">准备中的面试</h2>
+          <p className="text-xs text-muted-foreground">
+            这些只是本浏览器里的填写草稿，还没有生成正式面试记录。
+          </p>
+        </div>
+      </div>
+      <div className="grid gap-3">
+        {drafts.map((draft) => (
+          <SetupDraftCard
+            key={draft.draftId}
+            draft={draft}
+            onRemove={() => onRemoveDraft(draft.draftId)}
+          />
+        ))}
+      </div>
+    </section>
+  );
+}
+
+function SetupDraftCard({
+  draft,
+  onRemove,
+}: {
+  draft: SetupDraft;
+  onRemove: () => void;
+}) {
+  return (
+    <Card className="border-emerald-500/20 bg-emerald-500/[0.03]">
+      <CardContent className="flex flex-col gap-3 py-4 sm:flex-row sm:items-center sm:justify-between">
+        <div className="min-w-0 space-y-1">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="truncate text-sm font-medium">{draft.filename}</span>
+            <Badge variant="outline" className="border-emerald-500/30 text-emerald-200">
+              {setupDraftStatusLabel(draft.status)}
+            </Badge>
+          </div>
+          <p className="text-xs text-muted-foreground">
+            最近更新 {formatRelative(draft.updatedAt)}
+          </p>
+        </div>
+        <div className="flex shrink-0 items-center gap-2">
+          <Button asChild size="sm" className="gap-1 bg-emerald-600 text-white hover:bg-emerald-500">
+            <Link href={`/interview/setup?draft_id=${encodeURIComponent(draft.draftId)}`}>
+              继续填写
+              <ArrowRight className="h-3 w-3" />
+            </Link>
+          </Button>
+          <Button
+            type="button"
+            size="sm"
+            variant="ghost"
+            className="gap-1 text-muted-foreground"
+            onClick={onRemove}
+          >
+            <Trash2 className="h-3.5 w-3.5" />
+            放弃草稿
+          </Button>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+function setupDraftStatusLabel(status: SetupDraft["status"]): string {
+  switch (status) {
+    case "parsing":
+      return "解析中";
+    case "ready":
+      return "已解析待确认";
+    case "basic_ready":
+      return "基础解析待确认";
+    case "failed":
+      return "解析失败";
+    case "expired":
+      return "已过期";
+    default:
+      return "准备中";
+  }
 }
 
 function compareScoreEntries(

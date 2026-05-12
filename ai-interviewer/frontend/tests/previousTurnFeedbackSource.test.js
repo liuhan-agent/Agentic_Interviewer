@@ -73,16 +73,18 @@ test("ResumeResponse exposes prior turns so continue interview can restore conte
   );
 });
 
-test("useQuestionPoller pipes previousEvaluation through QUESTION action only", () => {
+test("useQuestionPoller clears previousEvaluation while a submitted answer is loading", () => {
   const source = read("src/lib/hooks/useQuestionPoller.ts");
 
   // The state shape carries previousEvaluation so InterviewRoom can render
   // the card alongside the next question without a second round-trip.
   assert.match(source, /previousEvaluation:\s*PreviousTurnEvaluation\s*\|\s*null/);
-  // The QUESTION action must thread the field through; SUBMITTING / START /
-  // terminal frames intentionally don't, so that the last-shown card stays
-  // visible while the next question is being prepared.
+  // The QUESTION action must thread the field through; SUBMITTING must clear
+  // stale feedback so the previous turn's card cannot stick to the answer
+  // that was just submitted while the next question is being prepared.
   assert.match(source, /res\.previous_turn_evaluation\s*\?\?\s*null/);
+  assert.match(source, /case "SUBMITTING":[\s\S]*previousEvaluation:\s*null/);
+  assert.doesNotMatch(source, /last-shown card stays[\s\S]*visible while the next question/);
 });
 
 test("useQuestionPoller restores prior turns from resume response", () => {
@@ -100,7 +102,33 @@ test("InterviewRoom attaches previous turn feedback to the matching answered bub
   // showing it on terminal phases (completed / cancelled / error) would
   // confuse candidates because the loop is over.
   assert.match(source, /qaEntryMatchesEvaluation\(entry, evaluation\)/);
+  assert.match(source, /entry\.answer === null/);
+  assert.match(source, /!evaluation\.dimension\s*\|\|\s*!entry\.dimension/);
+  assert.match(source, /evaluation\.dimension[\s\S]*entry\.dimension/);
+  assert.match(source, /evaluation\.dimension !== entry\.dimension/);
+  assert.match(source, /function hasDisplayableTurnFeedback/);
+  assert.match(source, /hasDisplayableTurnFeedback\(entry\.evaluation\)/);
   assert.match(source, /<TurnFeedbackSummary evaluation=\{entry\.evaluation\}/);
+});
+
+test("InterviewRoom clears stale feedback when marking the current answer submitted", () => {
+  const source = read("src/components/interview/InterviewRoom.tsx");
+
+  assert.match(source, /next\[next\.length - 1\]\s*=\s*\{[\s\S]*answer:\s*text[\s\S]*evaluation:\s*undefined/);
+});
+
+test("InterviewRoom hides latest answer feedback while next question is loading", () => {
+  const source = read("src/components/interview/InterviewRoom.tsx");
+
+  assert.match(
+    source,
+    /showTurnFeedback=\{\s*!\(\s*state\.phase === "loading" &&\s*idx === history\.length - 1\s*\)\s*\}/,
+  );
+  assert.match(source, /showTurnFeedback:\s*boolean/);
+  assert.match(
+    source,
+    /showTurnFeedback\s*&&\s*entry\.answer !== null\s*&&\s*hasDisplayableTurnFeedback\(entry\.evaluation\)/,
+  );
 });
 
 test("InterviewRoom renders restored QA history with per-turn feedback", () => {

@@ -1,5 +1,6 @@
 export const STORAGE_KEYS = {
   interviewHistory: "interviewHistory",
+  setupDrafts: "setupDrafts",
   legacyLastSessionId: "lastSessionId",
   adminToken: "admin-token",
   llmConfig: "llm-config",

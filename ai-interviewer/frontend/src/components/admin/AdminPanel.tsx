@@ -33,6 +33,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Separator } from "@/components/ui/separator";
 import { Skeleton } from "@/components/ui/skeleton";
+import { RagEvalPanel } from "@/components/admin/RagEvalPanel";
 import {
   FALLBACK_KIND_DESCRIPTIONS,
   FALLBACK_KIND_LABELS,
@@ -2449,19 +2450,9 @@ function formatPercent(value: number): string {
 }
 
 // ---------------------------------------------------------------------------
-// RAG Evaluation Section (lazy-loaded)
+// RAG Evaluation Section
 // ---------------------------------------------------------------------------
 
-const LazyRagEvalPanel = React.lazy(() =>
-  import("@/components/admin/RagEvalPanel").then((m) => ({ default: m.RagEvalPanel })),
-);
-
 function RagEvalSection() {
-  return (
-    <React.Suspense
-      fallback={<Skeleton className="h-48 w-full rounded-xl" />}
-    >
-      <LazyRagEvalPanel />
-    </React.Suspense>
-  );
+  return <RagEvalPanel />;
 }

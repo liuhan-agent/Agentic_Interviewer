@@ -159,6 +159,7 @@ export interface StartSessionResponse {
   created_at: string;
   updated_at: string;
   max_turns?: number | null;
+  enable_video_analysis?: boolean;
 }
 
 export interface RecoverSessionResponse {
@@ -220,6 +221,7 @@ export interface PollQuestionResponse {
   turn_idx?: number | null;
   question: PollQuestion | null;
   max_turns?: number | null;
+  enable_video_analysis?: boolean;
   final_report?: FinalReport | null;
   error?: string | null;
   error_kind?: LLMErrorKind | null;
@@ -260,11 +262,28 @@ export interface HintRequest {
   llm_config?: LLMConfigPayload;
 }
 
+export interface QuestionAudioRequest {
+  turn_idx: number;
+  llm_config?: LLMConfigPayload;
+}
+
 export interface HintResponse {
   session_id: string;
   turn_idx: number;
   hint: string;
   source: "contract" | "target_skills" | "resume_anchor" | "fallback" | "llm";
+}
+
+export interface InterviewWaitingTip {
+  id: string;
+  scope: string;
+  text: string;
+}
+
+export interface InterviewWaitingTipsResponse {
+  version: string;
+  rotation_interval_ms: number;
+  tips: InterviewWaitingTip[];
 }
 
 export interface RubricScore {
@@ -437,6 +456,7 @@ export interface ResumeResponse {
   turn_idx?: number;
   question?: PollQuestion | null;
   max_turns?: number | null;
+  enable_video_analysis?: boolean;
   history?: ResumeHistoryTurn[];
   previous_turn_evaluation?: PreviousTurnEvaluation | null;
   final_report?: FinalReport | null;
@@ -490,6 +510,21 @@ export interface ParseResumeStatus {
   text_chars?: number;
   cached?: boolean;
   cache_age_ms?: number;
+}
+
+export type ResumeParseJobStatus =
+  | "running"
+  | "completed"
+  | "failed"
+  | "expired";
+
+export interface ResumeParseJobResponse {
+  job_id: string;
+  status: ResumeParseJobStatus;
+  filename?: string | null;
+  result?: ParseResumeResponse;
+  error?: string | null;
+  expires_at?: string;
 }
 
 /** Canonical dimension id paired with its UI-friendly label. */

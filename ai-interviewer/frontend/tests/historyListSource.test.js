@@ -105,6 +105,19 @@ test("history list has a filtered empty state", () => {
   assert.match(source, /查看全部/);
 });
 
+test("history page exposes setup drafts separately from interview records", () => {
+  const source = fs.readFileSync(
+    path.join(__dirname, "..", "src", "components", "interview", "HistoryList.tsx"),
+    "utf8",
+  );
+
+  assert.match(source, /getSetupDrafts/);
+  assert.match(source, /SetupDraftCard/);
+  assert.match(source, /准备中的面试/);
+  assert.match(source, /继续填写/);
+  assert.match(source, /放弃草稿/);
+});
+
 test("history export strips browser recovery credential", () => {
   const source = fs.readFileSync(
     path.join(__dirname, "..", "src", "components", "interview", "HistoryList.tsx"),
