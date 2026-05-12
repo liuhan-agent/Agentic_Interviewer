@@ -82,6 +82,19 @@ def test_start_session_returns_session_token_and_stores_hash(monkeypatch) -> Non
     assert manager.session_token_hashes[0] != body["session_token"]
 
 
+def test_start_session_returns_video_capability(monkeypatch) -> None:
+    client, manager = _client_with_fake_manager(monkeypatch)
+
+    resp = client.post(
+        "/api/v1/interview/sessions",
+        json=_payload(enable_video_analysis=True),
+    )
+
+    assert resp.status_code == 200
+    assert resp.json()["enable_video_analysis"] is True
+    assert manager.started[0][2]["runtime_config"]["enable_video_analysis"] is True
+
+
 def test_explicit_body_trace_id_overrides_traceparent(monkeypatch) -> None:
     client, manager = _client_with_fake_manager(monkeypatch)
     header_trace = "0123456789abcdef0123456789abcdef"

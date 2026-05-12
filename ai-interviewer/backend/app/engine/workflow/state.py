@@ -59,6 +59,7 @@ class QATurn(TypedDict, total=False):
     # report, replay, and any downstream training pipeline see *why* a
     # turn was scored the way it was without re-running the classifier.
     answer_intent: AnswerIntent
+    video_signals: dict[str, Any]
 
 
 class SelfIntroCommunicationSignal(TypedDict, total=False):

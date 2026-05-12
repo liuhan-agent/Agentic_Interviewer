@@ -22,6 +22,7 @@ class _Handle:
     current_question = {"question": "Q", "dimension": "technical_depth"}
     turn_idx = 2
     max_turns = 8
+    enable_video_analysis = True
 
     def __init__(self) -> None:
         self.done_event = threading.Event()
@@ -105,6 +106,21 @@ class _Manager:
             "hint": "可以先从目标、约束和验证方式三个角度组织回答。",
             "source": "contract",
         }
+
+
+class _StubTTS:
+    def __init__(self) -> None:
+        self.calls: list[dict[str, Any]] = []
+
+    async def synth(
+        self,
+        text: str,
+        *,
+        llm_config: dict[str, Any] | None = None,
+    ):
+        self.calls.append({"text": text, "llm_config": llm_config})
+        yield b"audio-1"
+        yield b"audio-2"
 
 
 @pytest.fixture()
@@ -193,6 +209,7 @@ def test_session_endpoint_accepts_correct_token(
     assert resp.status_code == 200
     assert resp.json()["question"] == {"question": "Q", "dimension": "technical_depth"}
     assert resp.json()["max_turns"] == 8
+    assert resp.json()["enable_video_analysis"] is True
 
 
 def test_resume_endpoint_includes_max_turns(
@@ -207,6 +224,7 @@ def test_resume_endpoint_includes_max_turns(
 
     assert resp.status_code == 200
     assert resp.json()["max_turns"] == 8
+    assert resp.json()["enable_video_analysis"] is True
 
 
 def test_voice_ticket_endpoint_requires_session_token(
@@ -543,6 +561,74 @@ def test_submit_answer_accepts_qwen_voice_realtime_overrides(
     ] == "wss://dashscope.aliyuncs.com/api-ws/v1/realtime"
 
 
+def test_question_audio_uses_tts_voice_override_for_current_turn(
+    client: tuple[TestClient, _Manager],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    http, _manager = client
+    tts = _StubTTS()
+    monkeypatch.setattr(interview_api, "get_tts", lambda: tts)
+
+    resp = http.post(
+        "/api/v1/interview/sessions/sess-auth/question-audio",
+        headers={"X-Session-Token": "session-secret"},
+        json={
+            "turn_idx": 2,
+            "llm_config": {
+                "provider": "qwen",
+                "api_key": "dashscope-key",
+                "model": "qwen-plus",
+                "voice_overrides": {
+                    "tts": {
+                        "provider": "qwen",
+                        "api_key": "dashscope-key",
+                        "model": "qwen3-tts-flash-realtime",
+                        "voice": "Cherry",
+                        "base_url": "wss://dashscope.aliyuncs.com/api-ws/v1/realtime",
+                    },
+                },
+            },
+        },
+    )
+
+    assert resp.status_code == 200
+    assert resp.content == b"audio-1audio-2"
+    assert resp.headers["content-type"].startswith("audio/mpeg")
+    assert tts.calls == [
+        {
+            "text": "Q",
+            "llm_config": {
+                "provider": "qwen",
+                "api_key": "dashscope-key",
+                "model": "qwen-plus",
+                "voice_overrides": {
+                    "tts": {
+                        "provider": "qwen",
+                        "api_key": "dashscope-key",
+                        "model": "qwen3-tts-flash-realtime",
+                        "voice": "Cherry",
+                        "base_url": "wss://dashscope.aliyuncs.com/api-ws/v1/realtime",
+                    }
+                },
+            },
+        }
+    ]
+
+
+def test_question_audio_rejects_stale_turn(
+    client: tuple[TestClient, _Manager],
+) -> None:
+    http, _manager = client
+
+    resp = http.post(
+        "/api/v1/interview/sessions/sess-auth/question-audio",
+        headers={"X-Session-Token": "session-secret"},
+        json={"turn_idx": 1},
+    )
+
+    assert resp.status_code == 409
+
+
 def test_submit_answer_accepts_valid_video_signals(
     client: tuple[TestClient, _Manager],
 ) -> None:
@@ -612,7 +698,7 @@ def test_submit_answer_accepts_valid_video_signals(
         },
     ],
 )
-def test_submit_answer_rejects_invalid_video_signals(
+def test_submit_answer_drops_invalid_video_signals(
     client: tuple[TestClient, _Manager],
     video_signals: dict[str, Any],
 ) -> None:
@@ -628,8 +714,9 @@ def test_submit_answer_rejects_invalid_video_signals(
         },
     )
 
-    assert resp.status_code == 422
-    assert manager.submitted == []
+    assert resp.status_code == 200
+    assert manager.submitted[-1]["answer"] == "ok"
+    assert manager.submitted[-1]["video_signals"] is None
 
 
 _IDEM_KEY = "idem-550e8400-e29b-41d4-a716-446655440000"
@@ -775,6 +862,13 @@ _SESSION_ROUTE_AUTH_CASES: list[dict[str, Any]] = [
         "method": "post",
         "url": "/api/v1/interview/sessions/sess-auth/voice-ticket",
         "json": None,
+        "params": None,
+    },
+    {
+        "id": "POST /question-audio",
+        "method": "post",
+        "url": "/api/v1/interview/sessions/sess-auth/question-audio",
+        "json": {"turn_idx": 2},
         "params": None,
     },
     {

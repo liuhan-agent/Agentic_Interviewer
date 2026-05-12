@@ -38,6 +38,10 @@ Endpoints::
         Static catalog of evaluation dimensions with display labels.
         Used by the frontend's dimension picker.
 
+    GET  /api/v1/interview/waiting-tips
+        Static interview waiting tips used by the frontend while the
+        next question or final summary is being generated.
+
     GET  /api/v1/interview/directions
         Static catalog of interview directions. Each direction carries
         default title / level / skills / dimension catalog and is the
@@ -57,6 +61,7 @@ from datetime import UTC, datetime, timedelta
 from typing import Annotated, Any, Literal
 
 from fastapi import APIRouter, File, Form, Header, HTTPException, Path, Query, Request, UploadFile
+from fastapi.responses import Response
 from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_validator
 
 from app.core.api_errors import api_error_detail
@@ -91,7 +96,7 @@ from app.core.session_auth import (
 )
 from app.core.session_ids import SESSION_ID_MAX_LENGTH, SESSION_ID_PATTERN
 from app.core.settings import get_settings
-from app.core.video_signals_schema import VideoSignalsInput
+from app.core.video_signals_schema import normalize_video_signals
 from app.core.voice_ticket import issue_voice_ticket
 from app.engine.workflow.nodes.self_intro import SELF_INTRO_QUESTION
 from app.models.base import get_session as get_db_session
@@ -119,6 +124,7 @@ from app.services.interview_setup import (
     parse_resume_setup_upload,
     resume_parse_payload,
 )
+from app.services.interview_waiting_tips import list_waiting_tips_payload
 from app.services.jd_parser import (
     JDParseError,
     parse_job_spec,
@@ -129,6 +135,10 @@ from app.services.resume_parse_cache import (
     get_resume_parse_cache,
     resume_parse_cache_key,
     should_cache_resume_parse,
+)
+from app.services.resume_parse_jobs import (
+    create_resume_parse_job,
+    get_resume_parse_job,
 )
 from app.services.resume_parser import (
     EXTRACT_TEXT_TIMEOUT_SECONDS,
@@ -147,6 +157,7 @@ from app.services.session_replay import (
     build_resume_history,
     build_session_replay,
 )
+from app.voice.tts import get_tts
 
 log = get_logger(__name__)
 
@@ -392,7 +403,7 @@ class StartSessionRequest(BaseModel):
 class AnswerRequest(BaseModel):
     answer: str = Field(min_length=1, max_length=ANSWER_TEXT_MAX_LENGTH)
     turn_idx: int
-    video_signals: VideoSignalsInput | None = None
+    video_signals: Any | None = None
     llm_config: LLMConfigOverride | None = None
 
 
@@ -402,6 +413,11 @@ class SkipQuestionRequest(BaseModel):
 
 
 class HintRequest(BaseModel):
+    turn_idx: int
+    llm_config: LLMConfigOverride | None = None
+
+
+class QuestionAudioRequest(BaseModel):
     turn_idx: int
     llm_config: LLMConfigOverride | None = None
 
@@ -757,8 +773,13 @@ def _self_intro_history_payload(
     manager: Any,
     session_id: str,
     handle: Any,
+    checkpoint_values: dict[str, Any] | None = None,
 ) -> dict[str, Any] | None:
-    values = _checkpoint_values_for_resume(manager, session_id)
+    values = (
+        checkpoint_values
+        if checkpoint_values is not None
+        else _checkpoint_values_for_resume(manager, session_id)
+    )
     answer = str(
         values.get("self_intro_answer")
         or getattr(handle, "self_intro_answer", "")
@@ -815,6 +836,93 @@ def _resume_history_payload(
     except Exception as e:
         log.warning("resume history lookup failed for %s: %s", session_id, e)
         return []
+
+
+def _safe_string_list(value: Any) -> list[str]:
+    if not isinstance(value, list):
+        return []
+    return [str(item) for item in value if str(item or "").strip()]
+
+
+def _checkpoint_qa_history_payload(
+    checkpoint_values: dict[str, Any],
+    *,
+    before_formal_turn_idx: int | None = None,
+) -> list[dict[str, Any]]:
+    raw_history = checkpoint_values.get("qa_history")
+    if not isinstance(raw_history, list):
+        return []
+
+    history: list[dict[str, Any]] = []
+    for item in raw_history:
+        if not isinstance(item, dict):
+            continue
+        if item.get("question_type") == "self_intro":
+            continue
+        turn_idx = _turn_idx_or_none(item.get("turn_idx"))
+        if (
+            before_formal_turn_idx is not None
+            and turn_idx is not None
+            and turn_idx >= before_formal_turn_idx
+        ):
+            continue
+        question = str(item.get("question") or "").strip()
+        answer = str(item.get("answer") or "").strip()
+        if not question and not answer:
+            continue
+        evaluation = item.get("evaluation") if isinstance(item.get("evaluation"), dict) else {}
+        history.append(
+            {
+                "turn_idx": turn_idx,
+                "question_type": item.get("question_type") or "technical",
+                "dimension": item.get("dimension"),
+                "question": question,
+                "answer": answer,
+                "score": evaluation.get("score"),
+                "passed": evaluation.get("passed"),
+                "rationale": str(evaluation.get("rationale") or ""),
+                "strengths": _safe_string_list(evaluation.get("strengths")),
+                "weaknesses": _safe_string_list(evaluation.get("weaknesses")),
+                "next_step": str(
+                    evaluation.get("recommended_next")
+                    or evaluation.get("recommended_next_plan")
+                    or ""
+                ),
+            }
+        )
+    return history
+
+
+def _resume_history_key(turn: dict[str, Any]) -> tuple[Any, ...]:
+    turn_idx = _turn_idx_or_none(turn.get("turn_idx"))
+    if turn_idx is not None:
+        return ("turn_idx", turn_idx)
+    return (
+        "content",
+        str(turn.get("question") or "").strip(),
+        str(turn.get("answer") or "").strip(),
+    )
+
+
+def _merge_resume_history(
+    trace_history: list[dict[str, Any]],
+    checkpoint_history: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    merged = list(trace_history)
+    seen = {_resume_history_key(turn) for turn in merged}
+    for turn in checkpoint_history:
+        key = _resume_history_key(turn)
+        if key in seen:
+            continue
+        merged.append(turn)
+        seen.add(key)
+    return sorted(
+        merged,
+        key=lambda item: (
+            _turn_idx_or_none(item.get("turn_idx")) is None,
+            _turn_idx_or_none(item.get("turn_idx")) or 0,
+        ),
+    )
 
 
 def _delete_checkpoint_thread(session_id: str) -> bool | None:
@@ -957,6 +1065,9 @@ def start_session(req: StartSessionRequest) -> dict[str, Any]:
             "trace_id": trace_id,
             "status": "running",
             "max_turns": initial.get("max_turns"),
+            "enable_video_analysis": bool(
+                (initial.get("runtime_config") or {}).get("enable_video_analysis")
+            ),
             **time_payload,
         }
     finally:
@@ -1100,6 +1211,7 @@ async def poll_question(
         max_turns=max_turns,
         previous_turn_evaluation=previous_turn_evaluation,
         server_latency_ms=server_latency_ms,
+        enable_video_analysis=bool(getattr(handle, "enable_video_analysis", False)),
     )
 
 
@@ -1117,6 +1229,50 @@ def create_voice_ticket(
         "ticket": issue_voice_ticket(session_id),
         "expires_in_seconds": get_settings().voice_ticket_ttl_seconds,
     }
+
+
+@router.post("/sessions/{session_id}/question-audio")
+async def synthesize_question_audio(
+    session_id: SessionIdPath,
+    body: QuestionAudioRequest,
+    session_token: str | None = Header(default=None, alias="X-Session-Token"),
+) -> Response:
+    manager = get_session_manager()
+    handle = _get_or_recover_session(manager, session_id)
+    _require_session_access(session_id, session_token, handle=handle)
+    if handle is None:
+        raise HTTPException(status_code=404, detail="session not found") from None
+    if body.turn_idx != getattr(handle, "turn_idx", None):
+        raise HTTPException(status_code=409, detail="turn_idx mismatch")
+    question = getattr(handle, "current_question", None)
+    if not isinstance(question, dict) or not str(question.get("question") or "").strip():
+        raise HTTPException(status_code=409, detail="current question is not ready")
+
+    llm_override = (
+        body.llm_config.model_dump(exclude_none=True) if body.llm_config else None
+    )
+    chunks: list[bytes] = []
+    try:
+        async for chunk in get_tts().synth(
+            str(question.get("question") or ""),
+            llm_config=llm_override,
+        ):
+            if chunk:
+                chunks.append(chunk)
+    except Exception as e:
+        from app.engine.agents.llm_client import redact_llm_secrets
+
+        safe_error = redact_llm_secrets(str(e), llm_override)
+        log.warning("question audio synthesis failed for %s: %s", session_id, safe_error)
+        raise HTTPException(status_code=503, detail="question audio unavailable") from e
+    audio = b"".join(chunks)
+    if not audio or audio.startswith(b"[stub-tts]"):
+        raise HTTPException(status_code=503, detail="question audio unavailable")
+    return Response(
+        content=audio,
+        media_type="audio/mpeg",
+        headers={"Cache-Control": "no-store"},
+    )
 
 
 @router.post("/sessions/{session_id}/answer")
@@ -1139,11 +1295,9 @@ def submit_answer(
     llm_override = (
         body.llm_config.model_dump(exclude_none=True) if body.llm_config else None
     )
-    video_signals_payload = (
-        body.video_signals.model_dump(exclude_none=False)
-        if body.video_signals is not None
-        else None
-    )
+    video_signals_payload = normalize_video_signals(body.video_signals)
+    if body.video_signals is not None and video_signals_payload is None:
+        log.info("dropping invalid video_signals for session=%s", session_id)
 
     # Idempotency: replay-safe wrapper around the manager call. The
     # request hash *intentionally* excludes ``llm_config`` so a client
@@ -1547,17 +1701,31 @@ def resume_session(
         if current_question and not cancelled and not done and final_status != "cancelled"
         else None
     )
+    checkpoint_values = _checkpoint_values_for_resume(manager, session_id)
     history = _resume_history_payload(
         session_id,
         before_formal_turn_idx=history_cutoff,
     )
+    history = _merge_resume_history(
+        history,
+        _checkpoint_qa_history_payload(
+            checkpoint_values,
+            before_formal_turn_idx=history_cutoff,
+        ),
+    )
     history = _prepend_self_intro_history(
         history,
-        _self_intro_history_payload(manager, session_id, handle),
+        _self_intro_history_payload(
+            manager,
+            session_id,
+            handle,
+            checkpoint_values,
+        ),
     )
     time_payload = _session_time_payload_from_handle(handle) or _session_time_payload_from_db(
         session_id
     )
+    enable_video_analysis = bool(getattr(handle, "enable_video_analysis", False))
 
     if cancelled or final_status == "cancelled":
         return {
@@ -1566,12 +1734,13 @@ def resume_session(
             **time_payload,
             "question": None,
             "max_turns": max_turns,
+            "enable_video_analysis": enable_video_analysis,
             "history": history,
         }
 
     if done:
         if handle.error:
-            return _terminal_error_payload(
+            payload = _terminal_error_payload(
                 session_id=session_id,
                 error=handle.error,
                 error_kind=getattr(handle, "error_kind", None),
@@ -1581,6 +1750,8 @@ def resume_session(
                     )
                 ),
             )
+            payload["enable_video_analysis"] = enable_video_analysis
+            return payload
         return {
             "session_id": session_id,
             "status": "completed",
@@ -1588,6 +1759,7 @@ def resume_session(
             "question": None,
             "final_report": final_report,
             "max_turns": max_turns,
+            "enable_video_analysis": enable_video_analysis,
             "history": history,
         }
 
@@ -1598,6 +1770,7 @@ def resume_session(
         "turn_idx": turn_idx,
         "question": current_question,
         "max_turns": max_turns,
+        "enable_video_analysis": enable_video_analysis,
         "previous_turn_evaluation": previous_turn_evaluation,
         "history": history,
     }
@@ -1709,6 +1882,84 @@ async def parse_resume_upload(
     return payload
 
 
+@router.post("/resume/parse-jobs")
+async def create_resume_parse_job_upload(
+    request: Request,
+    file: Annotated[UploadFile, File()],
+    llm_config: Annotated[str | None, Form()] = None,
+) -> dict[str, Any]:
+    """Create an async resume parsing job for setup recovery flows."""
+    _enforce_setup_rate_limit(
+        request,
+        endpoint="resume_parse",
+        limit=get_settings().resume_parse_rate_limit_per_minute,
+    )
+    raw = await _read_upload_limited(file)
+    log.info(
+        "resume_parse_job_upload: filename=%r content_type=%r size=%d",
+        file.filename,
+        file.content_type,
+        len(raw),
+    )
+    llm_override = _parse_llm_config_form(llm_config)
+    try:
+        return create_resume_parse_job(
+            filename=file.filename,
+            content_type=file.content_type,
+            raw=raw,
+            llm_override=llm_override,
+            extract_text_fn=extract_text_with_timeout,
+            parse_resume_fn=parse_resume,
+            cache_key_fn=resume_parse_cache_key,
+            get_cache_fn=get_resume_parse_cache,
+            should_cache_fn=should_cache_resume_parse,
+            timeout_seconds=EXTRACT_TEXT_TIMEOUT_SECONDS,
+        )
+    except ResumeParseError as e:
+        msg = str(e)
+        if "too large" in msg.lower():
+            record_setup_parse_error("resume", "resume_file_too_large")
+            raise HTTPException(
+                status_code=413,
+                detail=api_error_detail(
+                    "resume_file_too_large",
+                    msg,
+                    "compress_or_upload_text",
+                ),
+            ) from e
+        if "unsupported" in msg.lower():
+            record_setup_parse_error("resume", "resume_file_unsupported")
+            raise HTTPException(
+                status_code=415,
+                detail=api_error_detail(
+                    "resume_file_unsupported",
+                    msg,
+                    "upload_supported_format",
+                ),
+            ) from e
+        record_setup_parse_error("resume", "resume_parse_failed")
+        raise HTTPException(
+            status_code=422,
+            detail=api_error_detail("resume_parse_failed", msg, "edit_resume_manually"),
+        ) from e
+    except Exception as e:
+        log.exception("resume_parse_job_upload: unexpected decode failure")
+        record_setup_parse_error("resume", "resume_read_failed")
+        raise HTTPException(
+            status_code=500,
+            detail=api_error_detail(
+                "resume_read_failed",
+                f"Failed to read file: {e}",
+                "retry_upload",
+            ),
+        ) from e
+
+
+@router.get("/resume/parse-jobs/{job_id}")
+async def get_resume_parse_job_status(job_id: str) -> dict[str, Any]:
+    return get_resume_parse_job(job_id)
+
+
 class ParseJobSpecRequest(BaseModel):
     """Free-text JD body for ``POST /jd/parse``.
 
@@ -1780,6 +2031,12 @@ def list_dimensions() -> dict[str, Any]:
 def list_directions() -> dict[str, Any]:
     """Static direction catalog used by SetupForm."""
     return list_directions_payload()
+
+
+@router.get("/waiting-tips")
+def list_waiting_tips() -> dict[str, Any]:
+    """Static interview tips used by the waiting UI between turns."""
+    return list_waiting_tips_payload()
 
 
 @router.get("/job-template")

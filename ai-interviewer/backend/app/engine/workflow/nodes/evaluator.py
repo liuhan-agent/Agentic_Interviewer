@@ -128,6 +128,9 @@ def evaluator_node(state: InterviewState) -> dict[str, Any]:
         # classifier.
         "answer_intent": state.get("current_answer_intent") or "normal",
     }
+    video_signals = state.get("video_signals")
+    if isinstance(video_signals, dict) and video_signals:
+        qa_turn["video_signals"] = video_signals
 
     turn_budget = max(0, state.get("turn_budget_remaining", 0) - 1)
 

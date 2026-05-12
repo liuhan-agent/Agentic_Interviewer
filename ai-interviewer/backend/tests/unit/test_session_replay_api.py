@@ -17,7 +17,6 @@ from app.models.base import Base
 from app.models.generation_trace import GenerationTrace
 from app.models.interview_session import InterviewSession
 
-
 SESSION_CREATED_AT = datetime(2026, 5, 1, 10, 0, tzinfo=UTC)
 SESSION_UPDATED_AT = datetime(2026, 5, 1, 10, 30, tzinfo=UTC)
 
@@ -71,6 +70,62 @@ class _ResumeManagerWithCheckpointIntro(_ResumeManager):
             "current_question": self.handle.current_question,
             "turn_idx": self.handle.turn_idx,
             "self_intro_answer": "I am a backend engineer focused on Redis and workflow systems.",
+        }
+
+
+class _ResumeManagerWithCheckpointHistory(_ResumeManager):
+    def _checkpoint_waiting_question(self, session_id: str) -> dict | None:
+        if session_id != "sess-replay":
+            return None
+        return {
+            "current_question": self.handle.current_question,
+            "turn_idx": self.handle.turn_idx,
+            "qa_history": [
+                {
+                    "turn_idx": 0,
+                    "dimension": "communication",
+                    "question": "Explain a technical decision to a teammate.",
+                    "answer": "I used a concrete Redis Lua example and asked them to repeat it.",
+                    "evaluation": {
+                        "score": 7.0,
+                        "passed": False,
+                        "rationale": "Clear example with a light understanding check.",
+                        "strengths": ["Concrete example"],
+                        "weaknesses": ["Could verify more actively"],
+                        "recommended_next": "advance",
+                    },
+                },
+                {
+                    "turn_idx": 1,
+                    "dimension": "communication",
+                    "question": "Handle pushback on delayed progress updates.",
+                    "answer": "I separated Redis read freshness from delayed database writes.",
+                    "evaluation": {
+                        "score": 9.0,
+                        "passed": True,
+                        "strengths": ["Addressed the pushback directly"],
+                        "weaknesses": [],
+                    },
+                },
+                {
+                    "turn_idx": 2,
+                    "dimension": "technical_depth",
+                    "question": "How do you repair cache state after a crash?",
+                    "answer": "Use a compensation task with version checks.",
+                    "evaluation": {
+                        "score": 8.0,
+                        "passed": False,
+                        "strengths": ["Version checks"],
+                        "weaknesses": ["CAP framing is thin"],
+                    },
+                },
+                {
+                    "turn_idx": 3,
+                    "dimension": "system_design",
+                    "question": "This is the current pending question and should not show.",
+                    "answer": "A stale answer for the pending turn.",
+                },
+            ],
         }
 
 
@@ -443,6 +498,65 @@ def test_resume_history_uses_formal_turn_indexes_and_skips_current_question(
     assert payload["question"]["formal_turn_idx"] == 7
     assert [turn["turn_idx"] for turn in payload["history"]] == [0]
     assert payload["history"][0]["dimension"] == "communication"
+
+
+def test_resume_history_backfills_missing_trace_turns_from_checkpoint(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    with _isolated_db(monkeypatch) as testing_session_local:
+        _seed_session(testing_session_local, status="interrupted")
+        with testing_session_local() as sess:
+            sess.query(GenerationTrace).delete()
+            sess.add(
+                GenerationTrace(
+                    trace_id="trace-replay",
+                    session_id="sess-replay",
+                    turn_idx=2,
+                    node="evaluator",
+                    dimension="technical_depth",
+                    action_id="internal-action",
+                    policy_id="policy",
+                    context_key="junior:technical_depth",
+                    policy_context_keys=["junior:technical_depth"],
+                    score=8.0,
+                    passed=False,
+                    immediate_reward=0.2,
+                    delayed_reward=None,
+                    applied_to_bandit=False,
+                    immediate_reward_applied=True,
+                    state_snapshot={},
+                    question="How do you repair cache state after a crash?",
+                    answer="Use a compensation task with version checks.",
+                    evaluation={
+                        "score": 8.0,
+                        "passed": False,
+                        "strengths": ["Trace copy"],
+                        "weaknesses": ["Trace weakness"],
+                    },
+                    langsmith_run_id="run-existing",
+                    created_at=SESSION_CREATED_AT,
+                )
+            )
+            sess.commit()
+
+        manager = _ResumeManagerWithCheckpointHistory()
+        manager.handle.current_question = {
+            "question": "Pending fourth formal question.",
+            "dimension": "system_design",
+            "formal_turn_idx": 3,
+        }
+        manager.handle.turn_idx = 4
+        client = _client_with_manager(monkeypatch, manager)
+
+        resp = client.get("/api/v1/interview/sessions/sess-replay/resume")
+
+    assert resp.status_code == 200
+    history = resp.json()["history"]
+    assert [turn["turn_idx"] for turn in history] == [0, 1, 2]
+    assert history[0]["question"].startswith("Explain a technical decision")
+    assert history[1]["answer"].startswith("I separated Redis")
+    assert history[2]["strengths"] == ["Trace copy"]
+    assert all("current pending question" not in turn["question"] for turn in history)
 
 
 def test_replay_falls_back_to_final_report_evidence_when_traces_missing(

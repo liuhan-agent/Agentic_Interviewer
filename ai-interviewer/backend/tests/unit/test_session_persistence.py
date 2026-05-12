@@ -38,6 +38,7 @@ def _handle(**overrides: Any) -> SimpleNamespace:
         "error": None,
         "error_kind": None,
         "asked_turn": 0,
+        "enable_video_analysis": True,
     }
     values.update(overrides)
     return SimpleNamespace(**values)
@@ -59,6 +60,7 @@ def test_persist_interrupt_creates_or_updates_waiting_row() -> None:
     assert row.current_question == question
     assert row.turn_idx == 1
     assert row.asked_turn == 0
+    assert row.enable_video_analysis is True
 
 
 def test_persist_completed_maps_error_state_and_clears_question() -> None:
@@ -98,6 +100,7 @@ def test_load_session_for_retry_returns_minimal_metadata() -> None:
         job_title="Backend Engineer",
         job_level="senior",
         mode="mixed",
+        enable_video_analysis=True,
         session_token_hash="token-hash",
         llm_config_meta={"provider": "stub"},
         turn_idx=3,
@@ -111,6 +114,7 @@ def test_load_session_for_retry_returns_minimal_metadata() -> None:
         "job_title": "Backend Engineer",
         "job_level": "senior",
         "mode": "mixed",
+        "enable_video_analysis": True,
         "session_token_hash": "token-hash",
         "session_token_expires_at": None,
         "llm_config_meta": {"provider": "stub"},

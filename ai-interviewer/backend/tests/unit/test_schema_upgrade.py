@@ -112,6 +112,7 @@ def test_upgrade_adds_langsmith_run_id_on_sqlite(tmp_path) -> None:
         "error",
         "error_kind",
         "retryable",
+        "enable_video_analysis",
     } <= sess_cols
 
 

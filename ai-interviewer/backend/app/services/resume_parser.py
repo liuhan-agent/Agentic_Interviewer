@@ -1693,6 +1693,7 @@ def parse_resume(
     *,
     force_llm: bool = False,
     filename: str | None = None,
+    llm_timeout_seconds: float | None = None,
 ) -> ParsedResume:
     """Public entrypoint: heuristic baseline + optional LLM refinement.
 
@@ -1709,7 +1710,12 @@ def parse_resume(
             reason="stub_mode",
             started_at=started_at,
         )
-    timeout = max(0.0, float(get_settings().resume_parser_llm_timeout_seconds))
+    configured_timeout = (
+        get_settings().resume_parser_llm_timeout_seconds
+        if llm_timeout_seconds is None
+        else llm_timeout_seconds
+    )
+    timeout = max(0.0, float(configured_timeout))
     if timeout <= 0:
         log.warning(
             "resume_parser: LLM refinement disabled by timeout=%.2f; using heuristic",

@@ -11,7 +11,6 @@ from app.api.v1 import interview as interview_api
 from app.core.idempotency import reset_idempotency_store
 from app.core.session_auth import hash_session_token
 
-
 LIVE_CREATED_AT = datetime(2026, 5, 1, 9, 0, tzinfo=UTC)
 LIVE_UPDATED_AT = datetime(2026, 5, 1, 9, 15, tzinfo=UTC)
 
@@ -163,6 +162,7 @@ def test_poll_question_waiting_response_contract(monkeypatch) -> None:
             "dimension": "system_design",
         },
         "max_turns": 8,
+        "enable_video_analysis": False,
         "previous_turn_evaluation": {"score": 7, "passed": True},
         "server_latency_ms": 456,
     }
@@ -188,6 +188,7 @@ def test_poll_question_terminal_response_contracts(monkeypatch) -> None:
         "question": None,
         "final_report": {"overall_score": 8.2},
         "max_turns": 8,
+        "enable_video_analysis": False,
         "previous_turn_evaluation": None,
         "server_latency_ms": None,
     }
@@ -203,6 +204,7 @@ def test_poll_question_terminal_response_contracts(monkeypatch) -> None:
         "status": "cancelled",
         "question": None,
         "max_turns": 8,
+        "enable_video_analysis": False,
         "previous_turn_evaluation": None,
         "server_latency_ms": None,
     }
@@ -221,6 +223,7 @@ def test_poll_question_terminal_response_contracts(monkeypatch) -> None:
         "question": None,
         "error": "question generation failed",
         "error_kind": "question_generation_failed",
+        "enable_video_analysis": False,
         "previous_turn_evaluation": None,
         "server_latency_ms": None,
     }
@@ -347,6 +350,7 @@ def test_report_resume_and_replay_status_contracts(monkeypatch) -> None:
             "dimension": "system_design",
         },
         "max_turns": 8,
+        "enable_video_analysis": False,
         "previous_turn_evaluation": None,
         "history": [],
     }

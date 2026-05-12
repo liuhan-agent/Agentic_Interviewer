@@ -242,7 +242,9 @@ CHECKPOINT_BACKEND=memory
 | `LLM_MODEL` | `gpt-4o-mini` | 默认模型 |
 | `GENERATOR_LLM_TIMEOUT_SECONDS` | `45` | 面试题生成 LLM 调用超时时间 |
 | `EVALUATOR_LLM_TIMEOUT_SECONDS` | `45` | 候选人回答评分 LLM 调用超时时间 |
-| `RESUME_PARSER_LLM_TIMEOUT_SECONDS` | `60` | 简历上传时等待 LLM 精修的秒数 |
+| `RESUME_PARSER_LLM_TIMEOUT_SECONDS` | `120` | 同步简历上传时等待 LLM 精修的秒数 |
+| `RESUME_PARSE_JOB_LLM_TIMEOUT_SECONDS` | `300` | 异步简历解析 job 等待 LLM 精修的秒数 |
+| `RESUME_PARSE_JOB_TTL_SECONDS` | `3600` | 异步简历解析 job 在进程内保留的秒数 |
 | `OPENAI_API_KEY` | 空 | OpenAI key |
 | `ANTHROPIC_API_KEY` | 空 | Anthropic key |
 | `EMBEDDING_PROVIDER` | `openai` | `openai` 或 `stub` |

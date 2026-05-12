@@ -26,6 +26,7 @@ class InterviewSession(Base):
     job_title: Mapped[str | None] = mapped_column(String(128))
     job_level: Mapped[str | None] = mapped_column(String(32), index=True)
     mode: Mapped[str] = mapped_column(String(32), default="mixed")
+    enable_video_analysis: Mapped[bool] = mapped_column(Boolean, default=False)
     status: Mapped[str] = mapped_column(String(32), default="running", index=True)
     final_report: Mapped[dict | None] = mapped_column(JSON)
     error: Mapped[str | None] = mapped_column(Text)

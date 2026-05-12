@@ -344,11 +344,18 @@ async def test_synth_uses_qwen_voice_override_model_voice_and_key() -> None:
     assert captured["headers"]["Authorization"] == "Bearer sk-qwen-tts"
     assert captured["headers"]["OpenAI-Beta"] == "realtime=v1"
     assert sent[0]["type"] == "session.update"
+    assert sent[0]["event_id"].startswith("event_")
     assert sent[0]["session"]["voice"] == "Cherry"
-    assert sent[0]["session"]["output_audio_format"] == "mp3"
-    assert sent[1] == {"type": "input_text_buffer.append", "text": "question body"}
+    assert sent[0]["session"]["mode"] == "commit"
+    assert sent[0]["session"]["language_type"] == "Auto"
+    assert sent[0]["session"]["response_format"] == "mp3"
+    assert sent[1]["type"] == "input_text_buffer.append"
+    assert sent[1]["event_id"].startswith("event_")
+    assert sent[1]["text"] == "question body"
     assert sent[2]["type"] == "input_text_buffer.commit"
+    assert sent[2]["event_id"].startswith("event_")
     assert sent[3]["type"] == "session.finish"
+    assert sent[3]["event_id"].startswith("event_")
 
 
 async def test_synth_uses_top_level_qwen_key_as_fallback() -> None:

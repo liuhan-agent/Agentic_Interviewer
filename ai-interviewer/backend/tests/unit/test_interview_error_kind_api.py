@@ -119,6 +119,7 @@ def test_resume_session_returns_error_kind_for_failed_session(
         "question": None,
         "error": "invalid api key",
         "error_kind": "auth",
+        "enable_video_analysis": False,
     }
 
 
@@ -184,6 +185,7 @@ def test_terminal_payload_uses_persisted_error_details(
         "error": "invalid api key",
         "error_kind": "auth",
         "retryable": True,
+        "enable_video_analysis": False,
     }
 
 
@@ -293,6 +295,7 @@ def test_done_cancelled_session_resumes_as_cancelled(
         "status": "cancelled",
         "question": None,
         "max_turns": 8,
+        "enable_video_analysis": False,
         "history": [],
     }
 
@@ -370,6 +373,7 @@ def test_resume_session_recovers_waiting_checkpoint_when_handle_missing(
         "turn_idx": 2,
         "max_turns": 8,
         "question": {"question": "Tell me about a system."},
+        "enable_video_analysis": False,
         "previous_turn_evaluation": None,
         "history": [],
     }

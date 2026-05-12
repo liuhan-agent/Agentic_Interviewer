@@ -224,6 +224,15 @@ def test_catalog_endpoint_contracts(monkeypatch) -> None:
     assert "directions" in directions.json()
     assert {"direction", "label", "industry"} <= set(directions.json()["directions"][0])
 
+    waiting_tips = http.get("/api/v1/interview/waiting-tips")
+    assert waiting_tips.status_code == 200
+    waiting_tips_payload = waiting_tips.json()
+    assert waiting_tips_payload["rotation_interval_ms"] == 10_000
+    assert waiting_tips_payload["version"]
+    assert {"id", "scope", "text"} <= set(waiting_tips_payload["tips"][0])
+    waiting_tip_scopes = {tip["scope"] for tip in waiting_tips_payload["tips"]}
+    assert {"default", "self_intro", "final", "problem_solving"} <= waiting_tip_scopes
+
     template = http.get(
         "/api/v1/interview/job-template",
         params={"direction": "java_backend", "level": "junior"},

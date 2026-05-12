@@ -462,7 +462,7 @@ def test_parse_text_rejects_unknown_frame_type() -> None:
     }
 
 
-def test_parse_text_rejects_invalid_video_signals() -> None:
+def test_parse_text_drops_invalid_video_signals() -> None:
     payload = {
         "type": "stop",
         "turn_idx": 0,
@@ -475,8 +475,8 @@ def test_parse_text_rejects_invalid_video_signals() -> None:
     }
 
     assert ws_voice_module._parse_text(json.dumps(payload)) == {
-        "type": "invalid",
-        "error": "invalid_video_signals",
+        "type": "stop",
+        "turn_idx": 0,
     }
 
 
