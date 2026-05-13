@@ -6,6 +6,7 @@ changing the node signature.
 """
 from __future__ import annotations
 
+import math
 from typing import Any
 
 from app.core.logging import get_logger
@@ -60,12 +61,28 @@ def _system_warnings(evaluation: dict[str, Any]) -> list[Any]:
     return _dedupe(warnings)
 
 
-def _overall_score(scores: dict[str, float]) -> float:
-    if not scores:
-        return 0.0
-    valid = [v for v in scores.values() if v > 0]
+def _finite_score(value: Any) -> float | None:
+    if value is None or isinstance(value, bool):
+        return None
+    try:
+        score = float(value)
+    except (TypeError, ValueError):
+        return None
+    if not math.isfinite(score):
+        return None
+    return score
+
+
+def _overall_score(dimension_scores: dict[str, dict[str, Any]]) -> float | None:
+    valid = [
+        score
+        for item in dimension_scores.values()
+        if item.get("score_status") == "scored"
+        for score in [_finite_score(item.get("score"))]
+        if score is not None
+    ]
     if not valid:
-        return 0.0
+        return None
     return round(sum(valid) / len(valid), 2)
 
 
@@ -88,6 +105,7 @@ _VERDICT_TO_GROWTH_SIGNAL = {
     "borderline": "near_target",
     "fail": "needs_focus",
     "cancelled": "cancelled",
+    "unknown": "unknown",
 }
 
 
@@ -103,18 +121,19 @@ def _overall_verdict(verdict: str) -> str:
 
 
 def _coverage_warnings(
-    scores_per_dim: dict[str, float],
+    dimension_scores: dict[str, dict[str, Any]],
     dimension_status: dict[str, str],
 ) -> list[dict[str, Any]]:
     warnings: list[dict[str, Any]] = []
     for dim, status in sorted(dimension_status.items()):
         if status == "passed":
             continue
+        score_item = dimension_scores.get(dim) or {}
         warnings.append(
             {
                 "dimension": dim,
                 "status": status,
-                "score": float(scores_per_dim.get(dim, 0.0) or 0.0),
+                "score": score_item.get("score"),
             }
         )
     return warnings
@@ -132,9 +151,11 @@ def _coverage_limited_verdict(
 
 
 def _build_dimension_scores(
-    scores_per_dim: dict[str, float],
+    scores_per_dim: dict[str, float | None],
     dimension_status: dict[str, str],
     dimension_summaries: dict[str, dict[str, Any]],
+    qa_history: list[dict[str, Any]] | None = None,
+    quality_threshold: float = 7.5,
 ) -> dict[str, dict[str, Any]]:
     """Project the rich ``dimension_summaries`` map into the frontend
     ``RubricScore`` contract (``score`` / ``passed`` / ``rationale`` /
@@ -145,23 +166,128 @@ def _build_dimension_scores(
     earlier turns are already surfaced via ``dimension_summaries``
     for callers that want the full trail.
     """
+    turn_meta = _dimension_turn_meta(qa_history or [])
     out: dict[str, dict[str, Any]] = {}
     dims = (
         set(scores_per_dim.keys())
         | set(dimension_status.keys())
         | set(dimension_summaries.keys())
+        | set(turn_meta.keys())
     )
     for dim in dims:
         summary = dimension_summaries.get(dim) or {}
         evidence = summary.get("evidence") or []
         latest = evidence[-1] if evidence else {}
+        meta = turn_meta.get(dim) or {}
+        stored_score = _finite_score(scores_per_dim.get(dim))
+        effective_score = stored_score
+        if effective_score is None and meta.get("scored"):
+            effective_score = _finite_score(meta.get("latest_score"))
+        score_status = _score_status(
+            stored_score=stored_score,
+            effective_score=effective_score,
+            turn_meta=meta,
+        )
+        score = effective_score if score_status == "scored" else None
+        exclusion_reason = None if score_status == "scored" else score_status
         out[dim] = {
-            "score": float(scores_per_dim.get(dim, 0.0) or 0.0),
+            "score": score,
+            "score_status": score_status,
+            "excluded_from_overall": score_status != "scored",
+            "exclusion_reason": exclusion_reason,
+            "coverage_status": _coverage_status(
+                score_status=score_status,
+                score=score,
+                dimension_status=dimension_status.get(dim),
+                quality_threshold=quality_threshold,
+            ),
             "passed": dimension_status.get(dim) == "passed",
             "rationale": latest.get("rationale") or None,
             "weaknesses": list(summary.get("weaknesses") or []),
         }
     return out
+
+
+def _dimension_turn_meta(
+    qa_history: list[dict[str, Any]],
+) -> dict[str, dict[str, Any]]:
+    meta: dict[str, dict[str, Any]] = {}
+    for qa in qa_history:
+        dim = str(qa.get("dimension") or "")
+        if not dim:
+            continue
+        bucket = meta.setdefault(
+            dim,
+            {
+                "scored": False,
+                "skipped": False,
+                "evaluator_unavailable": False,
+                "latest_score": None,
+            },
+        )
+        evaluation = qa.get("evaluation") or {}
+        if evaluation.get("skipped") or qa.get("answer_intent") == "skipped":
+            bucket["skipped"] = True
+            continue
+        if _is_evaluator_fallback(evaluation):
+            bucket["evaluator_unavailable"] = True
+            continue
+        score = _finite_score(evaluation.get("score"))
+        if score is None:
+            continue
+        bucket["scored"] = True
+        bucket["latest_score"] = score
+    return meta
+
+
+def _score_status(
+    *,
+    stored_score: float | None,
+    effective_score: float | None,
+    turn_meta: dict[str, Any],
+) -> str:
+    if turn_meta.get("scored") and effective_score is not None:
+        return "scored"
+    # Legacy persisted reports may only have an aggregate positive
+    # dimension score and no qa_history evidence. Keep those readable;
+    # legacy 0.0 without evaluator evidence remains unscored.
+    if not turn_meta and stored_score is not None and stored_score > 0:
+        return "scored"
+    if turn_meta.get("skipped"):
+        return "skipped"
+    if turn_meta.get("evaluator_unavailable"):
+        return "evaluator_unavailable"
+    return "not_evaluated"
+
+
+def _coverage_status(
+    *,
+    score_status: str,
+    score: float | None,
+    dimension_status: str | None,
+    quality_threshold: float,
+) -> str:
+    if score_status != "scored":
+        return "not_applicable"
+    if dimension_status == "passed":
+        return "passed"
+    if score is not None and score < quality_threshold:
+        return "below_threshold"
+    return "coverage_limited"
+
+
+def _score_summary(
+    dimension_scores: dict[str, dict[str, Any]],
+) -> dict[str, int]:
+    scored = sum(
+        1 for item in dimension_scores.values() if item.get("score_status") == "scored"
+    )
+    total = len(dimension_scores)
+    return {
+        "scored_dimension_count": scored,
+        "excluded_dimension_count": total - scored,
+        "total_dimension_count": total,
+    }
 
 
 def _dedupe(items: list[Any]) -> list[Any]:
@@ -421,8 +547,6 @@ def _target_skill_coverage(qa_history: list[dict[str, Any]]) -> dict[str, int]:
 def final_report_node(state: InterviewState) -> dict[str, Any]:
     scores = state.get("scores_per_dim", {})
     threshold = state.get("quality_threshold", 7.5)
-    overall = _overall_score(scores)
-    verdict = _verdict(overall, threshold)
 
     qa_history = state.get("qa_history", [])
     dimension_summaries: dict[str, dict[str, Any]] = {}
@@ -448,7 +572,7 @@ def final_report_node(state: InterviewState) -> dict[str, Any]:
         evaluation = qa.get("evaluation") or {}
         if evaluation.get("passed"):
             bucket["passed_turns"] += 1
-        bucket["avg_score"] = scores.get(dim, 0.0)
+        bucket["avg_score"] = _finite_score(scores.get(dim))
         candidate_weaknesses = _candidate_weaknesses(evaluation)
         bucket["strengths"].extend(_candidate_strengths(evaluation))
         bucket["weaknesses"].extend(candidate_weaknesses)
@@ -485,12 +609,23 @@ def final_report_node(state: InterviewState) -> dict[str, Any]:
     # an early teardown; emitting ``verdict: cancelled`` makes the
     # difference observable in the report payload itself.
     incoming_status = state.get("status")
+    dimension_status = state.get("dimension_status", {})
+    dimension_scores = _build_dimension_scores(
+        scores,
+        dimension_status,
+        dimension_summaries,
+        qa_history,
+        threshold,
+    )
+    score_summary = _score_summary(dimension_scores)
+    overall = _overall_score(dimension_scores)
+    coverage_warnings = _coverage_warnings(dimension_scores, dimension_status)
     if incoming_status == "cancelled":
         verdict = "cancelled"
-
-    dimension_status = state.get("dimension_status", {})
-    coverage_warnings = _coverage_warnings(scores, dimension_status)
-    if incoming_status != "cancelled":
+    elif overall is None:
+        verdict = "unknown"
+    else:
+        verdict = _verdict(overall, threshold)
         verdict = _coverage_limited_verdict(verdict, coverage_warnings)
     growth_signal = _growth_signal(verdict)
 
@@ -520,9 +655,8 @@ def final_report_node(state: InterviewState) -> dict[str, Any]:
         "scores_per_dim": scores,
         "dimension_status": dimension_status,
         "dimension_summaries": dimension_summaries,
-        "dimension_scores": _build_dimension_scores(
-            scores, dimension_status, dimension_summaries
-        ),
+        "dimension_scores": dimension_scores,
+        "score_summary": score_summary,
         "total_turns": len(qa_history),
         "self_intro": {
             "answer": state.get("self_intro_answer", ""),
@@ -559,10 +693,11 @@ def final_report_node(state: InterviewState) -> dict[str, Any]:
     if video_analysis is not None:
         report["video_analysis"] = video_analysis
     final_status = "cancelled" if incoming_status == "cancelled" else "completed"
+    overall_label = "null" if overall is None else f"{overall:.2f}"
     log.info(
-        "final_report verdict=%s overall=%.2f turns=%d status=%s",
+        "final_report verdict=%s overall=%s turns=%d status=%s",
         verdict,
-        overall,
+        overall_label,
         len(qa_history),
         final_status,
     )

@@ -104,16 +104,14 @@ class TestImportanceSampleQA:
         assert result[0]["turn_idx"] == 1  # lowest score first (by time order)
         assert result[1]["turn_idx"] == 2
 
-    def test_none_scores_sort_last(self) -> None:
+    def test_none_scores_are_excluded_from_training_signal(self) -> None:
         qa = [
             _make_qa(0, score=None),
             _make_qa(1, score=5.0),
             _make_qa(2, score=None),
         ]
         result = _importance_sample_qa(qa, max_turns=2)
-        assert len(result) == 2
-        turns = [r["turn_idx"] for r in result]
-        assert 1 in turns
+        assert [r["turn_idx"] for r in result] == [1]
 
     def test_preserves_time_order(self) -> None:
         qa = [_make_qa(i, score=float(10 - i)) for i in range(15)]
@@ -125,6 +123,27 @@ class TestImportanceSampleQA:
         qa = [_make_qa(i, score=float(i)) for i in range(20)]
         result = _importance_sample_qa(qa, max_turns=12)
         assert len(result) == 12
+
+    def test_filters_non_scored_dimensions_from_final_report(self) -> None:
+        qa = [
+            _make_qa(0, dimension="technical_depth", score=4.0),
+            _make_qa(1, dimension="project_experience", score=None, weaknesses=["跳过不是能力弱项"]),
+            _make_qa(2, dimension="communication", score=6.5, weaknesses=["评估失败不是能力弱项"]),
+        ]
+        qa[1]["answer_intent"] = "skipped"
+        qa[1]["evaluation"]["skipped"] = True
+        qa[2]["evaluation"]["source"] = "fallback"
+        final_report = {
+            "dimension_scores": {
+                "technical_depth": {"score_status": "scored", "coverage_status": "below_threshold"},
+                "project_experience": {"score_status": "skipped", "coverage_status": "not_applicable"},
+                "communication": {"score_status": "evaluator_unavailable", "coverage_status": "not_applicable"},
+            }
+        }
+
+        result = _importance_sample_qa(qa, final_report=final_report)
+
+        assert [item["dimension"] for item in result] == ["technical_depth"]
 
 
 class TestProjectQAForCoach:
@@ -215,6 +234,62 @@ class TestFallbackTrainingPlan:
         )
         all_focuses = [pw["focus"] for pw in plan["priority_weaknesses"]]
         assert "Evaluator LLM unavailable; using conservative fallback." not in all_focuses
+
+    def test_non_scored_turns_do_not_create_ability_weaknesses(self) -> None:
+        qa = [
+            _make_qa(0, dimension="technical_depth", score=4.0, weaknesses=["真实能力弱项"]),
+            _make_qa(1, dimension="project_experience", score=None, weaknesses=["跳过产生的弱项"]),
+            _make_qa(2, dimension="communication", score=6.5, weaknesses=["评估失败产生的弱项"]),
+            _make_qa(3, dimension="coding_quality", score=None, weaknesses=["未评分产生的弱项"]),
+        ]
+        qa[1]["answer_intent"] = "skipped"
+        qa[1]["evaluation"]["skipped"] = True
+        qa[2]["evaluation"]["source"] = "fallback"
+        final_report = {
+            "overall_score": 4.0,
+            "verdict": "fail",
+            "dimension_scores": {
+                "technical_depth": {"score": 4.0, "score_status": "scored", "coverage_status": "below_threshold"},
+                "project_experience": {"score": None, "score_status": "skipped", "coverage_status": "not_applicable"},
+                "communication": {"score": None, "score_status": "evaluator_unavailable", "coverage_status": "not_applicable"},
+                "coding_quality": {"score": None, "score_status": "not_evaluated", "coverage_status": "not_applicable"},
+            },
+        }
+
+        plan = _fallback_training_plan(final_report=final_report, qa_history=qa)
+
+        focuses = [item["focus"] for item in plan["priority_weaknesses"]]
+        assert focuses == ["真实能力弱项"]
+
+    def test_coverage_limited_turn_creates_coverage_practice_not_ability_weakness(self) -> None:
+        qa = [
+            _make_qa(
+                0,
+                dimension="technical_depth",
+                score=9.0,
+                passed=False,
+                weaknesses=["细节没有完全展开"],
+            )
+        ]
+        final_report = {
+            "overall_score": 9.0,
+            "verdict": "strong_pass",
+            "dimension_scores": {
+                "technical_depth": {
+                    "score": 9.0,
+                    "score_status": "scored",
+                    "coverage_status": "coverage_limited",
+                }
+            },
+        }
+
+        plan = _fallback_training_plan(final_report=final_report, qa_history=qa)
+
+        focuses = [item["focus"] for item in plan["priority_weaknesses"]]
+        tasks = [item["task"] for item in plan["practice_plan"]]
+        assert all("细节没有完全展开" not in focus for focus in focuses)
+        assert any("覆盖" in focus or "证据" in focus for focus in focuses)
+        assert any("覆盖" in task or "证据" in task for task in tasks)
 
 
 class TestNormalizeLLMPlan:
@@ -355,3 +430,50 @@ class TestBuildTrainingPlan:
         call_kwargs = mock_build.call_args.kwargs
         assert call_kwargs["self_intro_profile"] == {"summary": "test"}
         assert call_kwargs["verification_summary"] == {"verdict": "pass"}
+
+    def test_llm_context_excludes_non_scored_dimension_summaries(self) -> None:
+        final_report = {
+            "overall_score": 4.0,
+            "dimension_scores": {
+                "technical_depth": {"score": 4.0, "score_status": "scored", "coverage_status": "below_threshold"},
+                "project_experience": {"score": None, "score_status": "skipped", "coverage_status": "not_applicable"},
+                "system_design": {"score": 9.0, "score_status": "scored", "coverage_status": "coverage_limited"},
+            },
+            "dimension_summaries": {
+                "technical_depth": {"weaknesses": ["真实能力弱项"], "strengths": []},
+                "project_experience": {"weaknesses": ["跳过不应进入训练"], "strengths": []},
+                "system_design": {"weaknesses": ["覆盖不足不应作为能力弱项"], "strengths": []},
+            },
+        }
+        with (
+            patch(
+                "app.engine.agents.coach.call_chat",
+                side_effect=RuntimeError("skip"),
+            ),
+            patch(
+                "app.engine.agents.coach.build_context_frame_for_coach",
+            ) as mock_build,
+            patch(
+                "app.engine.agents.coach.frame_to_coach_messages",
+                return_value=[],
+            ),
+        ):
+            build_training_plan(
+                job_spec={},
+                candidate={},
+                final_report=final_report,
+                qa_history=[
+                    _make_qa(0, dimension="technical_depth", score=4.0, weaknesses=["真实能力弱项"]),
+                    _make_qa(1, dimension="project_experience", score=None, weaknesses=["跳过不应进入训练"]),
+                    _make_qa(2, dimension="system_design", score=9.0, weaknesses=["覆盖不足不应作为能力弱项"]),
+                ],
+            )
+
+        coach_report = mock_build.call_args.kwargs["final_report"]
+        summaries = coach_report["dimension_summaries"]
+        assert set(summaries) == {"technical_depth", "system_design"}
+        assert summaries["technical_depth"]["weaknesses"] == ["真实能力弱项"]
+        assert summaries["system_design"]["weaknesses"] == []
+        assert coach_report["coach_generation_policy"]["coverage_limited_dimensions"] == [
+            "system_design"
+        ]
