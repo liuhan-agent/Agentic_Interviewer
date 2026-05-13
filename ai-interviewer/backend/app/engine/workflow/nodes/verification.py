@@ -34,6 +34,10 @@ from app.core.logging import get_logger
 from app.core.settings import get_settings
 from app.core.tracer import get_tracer
 from app.engine.agents.verification import should_trigger, verify_answer
+from app.engine.workflow.evaluation_consistency import (
+    normalize_evaluation_consistency,
+    sync_dimension_status,
+)
 from app.engine.workflow.state import InterviewState
 
 from .wait_answer import get_raw_answer_for_state
@@ -313,6 +317,18 @@ def verification_node(state: InterviewState) -> dict[str, Any]:
         evaluator_report=evaluation,
     )
     updated_evaluation = _apply_verification(evaluation, verification)
+    updated_evaluation = normalize_evaluation_consistency(
+        updated_evaluation,
+        contract=contract or {},
+        quality_threshold=quality_threshold,
+        verification=verification,
+        verifier_min_override_confidence=_min_override_confidence(),
+    )
+    dimension_status = sync_dimension_status(
+        dict(state.get("dimension_status") or {}),
+        str(dimension),
+        updated_evaluation,
+    )
     log.info(
         "verification dim=%s verdict=%s forced_refine=%s conf=%.2f",
         dimension,
@@ -339,6 +355,7 @@ def verification_node(state: InterviewState) -> dict[str, Any]:
     update = {
         "evaluation": updated_evaluation,
         "verification": verification,
+        "dimension_status": dimension_status,
     }
     evaluator_passed = bool(evaluation.get("passed", False))
     updated_passed = bool(updated_evaluation.get("passed", False))

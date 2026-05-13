@@ -48,6 +48,7 @@ def test_verification_trace_payload_includes_outcome_metrics(monkeypatch) -> Non
             "passed": True,
             "recommended_next": "next_question",
         },
+        "dimension_status": {"technical_depth": "passed"},
         "job_spec": {"level": "senior"},
         "quality_threshold": 7.5,
     }
@@ -55,6 +56,7 @@ def test_verification_trace_payload_includes_outcome_metrics(monkeypatch) -> Non
     out = vnode.verification_node(state)  # type: ignore[arg-type]
 
     assert out["evaluation"]["passed"] is False
+    assert out["dimension_status"]["technical_depth"] == "active"
     assert traced_payloads[-1]["evaluator_passed"] is True
     assert traced_payloads[-1]["updated_passed"] is False
     assert traced_payloads[-1]["verdict_changed"] is True

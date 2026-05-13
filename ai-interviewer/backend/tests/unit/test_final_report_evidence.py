@@ -359,6 +359,45 @@ def _mk_qa_turn(
     }
 
 
+def _mk_skipped_turn(*, turn_idx: int, dimension: str) -> dict[str, Any]:
+    return {
+        "turn_idx": turn_idx,
+        "dimension": dimension,
+        "question": f"Q{turn_idx}?",
+        "answer": "",
+        "answer_intent": "skipped",
+        "evaluation": {
+            "score": None,
+            "passed": False,
+            "strengths": [],
+            "weaknesses": ["本题已跳过"],
+            "rationale": "候选人选择跳过，本轮不纳入评分。",
+            "skipped": True,
+        },
+    }
+
+
+def _mk_fallback_turn(*, turn_idx: int, dimension: str) -> dict[str, Any]:
+    return {
+        "turn_idx": turn_idx,
+        "dimension": dimension,
+        "question": f"Q{turn_idx}?",
+        "answer": "A recorded answer that could not be evaluated.",
+        "answer_intent": "normal",
+        "evaluation": {
+            "source": "fallback",
+            "fallback_reason": "llm_failed",
+            "score": 6.5,
+            "passed": False,
+            "strengths": ["本轮回答已保留到面试记录中。"],
+            "weaknesses": ["Evaluator LLM unavailable; using conservative fallback."],
+            "rationale": "Evaluator LLM unavailable; using conservative fallback.",
+            "acceptance_check_results": {},
+            "rubric_coverage": {},
+        },
+    }
+
+
 def _mk_state(qa_history: list[dict[str, Any]]) -> dict[str, Any]:
     return {
         "session_id": "sess-evidence",
@@ -655,7 +694,7 @@ def test_overall_verdict_is_deprecated_candidate_signal_alias() -> None:
 
 def test_build_dimension_scores_projects_rubric_score_shape() -> None:
     """``dimension_scores`` must match the TypeScript ``RubricScore``
-    contract the Next.js report reads: ``score`` + ``passed`` +
+    contract the Next.js report reads: score state + ``passed`` +
     ``rationale`` + ``weaknesses``. The richer
     ``dimension_summaries`` stays untouched for power users /
     analytics.
@@ -671,7 +710,8 @@ def test_build_dimension_scores_projects_rubric_score_shape() -> None:
             ],
         },
         # leadership intentionally missing summary: the helper still
-        # needs to emit a zeroed slot so the UI can show "0 / 10".
+        # needs to emit an unscored slot so the UI can avoid showing
+        # a fake "0 / 10".
     }
 
     out = _build_dimension_scores(
@@ -680,12 +720,20 @@ def test_build_dimension_scores_projects_rubric_score_shape() -> None:
 
     assert out["system_design"] == {
         "score": 7.8,
+        "score_status": "scored",
+        "excluded_from_overall": False,
+        "exclusion_reason": None,
+        "coverage_status": "passed",
         "passed": True,
         "rationale": "latest wins",
         "weaknesses": ["needs_concrete_example"],
     }
     assert out["leadership"] == {
-        "score": 0.0,
+        "score": None,
+        "score_status": "not_evaluated",
+        "excluded_from_overall": True,
+        "exclusion_reason": "not_evaluated",
+        "coverage_status": "not_applicable",
         "passed": False,
         "rationale": None,
         "weaknesses": [],
@@ -728,6 +776,7 @@ def test_final_report_node_emits_frontend_projection(monkeypatch) -> None:
     assert report["overall_verdict"] == report["growth_signal"]
     assert report["dimension_scores"]["system_design"]["score"] == 8.0
     assert report["dimension_scores"]["system_design"]["passed"] is True
+    assert report["dimension_scores"]["system_design"]["coverage_status"] == "passed"
     assert report["dimension_scores"]["system_design"]["rationale"] == "rationale-0"
 
 
@@ -781,9 +830,142 @@ def test_final_report_caps_positive_verdict_when_dimension_uncovered(monkeypatch
     assert report["growth_signal"] == "near_target"
     assert report["overall_verdict"] == "near_target"
     assert report["coverage_warnings"] == [
-        {
-            "dimension": "communication",
-            "status": "pending",
-            "score": 0.0,
-        }
+            {
+                "dimension": "communication",
+                "status": "pending",
+                "score": None,
+            }
+        ]
+
+
+def test_final_report_counts_real_zero_scores_in_overall(monkeypatch) -> None:
+    monkeypatch.setattr(fr, "get_tracer", lambda: _NoopTracer())
+
+    qa_history = [
+        _mk_qa_turn(
+            turn_idx=0,
+            dimension="coding_quality",
+            passed=False,
+            score=0.0,
+            acceptance={"Writes correct code.": "no"},
+        ),
+        _mk_qa_turn(
+            turn_idx=1,
+            dimension="system_design",
+            passed=True,
+            score=10.0,
+            acceptance={"Names a trade-off.": "yes"},
+        ),
     ]
+    state = _mk_state(qa_history)
+    state["scores_per_dim"] = {"coding_quality": 0.0, "system_design": 10.0}
+    state["dimension_status"] = {"coding_quality": "active", "system_design": "passed"}
+
+    out = fr.final_report_node(state)  # type: ignore[arg-type]
+    report = out["final_report"]
+
+    assert report["overall_score"] == 5.0
+    assert report["score_summary"] == {
+        "scored_dimension_count": 2,
+        "excluded_dimension_count": 0,
+        "total_dimension_count": 2,
+    }
+    assert report["dimension_scores"]["coding_quality"]["score"] == 0.0
+    assert report["dimension_scores"]["coding_quality"]["score_status"] == "scored"
+    assert report["dimension_scores"]["coding_quality"]["excluded_from_overall"] is False
+    assert report["dimension_scores"]["coding_quality"]["exclusion_reason"] is None
+    assert report["dimension_scores"]["coding_quality"]["coverage_status"] == "below_threshold"
+
+
+def test_final_report_marks_unscored_skipped_and_fallback_dimensions(monkeypatch) -> None:
+    monkeypatch.setattr(fr, "get_tracer", lambda: _NoopTracer())
+
+    qa_history = [
+        _mk_qa_turn(
+            turn_idx=0,
+            dimension="system_design",
+            passed=True,
+            score=9.0,
+            acceptance={"Names a trade-off.": "yes"},
+        ),
+        _mk_skipped_turn(turn_idx=1, dimension="project_experience"),
+        _mk_fallback_turn(turn_idx=2, dimension="communication"),
+    ]
+    state = _mk_state(qa_history)
+    state["scores_per_dim"] = {
+        "system_design": 9.0,
+        "project_experience": None,
+        "communication": None,
+        "problem_solving": None,
+    }
+    state["dimension_status"] = {
+        "system_design": "passed",
+        "project_experience": "pending",
+        "communication": "pending",
+        "problem_solving": "pending",
+    }
+
+    out = fr.final_report_node(state)  # type: ignore[arg-type]
+    report = out["final_report"]
+
+    assert report["overall_score"] == 9.0
+    assert report["score_summary"] == {
+        "scored_dimension_count": 1,
+        "excluded_dimension_count": 3,
+        "total_dimension_count": 4,
+    }
+    assert report["dimension_scores"]["project_experience"]["score"] is None
+    assert report["dimension_scores"]["project_experience"]["score_status"] == "skipped"
+    assert report["dimension_scores"]["project_experience"]["exclusion_reason"] == "skipped"
+    assert report["dimension_scores"]["communication"]["score"] is None
+    assert report["dimension_scores"]["communication"]["score_status"] == "evaluator_unavailable"
+    assert report["dimension_scores"]["communication"]["exclusion_reason"] == "evaluator_unavailable"
+    assert report["dimension_scores"]["problem_solving"]["score"] is None
+    assert report["dimension_scores"]["problem_solving"]["score_status"] == "not_evaluated"
+    assert report["dimension_scores"]["problem_solving"]["exclusion_reason"] == "not_evaluated"
+
+
+def test_final_report_keeps_coverage_limited_scores_in_overall(monkeypatch) -> None:
+    monkeypatch.setattr(fr, "get_tracer", lambda: _NoopTracer())
+
+    qa_history = [
+        _mk_qa_turn(
+            turn_idx=0,
+            dimension="technical_depth",
+            passed=False,
+            score=9.0,
+            acceptance={"Explains consistency trade-off.": "partial"},
+        ),
+    ]
+    state = _mk_state(qa_history)
+    state["scores_per_dim"] = {"technical_depth": 9.0}
+    state["dimension_status"] = {"technical_depth": "active"}
+    state["quality_threshold"] = 7.0
+
+    out = fr.final_report_node(state)  # type: ignore[arg-type]
+    report = out["final_report"]
+
+    assert report["overall_score"] == 9.0
+    assert report["dimension_scores"]["technical_depth"]["score_status"] == "scored"
+    assert report["dimension_scores"]["technical_depth"]["excluded_from_overall"] is False
+    assert report["dimension_scores"]["technical_depth"]["coverage_status"] == "coverage_limited"
+
+
+def test_final_report_null_overall_when_no_valid_scores(monkeypatch) -> None:
+    monkeypatch.setattr(fr, "get_tracer", lambda: _NoopTracer())
+
+    state = _mk_state([])
+    state["scores_per_dim"] = {"technical_depth": None, "communication": None}
+    state["dimension_status"] = {"technical_depth": "pending", "communication": "pending"}
+
+    out = fr.final_report_node(state)  # type: ignore[arg-type]
+    report = out["final_report"]
+
+    assert report["overall_score"] is None
+    assert report["verdict"] == "unknown"
+    assert report["growth_signal"] == "unknown"
+    assert report["score_summary"] == {
+        "scored_dimension_count": 0,
+        "excluded_dimension_count": 2,
+        "total_dimension_count": 2,
+    }

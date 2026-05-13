@@ -11,6 +11,10 @@ from app.core.settings import get_settings
 from app.core.tracer import get_tracer
 from app.engine.agents.evaluator_agent import evaluate_answer
 from app.engine.workflow.eval_helpers import is_evaluator_fallback
+from app.engine.workflow.evaluation_consistency import (
+    normalize_evaluation_consistency,
+    sync_dimension_status,
+)
 from app.engine.workflow.state import InterviewState, QATurn
 from app.ml.drift.prompt_feedback import build_evaluator_drift_negatives
 from app.ml.rl.reward_fn import immediate_reward
@@ -21,16 +25,39 @@ from .wait_answer import get_raw_answer_for_state
 log = get_logger(__name__)
 
 
-def _merge_score(existing: float, new_score: float) -> float:
+def _merge_score(existing: float | None, new_score: float) -> float:
     """Running average so repeated attempts at the same dim converge.
 
     For the first sample we simply take ``new_score``; subsequently we
     take a 70/30 blend favouring history, which prevents a single bad
     refine round from sinking a dimension that was otherwise strong.
     """
-    if existing <= 0.0:
+    if existing is None:
         return new_score
     return round(0.7 * existing + 0.3 * new_score, 3)
+
+
+def _has_scored_evaluator_turn(
+    qa_history: list[dict[str, Any]],
+    dimension: str,
+) -> bool:
+    for qa in qa_history:
+        if qa.get("dimension") != dimension:
+            continue
+        evaluation = qa.get("evaluation") or {}
+        if evaluation.get("skipped") or qa.get("answer_intent") == "skipped":
+            continue
+        if is_evaluator_fallback(evaluation):
+            continue
+        raw_score = evaluation.get("score")
+        if raw_score is None or isinstance(raw_score, bool):
+            continue
+        try:
+            float(raw_score)
+        except (TypeError, ValueError):
+            continue
+        return True
+    return False
 
 
 def evaluator_node(state: InterviewState) -> dict[str, Any]:
@@ -67,16 +94,22 @@ def evaluator_node(state: InterviewState) -> dict[str, Any]:
         except Exception as e:  # pragma: no cover - feedback is non-critical
             log.debug("drift feedback render failed: %s", e)
 
+    quality_threshold = state.get("quality_threshold", 7.5)
     evaluation = evaluate_answer(
         dimension=dimension,
         question=question.get("question", ""),
         rubric_points=question.get("rubric_points", []),
         answer=raw_answer,
-        quality_threshold=state.get("quality_threshold", 7.5),
+        quality_threshold=quality_threshold,
         contract=contract,
         drift_negatives=drift_negatives,
         video_signals=state.get("video_signals"),
         context_flags=state.get("context_flags") or {},
+    )
+    evaluation = normalize_evaluation_consistency(
+        evaluation,
+        contract=contract,
+        quality_threshold=float(quality_threshold),
     )
     fallback_turn = is_evaluator_fallback(evaluation)
     if fallback_turn:
@@ -89,21 +122,22 @@ def evaluator_node(state: InterviewState) -> dict[str, Any]:
         # candidate's reported score down (audit finding F3). Keep the
         # dim score unchanged on fallback turns; the bandit is also
         # already protected by ``reward_update`` skipping fallbacks.
+        existing_score = scores.get(dimension)
+        if existing_score == 0.0 and not _has_scored_evaluator_turn(
+            state.get("qa_history", []),
+            dimension,
+        ):
+            existing_score = None
         scores[dimension] = _merge_score(
-            scores.get(dimension, 0.0),
+            existing_score,
             float(evaluation.get("score", 0.0)),
         )
 
-    status = dict(state.get("dimension_status", {}))
-    if fallback_turn:
-        # Same rationale: a fallback turn does not produce reliable
-        # signal, so it should neither promote a dim to ``passed`` nor
-        # demote a previously-passed dim back to ``active``.
-        pass
-    elif evaluation.get("passed"):
-        status[dimension] = "passed"
-    elif status.get(dimension) != "passed":
-        status[dimension] = "active"
+    status = sync_dimension_status(
+        dict(state.get("dimension_status", {})),
+        dimension,
+        evaluation,
+    )
 
     turn_idx = state.get("turn_idx", 0)
     formal_turn_idx = state.get("formal_turn_idx", turn_idx)
