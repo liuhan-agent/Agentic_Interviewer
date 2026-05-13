@@ -76,6 +76,7 @@ export interface Candidate {
     projects?: ResumeProject[];
     focus_areas?: ResumeFocusArea[];
     concerns?: string[];
+    candidate_profile?: ResumeCandidateProfile;
   };
 }
 
@@ -199,11 +200,15 @@ export interface PollQuestion {
  * surfaced by the backend (`_extract_last_turn_evaluation` in
  * `session_manager.py`) so the InterviewRoom can render an
  * "above-the-fold" feedback card while the candidate composes the next
- * answer. Lists are capped at 2 items upstream — the type leaves them as
- * plain `string[]` so the component never has to defend against null.
+ * answer. The backend keeps the feedback arrays intact; UI surfaces decide
+ * how many items to preview and whether to offer an expanded view. The type
+ * leaves them as plain `string[]` so the component never has to defend
+ * against null.
  *
- * Returned as `null` for first turn / non-scoring intents / fallback
- * evaluator output / explicitly skipped turns.
+ * Returned as `null` for first turn / non-scoring intents / explicitly
+ * skipped turns. Evaluator fallback turns are surfaced with
+ * `source` / `fallback_reason` so the UI can explain the system state
+ * without presenting it as candidate-quality feedback.
  */
 export interface PreviousTurnEvaluation {
   turn_idx?: number | null;
@@ -212,6 +217,9 @@ export interface PreviousTurnEvaluation {
   passed: boolean;
   strengths: string[];
   weaknesses: string[];
+  source?: string | null;
+  fallback_reason?: string | null;
+  system_warnings?: string[];
   rubric_coverage?: Record<string, unknown>;
 }
 
@@ -286,8 +294,30 @@ export interface InterviewWaitingTipsResponse {
   tips: InterviewWaitingTip[];
 }
 
+export type RubricScoreStatus =
+  | "scored"
+  | "not_evaluated"
+  | "skipped"
+  | "evaluator_unavailable";
+
+export type RubricCoverageStatus =
+  | "passed"
+  | "below_threshold"
+  | "coverage_limited"
+  | "not_applicable";
+
+export interface ScoreSummary {
+  scored_dimension_count: number;
+  excluded_dimension_count: number;
+  total_dimension_count: number;
+}
+
 export interface RubricScore {
-  score: number;
+  score: number | null;
+  score_status: RubricScoreStatus;
+  excluded_from_overall: boolean;
+  exclusion_reason: Exclude<RubricScoreStatus, "scored"> | null;
+  coverage_status: RubricCoverageStatus;
   passed?: boolean;
   rationale?: string;
   weaknesses?: string[];
@@ -400,11 +430,12 @@ export interface CostSummary {
 
 export interface FinalReport {
   session_id?: string;
-  overall_score?: number;
+  overall_score?: number | null;
   growth_signal?: string | null;
   /** Deprecated: use growth_signal for candidate-facing UI. */
   overall_verdict?: string | null;
   dimension_scores?: Record<string, RubricScore>;
+  score_summary?: ScoreSummary;
   self_intro?: SelfIntroReport;
   summary?: string;
   training_plan?: TrainingPlan;
@@ -446,6 +477,12 @@ export interface SessionMetadataResponse {
   growth_signal?: string | null;
   overall_verdict?: string | null;
   dimension_scores?: Record<string, number>;
+}
+
+export interface SessionSetupSnapshotResponse {
+  session_id: string;
+  candidate: Candidate;
+  job_spec: JobSpec;
 }
 
 export interface ResumeResponse {

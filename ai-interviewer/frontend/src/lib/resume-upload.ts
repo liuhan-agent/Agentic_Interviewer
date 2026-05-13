@@ -85,6 +85,13 @@ export function resumeParsedForSession(args: {
   if (args.concerns && args.concerns.length > 0) {
     resumeParsed.concerns = args.concerns;
   }
+  if (
+    isPlainObject(args.candidate_profile) &&
+    Object.keys(args.candidate_profile).length > 0
+  ) {
+    resumeParsed.candidate_profile =
+      args.candidate_profile as ResumeCandidateProfile;
+  }
   return resumeParsed;
 }
 
@@ -110,6 +117,10 @@ export function resumeJobAutofillValues(args: {
 
 export function resumeReuploadInputValue(): string {
   return "";
+}
+
+function isPlainObject(value: unknown): value is Record<string, unknown> {
+  return Boolean(value) && typeof value === "object" && !Array.isArray(value);
 }
 
 function preferQwenPlusForResumeParser(

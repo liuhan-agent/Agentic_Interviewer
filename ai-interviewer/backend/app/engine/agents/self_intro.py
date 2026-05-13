@@ -18,6 +18,28 @@ _SYSTEM = (
 )
 
 
+def _has_self_intro_llm_override_key() -> bool:
+    try:
+        from app.services.session_manager import get_llm_override
+    except Exception:
+        return False
+
+    override = get_llm_override()
+    if not isinstance(override, dict):
+        return False
+    if str(override.get("api_key") or "").strip():
+        return True
+    role_overrides = override.get("role_overrides")
+    role_override = (
+        role_overrides.get("self_intro_parser")
+        if isinstance(role_overrides, dict)
+        else None
+    )
+    return isinstance(role_override, dict) and bool(
+        str(role_override.get("api_key") or "").strip()
+    )
+
+
 def _as_text_list(value: Any, *, limit: int = 6) -> list[str]:
     if not isinstance(value, list):
         return []
@@ -164,12 +186,13 @@ def parse_self_intro_profile(
 ) -> dict[str, Any]:
     """Return a robust self-introduction profile.
 
-    The LLM path is best-effort. Any timeout, malformed reply, or stub mode
-    falls back to deterministic heuristics so the interview can continue.
+    The LLM path is best-effort. Any timeout or malformed reply falls back to
+    deterministic heuristics so the interview can continue. Server stub mode is
+    also heuristic-only unless the browser supplied a BYOK key for this session.
     """
     fallback = _heuristic_profile(answer=answer, candidate=candidate)
     try:
-        if get_settings().use_stub_llm:
+        if get_settings().use_stub_llm and not _has_self_intro_llm_override_key():
             return fallback
     except Exception:
         return fallback

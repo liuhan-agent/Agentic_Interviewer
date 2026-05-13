@@ -39,6 +39,13 @@ def _handle(**overrides: Any) -> SimpleNamespace:
         "error_kind": None,
         "asked_turn": 0,
         "enable_video_analysis": True,
+        "setup_snapshot": {
+            "candidate": {
+                "name": "Ada",
+                "resume_parsed": {"summary": "Built payment systems."},
+            },
+            "job_spec": {"title": "Backend Engineer", "level": "senior"},
+        },
     }
     values.update(overrides)
     return SimpleNamespace(**values)
@@ -61,6 +68,13 @@ def test_persist_interrupt_creates_or_updates_waiting_row() -> None:
     assert row.turn_idx == 1
     assert row.asked_turn == 0
     assert row.enable_video_analysis is True
+    assert row.setup_snapshot == {
+        "candidate": {
+            "name": "Ada",
+            "resume_parsed": {"summary": "Built payment systems."},
+        },
+        "job_spec": {"title": "Backend Engineer", "level": "senior"},
+    }
 
 
 def test_persist_completed_maps_error_state_and_clears_question() -> None:
@@ -89,6 +103,13 @@ def test_persist_completed_maps_error_state_and_clears_question() -> None:
     assert row.error_kind == "question_generation_failed"
     assert row.retryable is True
     assert row.current_question is None
+    assert row.setup_snapshot == {
+        "candidate": {
+            "name": "Ada",
+            "resume_parsed": {"summary": "Built payment systems."},
+        },
+        "job_spec": {"title": "Backend Engineer", "level": "senior"},
+    }
 
 
 def test_load_session_for_retry_returns_minimal_metadata() -> None:

@@ -164,14 +164,14 @@ def _extract_last_turn_evaluation(
     - There is no prior turn yet (first ask),
     - The candidate's answer was non-scoring (empty / clarification / repeat /
       too_short / skipped),
-    - The evaluator fell back to a deterministic stub for that turn (LLM
-      outage), so the score is not real signal,
     - The turn was an explicit skip.
 
-    The projection is deliberately small (≤ 2 strengths / weaknesses) to
-    keep the in-interview UI compact and to avoid leaking long-form
-    rubric prose into the polling response body. The full structured
-    evaluation still lives in ``state.qa_history`` for the report.
+    The projection keeps the feedback arrays intact so UI surfaces can
+    preview a compact subset and still expand without a second backend
+    path. Evaluator fallback turns are still surfaced as a system notice,
+    but without score/strength/weakness signals so the UI cannot mistake
+    an LLM outage for candidate quality. The full structured evaluation
+    still lives in ``state.qa_history`` for the report.
     """
     if not qa_history:
         return None
@@ -183,10 +183,27 @@ def _extract_last_turn_evaluation(
     evaluation = last.get("evaluation")
     if not isinstance(evaluation, dict) or not evaluation:
         return None
-    if evaluation.get("source") == "fallback" or evaluation.get("fallback_reason"):
-        return None
     if evaluation.get("skipped"):
         return None
+
+    if evaluation.get("source") == "fallback" or evaluation.get("fallback_reason"):
+        system_warnings = evaluation.get("system_warnings") or []
+        return {
+            "turn_idx": last.get("turn_idx"),
+            "dimension": last.get("dimension"),
+            "score": None,
+            "passed": False,
+            "source": evaluation.get("source") or "fallback",
+            "fallback_reason": evaluation.get("fallback_reason") or "llm_failed",
+            "strengths": [],
+            "weaknesses": [],
+            "system_warnings": (
+                [str(w) for w in system_warnings]
+                if isinstance(system_warnings, list)
+                else []
+            ),
+            "rubric_coverage": {},
+        }
 
     strengths = evaluation.get("strengths") or []
     weaknesses = evaluation.get("weaknesses") or []
@@ -196,8 +213,8 @@ def _extract_last_turn_evaluation(
         "dimension": last.get("dimension"),
         "score": evaluation.get("score"),
         "passed": bool(evaluation.get("passed", False)),
-        "strengths": [str(s) for s in strengths[:2]] if isinstance(strengths, list) else [],
-        "weaknesses": [str(w) for w in weaknesses[:2]] if isinstance(weaknesses, list) else [],
+        "strengths": [str(s) for s in strengths] if isinstance(strengths, list) else [],
+        "weaknesses": [str(w) for w in weaknesses] if isinstance(weaknesses, list) else [],
         "rubric_coverage": dict(rubric_coverage) if isinstance(rubric_coverage, dict) else {},
     }
 
@@ -349,6 +366,7 @@ class SessionHandle:
     job_level: str | None = None
     mode: str | None = None
     enable_video_analysis: bool = False
+    setup_snapshot: dict[str, Any] | None = None
 
     # Compact projection of ``state.qa_history[-1].evaluation`` cached at
     # interrupt time so ``GET /question`` can ship the previous turn's
@@ -850,6 +868,7 @@ class SessionManager:
         session_token_expires_at: datetime | None = None,
         recovery_token_hash: str | None = None,
         recovery_token_expires_at: datetime | None = None,
+        setup_snapshot: dict[str, Any] | None = None,
     ) -> SessionHandle:
         runtime_cfg = initial.get("runtime_config") or {}
         use_sync = bool(runtime_cfg.get("use_sync_provider"))
@@ -884,6 +903,7 @@ class SessionManager:
                 session_token_expires_at=session_token_expires_at,
                 recovery_token_hash=recovery_token_hash,
                 recovery_token_expires_at=recovery_token_expires_at,
+                setup_snapshot=setup_snapshot,
                 **session_meta,
             )
             self._session_registry().add(session_id, handle)
@@ -907,6 +927,7 @@ class SessionManager:
                 session_token_expires_at=session_token_expires_at,
                 recovery_token_hash=recovery_token_hash,
                 recovery_token_expires_at=recovery_token_expires_at,
+                setup_snapshot=setup_snapshot,
                 **session_meta,
             )
             self._session_registry().add(session_id, handle)

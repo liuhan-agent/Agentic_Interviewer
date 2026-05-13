@@ -6,6 +6,7 @@ const {
   getCompletedBefore,
   getEntry,
   getHistory,
+  getResumeSetupSnapshot,
   getRecoveryToken,
   getSessionToken,
   mergeServerEntryMetadata,
@@ -258,6 +259,58 @@ test("upsertEntry persists progress chart fields", () => {
     system_design: 6.8,
     coding_quality: 8.1,
   });
+});
+
+test("upsertEntry persists resume setup snapshot for report practice loops", () => {
+  installLocalStorage();
+
+  const resumeSetupSnapshot = {
+    candidate_summary: "做过支付风控平台和订单链路治理。",
+    candidate_skills: "Java, Spring Boot, Redis",
+    candidate_highlights: "把核心接口 P95 降到 80ms",
+    resumeProjects: [
+      {
+        id: "proj-1",
+        name: "支付风控平台",
+        role: "后端负责人",
+        tech_stack: ["Java", "Redis"],
+        responsibilities: ["规则引擎设计"],
+        achievements: ["拦截异常交易"],
+        question_anchors: [],
+      },
+    ],
+    resumeFocusAreas: [
+      {
+        id: "focus-1",
+        label: "系统设计取舍",
+        project_id: "proj-1",
+        dimensions: ["system_design"],
+        skills: ["Redis"],
+        priority: 1,
+      },
+    ],
+    resumeConcerns: ["项目细节表达不够聚焦"],
+    resumeCandidateProfile: {
+      suggested_job_title: "Java 后端开发工程师",
+      suggested_job_level: "senior",
+    },
+  };
+
+  upsertEntry({
+    sessionId: "session-with-resume",
+    jdTitle: "Java 后端开发",
+    status: "running",
+    resumeSetupSnapshot,
+  });
+
+  assert.deepEqual(
+    getResumeSetupSnapshot("session-with-resume"),
+    resumeSetupSnapshot,
+  );
+  assert.deepEqual(
+    getEntry("session-with-resume").resumeSetupSnapshot,
+    resumeSetupSnapshot,
+  );
 });
 
 test("mergeServerEntryMetadata updates server fields without touching visit time", () => {

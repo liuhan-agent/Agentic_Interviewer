@@ -18,6 +18,10 @@ Endpoints::
         Reconnect to an interrupted session (e.g. after a process
         restart). Returns the pending question if one exists.
 
+    GET  /api/v1/interview/sessions/{session_id}/setup-snapshot
+        Return the setup-time candidate / job_spec snapshot for replay
+        practice flows when the browser-local copy is unavailable.
+
     POST /api/v1/interview/resume/parse
         Pre-flight upload: PDF/DOCX/TXT -> structured resume_parsed
         dict {summary, skills, highlights, projects, focus_areas}. The
@@ -354,6 +358,7 @@ class ResumeParsed(BaseModel):
         default_factory=list,
         max_length=RESUME_CONCERNS_MAX_COUNT,
     )
+    candidate_profile: dict[str, Any] = Field(default_factory=dict)
 
 
 class CandidateInput(BaseModel):
@@ -590,6 +595,43 @@ def _session_metadata_from_handle(session_id: str, handle: Any) -> dict[str, Any
         "overall_verdict": report.get("overall_verdict"),
         "dimension_scores": _compact_dimension_scores(report.get("dimension_scores")),
     }
+
+
+def _setup_snapshot_from_request(req: StartSessionRequest) -> dict[str, Any]:
+    """Persist only setup fields needed to resume practice setup later."""
+    return {
+        "candidate": req.candidate.model_dump(exclude_none=True),
+        "job_spec": req.job_spec.model_dump(exclude_none=False),
+    }
+
+
+def _setup_snapshot_response(
+    session_id: str,
+    snapshot: Any,
+) -> dict[str, Any] | None:
+    if not isinstance(snapshot, dict):
+        return None
+    candidate = snapshot.get("candidate")
+    job_spec = snapshot.get("job_spec")
+    if not isinstance(candidate, dict) or not isinstance(job_spec, dict):
+        return None
+    return {
+        "session_id": session_id,
+        "candidate": candidate,
+        "job_spec": job_spec,
+    }
+
+
+def _session_setup_snapshot_from_db(session_id: str) -> dict[str, Any] | None:
+    try:
+        with get_db_session() as db:
+            row = db.get(InterviewSession, session_id)
+            if row is None:
+                return None
+            return _setup_snapshot_response(session_id, row.setup_snapshot)
+    except Exception as e:
+        log.warning("session setup snapshot lookup failed for %s: %s", session_id, e)
+        return None
 
 
 def _session_token_meta_from_db(session_id: str) -> tuple[str | None, datetime | None]:
@@ -1003,6 +1045,8 @@ def _enforce_setup_rate_limit(
 @router.post("/sessions")
 def start_session(req: StartSessionRequest) -> dict[str, Any]:
     session_id, trace_id, initial = translate_request(req.model_dump(exclude_none=False))
+    setup_snapshot = _setup_snapshot_from_request(req)
+    initial["setup_snapshot"] = setup_snapshot
     token = bind_log_context(session_id=session_id, trace_id=trace_id)
     manager = get_session_manager()
     llm_override = (
@@ -1037,6 +1081,7 @@ def start_session(req: StartSessionRequest) -> dict[str, Any]:
             session_token_expires_at=session_token_expires_at,
             recovery_token_hash=hash_recovery_token(recovery_token),
             recovery_token_expires_at=recovery_token_expires_at,
+            setup_snapshot=setup_snapshot,
         )
     except ValueError as e:
         if "session_id already exists" in str(e):
@@ -1570,6 +1615,28 @@ def get_session_metadata(
         "created_at": live.get("created_at") or persisted.get("created_at"),
         "updated_at": persisted.get("updated_at") or live.get("updated_at"),
     }
+
+
+@router.get("/sessions/{session_id}/setup-snapshot")
+def get_session_setup_snapshot(
+    session_id: SessionIdPath,
+    session_token: str | None = Header(default=None, alias="X-Session-Token"),
+) -> dict[str, Any]:
+    manager = get_session_manager()
+    handle = manager.get(session_id)
+    _require_session_access(session_id, session_token, handle=handle)
+
+    live = _setup_snapshot_response(
+        session_id,
+        getattr(handle, "setup_snapshot", None),
+    )
+    if live is not None:
+        return live
+
+    persisted = _session_setup_snapshot_from_db(session_id)
+    if persisted is not None:
+        return persisted
+    raise HTTPException(status_code=404, detail="setup snapshot not found")
 
 
 @router.get("/sessions/{session_id}/report")
