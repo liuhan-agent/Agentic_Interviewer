@@ -55,6 +55,9 @@ test("PollQuestionResponse types expose PreviousTurnEvaluation contract", () => 
   // (``string[]``) so future changes to the cap don't ripple into the type.
   assert.match(types, /strengths:\s*string\[\]/);
   assert.match(types, /weaknesses:\s*string\[\]/);
+  assert.match(types, /source\?:\s*string\s*\|\s*null/);
+  assert.match(types, /fallback_reason\?:\s*string\s*\|\s*null/);
+  assert.match(types, /system_warnings\?:\s*string\[\]/);
   assert.match(types, /rubric_coverage\?:\s*Record<string,\s*unknown>/);
   assert.match(
     types,
@@ -109,6 +112,16 @@ test("InterviewRoom attaches previous turn feedback to the matching answered bub
   assert.match(source, /function hasDisplayableTurnFeedback/);
   assert.match(source, /hasDisplayableTurnFeedback\(entry\.evaluation\)/);
   assert.match(source, /<TurnFeedbackSummary evaluation=\{entry\.evaluation\}/);
+});
+
+test("InterviewRoom renders evaluator fallback as a system notice", () => {
+  const source = read("src/components/interview/InterviewRoom.tsx");
+
+  assert.match(source, /function isFallbackTurnEvaluation/);
+  assert.match(source, /fallback_reason/);
+  assert.match(source, /评估暂不可用/);
+  assert.match(source, /本轮回答已保存/);
+  assert.match(source, /不作为能力短板判断/);
 });
 
 test("InterviewRoom clears stale feedback when marking the current answer submitted", () => {

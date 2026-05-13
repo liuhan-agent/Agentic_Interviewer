@@ -20,6 +20,17 @@ test("buildWeakPracticeHref keeps length=short for the practice loop", () => {
   assert.match(source, /params\.set\("length",\s*"short"\)/);
 });
 
+test("weak practice links carry source session for cached resume reuse", () => {
+  const source = read("src/components/interview/ReportView.tsx");
+
+  // The practice loop should not ask candidates to upload/parse the same
+  // resume again. The source session lets SetupForm hydrate the cached
+  // resume snapshot from local interview history.
+  assert.match(source, /params\.set\("resume_from",\s*report\.session_id\)/);
+  assert.match(source, /sourceSessionId=\{report\.session_id \?\? sessionId\}/);
+  assert.match(source, /focusParams\.set\("resume_from",\s*sourceSessionId\)/);
+});
+
 test("TrainingPlanCard accepts weakPracticeHref prop and renders gated", () => {
   const source = read("src/components/interview/ReportView.tsx");
 
