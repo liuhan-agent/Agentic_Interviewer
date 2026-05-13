@@ -28,6 +28,33 @@ class _Handle:
         self.done_event = threading.Event()
         self.final_state = None
         self.session_token_hash = hash_session_token("session-secret")
+        self.setup_snapshot = {
+            "candidate": {
+                "name": "Alex Chen",
+                "resume_parsed": {
+                    "summary": "Backend engineer.",
+                    "skills": ["Python"],
+                    "highlights": ["Built streaming systems."],
+                    "projects": [],
+                    "focus_areas": [],
+                    "concerns": [],
+                    "candidate_profile": {
+                        "education_level": "本科",
+                        "school": "Example University",
+                    },
+                },
+            },
+            "job_spec": {
+                "title": "Backend Engineer",
+                "level": "senior",
+                "required_skills": ["Python"],
+                "rubric_dimensions": ["system_design"],
+                "rubric": {},
+                "interview_industry": "internet",
+                "interview_direction": "python_backend",
+                "interview_direction_label": "Python 后端",
+            },
+        }
 
 
 class _Manager:
@@ -106,6 +133,21 @@ class _Manager:
             "hint": "可以先从目标、约束和验证方式三个角度组织回答。",
             "source": "contract",
         }
+
+
+def test_compact_dimension_scores_ignores_null_unscored_values() -> None:
+    assert interview_api._compact_dimension_scores(
+        {
+            "technical_depth": {"score": 8.5},
+            "project_experience": {"score": None},
+            "legacy_zero": {"score": 0.0},
+            "raw_number": 7,
+        }
+    ) == {
+        "technical_depth": 8.5,
+        "legacy_zero": 0.0,
+        "raw_number": 7.0,
+    }
 
 
 class _StubTTS:
@@ -225,6 +267,50 @@ def test_resume_endpoint_includes_max_turns(
     assert resp.status_code == 200
     assert resp.json()["max_turns"] == 8
     assert resp.json()["enable_video_analysis"] is True
+
+
+def test_setup_snapshot_endpoint_returns_live_snapshot(
+    client: tuple[TestClient, _Manager],
+) -> None:
+    http, manager = client
+
+    resp = http.get(
+        "/api/v1/interview/sessions/sess-auth/setup-snapshot",
+        headers={"X-Session-Token": "session-secret"},
+    )
+
+    assert resp.status_code == 200
+    assert resp.json() == {
+        "session_id": "sess-auth",
+        **manager.handle.setup_snapshot,
+    }
+
+
+def test_setup_snapshot_endpoint_rejects_wrong_token(
+    client: tuple[TestClient, _Manager],
+) -> None:
+    http, _manager = client
+
+    resp = http.get(
+        "/api/v1/interview/sessions/sess-auth/setup-snapshot",
+        headers={"X-Session-Token": "wrong"},
+    )
+
+    assert resp.status_code == 403
+
+
+def test_setup_snapshot_endpoint_returns_404_when_missing_snapshot(
+    client: tuple[TestClient, _Manager],
+) -> None:
+    http, manager = client
+    manager.handle.setup_snapshot = None
+
+    resp = http.get(
+        "/api/v1/interview/sessions/sess-auth/setup-snapshot",
+        headers={"X-Session-Token": "session-secret"},
+    )
+
+    assert resp.status_code == 404
 
 
 def test_voice_ticket_endpoint_requires_session_token(
@@ -938,6 +1024,13 @@ _SESSION_ROUTE_AUTH_CASES: list[dict[str, Any]] = [
         "id": "GET /metadata",
         "method": "get",
         "url": "/api/v1/interview/sessions/sess-auth/metadata",
+        "json": None,
+        "params": None,
+    },
+    {
+        "id": "GET /setup-snapshot",
+        "method": "get",
+        "url": "/api/v1/interview/sessions/sess-auth/setup-snapshot",
         "json": None,
         "params": None,
     },

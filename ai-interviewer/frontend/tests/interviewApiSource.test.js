@@ -193,6 +193,45 @@ test("interview API exposes session metadata for history backfill", () => {
   );
 });
 
+test("interview API exposes setup snapshot with session recovery", () => {
+  const source = fs.readFileSync(
+    path.join(__dirname, "..", "src", "lib", "api", "interview.ts"),
+    "utf8",
+  );
+  const types = fs.readFileSync(
+    path.join(__dirname, "..", "src", "lib", "api", "types.ts"),
+    "utf8",
+  );
+
+  assert.match(types, /export interface SessionSetupSnapshotResponse/);
+  assert.match(types, /candidate: Candidate/);
+  assert.match(types, /job_spec: JobSpec/);
+  assert.match(source, /export function getSessionSetupSnapshot/);
+  assert.match(source, /\/setup-snapshot/);
+  assert.match(
+    source,
+    /export function getSessionSetupSnapshot[\s\S]*withSessionRecovery\(sessionId/,
+  );
+}
+);
+
+test("final report score types expose nullable scores and score status", () => {
+  const types = fs.readFileSync(
+    path.join(__dirname, "..", "src", "lib", "api", "types.ts"),
+    "utf8",
+  );
+
+  assert.match(types, /export type RubricScoreStatus/);
+  assert.match(types, /"scored"\s*\|\s*"not_evaluated"\s*\|\s*"skipped"\s*\|\s*"evaluator_unavailable"/);
+  assert.match(types, /export type RubricCoverageStatus/);
+  assert.match(types, /"passed"\s*\|\s*"below_threshold"\s*\|\s*"coverage_limited"\s*\|\s*"not_applicable"/);
+  assert.match(types, /score:\s*number\s*\|\s*null/);
+  assert.match(types, /score_status:\s*RubricScoreStatus/);
+  assert.match(types, /excluded_from_overall:\s*boolean/);
+  assert.match(types, /overall_score\?: number \| null/);
+  assert.match(types, /score_summary\?: ScoreSummary/);
+});
+
 test("interview API and poller carry video capability to the room", () => {
   const types = fs.readFileSync(
     path.join(__dirname, "..", "src", "lib", "api", "types.ts"),

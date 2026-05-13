@@ -60,6 +60,7 @@ import {
   createResumeParseJob,
   getJobTemplate,
   getResumeParseJob,
+  getSessionSetupSnapshot,
   listDirections,
   listDimensions,
   parseJobSpec,
@@ -83,6 +84,7 @@ import type {
   ResumeCandidateProfile,
   ResumeFocusArea,
   ResumeProject,
+  SessionSetupSnapshotResponse,
   StartSessionRequest,
 } from "@/lib/api/types";
 import {
@@ -93,7 +95,11 @@ import {
   loadLLMTestStatus,
   type LLMConfigStatus,
 } from "@/lib/llm-config";
-import { upsertEntry } from "@/lib/storage/interviewHistory";
+import {
+  getResumeSetupSnapshot,
+  upsertEntry,
+  type ResumeSetupSnapshot,
+} from "@/lib/storage/interviewHistory";
 import {
   getSetupDraft,
   removeSetupDraft,
@@ -114,6 +120,14 @@ type DirectionCategoryId =
   | "sales_marketing"
   | "functions_service"
   | "management";
+
+const JOB_LEVEL_VALUES: readonly JobLevel[] = [
+  "junior",
+  "mid",
+  "senior",
+  "staff",
+  "principal",
+];
 
 const CANDIDATE_SUMMARY_MAX_LENGTH = 1200;
 const CANDIDATE_SKILLS_MAX_COUNT = 40;
@@ -634,6 +648,33 @@ function normaliseFocusAreas(focusAreas?: ResumeFocusArea[]): ResumeFocusArea[] 
     }));
 }
 
+function resumeSetupSnapshotFromSession(
+  response: SessionSetupSnapshotResponse,
+): ResumeSetupSnapshot {
+  const parsed = response.candidate.resume_parsed ?? {};
+  return {
+    candidate_name: response.candidate.name,
+    candidate_summary: parsed.summary ?? "",
+    candidate_skills: joinCsv(parsed.skills ?? []),
+    candidate_highlights: (parsed.highlights ?? []).join("\n"),
+    resumeProjects: parsed.projects as unknown as Record<string, unknown>[] | undefined,
+    resumeFocusAreas: parsed.focus_areas as
+      | Record<string, unknown>[]
+      | undefined,
+    resumeConcerns: parsed.concerns ?? [],
+    resumeCandidateProfile: (parsed.candidate_profile ?? {}) as unknown as Record<
+      string,
+      unknown
+    >,
+  };
+}
+
+function asJobLevel(value: string | undefined): JobLevel | null {
+  return JOB_LEVEL_VALUES.includes(value as JobLevel)
+    ? (value as JobLevel)
+    : null;
+}
+
 type UploadStatus =
   | { kind: "idle" }
   | {
@@ -717,10 +758,13 @@ export function SetupForm() {
   const [jobLevelFromResume, setJobLevelFromResume] = useState(false);
   const [jobTitleEdited, setJobTitleEdited] = useState(false);
   const [jobLevelEdited, setJobLevelEdited] = useState(false);
+  const jobTitleEditedRef = useRef(false);
+  const jobLevelEditedRef = useRef(false);
   const [isDragging, setIsDragging] = useState(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const uploadRequestRef = useRef(0);
   const restoredDraftRef = useRef<string | null>(null);
+  const restoredResumeFromRef = useRef<string | null>(null);
 
   const [hasDraft, setHasDraft] = useState(false);
 
@@ -790,6 +834,119 @@ export function SetupForm() {
   const watchedSkills = watch("candidate_skills");
   const watchedHighlights = watch("candidate_highlights");
   const resumeFieldsLocked = upload.kind === "parsing";
+
+  useEffect(() => {
+    jobTitleEditedRef.current = jobTitleEdited;
+  }, [jobTitleEdited]);
+
+  useEffect(() => {
+    jobLevelEditedRef.current = jobLevelEdited;
+  }, [jobLevelEdited]);
+
+  const applyResumeSetupSnapshot = useCallback(
+    (snapshot: ResumeSetupSnapshot) => {
+      if (snapshot.candidate_name) {
+        setValue("candidate_name", snapshot.candidate_name, {
+          shouldValidate: true,
+        });
+        setCandidateNameFromResume(true);
+      }
+      if (snapshot.candidate_summary !== undefined) {
+        setValue("candidate_summary", snapshot.candidate_summary, {
+          shouldValidate: true,
+        });
+      }
+      if (snapshot.candidate_skills !== undefined) {
+        setValue("candidate_skills", snapshot.candidate_skills, {
+          shouldValidate: true,
+        });
+      }
+      if (snapshot.candidate_highlights !== undefined) {
+        setValue("candidate_highlights", snapshot.candidate_highlights, {
+          shouldValidate: true,
+        });
+      }
+      setResumeProjects(
+        normaliseProjects(snapshot.resumeProjects as ResumeProject[] | undefined),
+      );
+      setResumeFocusAreas(
+        normaliseFocusAreas(
+          snapshot.resumeFocusAreas as ResumeFocusArea[] | undefined,
+        ),
+      );
+      setResumeConcerns(snapshot.resumeConcerns ?? []);
+      setResumeCandidateProfile(
+        (snapshot.resumeCandidateProfile as ResumeCandidateProfile | undefined) ??
+          {},
+      );
+      setUpload({
+        kind: "success",
+        filename: "已沿用上一场简历解析结果",
+      });
+      setHasDraft(false);
+    },
+    [setValue],
+  );
+
+  const applySessionSetupSnapshot = useCallback(
+    (response: SessionSetupSnapshotResponse) => {
+      applyResumeSetupSnapshot(resumeSetupSnapshotFromSession(response));
+
+      const { job_spec: jobSpec } = response;
+      const title = jobSpec.title?.trim();
+      if (title && !jobTitleEditedRef.current) {
+        setValue("job_title", title, { shouldValidate: true });
+        setJobTitleFromResume(false);
+      }
+
+      const level = asJobLevel(jobSpec.level);
+      if (level && !jobLevelEditedRef.current) {
+        setValue("job_level", level, { shouldValidate: true });
+        setJobLevelFromResume(false);
+      }
+
+      if (jobSpec.interview_industry) {
+        setValue("interview_industry", jobSpec.interview_industry, {
+          shouldValidate: true,
+        });
+      }
+      if (jobSpec.interview_direction) {
+        setValue("interview_direction", jobSpec.interview_direction, {
+          shouldValidate: true,
+        });
+      }
+      if (jobSpec.required_skills.length > 0) {
+        setJdRequiredSkills(jobSpec.required_skills);
+      }
+    },
+    [applyResumeSetupSnapshot, setValue],
+  );
+
+  useEffect(() => {
+    const sourceSessionId = searchParams.get("resume_from");
+    if (!sourceSessionId || restoredResumeFromRef.current === sourceSessionId) {
+      return;
+    }
+    restoredResumeFromRef.current = sourceSessionId;
+    const localSnapshot = getResumeSetupSnapshot(sourceSessionId);
+    if (localSnapshot) {
+      applyResumeSetupSnapshot(localSnapshot);
+      return;
+    }
+    let cancelled = false;
+    void getSessionSetupSnapshot(sourceSessionId)
+      .then((snapshot) => {
+        if (!cancelled) {
+          applySessionSetupSnapshot(snapshot);
+        }
+      })
+      .catch(() => {
+        /* Old sessions may not have setup snapshots; keep normal setup usable. */
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [applyResumeSetupSnapshot, applySessionSetupSnapshot, searchParams]);
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -1400,6 +1557,16 @@ export function SetupForm() {
       const projects = normaliseProjects(resumeProjects);
       const focusAreas = normaliseFocusAreas(resumeFocusAreas);
       const concerns = resumeConcerns.map((c) => c.trim()).filter(Boolean);
+      const resumeSetupSnapshot: ResumeSetupSnapshot = {
+        candidate_name: values.candidate_name,
+        candidate_summary: values.candidate_summary,
+        candidate_skills: values.candidate_skills,
+        candidate_highlights: values.candidate_highlights,
+        resumeProjects: projects as unknown as Record<string, unknown>[],
+        resumeFocusAreas: focusAreas as unknown as Record<string, unknown>[],
+        resumeConcerns: concerns,
+        resumeCandidateProfile: resumeCandidateProfile as Record<string, unknown>,
+      };
 
       const payload: StartSessionRequest = {
         candidate: {
@@ -1448,6 +1615,7 @@ export function SetupForm() {
             rubricDimensions: selectedDims.map((d) => d.id),
             maxTurns: res.max_turns ?? max_turns,
             status: "running",
+            resumeSetupSnapshot,
           });
         } catch {
           /* ignore */
