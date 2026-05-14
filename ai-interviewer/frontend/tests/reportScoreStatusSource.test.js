@@ -22,6 +22,16 @@ test("ReportView dimension scores render backend score status semantics", () => 
   assert.doesNotMatch(report, /typeof s\.score === "number" \? s\.score\.toFixed\(1\) : "-"\} \/ 10/);
 });
 
+test("ReportView explains multi-turn dimension score breakdowns", () => {
+  const report = read("src/components/interview/ReportView.tsx");
+
+  assert.match(report, /function dimensionScoreBreakdownLabel/);
+  assert.match(report, /score\.score_breakdown/);
+  assert.match(report, /scored_turn_count > 1/);
+  assert.match(report, /latest_score[\s\S]*best_score[\s\S]*average_score[\s\S]*adopted_score/);
+  assert.match(report, /breakdownLabel[\s\S]*text-\[11px\][\s\S]*text-muted-foreground\/60/);
+});
+
 test("ReportView treats legacy numeric dimensions with evidence as scored", () => {
   const report = read("src/components/interview/ReportView.tsx");
 

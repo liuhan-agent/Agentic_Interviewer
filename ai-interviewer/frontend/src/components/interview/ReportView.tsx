@@ -840,6 +840,7 @@ function SelfIntroFocus({
     .filter((group) => group.items.length > 0);
 
   if (!summary && groups.length === 0) return null;
+  const shouldSpanLastGroup = groups.length % 2 === 1;
 
   return (
     <Card>
@@ -862,10 +863,14 @@ function SelfIntroFocus({
         )}
         {groups.length > 0 && (
           <div className="grid gap-3 md:grid-cols-2">
-            {groups.map(({ Icon, ...group }) => (
+            {groups.map(({ Icon, ...group }, idx) => (
               <div
                 key={group.title}
-                className="rounded-lg border border-border/60 bg-background/35 p-3"
+                className={`rounded-lg border border-border/60 bg-background/35 p-3 ${
+                  shouldSpanLastGroup && idx === groups.length - 1
+                    ? "md:col-span-2"
+                    : ""
+                }`}
               >
                 <div className="mb-3 flex items-start gap-2">
                   <Icon
@@ -1481,6 +1486,19 @@ function dimensionScoreLabel(score: RubricScore): string {
   return "未评分";
 }
 
+function dimensionScoreBreakdownLabel(score: RubricScore): string | null {
+  const breakdown = score.score_breakdown;
+  if (!breakdown || !(breakdown.scored_turn_count > 1)) return null;
+  const values = [
+    breakdown.latest_score,
+    breakdown.best_score,
+    breakdown.average_score,
+    breakdown.adopted_score,
+  ];
+  if (!values.every((value) => Number.isFinite(value))) return null;
+  return `本维度共评估 ${breakdown.scored_turn_count} 轮，最近 ${breakdown.latest_score.toFixed(1)}，最高 ${breakdown.best_score.toFixed(1)}，均值 ${breakdown.average_score.toFixed(1)}；综合分 ${breakdown.adopted_score.toFixed(1)}。`;
+}
+
 function dimensionBadgeMeta(score: RubricScore): {
   label: string;
   tone: "success" | "warning" | "muted";
@@ -1719,6 +1737,7 @@ function DimensionScores({
             : translateReportText(s.rationale);
           const badge = dimensionBadgeMeta(s);
           const scored = isDimensionScored(s);
+          const breakdownLabel = dimensionScoreBreakdownLabel(s);
 
           return (
             <div key={dim} className="space-y-2">
@@ -1744,6 +1763,11 @@ function DimensionScores({
                 <AnimatedBar score={s.score} passed={s.passed} delay={i * 0.1} />
               ) : (
                 <div className="h-2 w-full rounded-full bg-secondary" />
+              )}
+              {breakdownLabel && (
+                <p className="text-[11px] leading-relaxed text-muted-foreground/60">
+                  {breakdownLabel}
+                </p>
               )}
               {rationale && (
                 <p className="text-xs leading-relaxed text-muted-foreground">

@@ -20,6 +20,9 @@ from app.engine.workflow.eval_helpers import (
 from app.engine.workflow.eval_helpers import (
     is_system_fallback_text as _is_system_fallback_text,
 )
+from app.engine.workflow.followup_reason import sanitize_replay_followup_reason
+from app.engine.workflow.replay_basis import sanitize_replay_question_basis
+from app.engine.workflow.score_aggregation import build_score_breakdowns_from_qa
 from app.engine.workflow.state import InterviewState
 from app.services.scoring_credibility import compute_credibility
 
@@ -156,6 +159,7 @@ def _build_dimension_scores(
     dimension_summaries: dict[str, dict[str, Any]],
     qa_history: list[dict[str, Any]] | None = None,
     quality_threshold: float = 7.5,
+    score_breakdowns: dict[str, dict[str, Any]] | None = None,
 ) -> dict[str, dict[str, Any]]:
     """Project the rich ``dimension_summaries`` map into the frontend
     ``RubricScore`` contract (``score`` / ``passed`` / ``rationale`` /
@@ -167,30 +171,38 @@ def _build_dimension_scores(
     for callers that want the full trail.
     """
     turn_meta = _dimension_turn_meta(qa_history or [])
+    rebuilt_breakdowns = build_score_breakdowns_from_qa(qa_history or [])
+    available_breakdowns = dict(rebuilt_breakdowns)
+    available_breakdowns.update(score_breakdowns or {})
     out: dict[str, dict[str, Any]] = {}
     dims = (
         set(scores_per_dim.keys())
         | set(dimension_status.keys())
         | set(dimension_summaries.keys())
         | set(turn_meta.keys())
+        | set(available_breakdowns.keys())
     )
     for dim in dims:
         summary = dimension_summaries.get(dim) or {}
         evidence = summary.get("evidence") or []
         latest = evidence[-1] if evidence else {}
         meta = turn_meta.get(dim) or {}
+        breakdown = _normalise_score_breakdown(available_breakdowns.get(dim))
         stored_score = _finite_score(scores_per_dim.get(dim))
-        effective_score = stored_score
+        effective_score = _finite_score((breakdown or {}).get("adopted_score"))
+        if effective_score is None:
+            effective_score = stored_score
         if effective_score is None and meta.get("scored"):
             effective_score = _finite_score(meta.get("latest_score"))
         score_status = _score_status(
             stored_score=stored_score,
             effective_score=effective_score,
             turn_meta=meta,
+            has_score_breakdown=breakdown is not None,
         )
         score = effective_score if score_status == "scored" else None
         exclusion_reason = None if score_status == "scored" else score_status
-        out[dim] = {
+        item = {
             "score": score,
             "score_status": score_status,
             "excluded_from_overall": score_status != "scored",
@@ -205,7 +217,33 @@ def _build_dimension_scores(
             "rationale": latest.get("rationale") or None,
             "weaknesses": list(summary.get("weaknesses") or []),
         }
+        if score_status == "scored" and breakdown is not None:
+            item["score_breakdown"] = breakdown
+        out[dim] = item
     return out
+
+
+def _normalise_score_breakdown(value: Any) -> dict[str, Any] | None:
+    if not isinstance(value, dict):
+        return None
+    adopted = _finite_score(value.get("adopted_score"))
+    latest = _finite_score(value.get("latest_score"))
+    best = _finite_score(value.get("best_score"))
+    average = _finite_score(value.get("average_score"))
+    try:
+        count = int(value.get("scored_turn_count") or 0)
+    except (TypeError, ValueError):
+        count = 0
+    if adopted is None or latest is None or best is None or average is None or count <= 0:
+        return None
+    return {
+        "scored_turn_count": count,
+        "latest_score": latest,
+        "best_score": best,
+        "average_score": average,
+        "adopted_score": adopted,
+        "scoring_policy": str(value.get("scoring_policy") or "weighted_recent"),
+    }
 
 
 def _dimension_turn_meta(
@@ -245,8 +283,11 @@ def _score_status(
     stored_score: float | None,
     effective_score: float | None,
     turn_meta: dict[str, Any],
+    has_score_breakdown: bool = False,
 ) -> str:
     if turn_meta.get("scored") and effective_score is not None:
+        return "scored"
+    if has_score_breakdown and effective_score is not None:
         return "scored"
     # Legacy persisted reports may only have an aggregate positive
     # dimension score and no qa_history evidence. Keep those readable;
@@ -402,9 +443,10 @@ def _followup_reason(evaluation: dict[str, Any]) -> str | None:
 
 def _turn_evidence(qa: dict[str, Any]) -> dict[str, Any]:
     evaluation = qa.get("evaluation") or {}
-    return {
+    evidence = {
         "turn_idx": qa.get("turn_idx"),
         "question": qa.get("question"),
+        "answer": str(qa.get("answer") or ""),
         "answer_excerpt": _answer_excerpt(str(qa.get("answer") or "")),
         "selected_action": qa.get("selected_action"),
         "target_skills": qa.get("target_skills") or [],
@@ -421,6 +463,15 @@ def _turn_evidence(qa: dict[str, Any]) -> dict[str, Any]:
         "recommended_next_plan": evaluation.get("recommended_next_plan"),
         "soft_warnings": evaluation.get("soft_warnings") or [],
     }
+    followup_reason = sanitize_replay_followup_reason(
+        evaluation.get("followup_reason")
+    )
+    if followup_reason is not None:
+        evidence["followup_reason"] = followup_reason
+    question_basis = sanitize_replay_question_basis(qa.get("question_basis"))
+    if question_basis is not None:
+        evidence["question_basis"] = question_basis
+    return evidence
 
 
 def _build_cost_summary() -> dict[str, Any] | None:
@@ -616,6 +667,7 @@ def final_report_node(state: InterviewState) -> dict[str, Any]:
         dimension_summaries,
         qa_history,
         threshold,
+        score_breakdowns=state.get("score_breakdowns") or {},
     )
     score_summary = _score_summary(dimension_scores)
     overall = _overall_score(dimension_scores)

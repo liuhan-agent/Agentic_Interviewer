@@ -72,6 +72,8 @@ not the plan template:
 - Use null when you have no style recommendation.
 
 Rules:
+- Score only this current answer. Do not blend with previous turns or
+  infer the final dimension score; backend aggregation handles that.
 - Re-use existing strengths/weaknesses/rubric_coverage semantics;
   we keep those for backwards compatibility.
 - ``passed`` is true IFF score >= QUALITY_THRESHOLD AND every

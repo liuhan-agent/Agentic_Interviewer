@@ -312,12 +312,22 @@ export interface ScoreSummary {
   total_dimension_count: number;
 }
 
+export interface ScoreBreakdown {
+  scored_turn_count: number;
+  latest_score: number;
+  best_score: number;
+  average_score: number;
+  adopted_score: number;
+  scoring_policy: "weighted_recent" | string;
+}
+
 export interface RubricScore {
   score: number | null;
   score_status: RubricScoreStatus;
   excluded_from_overall: boolean;
   exclusion_reason: Exclude<RubricScoreStatus, "scored"> | null;
   coverage_status: RubricCoverageStatus;
+  score_breakdown?: ScoreBreakdown;
   passed?: boolean;
   rationale?: string;
   weaknesses?: string[];
@@ -328,6 +338,13 @@ export interface TrainingPlanStep {
   rationale?: string;
   estimated_hours?: number;
 }
+
+export type TrainingPlanFallbackReason =
+  | "llm_call_failed"
+  | "json_parse_failed"
+  | "invalid_structure"
+  | "empty_output"
+  | string;
 
 export interface TrainingPlan {
   priority_weaknesses?: Array<{
@@ -348,6 +365,15 @@ export interface TrainingPlan {
    * intelligent inference from deterministic summary.
    */
   source?: "llm" | "fallback" | string;
+  fallback_reason?: TrainingPlanFallbackReason;
+}
+
+export interface ReplayPriorityItem {
+  category: "weakness" | "coverage_limited";
+  label: "薄弱点" | "补充证据";
+  dimension?: string | null;
+  focus: string;
+  display_text: string;
 }
 
 export interface ReplaySummary {
@@ -358,6 +384,44 @@ export interface ReplaySummary {
   overall_verdict?: string | null;
   total_turns?: number | null;
   priority_weaknesses?: string[];
+  priority_items?: ReplayPriorityItem[];
+}
+
+export interface ReplayFollowupReason {
+  title: string;
+  summary: string;
+  chips: string[];
+  source: "evaluator";
+}
+
+export interface ReplayContextBasis {
+  title: string;
+  summary?: string;
+  chips: string[];
+  self_intro?: {
+    summary?: string;
+    emphasized_projects: string[];
+    emphasized_skills: string[];
+    preferred_focus: string[];
+  };
+  resume?: {
+    projects: string[];
+    focus_areas: string[];
+    skills: string[];
+  };
+  job_spec?: {
+    title?: string | null;
+    level?: string | null;
+    required_skills: string[];
+    dimensions: string[];
+    dimension_source_label?: string;
+  };
+}
+
+export interface ReplayQuestionBasis {
+  title: string;
+  summary: string;
+  chips: string[];
 }
 
 export interface ReplayTurn {
@@ -371,6 +435,8 @@ export interface ReplayTurn {
   strengths?: string[];
   weaknesses?: string[];
   next_step?: string;
+  followup_reason?: ReplayFollowupReason | null;
+  question_basis?: ReplayQuestionBasis | null;
 }
 
 export interface ResumeHistoryTurn extends Omit<ReplayTurn, "turn_idx"> {
@@ -384,6 +450,7 @@ export interface ReplayResponse {
   created_at?: string | null;
   updated_at?: string | null;
   summary: ReplaySummary;
+  context_basis?: ReplayContextBasis | null;
   timeline: ReplayTurn[];
   training_plan?: TrainingPlan;
 }

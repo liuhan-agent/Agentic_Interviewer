@@ -175,6 +175,7 @@ def test_training_plan_marks_report_artifact_when_attached(monkeypatch):
     def fake_training_plan(**_kwargs):
         return {
             "source": "fallback",
+            "fallback_reason": "json_parse_failed",
             "priority_weaknesses": [{"dimension": "system_design"}],
             "practice_plan": [],
         }
@@ -208,6 +209,7 @@ def test_training_plan_marks_report_artifact_when_attached(monkeypatch):
     assert report["workflow_artifacts"]["latest_ask_plan"]["template"] == "deep_probe"
     assert report["workflow_artifacts"]["training_plan_attached"] is True
     assert report["workflow_artifacts"]["training_plan_source"] == "fallback"
+    assert report["workflow_artifacts"]["training_plan_fallback_reason"] == "json_parse_failed"
 
 
 def test_training_plan_fallback_is_chinese(monkeypatch):

@@ -245,6 +245,7 @@ class InterviewState(TypedDict, total=False):
 
     evaluation: dict[str, Any]
     scores_per_dim: dict[str, float | None]
+    score_breakdowns: dict[str, dict[str, Any]]
 
     max_turns: int
     quality_threshold: float
@@ -355,6 +356,7 @@ def build_initial_state(
         "qa_summary_through_turn": -1,
         "evaluation": {},
         "scores_per_dim": {d: None for d in dimensions},
+        "score_breakdowns": {},
         "max_turns": max_turns,
         "quality_threshold": quality_threshold,
         "turn_budget_remaining": turn_budget,
