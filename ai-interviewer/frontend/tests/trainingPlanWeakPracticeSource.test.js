@@ -31,6 +31,14 @@ test("weak practice links carry source session for cached resume reuse", () => {
   assert.match(source, /focusParams\.set\("resume_from",\s*sourceSessionId\)/);
 });
 
+test("replay weak practice link carries source session for cached resume reuse", () => {
+  const source = read("src/components/interview/ReplayView.tsx");
+
+  assert.match(source, /buildReplayPracticeHref\(replay,\s*sessionId\)/);
+  assert.match(source, /function buildReplayPracticeHref\(\s*replay:\s*ReplayResponse,\s*sourceSessionId:\s*string/);
+  assert.match(source, /params\.set\("resume_from",\s*sourceSessionId\)/);
+});
+
 test("TrainingPlanCard accepts weakPracticeHref prop and renders gated", () => {
   const source = read("src/components/interview/ReportView.tsx");
 

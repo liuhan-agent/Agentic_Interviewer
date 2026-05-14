@@ -37,6 +37,7 @@ from app.engine.resume_plan import select_resume_anchor
 from app.engine.workflow.difficulty_adapter import difficulty_to_bar_level
 from app.engine.workflow.plans import build_llm_ask_plan, resolve_ask_plan
 from app.engine.workflow.probe_intent import resolve_probe_intent
+from app.engine.workflow.replay_basis import build_replay_question_basis
 from app.engine.workflow.skill_focus import select_target_skills
 from app.engine.workflow.state import (
     AskPlan,
@@ -623,6 +624,17 @@ def ask_question_node(state: InterviewState) -> dict[str, Any]:
         question_payload.setdefault("resume_anchor", ctx["resume_anchor"])
     question_payload["target_skills"] = list(ctx.get("target_skills") or [])
     question_payload["skill_focus"] = ctx.get("skill_focus") or {}
+    question_basis = build_replay_question_basis(
+        dimension=dimension,
+        resume_anchor=ctx.get("resume_anchor"),
+        target_skills=ctx.get("target_skills") or [],
+        skill_focus=ctx.get("skill_focus") or {},
+        job_spec=state.get("job_spec") or {},
+        refine_mode=bool(state.get("refine_mode")),
+        contract_hints=contract_hints,
+    )
+    if question_basis is not None:
+        question_payload["question_basis"] = question_basis
     contract = _finalise_contract(plan, ctx)
     question_payload["contract"] = contract
     # Rubric_points is kept for backwards compatibility: evaluator_node

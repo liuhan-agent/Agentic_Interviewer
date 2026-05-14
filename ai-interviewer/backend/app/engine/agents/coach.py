@@ -16,6 +16,7 @@ experience useful even when the upstream provider is flaky.
 """
 from __future__ import annotations
 
+import json
 import math
 from collections import Counter
 from typing import Any
@@ -326,6 +327,7 @@ def _fallback_training_plan(
     *,
     final_report: dict[str, Any],
     qa_history: list[dict[str, Any]],
+    fallback_reason: str | None = None,
 ) -> dict[str, Any]:
     """Deterministic plan used when the LLM path is unavailable.
 
@@ -447,7 +449,7 @@ def _fallback_training_plan(
         else "综合能力"
     )
 
-    return {
+    plan = {
         "diagnosis": diagnosis,
         "priority_weaknesses": priority_weaknesses,
         "practice_plan": practice_plan,
@@ -468,6 +470,50 @@ def _fallback_training_plan(
         "signal_summary": summary,
         "source": "fallback",
     }
+    if fallback_reason:
+        plan["fallback_reason"] = fallback_reason
+    return plan
+
+
+_COACH_PLAN_KEYS = {
+    "diagnosis",
+    "priority_weaknesses",
+    "practice_plan",
+    "goals_30_60_90",
+    "signal_summary",
+}
+
+
+def _looks_like_empty_json_object(text: str) -> bool:
+    stripped = (text or "").strip()
+    if not stripped:
+        return False
+    if stripped.startswith("```"):
+        stripped = stripped.strip("`").strip()
+        if stripped.lower().startswith("json"):
+            stripped = stripped[4:].strip()
+    try:
+        return json.loads(stripped) == {}
+    except json.JSONDecodeError:
+        return False
+
+
+def _has_coach_plan_shape(data: dict[str, Any]) -> bool:
+    return any(key in data for key in _COACH_PLAN_KEYS)
+
+
+def _fallback_with_reason(
+    *,
+    reason: str,
+    final_report: dict[str, Any],
+    qa_history: list[dict[str, Any]],
+) -> dict[str, Any]:
+    plan = _fallback_training_plan(
+        final_report=final_report,
+        qa_history=qa_history,
+        fallback_reason=reason,
+    )
+    return plan
 
 
 def _normalize_llm_plan(data: dict[str, Any]) -> dict[str, Any]:
@@ -534,16 +580,48 @@ def build_training_plan(
     messages = frame_to_coach_messages(frame)
     try:
         raw = call_chat(messages, json_mode=True, agent_role="coach")
-        data = parse_json_response(raw)
     except Exception as e:  # pragma: no cover
         log.warning("coach LLM call failed, using fallback: %s", e)
-        return _fallback_training_plan(
+        return _fallback_with_reason(
+            reason="llm_call_failed",
             final_report=coach_report,
             qa_history=qa_history,
         )
 
-    if not isinstance(data, dict) or not data:
-        return _fallback_training_plan(
+    raw_text = str(raw or "").strip()
+    if not raw_text:
+        return _fallback_with_reason(
+            reason="empty_output",
+            final_report=coach_report,
+            qa_history=qa_history,
+        )
+
+    try:
+        data = parse_json_response(raw)
+    except Exception as e:  # pragma: no cover
+        log.warning("coach LLM response parse raised, using fallback: %s", e)
+        return _fallback_with_reason(
+            reason="json_parse_failed",
+            final_report=coach_report,
+            qa_history=qa_history,
+        )
+
+    if not isinstance(data, dict):
+        return _fallback_with_reason(
+            reason="invalid_structure",
+            final_report=coach_report,
+            qa_history=qa_history,
+        )
+    if not data:
+        reason = "invalid_structure" if _looks_like_empty_json_object(raw_text) else "json_parse_failed"
+        return _fallback_with_reason(
+            reason=reason,
+            final_report=coach_report,
+            qa_history=qa_history,
+        )
+    if not _has_coach_plan_shape(data):
+        return _fallback_with_reason(
+            reason="invalid_structure",
             final_report=coach_report,
             qa_history=qa_history,
         )

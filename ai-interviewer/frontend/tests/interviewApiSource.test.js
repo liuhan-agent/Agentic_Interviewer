@@ -3,6 +3,14 @@ const fs = require("node:fs");
 const path = require("node:path");
 const test = require("node:test");
 
+function extractFunctionBlock(source, name) {
+  const match = source.match(
+    new RegExp(`export function ${name}[\\s\\S]*?(?=\\nexport function |\\nexport async function |\\nfunction |$)`),
+  );
+  assert.ok(match, `expected ${name} to exist`);
+  return match[0];
+}
+
 test("session APIs send token header and answer turn index", () => {
   const source = fs.readFileSync(
     path.join(__dirname, "..", "src", "lib", "api", "interview.ts"),
@@ -172,6 +180,17 @@ test("delete session uses browser recovery before giving up", () => {
   );
 });
 
+test("replay uses browser recovery before giving up", () => {
+  const source = fs.readFileSync(
+    path.join(__dirname, "..", "src", "lib", "api", "interview.ts"),
+    "utf8",
+  );
+  const block = extractFunctionBlock(source, "getReplay");
+
+  assert.match(block, /\/replay/);
+  assert.match(block, /return withSessionRecovery\(sessionId/);
+});
+
 test("interview API exposes session metadata for history backfill", () => {
   const source = fs.readFileSync(
     path.join(__dirname, "..", "src", "lib", "api", "interview.ts"),
@@ -228,6 +247,8 @@ test("final report score types expose nullable scores and score status", () => {
   assert.match(types, /score:\s*number\s*\|\s*null/);
   assert.match(types, /score_status:\s*RubricScoreStatus/);
   assert.match(types, /excluded_from_overall:\s*boolean/);
+  assert.match(types, /export interface ScoreBreakdown/);
+  assert.match(types, /score_breakdown\?:\s*ScoreBreakdown/);
   assert.match(types, /overall_score\?: number \| null/);
   assert.match(types, /score_summary\?: ScoreSummary/);
 });
