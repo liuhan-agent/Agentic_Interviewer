@@ -230,6 +230,83 @@ def test_turn_evidence_preserves_full_dict_shape() -> None:
     assert evidence["selected_action"] == "plan_deep_probe"
 
 
+def test_turn_evidence_keeps_full_answer_alongside_excerpt() -> None:
+    long_answer = (
+        "我先确认读写路径和一致性目标，再把缓存失效、回源保护、容量估算、"
+        "监控告警和降级策略串起来说明。"
+        * 8
+    )
+    qa = {
+        "turn_idx": 2,
+        "dimension": "technical_depth",
+        "question": "如何设计一个缓存系统？",
+        "answer": long_answer,
+        "evaluation": {
+            "score": 7.5,
+            "passed": True,
+            "acceptance_check_results": {},
+        },
+    }
+
+    evidence = _turn_evidence(qa)
+
+    assert evidence["answer"] == long_answer
+    assert evidence["answer_excerpt"] != long_answer
+    assert len(evidence["answer_excerpt"]) <= 220
+    assert evidence["answer_excerpt"].endswith("...")
+
+
+def test_turn_evidence_preserves_display_followup_reason() -> None:
+    followup_reason = {
+        "title": "为什么继续追问",
+        "summary": "上一轮回答还需要补足「容量估算」，下一题会继续围绕这个点追问。",
+        "chips": ["深挖追问", "量化指标", "容量估算"],
+        "source": "evaluator",
+    }
+    qa = {
+        "turn_idx": 4,
+        "dimension": "technical_depth",
+        "question": "How do you size Redis capacity?",
+        "answer": "I would estimate hot keys and value sizes.",
+        "evaluation": {
+            "score": 6.0,
+            "passed": False,
+            "recommended_next": "refine",
+            "recommended_next_plan": "deep_probe",
+            "followup_reason": followup_reason,
+            "acceptance_check_results": {},
+        },
+    }
+
+    evidence = _turn_evidence(qa)
+
+    assert evidence["followup_reason"] == followup_reason
+
+
+def test_turn_evidence_preserves_display_question_basis() -> None:
+    question_basis = {
+        "title": "为什么问这一题",
+        "summary": "这题结合了简历中的支付迁移项目，并围绕技术深度确认 Redis。",
+        "chips": ["来自简历", "评分维度", "技术深度", "Redis"],
+    }
+    qa = {
+        "turn_idx": 5,
+        "dimension": "technical_depth",
+        "question": "How did you use Redis in the payment migration?",
+        "answer": "I used Redis for hot reads.",
+        "question_basis": question_basis,
+        "evaluation": {
+            "score": 8.0,
+            "passed": True,
+            "acceptance_check_results": {},
+        },
+    }
+
+    evidence = _turn_evidence(qa)
+
+    assert evidence["question_basis"] == question_basis
+
+
 def test_turn_evidence_separates_evaluator_fallback_from_candidate_weaknesses() -> None:
     qa = {
         "turn_idx": 1,
@@ -949,6 +1026,41 @@ def test_final_report_keeps_coverage_limited_scores_in_overall(monkeypatch) -> N
     assert report["dimension_scores"]["technical_depth"]["score_status"] == "scored"
     assert report["dimension_scores"]["technical_depth"]["excluded_from_overall"] is False
     assert report["dimension_scores"]["technical_depth"]["coverage_status"] == "coverage_limited"
+
+
+def test_final_report_rebuilds_multiturn_score_breakdown_from_qa_history(
+    monkeypatch,
+) -> None:
+    monkeypatch.setattr(fr, "get_tracer", lambda: _NoopTracer())
+
+    qa_history = [
+        _mk_qa_turn(
+            turn_idx=i,
+            dimension="technical_depth",
+            passed=i < 4,
+            score=score,
+            acceptance={"Explains root cause.": "yes" if i < 4 else "partial"},
+        )
+        for i, score in enumerate([9.0, 9.0, 9.0, 9.0, 8.0])
+    ]
+    state = _mk_state(qa_history)
+    state["scores_per_dim"] = {"technical_depth": None}
+    state["dimension_status"] = {"technical_depth": "active"}
+    state["quality_threshold"] = 7.0
+
+    out = fr.final_report_node(state)  # type: ignore[arg-type]
+    report = out["final_report"]
+
+    assert report["overall_score"] == 8.7
+    assert report["dimension_scores"]["technical_depth"]["score"] == 8.7
+    assert report["dimension_scores"]["technical_depth"]["score_breakdown"] == {
+        "scored_turn_count": 5,
+        "latest_score": 8.0,
+        "best_score": 9.0,
+        "average_score": 8.8,
+        "adopted_score": 8.7,
+        "scoring_policy": "weighted_recent",
+    }
 
 
 def test_final_report_null_overall_when_no_valid_scores(monkeypatch) -> None:

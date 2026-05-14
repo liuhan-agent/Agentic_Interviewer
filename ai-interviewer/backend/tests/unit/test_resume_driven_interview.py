@@ -137,3 +137,7 @@ def test_ask_question_selects_resume_anchor_and_passes_to_generator(monkeypatch)
     assert out["current_question"]["resume_anchor"]["project_name"] == (
         "BluePay payment migration"
     )
+    assert out["current_question"]["question_basis"]["title"] == "为什么问这一题"
+    assert "来自简历" in out["current_question"]["question_basis"]["chips"]
+    assert "来自岗位要求" in out["current_question"]["question_basis"]["chips"]
+    assert "系统设计" in out["current_question"]["question_basis"]["chips"]

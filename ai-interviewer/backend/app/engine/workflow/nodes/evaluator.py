@@ -15,6 +15,14 @@ from app.engine.workflow.evaluation_consistency import (
     normalize_evaluation_consistency,
     sync_dimension_status,
 )
+from app.engine.workflow.followup_reason import attach_replay_followup_reason
+from app.engine.workflow.replay_basis import sanitize_replay_question_basis
+from app.engine.workflow.score_aggregation import (
+    build_score_breakdowns_from_qa,
+    finite_score,
+    legacy_score_breakdown,
+    update_score_breakdown,
+)
 from app.engine.workflow.state import InterviewState, QATurn
 from app.ml.drift.prompt_feedback import build_evaluator_drift_negatives
 from app.ml.rl.reward_fn import immediate_reward
@@ -23,18 +31,6 @@ from app.ml.rl.thompson import get_bandit  # noqa: F401 - legacy tests patch thi
 from .wait_answer import get_raw_answer_for_state
 
 log = get_logger(__name__)
-
-
-def _merge_score(existing: float | None, new_score: float) -> float:
-    """Running average so repeated attempts at the same dim converge.
-
-    For the first sample we simply take ``new_score``; subsequently we
-    take a 70/30 blend favouring history, which prevents a single bad
-    refine round from sinking a dimension that was otherwise strong.
-    """
-    if existing is None:
-        return new_score
-    return round(0.7 * existing + 0.3 * new_score, 3)
 
 
 def _has_scored_evaluator_turn(
@@ -111,10 +107,17 @@ def evaluator_node(state: InterviewState) -> dict[str, Any]:
         contract=contract,
         quality_threshold=float(quality_threshold),
     )
+    evaluation = attach_replay_followup_reason(evaluation)
     fallback_turn = is_evaluator_fallback(evaluation)
     if fallback_turn:
         record_question_fallback("evaluator_fallback")
     scores = dict(state.get("scores_per_dim", {}))
+    score_breakdowns = dict(state.get("score_breakdowns") or {})
+    score_breakdowns_changed = False
+    if dimension not in score_breakdowns:
+        score_breakdowns.update(
+            build_score_breakdowns_from_qa(list(state.get("qa_history") or []))
+        )
     if not fallback_turn:
         # Fallback evaluations come from the conservative path when the
         # LLM was unavailable — folding their score into the running
@@ -122,16 +125,22 @@ def evaluator_node(state: InterviewState) -> dict[str, Any]:
         # candidate's reported score down (audit finding F3). Keep the
         # dim score unchanged on fallback turns; the bandit is also
         # already protected by ``reward_update`` skipping fallbacks.
-        existing_score = scores.get(dimension)
-        if existing_score == 0.0 and not _has_scored_evaluator_turn(
+        existing_score = finite_score(scores.get(dimension))
+        has_prior_turn = _has_scored_evaluator_turn(
             state.get("qa_history", []),
             dimension,
-        ):
-            existing_score = None
-        scores[dimension] = _merge_score(
-            existing_score,
-            float(evaluation.get("score", 0.0)),
         )
+        if existing_score == 0.0 and not has_prior_turn:
+            existing_score = None
+        existing_breakdown = score_breakdowns.get(dimension)
+        if existing_breakdown is None and existing_score is not None:
+            existing_breakdown = legacy_score_breakdown(existing_score)
+        new_score = finite_score(evaluation.get("score"))
+        if new_score is not None:
+            next_breakdown = update_score_breakdown(existing_breakdown, new_score)
+            score_breakdowns[dimension] = next_breakdown
+            scores[dimension] = next_breakdown["adopted_score"]
+            score_breakdowns_changed = True
 
     status = sync_dimension_status(
         dict(state.get("dimension_status", {})),
@@ -162,6 +171,9 @@ def evaluator_node(state: InterviewState) -> dict[str, Any]:
         # classifier.
         "answer_intent": state.get("current_answer_intent") or "normal",
     }
+    question_basis = sanitize_replay_question_basis(question.get("question_basis"))
+    if question_basis is not None:
+        qa_turn["question_basis"] = question_basis
     video_signals = state.get("video_signals")
     if isinstance(video_signals, dict) and video_signals:
         qa_turn["video_signals"] = video_signals
@@ -202,6 +214,8 @@ def evaluator_node(state: InterviewState) -> dict[str, Any]:
         "formal_turn_idx": formal_turn_idx + 1,
         "turn_budget_remaining": turn_budget,
     }
+    if score_breakdowns_changed:
+        updated_state["score_breakdowns"] = score_breakdowns
 
     # Tracer is side-channel: write trace from a consolidated view of the
     # state so downstream joins don't have to guess which turn we mean.
