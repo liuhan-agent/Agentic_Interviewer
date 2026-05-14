@@ -393,7 +393,80 @@ class TestBuildTrainingPlan:
                 qa_history=[_make_qa(0, score=5.0, weaknesses=["弱点1"])],
         )
         assert plan["source"] == "fallback"
+        assert plan["fallback_reason"] == "llm_call_failed"
         assert "diagnosis" in plan
+
+    def test_empty_llm_output_records_fallback_reason(self) -> None:
+        with (
+            patch(
+                "app.engine.agents.coach.call_chat",
+                return_value="   ",
+            ),
+            patch(
+                "app.engine.agents.coach.build_context_frame_for_coach",
+            ),
+            patch(
+                "app.engine.agents.coach.frame_to_coach_messages",
+                return_value=[],
+            ),
+        ):
+            plan = build_training_plan(
+                job_spec={},
+                candidate={},
+                final_report={"overall_score": 5.0, "verdict": "fail"},
+                qa_history=[_make_qa(0, score=5.0, weaknesses=["寮辩偣1"])],
+            )
+
+        assert plan["source"] == "fallback"
+        assert plan["fallback_reason"] == "empty_output"
+
+    def test_json_parse_failure_records_fallback_reason(self) -> None:
+        with (
+            patch(
+                "app.engine.agents.coach.call_chat",
+                return_value="not json at all",
+            ),
+            patch(
+                "app.engine.agents.coach.build_context_frame_for_coach",
+            ),
+            patch(
+                "app.engine.agents.coach.frame_to_coach_messages",
+                return_value=[],
+            ),
+        ):
+            plan = build_training_plan(
+                job_spec={},
+                candidate={},
+                final_report={"overall_score": 5.0, "verdict": "fail"},
+                qa_history=[_make_qa(0, score=5.0, weaknesses=["寮辩偣1"])],
+            )
+
+        assert plan["source"] == "fallback"
+        assert plan["fallback_reason"] == "json_parse_failed"
+
+    def test_invalid_llm_structure_records_fallback_reason(self) -> None:
+        with (
+            patch(
+                "app.engine.agents.coach.call_chat",
+                return_value='{"unexpected":"shape"}',
+            ),
+            patch(
+                "app.engine.agents.coach.build_context_frame_for_coach",
+            ),
+            patch(
+                "app.engine.agents.coach.frame_to_coach_messages",
+                return_value=[],
+            ),
+        ):
+            plan = build_training_plan(
+                job_spec={},
+                candidate={},
+                final_report={"overall_score": 5.0, "verdict": "fail"},
+                qa_history=[_make_qa(0, score=5.0, weaknesses=["寮辩偣1"])],
+            )
+
+        assert plan["source"] == "fallback"
+        assert plan["fallback_reason"] == "invalid_structure"
 
     def test_fallback_uses_candidate_growth_language_for_legacy_hire_verdict(self) -> None:
         plan = _fallback_training_plan(

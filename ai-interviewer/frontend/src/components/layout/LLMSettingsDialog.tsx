@@ -37,6 +37,7 @@ import type {
   LLMRoleGroupInfo,
   LLMRoleOverrideConfig,
   LLMTestStatus,
+  LLMTestTargetKind,
   LLMTestTargetStatus,
   LLMVoiceOverrideConfig,
   LLMVoiceRouteId,
@@ -82,8 +83,11 @@ const VOICE_ROUTE_LABELS: Record<LLMVoiceRouteId, string> = {
 
 const CUSTOM_VOICE_VALUE = "__custom_voice__";
 
-function routeProviderLabel(provider: string): string {
-  return voiceProviderInfo(provider).label || providerInfo(provider).label;
+function routeProviderLabel(provider: string, kind?: LLMTestTargetKind): string {
+  if (kind === "asr" || kind === "tts") {
+    return voiceProviderInfo(provider).label;
+  }
+  return providerInfo(provider).label;
 }
 
 function isTestable(config: LLMConfig): boolean {
@@ -1137,7 +1141,7 @@ function ConnectionResult({
             >
               <span className="min-w-0">
                 <span className="block truncate">
-                  {result.label}：{routeProviderLabel(result.provider)} {result.model}
+                  {result.label}：{routeProviderLabel(result.provider, result.kind)} {result.model}
                 </span>
                 {!result.ok && result.error ? (
                   <span className="mt-0.5 block break-words opacity-90">

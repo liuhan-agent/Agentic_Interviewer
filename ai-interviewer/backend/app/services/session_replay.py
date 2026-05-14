@@ -4,6 +4,11 @@ from __future__ import annotations
 from datetime import UTC, datetime
 from typing import Any
 
+from app.engine.workflow.followup_reason import sanitize_replay_followup_reason
+from app.engine.workflow.replay_basis import (
+    build_replay_context_basis,
+    sanitize_replay_question_basis,
+)
 from app.models.generation_trace import GenerationTrace
 from app.models.interview_session import InterviewSession
 
@@ -14,6 +19,15 @@ _SYSTEM_FALLBACK_MARKERS = (
     "评估模型暂时不可用",
     "保守兜底评价",
 )
+
+
+_INTERNAL_NEXT_DECISIONS = {"refine", "advance", "skip"}
+_INTERNAL_NEXT_PLANS = {"simple", "adaptive", "deep_probe"}
+_REFINE_NEXT_STEP_COPY = {
+    "simple": "继续补充本题的基础信息和关键细节。",
+    "adaptive": "围绕本题薄弱点，补充更具体的过程、证据和结果。",
+    "deep_probe": "进一步深挖本题中的关键决策、指标、取舍或边界情况。",
+}
 
 
 class ReplayNotFound(Exception):  # noqa: N818 - public API name used by router/tests.
@@ -47,6 +61,28 @@ def _list(value: Any) -> list[str]:
 def _user_text(value: Any) -> str:
     text = str(value or "").strip()
     return "" if _is_system_fallback_text(text) else text
+
+
+def _next_step_text(recommended_next: Any, recommended_next_plan: Any = None) -> str:
+    next_text = str(recommended_next or "").strip()
+    decision = next_text.lower()
+    plan_text = str(recommended_next_plan or "").strip()
+    plan = plan_text.lower()
+
+    if decision == "refine":
+        return _REFINE_NEXT_STEP_COPY.get(
+            plan,
+            "围绕本题薄弱点继续补充细节。",
+        )
+    if decision in _INTERNAL_NEXT_DECISIONS:
+        return ""
+    if decision in _INTERNAL_NEXT_PLANS:
+        return ""
+    if next_text:
+        return _user_text(next_text)
+    if plan in _INTERNAL_NEXT_PLANS:
+        return ""
+    return _user_text(plan_text)
 
 
 def _int_or_none(value: Any) -> int | None:
@@ -108,6 +144,39 @@ def _priority_weaknesses(report: dict[str, Any]) -> list[str]:
     return out
 
 
+def _priority_items(report: dict[str, Any]) -> list[dict[str, Any]]:
+    plan = report.get("training_plan") or {}
+    out: list[dict[str, Any]] = []
+    for item in plan.get("priority_weaknesses") or []:
+        dimension: str | None = None
+        category = "weakness"
+        if isinstance(item, dict):
+            focus = _user_text(item.get("focus"))
+            raw_dimension = str(item.get("dimension") or "").strip()
+            dimension = raw_dimension or None
+            if str(item.get("category") or "").strip() == "coverage_limited":
+                category = "coverage_limited"
+        else:
+            focus = _user_text(item)
+        if not focus:
+            continue
+
+        label = "补充证据" if category == "coverage_limited" else "薄弱点"
+        display_text = focus
+        if category == "coverage_limited" and dimension:
+            display_text = f"{dimension}：补充具体例子、关键指标和取舍说明"
+        out.append(
+            {
+                "category": category,
+                "label": label,
+                "dimension": dimension,
+                "focus": focus,
+                "display_text": display_text,
+            }
+        )
+    return out
+
+
 def _turn_payload(trace: GenerationTrace) -> dict[str, Any]:
     qa_turn = _qa_turn_from_trace(trace)
     qa_evaluation = (
@@ -117,7 +186,7 @@ def _turn_payload(trace: GenerationTrace) -> dict[str, Any]:
     if not evaluation:
         evaluation = qa_evaluation
     formal_turn_idx = _int_or_none(qa_turn.get("turn_idx"))
-    return {
+    payload = {
         "turn_idx": formal_turn_idx if formal_turn_idx is not None else trace.turn_idx,
         "dimension": trace.dimension or qa_turn.get("dimension"),
         "question": trace.question or qa_turn.get("question"),
@@ -131,8 +200,20 @@ def _turn_payload(trace: GenerationTrace) -> dict[str, Any]:
         "rationale": _user_text(evaluation.get("rationale")),
         "strengths": _list(evaluation.get("strengths")),
         "weaknesses": _list(evaluation.get("weaknesses")),
-        "next_step": _user_text(evaluation.get("recommended_next")),
+        "next_step": _next_step_text(
+            evaluation.get("recommended_next"),
+            evaluation.get("recommended_next_plan"),
+        ),
     }
+    followup_reason = sanitize_replay_followup_reason(
+        evaluation.get("followup_reason")
+    ) or sanitize_replay_followup_reason(qa_evaluation.get("followup_reason"))
+    if followup_reason is not None:
+        payload["followup_reason"] = followup_reason
+    question_basis = sanitize_replay_question_basis(qa_turn.get("question_basis"))
+    if question_basis is not None:
+        payload["question_basis"] = question_basis
+    return payload
 
 
 def _timeline_from_report(report: dict[str, Any]) -> list[dict[str, Any]]:
@@ -151,24 +232,33 @@ def _timeline_from_report(report: dict[str, Any]) -> list[dict[str, Any]]:
         for evidence in evidence_items:
             if not isinstance(evidence, dict):
                 continue
-            timeline.append(
-                {
-                    "turn_idx": evidence.get("turn_idx"),
-                    "dimension": dimension,
-                    "question": evidence.get("question"),
-                    "answer": evidence.get("answer")
-                    or evidence.get("answer_excerpt"),
-                    "score": evidence.get("score"),
-                    "passed": evidence.get("passed"),
-                    "rationale": _user_text(evidence.get("rationale")),
-                    "strengths": _list(evidence.get("strengths")),
-                    "weaknesses": _list(evidence.get("weaknesses")),
-                    "next_step": _user_text(
-                        evidence.get("recommended_next")
-                        or evidence.get("recommended_next_plan")
-                    ),
-                }
+            payload = {
+                "turn_idx": evidence.get("turn_idx"),
+                "dimension": dimension,
+                "question": evidence.get("question"),
+                "answer": evidence.get("answer")
+                or evidence.get("answer_excerpt"),
+                "score": evidence.get("score"),
+                "passed": evidence.get("passed"),
+                "rationale": _user_text(evidence.get("rationale")),
+                "strengths": _list(evidence.get("strengths")),
+                "weaknesses": _list(evidence.get("weaknesses")),
+                "next_step": _next_step_text(
+                    evidence.get("recommended_next"),
+                    evidence.get("recommended_next_plan"),
+                ),
+            }
+            followup_reason = sanitize_replay_followup_reason(
+                evidence.get("followup_reason")
             )
+            if followup_reason is not None:
+                payload["followup_reason"] = followup_reason
+            question_basis = sanitize_replay_question_basis(
+                evidence.get("question_basis")
+            )
+            if question_basis is not None:
+                payload["question_basis"] = question_basis
+            timeline.append(payload)
 
     return sorted(
         timeline,
@@ -245,6 +335,10 @@ def build_session_replay(db: Any, session_id: str) -> dict[str, Any]:
     timeline = _timeline_from_traces(db, session_id)
     if not timeline:
         timeline = _timeline_from_report(report)
+    context_basis = build_replay_context_basis(
+        report=report,
+        setup_snapshot=row.setup_snapshot,
+    )
     return {
         "session_id": session_id,
         "status": row.status,
@@ -258,7 +352,9 @@ def build_session_replay(db: Any, session_id: str) -> dict[str, Any]:
             "overall_verdict": report.get("overall_verdict"),
             "total_turns": report.get("total_turns", len(timeline)),
             "priority_weaknesses": _priority_weaknesses(report),
+            "priority_items": _priority_items(report),
         },
+        "context_basis": context_basis,
         "timeline": timeline,
         "training_plan": report.get("training_plan") or {},
     }
