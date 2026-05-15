@@ -36,6 +36,7 @@ class StrategyMemory(Base):
 
     body_markdown: Mapped[str] = mapped_column(Text, default="")
     status: Mapped[str] = mapped_column(String(32), default="active", index=True)
+    quality_reason: Mapped[str | None] = mapped_column(String(512))
     priority: Mapped[int] = mapped_column(Integer, default=0)
     confidence: Mapped[float] = mapped_column(Float, default=0.0)
     support_count: Mapped[int] = mapped_column(Integer, default=0)
@@ -116,6 +117,32 @@ class StrategyMemoryUsage(Base):
         default=lambda: datetime.now(UTC),
         index=True,
     )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=lambda: datetime.now(UTC),
+        onupdate=lambda: datetime.now(UTC),
+    )
+
+
+class StrategyMemoryStats(Base):
+    """Aggregated strategy-memory reward health for retrieval and admin views."""
+
+    __tablename__ = "strategy_memory_stats"
+
+    id: Mapped[str] = mapped_column(String(160), primary_key=True)
+    strategy_id: Mapped[str] = mapped_column(String(96), index=True)
+    context_key: Mapped[str] = mapped_column(String(128), index=True)
+
+    uses: Mapped[int] = mapped_column(Integer, default=0)
+    avg_score: Mapped[float | None] = mapped_column(Float)
+    pass_rate: Mapped[float | None] = mapped_column(Float)
+    avg_immediate_reward: Mapped[float | None] = mapped_column(Float)
+    avg_delayed_reward: Mapped[float | None] = mapped_column(Float)
+    avg_blended_reward: Mapped[float | None] = mapped_column(Float)
+    overrule_rate: Mapped[float | None] = mapped_column(Float)
+    helpful_avg: Mapped[float | None] = mapped_column(Float)
+
+    last_used_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         default=lambda: datetime.now(UTC),

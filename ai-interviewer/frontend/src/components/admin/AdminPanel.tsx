@@ -47,6 +47,7 @@ import {
   getQuestionQualityRollUp,
   getRecentTracesByNode,
   getStrategySignals,
+  getStrategyStats,
   getStrategyUsages,
   getStrategies,
   getTraceRollUp,
@@ -54,6 +55,7 @@ import {
   loadAdminToken,
   archiveStrategy,
   disableStrategy,
+  refreshStrategyStats,
   runStrategyPromotion,
   saveAdminToken,
   type AdminSessions,
@@ -68,6 +70,7 @@ import {
   type RecentTracesResponse,
   type Strategies,
   type StrategySignals,
+  type StrategyStats,
   type StrategyUsages,
   type TraceRollupResponse,
   type VerifierDriftSnapshot,
@@ -177,6 +180,11 @@ export function AdminPanel() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [tokenSaved],
   );
+  const strategyStatsFetcher = useCallback(
+    (signal?: AbortSignal) => getStrategyStats(signal),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [tokenSaved],
+  );
   const traceRollupFetcher = useCallback(
     (signal?: AbortSignal) => getTraceRollUp({ since: "24h", groupby: "health" }, signal),
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -217,6 +225,7 @@ export function AdminPanel() {
   const strategies = useAutoFetch(strategiesFetcher, tick);
   const strategySignals = useAutoFetch(strategySignalsFetcher, tick);
   const strategyUsages = useAutoFetch(strategyUsagesFetcher, tick);
+  const strategyStats = useAutoFetch(strategyStatsFetcher, tick);
   const traceRollup = useAutoFetch(traceRollupFetcher, tick);
   const fallbackRollup = useAutoFetch(fallbackRollupFetcher, tick);
   const evidenceRollup = useAutoFetch(evidenceRollupFetcher, tick);
@@ -281,6 +290,7 @@ export function AdminPanel() {
         state={strategies}
         signals={strategySignals}
         usages={strategyUsages}
+        stats={strategyStats}
         onRefresh={() => setTick((t) => t + 1)}
       />
       <RagEvalSection />
@@ -2282,11 +2292,13 @@ const StrategiesCard = React.memo(function StrategiesCard({
   state,
   signals,
   usages,
+  stats,
   onRefresh,
 }: {
   state: Loadable<Strategies>;
   signals: Loadable<StrategySignals>;
   usages: Loadable<StrategyUsages>;
+  stats: Loadable<StrategyStats>;
   onRefresh: () => void;
 }) {
   const { toast } = useToast();
@@ -2324,7 +2336,7 @@ const StrategiesCard = React.memo(function StrategiesCard({
       const result = await runStrategyPromotion();
       toast({
         title: "策略晋升已执行",
-        description: `promoted=${result.promoted}, unchanged=${result.unchanged}, skipped=${result.skipped}`,
+        description: `promoted=${result.promoted}, unchanged=${result.unchanged}, skipped=${result.skipped}, disabled=${result.disabled ?? 0}, stabilized=${result.stabilized ?? 0}`,
       });
       onRefresh();
     } catch (err) {
@@ -2338,8 +2350,37 @@ const StrategiesCard = React.memo(function StrategiesCard({
     }
   }
 
+  async function handleStatsRefresh() {
+    if (busy) return;
+    setBusy("stats");
+    try {
+      const result = await refreshStrategyStats();
+      toast({
+        title: "策略统计已刷新",
+        description: `refreshed=${result.refreshed}, deleted=${result.deleted}`,
+      });
+      onRefresh();
+    } catch (err) {
+      toast({
+        title: "策略统计刷新失败",
+        description: err instanceof Error ? err.message : String(err),
+        variant: "destructive",
+      });
+    } finally {
+      setBusy(null);
+    }
+  }
+
   const signalCount = signals.phase === "ready" ? signals.data.count : null;
   const usageCount = usages.phase === "ready" ? usages.data.count : null;
+  const statCount = stats.phase === "ready" ? stats.data.count : null;
+  const globalStatsByStrategy = new Map(
+    stats.phase === "ready"
+      ? stats.data.stats
+          .filter((row) => row.context_key === "__global__")
+          .map((row) => [row.strategy_id, row])
+      : [],
+  );
 
   return (
     <Card>
@@ -2370,6 +2411,11 @@ const StrategiesCard = React.memo(function StrategiesCard({
                 {usageCount} usages
               </Badge>
             )}
+            {statCount !== null && (
+              <Badge variant="secondary" className="font-mono text-[10px]">
+                {statCount} stats
+              </Badge>
+            )}
           </div>
         </div>
       </CardHeader>
@@ -2381,16 +2427,28 @@ const StrategiesCard = React.memo(function StrategiesCard({
               聚合 observed signals，达标后生成 low-confidence active strategy。
             </p>
           </div>
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            onClick={handlePromotionRun}
-            disabled={busy !== null}
-          >
-            {busy === "promotion" && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
-            运行晋升
-          </Button>
+          <div className="flex flex-wrap gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={handleStatsRefresh}
+              disabled={busy !== null}
+            >
+              {busy === "stats" && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
+              刷新统计
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={handlePromotionRun}
+              disabled={busy !== null}
+            >
+              {busy === "promotion" && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
+              运行晋升
+            </Button>
+          </div>
         </div>
         {state.phase === "loading" && <LoadingList rows={3} />}
         {state.phase === "error" && <ErrorBox message={state.message} />}
@@ -2401,7 +2459,9 @@ const StrategiesCard = React.memo(function StrategiesCard({
         )}
         {state.phase === "ready" && state.data.strategies.length > 0 && (
           <ul className="space-y-2">
-            {state.data.strategies.map((s) => (
+            {state.data.strategies.map((s) => {
+              const strategyStats = s.id ? globalStatsByStrategy.get(s.id) : undefined;
+              return (
               <li
                 key={s.path}
                 className="rounded-lg border bg-card/50 p-3 text-sm"
@@ -2436,9 +2496,28 @@ const StrategiesCard = React.memo(function StrategiesCard({
                     {s.description}
                   </p>
                 )}
+                {s.quality_reason && (
+                  <p className="mt-1 text-xs text-amber-500">
+                    quality: {s.quality_reason}
+                  </p>
+                )}
                 <div className="mt-2 flex flex-wrap gap-3 text-[11px] text-muted-foreground">
                   <span>confidence {formatMaybeNumber(s.confidence)}</span>
                   <span>support {s.support_count ?? 0}</span>
+                  {strategyStats && (
+                    <>
+                      <span>uses {strategyStats.uses}</span>
+                      <span>
+                        blended {formatMaybeNumber(strategyStats.avg_blended_reward)}
+                      </span>
+                      <span>
+                        overrule {formatPercent(strategyStats.overrule_rate ?? 0)}
+                      </span>
+                      {strategyStats.last_used_at && (
+                        <span>last {formatRelativeTime(strategyStats.last_used_at)}</span>
+                      )}
+                    </>
+                  )}
                   {s.memory_key && <span className="font-mono">{s.memory_key}</span>}
                 </div>
                 <div className="mt-2 flex flex-wrap gap-1.5">
@@ -2484,7 +2563,8 @@ const StrategiesCard = React.memo(function StrategiesCard({
                   </div>
                 )}
               </li>
-            ))}
+              );
+            })}
           </ul>
         )}
       </CardContent>

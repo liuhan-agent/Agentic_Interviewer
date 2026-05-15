@@ -120,9 +120,21 @@ def test_admin_strategies_include_db_metadata_and_status_actions() -> None:
     assert disabled.status_code == 200
     assert disabled.json() == {"id": "seed:senior_system_design", "status": "disabled"}
 
+    listed_after_disable = client.get("/admin/strategies")
+    assert listed_after_disable.status_code == 200
+    disabled_strategy = listed_after_disable.json()["strategies"][0]
+    assert disabled_strategy["id"] == "seed:senior_system_design"
+    assert disabled_strategy["status"] == "disabled"
+
     archived = client.post("/admin/strategies/seed%3Asenior_system_design/archive")
     assert archived.status_code == 200
     assert archived.json() == {"id": "seed:senior_system_design", "status": "archived"}
+
+    listed_after_archive = client.get("/admin/strategies")
+    assert listed_after_archive.status_code == 200
+    archived_strategy = listed_after_archive.json()["strategies"][0]
+    assert archived_strategy["id"] == "seed:senior_system_design"
+    assert archived_strategy["status"] == "archived"
 
 
 def test_admin_strategy_signals_and_usages_are_listed() -> None:
