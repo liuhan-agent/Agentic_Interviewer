@@ -71,6 +71,11 @@ def _step_retrieve_rag(state: InterviewState, ctx: dict[str, Any]) -> None:
         retrieve_kwargs["direction_alpha"] = direction_alpha
     retrieval = retrieve_for_question(**retrieve_kwargs)
     ctx["retrieval_block"] = retrieval.as_prompt_block
+    ctx["rag_artifact"] = _rag_selection_artifact(
+        retrieval,
+        mode=str(retrieve_kwargs.get("mode") or "vector"),
+        top_k=int(retrieve_kwargs.get("top_k") or 5),
+    )
 
 
 def _resolve_direction_alpha(state: InterviewState) -> float | None:
@@ -126,6 +131,11 @@ def _step_retrieve_strategy(state: InterviewState, ctx: dict[str, Any]) -> None:
     refs = [_strategy_memory_ref(entry) for entry in strategies]
     ctx["strategy_memory_refs"] = [ref for ref in refs if ref]
     ctx["strategy_block"] = format_strategies_for_prompt(strategies)
+    skill_enabled = bool(getattr(settings, "enable_skill_injection", False))
+    ctx["skill_artifact"] = {
+        "enabled": skill_enabled,
+        "refs": [],
+    }
 
     # Skill injection is a sibling signal to strategy memory: strategies
     # are reward-driven (maintained by ``strategy_dream``), skills are
@@ -139,7 +149,7 @@ def _step_retrieve_strategy(state: InterviewState, ctx: dict[str, Any]) -> None:
     # ``SimpleNamespace`` that only declares the knobs the test cares
     # about — same defensive pattern we use for the evidence-span and
     # drift-feedback knobs in ``evaluator_agent``.
-    if getattr(settings, "enable_skill_injection", False):
+    if skill_enabled:
         skills = retrieve_skills(
             dimension=ctx["dimension"],
             job_level=job_level,
@@ -147,6 +157,10 @@ def _step_retrieve_strategy(state: InterviewState, ctx: dict[str, Any]) -> None:
             use_llm_selector=use_llm_selector,
             recent_qa_summary=recent_qa_summary,
         )
+        ctx["skill_artifact"]["refs"] = [
+            _skill_card_ref(skill)
+            for skill in skills
+        ]
         ctx["skill_block"] = build_skills_block(skills)
 
     # PLAN_DRIFT_RAG_FEEDBACK: same ``overruled_patterns`` snapshot
@@ -155,15 +169,26 @@ def _step_retrieve_strategy(state: InterviewState, ctx: dict[str, Any]) -> None:
     # question AWAY from these shallow evidence shapes". Only
     # overwrites the default placeholder when the renderer returns a
     # non-empty block.
-    if getattr(settings, "enable_generator_avoid_patterns", False):
+    avoid_enabled = bool(getattr(settings, "enable_generator_avoid_patterns", False))
+    avoid_top_n = int(getattr(settings, "drift_feedback_top_n", 3))
+    avoid_min_support = int(getattr(settings, "drift_feedback_min_support", 2))
+    ctx["avoid_pattern_artifact"] = {
+        "enabled": avoid_enabled,
+        "rendered": False,
+        "dimension": ctx["dimension"],
+        "top_n": avoid_top_n,
+        "min_support": avoid_min_support,
+    }
+    if avoid_enabled:
         try:
             rendered = build_generator_avoid_patterns(
                 dimension=ctx["dimension"],
-                top_n=int(getattr(settings, "drift_feedback_top_n", 3)),
-                min_support=int(getattr(settings, "drift_feedback_min_support", 2)),
+                top_n=avoid_top_n,
+                min_support=avoid_min_support,
             )
             if rendered:
                 ctx["avoid_patterns"] = rendered
+                ctx["avoid_pattern_artifact"]["rendered"] = True
         except Exception as e:  # pragma: no cover - feedback is non-critical
             log.debug("generator avoid-patterns render failed: %s", e)
 
@@ -176,6 +201,67 @@ def _strategy_policy_context_keys(
     if isinstance(keys, list) and keys:
         return [str(key) for key in keys if str(key or "").strip()]
     return policy_context_keys(state.get("job_spec") or {}, ctx.get("dimension"))
+
+
+def _rag_selection_artifact(
+    retrieval: Any,
+    *,
+    mode: str,
+    top_k: int,
+) -> dict[str, Any]:
+    docs = list(getattr(retrieval, "docs", []) or [])
+    doc_refs: list[dict[str, Any]] = []
+    for doc in docs:
+        metadata = dict(getattr(doc, "metadata", {}) or {})
+        doc_refs.append({
+            "source": metadata.get("source"),
+            "chunk": metadata.get("chunk"),
+            "source_type": metadata.get("source_type"),
+            "score": float(getattr(doc, "score", 0.0) or 0.0),
+        })
+    return {
+        "mode": mode,
+        "top_k": top_k,
+        "doc_refs": doc_refs,
+        "empty": not bool(doc_refs),
+        "reason": "matched" if doc_refs else "no_relevant_knowledge",
+    }
+
+
+def _skill_card_ref(entry: Any) -> dict[str, Any]:
+    path = getattr(entry, "path", None)
+    return {
+        "filename": path.name if path is not None else "",
+        "name": getattr(entry, "name", ""),
+        "description": getattr(entry, "description", ""),
+        "dimensions": list(getattr(entry, "dimensions", []) or []),
+        "job_levels": list(getattr(entry, "job_levels", []) or []),
+    }
+
+
+def _build_selection_artifacts(ctx: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "rag": ctx.get("rag_artifact") or {
+            "mode": "none",
+            "top_k": 0,
+            "doc_refs": [],
+            "empty": True,
+            "reason": "disabled",
+        },
+        "strategies": list(ctx.get("strategy_memory_refs") or []),
+        "skills": ctx.get("skill_artifact") or {
+            "enabled": False,
+            "refs": [],
+        },
+        "avoid_patterns": ctx.get("avoid_pattern_artifact") or {
+            "enabled": False,
+            "rendered": False,
+            "dimension": ctx.get("dimension"),
+            "top_n": 0,
+            "min_support": 0,
+        },
+        "question_items": [],
+    }
 
 
 def _step_draft_question(state: InterviewState, ctx: dict[str, Any]) -> None:
@@ -675,6 +761,8 @@ def ask_question_node(state: InterviewState) -> dict[str, Any]:
     )
     if question_basis is not None:
         question_payload["question_basis"] = question_basis
+    selection_artifacts = _build_selection_artifacts(ctx)
+    question_payload["selection_artifacts"] = selection_artifacts
     contract = _finalise_contract(plan, ctx)
     question_payload["contract"] = contract
     # Rubric_points is kept for backwards compatibility: evaluator_node
@@ -738,6 +826,7 @@ def ask_question_node(state: InterviewState) -> dict[str, Any]:
                 "target_skills": ctx.get("target_skills") or [],
                 "skill_focus": ctx.get("skill_focus") or {},
                 "strategy_memory_refs": ctx.get("strategy_memory_refs") or [],
+                "selection_artifacts": selection_artifacts,
                 "elapsed_ms": int((time.perf_counter() - node_started_at) * 1000),
             },
         )
