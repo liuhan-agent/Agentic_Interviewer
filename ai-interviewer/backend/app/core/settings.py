@@ -491,6 +491,9 @@ class Settings(BaseSettings):
     verifier_drift_event_retention_days: int = 90
     drift_pattern_aggregation_window_days: int = 30
     drift_feedback_source: Literal["monitor", "db_shadow", "db"] = "db_shadow"
+    enable_drift_maintenance_scheduler: bool = False
+    drift_pattern_aggregation_interval_minutes: int = 30
+    drift_event_retention_interval_hours: int = 24
 
     # ------------------------------------------------------------------
     # Adaptive verifier trigger (feedback loop from drift monitor).
