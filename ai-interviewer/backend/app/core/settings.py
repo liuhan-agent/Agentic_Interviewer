@@ -463,6 +463,36 @@ class Settings(BaseSettings):
     verifier_drift_redis_prefix: str = "agentic_interviewer:verifier_drift"
 
     # ------------------------------------------------------------------
+    # Verifier drift persistence (see docs/PLAN_DRIFT_PERSISTENCE.md).
+    # When ON, ``verification_node`` dual-writes every ``DriftEvent``
+    # into ``verifier_drift_events`` so cross-restart aggregation and
+    # ``(dimension, check, failure_category)`` rollups remain possible.
+    # The persistence path is best-effort: a DB failure is logged and
+    # swallowed; monitor.record() runs first so the rolling window stays
+    # populated even when the DB hand-off fails.
+    #
+    # PR7 rollout defaults
+    # --------------------
+    # ``enable_verifier_drift_persistence=True`` so an out-of-the-box
+    # deployment starts capturing events the moment
+    # ``enable_verifier_drift_monitor`` is also flipped on. The persist
+    # path remains best-effort: any DB outage is logged and swallowed
+    # so the live interview is never blocked on observability.
+    #
+    # ``drift_feedback_source="db_shadow"`` so the prompt callers
+    # (``build_evaluator_drift_negatives`` / ``build_generator_avoid_patterns``)
+    # still return the monitor-rendered markdown byte-for-byte, while
+    # also reading the DB-backed read model and logging a structured
+    # parity diff. Operators flip to ``"db"`` only after the diff log
+    # has been quiet for the desired observation window. The legacy
+    # ``"monitor"`` source is preserved as the emergency rollback knob.
+    # ------------------------------------------------------------------
+    enable_verifier_drift_persistence: bool = True
+    verifier_drift_event_retention_days: int = 90
+    drift_pattern_aggregation_window_days: int = 30
+    drift_feedback_source: Literal["monitor", "db_shadow", "db"] = "db_shadow"
+
+    # ------------------------------------------------------------------
     # Adaptive verifier trigger (feedback loop from drift monitor).
     # Opt-in; OFF by default so the legacy ``should_trigger`` rule set
     # is the sole gate. When ON AND ``enable_verifier_drift_monitor``
