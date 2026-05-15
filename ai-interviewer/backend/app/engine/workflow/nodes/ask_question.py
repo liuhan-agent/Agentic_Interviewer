@@ -261,7 +261,30 @@ def _build_selection_artifacts(ctx: dict[str, Any]) -> dict[str, Any]:
             "min_support": 0,
         },
         "question_items": [],
+        "failure_categories": _failure_categories_from_hints(
+            ctx.get("contract_hints"),
+        ),
     }
+
+
+def _failure_categories_from_hints(
+    contract_hints: dict[str, Any] | None,
+) -> list[str]:
+    """Surface refine-followup failure_categories into selection artifacts.
+
+    Reads the multi-value list when ``refine_followup`` (PR2) supplied
+    it, otherwise wraps the legacy single ``failure_category`` so
+    downstream consumers always see a list. ``None`` / unknown shapes
+    degrade to ``[]`` — observability never aborts the ask path.
+    """
+    hints = contract_hints or {}
+    multi = hints.get("failure_categories")
+    if isinstance(multi, list) and multi:
+        return [str(item) for item in multi if str(item or "").strip()]
+    single = hints.get("failure_category")
+    if isinstance(single, str) and single.strip():
+        return [single]
+    return []
 
 
 def _step_draft_question(state: InterviewState, ctx: dict[str, Any]) -> None:

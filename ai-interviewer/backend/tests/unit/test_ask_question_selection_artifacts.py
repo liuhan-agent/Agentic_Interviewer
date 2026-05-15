@@ -411,3 +411,73 @@ def test_ask_question_avoid_patterns_renderer_empty(monkeypatch) -> None:
     assert captured["selection_artifacts"] == artifacts
     assert artifacts["avoid_patterns"]["enabled"] is True
     assert artifacts["avoid_patterns"]["rendered"] is False
+
+
+def test_ask_question_artifacts_default_failure_categories_empty(monkeypatch) -> None:
+    """No ``pending_contract_hints`` -> artifacts.failure_categories == []."""
+    captured = _install_default_patches(
+        monkeypatch,
+        retrieval=_make_retrieval(),
+        strategies=[_make_strategy()],
+        skills=[_make_skill()],
+    )
+
+    out = ask_mod.ask_question_node(_base_state())  # type: ignore[arg-type]
+
+    artifacts = out["current_question"]["selection_artifacts"]
+    assert captured["selection_artifacts"] == artifacts
+    assert artifacts["failure_categories"] == []
+
+
+def test_ask_question_artifacts_forward_multi_failure_categories(monkeypatch) -> None:
+    """When ``pending_contract_hints`` carries a structured list, it
+    flows verbatim into the selection artifacts so downstream tracing
+    and admin can group by failure category."""
+    captured = _install_default_patches(
+        monkeypatch,
+        retrieval=_make_retrieval(),
+        strategies=[_make_strategy()],
+        skills=[_make_skill()],
+    )
+
+    state = _base_state(
+        pending_contract_hints={
+            "failure_categories": ["missing_metrics", "missing_evidence"],
+            "failure_category": "missing_metrics",
+            "refine_mode": True,
+        }
+    )
+
+    out = ask_mod.ask_question_node(state)  # type: ignore[arg-type]
+
+    artifacts = out["current_question"]["selection_artifacts"]
+    assert captured["selection_artifacts"] == artifacts
+    assert artifacts["failure_categories"] == [
+        "missing_metrics",
+        "missing_evidence",
+    ]
+
+
+def test_ask_question_artifacts_legacy_single_failure_category(monkeypatch) -> None:
+    """Pre-PR2 callers may still ship only the single legacy field;
+    artifacts should still surface it as a one-item list so consumers
+    have ONE shape to read."""
+    captured = _install_default_patches(
+        monkeypatch,
+        retrieval=_make_retrieval(),
+        strategies=[_make_strategy()],
+        skills=[_make_skill()],
+    )
+
+    state = _base_state(
+        pending_contract_hints={
+            "failure_category": "weak_debugging",
+            "refine_mode": True,
+        }
+    )
+
+    out = ask_mod.ask_question_node(state)  # type: ignore[arg-type]
+
+    artifacts = out["current_question"]["selection_artifacts"]
+    assert captured["selection_artifacts"] == artifacts
+    assert artifacts["failure_categories"] == ["weak_debugging"]

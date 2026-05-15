@@ -24,7 +24,7 @@ from app.core.logging import get_logger
 from app.core.settings import get_settings
 from app.core.tracer import get_tracer
 from app.engine.workflow.policy_context import parse_policy_context_key
-from app.engine.workflow.state import InterviewState
+from app.engine.workflow.state import FailureCategory, InterviewState
 from app.ml.rl.action_space import ACTIONS_BY_ID
 from app.ml.rl.thompson import get_bandit
 from app.models import get_session
@@ -32,6 +32,39 @@ from app.models.strategy_memory import StrategySignal
 from app.tasks.dream_tasks import increment_session_count
 
 log = get_logger(__name__)
+
+_VALID_FAILURE_CATEGORIES: set[str] = set(FailureCategory.__args__)  # type: ignore[attr-defined]
+
+
+def _last_turn_failure_categories(
+    qa_history: list[dict[str, Any]],
+    dimension: str,
+) -> list[str]:
+    """Return the most recent same-dimension turn's failure_categories.
+
+    Walks ``qa_history`` from the tail so the signal reflects the
+    latest evaluator verdict on the dimension — which is the verdict
+    that actually justified persisting the signal in the first place.
+    Returns ``[]`` when no matching turn carries any legal enum value,
+    so callers can blindly forward the list into ``StrategySignal``.
+    """
+    for turn in reversed(qa_history or []):
+        if turn.get("dimension") != dimension:
+            continue
+        evaluation = turn.get("evaluation") or {}
+        raw = evaluation.get("failure_categories")
+        if not isinstance(raw, list):
+            return []
+        cleaned: list[str] = []
+        seen: set[str] = set()
+        for item in raw:
+            value = str(item or "").strip()
+            if not value or value not in _VALID_FAILURE_CATEGORIES or value in seen:
+                continue
+            cleaned.append(value)
+            seen.add(value)
+        return cleaned
+    return []
 
 
 def _safe_key_part(value: Any) -> str:
@@ -211,17 +244,21 @@ def _signal_payload_from_qa_pattern(
     )
     group_key = strategy_memory_key_for_pattern(pattern)
     session_id = str(state.get("session_id") or "unknown")
+    dimension = str(pattern.get("dimension") or "unknown")
     return {
         "signal_key": f"{session_id}:{group_key}",
         "group_key": group_key,
         "session_id": session_id,
         "turn_idx": int(state.get("turn_idx", len(state.get("qa_history", [])))),
-        "dimension": str(pattern.get("dimension") or "unknown"),
+        "dimension": dimension,
         "job_level": str(pattern.get("job_level") or "mid"),
         "action_id": str(action_id or ""),
         "plan_template": str(action_id or "") or None,
         "probe_intent": None,
-        "failure_categories": [],
+        "failure_categories": _last_turn_failure_categories(
+            state.get("qa_history", []),
+            dimension,
+        ),
         "score_before": _optional_float(pattern.get("score_before")),
         "score_after": _optional_float(
             pattern.get("score_after") or pattern.get("avg_hint_score")
@@ -252,7 +289,13 @@ def _signal_payload_from_bandit_insight(
         "action_id": action_id,
         "plan_template": action_id or None,
         "probe_intent": None,
-        "failure_categories": [],
+        # Bandit context can cross sessions; the categories come from
+        # the current session's last matching dimension turn when we
+        # happen to have one, else stay empty rather than fabricate.
+        "failure_categories": _last_turn_failure_categories(
+            state.get("qa_history", []),
+            parsed_context.dimension,
+        ),
         "score_before": None,
         "score_after": None,
         "score_delta": None,
