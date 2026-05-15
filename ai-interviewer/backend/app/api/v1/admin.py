@@ -498,6 +498,89 @@ def run_drift_event_retention_route() -> dict[str, int]:
     return run_drift_event_retention_tracked()
 
 
+_DRIFT_PARITY_TOP_N_CAP = 50
+_DRIFT_PARITY_MIN_SUPPORT_CAP = 1000
+
+
+@router.get(
+    "/drift/shadow-parity",
+    dependencies=[Depends(require_admin_token)],
+)
+def drift_shadow_parity(
+    top_n: int = 5,
+    min_support: int = 2,
+    dimensions: str | None = None,
+) -> dict[str, Any]:
+    """Compare monitor vs DB read paths to gate the ``db_shadow`` flip.
+
+    Returns the per-dimension intersection / monitor-only / db-only
+    pattern keys plus Jaccard similarity. Operators flip
+    ``drift_feedback_source`` from ``"db_shadow"`` to ``"db"`` only
+    after average Jaccard sits ≥ 0.9 across a week — see
+    ``docs/PLAN_DRIFT_PERSISTENCE.md §7``.
+
+    Parameters
+    ----------
+    top_n
+        Maximum patterns each side surfaces per dimension. Clamped to
+        the same window the renderers use so the parity matches what
+        a candidate would actually receive.
+    min_support
+        Minimum ``count`` per pattern before it counts towards either
+        side. Matches the renderer defaults so low-noise patterns do
+        not poison the diff.
+    dimensions
+        Optional comma-separated allowlist (``"system_design,coding"``).
+        Empty / omitted triggers an auto-scan over the union of
+        ``monitor.snapshot()["per_dimension"].keys()`` and
+        ``SELECT DISTINCT dimension FROM verifier_drift_patterns``.
+    """
+    from app.services.drift_feedback_parity import compute_drift_feedback_parity
+
+    clamped_top_n = max(1, min(int(top_n or 5), _DRIFT_PARITY_TOP_N_CAP))
+    clamped_min_support = max(
+        1, min(int(min_support or 2), _DRIFT_PARITY_MIN_SUPPORT_CAP)
+    )
+    dim_list: list[str] | None
+    if dimensions:
+        dim_list = [d.strip() for d in dimensions.split(",") if d.strip()]
+        if not dim_list:
+            dim_list = None
+    else:
+        dim_list = None
+
+    try:
+        result = compute_drift_feedback_parity(
+            dimensions=dim_list,
+            top_n=clamped_top_n,
+            min_support=clamped_min_support,
+        )
+        return result.asdict()
+    except Exception as e:  # pragma: no cover - admin remains best-effort
+        log.warning("drift shadow parity failed: %s", e)
+        settings = get_settings()
+        return {
+            "top_n": clamped_top_n,
+            "min_support": clamped_min_support,
+            "feedback_source": str(
+                getattr(settings, "drift_feedback_source", "monitor")
+                or "monitor"
+            ),
+            "monitor_backend": str(
+                getattr(settings, "verifier_drift_backend", "memory")
+                or "memory"
+            ),
+            "per_dimension": [],
+            "summary": {
+                "dimensions_checked": 0,
+                "avg_jaccard": None,
+                "min_jaccard": None,
+                "max_jaccard": None,
+            },
+            "db_error": str(e),
+        }
+
+
 @api_v1_router.get("/knowledge/coverage", dependencies=[Depends(require_admin_token)])
 @router.get("/knowledge/coverage", dependencies=[Depends(require_admin_token)])
 def knowledge_coverage() -> dict[str, Any]:
