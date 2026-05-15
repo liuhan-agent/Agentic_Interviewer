@@ -1346,6 +1346,28 @@ def run_strategy_promotion() -> dict[str, int]:
 
 
 @router.get(
+    "/failure-category-stats",
+    dependencies=[Depends(require_admin_token)],
+)
+def failure_category_overlap(limit: int = 200) -> dict[str, int]:
+    """LLM-output vs keyword-inferred ``failure_categories`` overlap.
+
+    Observation surface for PR6: scans the most recent ``limit``
+    evaluator traces and returns four mutually exclusive counters
+    (``llm_only`` / ``normalize_only`` / ``both`` / ``neither``) plus
+    the sample size that fed the comparison. Used to decide whether to
+    retire the keyword normalizer in P1.
+    """
+    from app.services.failure_category_stats import (
+        compute_failure_category_overlap_stats,
+    )
+
+    with get_session() as sess:
+        stats = compute_failure_category_overlap_stats(session=sess, limit=limit)
+    return stats.as_dict()
+
+
+@router.get(
     "/interview-sessions/{session_id}/workflow-chain",
     dependencies=[Depends(require_admin_token)],
 )
