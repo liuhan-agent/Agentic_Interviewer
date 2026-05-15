@@ -35,6 +35,7 @@ from app.engine.agents.security import check_question
 from app.engine.rag.retriever import retrieve_for_question
 from app.engine.resume_plan import select_resume_anchor
 from app.engine.workflow.difficulty_adapter import difficulty_to_bar_level
+from app.engine.workflow.policy_context import policy_context_keys
 from app.engine.workflow.plans import build_llm_ask_plan, resolve_ask_plan
 from app.engine.workflow.probe_intent import resolve_probe_intent
 from app.engine.workflow.replay_basis import build_replay_question_basis
@@ -118,6 +119,7 @@ def _step_retrieve_strategy(state: InterviewState, ctx: dict[str, Any]) -> None:
     strategies = retrieve_strategies(
         dimension=ctx["dimension"],
         job_level=job_level,
+        policy_context_keys=_strategy_policy_context_keys(state, ctx),
         use_llm_selector=use_llm_selector,
         recent_qa_summary=recent_qa_summary,
     )
@@ -164,6 +166,16 @@ def _step_retrieve_strategy(state: InterviewState, ctx: dict[str, Any]) -> None:
                 ctx["avoid_patterns"] = rendered
         except Exception as e:  # pragma: no cover - feedback is non-critical
             log.debug("generator avoid-patterns render failed: %s", e)
+
+
+def _strategy_policy_context_keys(
+    state: InterviewState,
+    ctx: dict[str, Any],
+) -> list[str]:
+    keys = state.get("policy_context_keys")
+    if isinstance(keys, list) and keys:
+        return [str(key) for key in keys if str(key or "").strip()]
+    return policy_context_keys(state.get("job_spec") or {}, ctx.get("dimension"))
 
 
 def _step_draft_question(state: InterviewState, ctx: dict[str, Any]) -> None:
@@ -363,6 +375,11 @@ def _strategy_memory_ref(entry: Any) -> dict[str, Any]:
         "confidence": float(getattr(entry, "confidence", 0.0) or 0.0),
         "support_count": int(getattr(entry, "support_count", 0) or 0),
     }
+    ranking_reason = getattr(entry, "ranking_reason", {}) or {}
+    if ranking_reason:
+        ref["shadow_rank"] = getattr(entry, "shadow_rank", None)
+        ref["ranking_score"] = float(getattr(entry, "ranking_score", 0.0) or 0.0)
+        ref["ranking_reason"] = dict(ranking_reason)
     if not any(ref.get(key) for key in ("id", "slug", "memory_key", "name")):
         return {}
     return ref
