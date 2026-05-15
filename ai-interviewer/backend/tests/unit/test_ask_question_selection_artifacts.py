@@ -481,3 +481,111 @@ def test_ask_question_artifacts_legacy_single_failure_category(monkeypatch) -> N
     artifacts = out["current_question"]["selection_artifacts"]
     assert captured["selection_artifacts"] == artifacts
     assert artifacts["failure_categories"] == ["weak_debugging"]
+
+
+def _install_avoid_kwargs_capture(monkeypatch) -> dict[str, Any]:
+    """Wrap ``build_generator_avoid_patterns`` with a kwargs-capture stub.
+
+    The default ``_install_default_patches`` stub discards the kwargs
+    because every existing test cares only about the rendered output.
+    The drift-feedback persistence track (PR5 source switch) needs to
+    pin the *call shape* — specifically that ``ask_question`` forwards
+    ``failure_categories`` so the DB-backed path can drill into the
+    ``(dimension, check, failure_category)`` buckets instead of always
+    falling back to ``__global__``.
+    """
+    captured_kwargs: dict[str, Any] = {}
+
+    def _capture(**kwargs: Any) -> str:
+        captured_kwargs.clear()
+        captured_kwargs.update(kwargs)
+        return "rendered avoid patterns"
+
+    monkeypatch.setattr(ask_mod, "build_generator_avoid_patterns", _capture)
+    return captured_kwargs
+
+
+def test_ask_question_forwards_failure_categories_to_avoid_patterns(
+    monkeypatch,
+) -> None:
+    """When ``pending_contract_hints`` declares a structured
+    ``failure_categories`` list, ``_step_retrieve_strategy`` must
+    forward it to ``build_generator_avoid_patterns`` so the
+    ``db`` / ``db_shadow`` feedback source can read the
+    per-category ``verifier_drift_patterns`` row instead of degrading
+    to the ``__global__`` rollup.
+    """
+    _install_default_patches(
+        monkeypatch,
+        retrieval=_make_retrieval(),
+        strategies=[_make_strategy()],
+        skills=[_make_skill()],
+    )
+    captured_kwargs = _install_avoid_kwargs_capture(monkeypatch)
+
+    state = _base_state(
+        pending_contract_hints={
+            "failure_categories": ["missing_metrics", "missing_evidence"],
+            "failure_category": "missing_metrics",
+            "refine_mode": True,
+        }
+    )
+
+    ask_mod.ask_question_node(state)  # type: ignore[arg-type]
+
+    assert captured_kwargs.get("failure_categories") == [
+        "missing_metrics",
+        "missing_evidence",
+    ]
+    assert captured_kwargs.get("dimension") == "system_design"
+    assert captured_kwargs.get("top_n") == 3
+    assert captured_kwargs.get("min_support") == 2
+
+
+def test_ask_question_forwards_legacy_single_failure_category_to_avoid_patterns(
+    monkeypatch,
+) -> None:
+    """A legacy ``contract_hints`` shape that only sets the singular
+    ``failure_category`` field must still arrive at the renderer as a
+    one-item list so the DB-source query never has to branch on the
+    legacy shape.
+    """
+    _install_default_patches(
+        monkeypatch,
+        retrieval=_make_retrieval(),
+        strategies=[_make_strategy()],
+        skills=[_make_skill()],
+    )
+    captured_kwargs = _install_avoid_kwargs_capture(monkeypatch)
+
+    state = _base_state(
+        pending_contract_hints={
+            "failure_category": "weak_debugging",
+            "refine_mode": True,
+        }
+    )
+
+    ask_mod.ask_question_node(state)  # type: ignore[arg-type]
+
+    assert captured_kwargs.get("failure_categories") == ["weak_debugging"]
+
+
+def test_ask_question_forwards_empty_failure_categories_when_no_hints(
+    monkeypatch,
+) -> None:
+    """Without any ``pending_contract_hints``, the caller still passes
+    an empty list so the DB / monitor renderer falls back to the
+    ``__global__`` bucket instead of being called with the legacy
+    keyword-omitted shape (which would mask future regressions).
+    """
+    _install_default_patches(
+        monkeypatch,
+        retrieval=_make_retrieval(),
+        strategies=[_make_strategy()],
+        skills=[_make_skill()],
+    )
+    captured_kwargs = _install_avoid_kwargs_capture(monkeypatch)
+
+    ask_mod.ask_question_node(_base_state())  # type: ignore[arg-type]
+
+    assert captured_kwargs.get("failure_categories") == []
