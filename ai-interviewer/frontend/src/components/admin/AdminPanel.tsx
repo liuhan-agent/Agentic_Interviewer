@@ -2567,6 +2567,52 @@ const StrategiesCard = React.memo(function StrategiesCard({
             })}
           </ul>
         )}
+        {signals.phase === "ready" && signals.data.signals.length > 0 && (
+          <div className="space-y-2 border-t border-border/40 pt-3">
+            <p className="text-xs font-medium text-muted-foreground">
+              最近 signals（失败类型 taxonomy 来自 PR1 evaluator 输出）
+            </p>
+            <ul className="space-y-1.5">
+              {signals.data.signals.slice(0, 5).map((sig) => (
+                <li
+                  key={sig.id}
+                  className="rounded-md border bg-card/30 p-2 text-[11px]"
+                >
+                  <div className="flex flex-wrap items-center gap-1.5">
+                    <Badge variant="outline" className="font-mono text-[10px]">
+                      {sig.signal_type}
+                    </Badge>
+                    <Badge variant="secondary" className="font-mono text-[10px]">
+                      {sig.dimension}
+                    </Badge>
+                    {sig.job_level && (
+                      <Badge variant="outline" className="font-mono text-[10px]">
+                        {sig.job_level}
+                      </Badge>
+                    )}
+                    <span className="font-mono text-muted-foreground">
+                      {sig.group_key}
+                    </span>
+                  </div>
+                  {sig.failure_categories && sig.failure_categories.length > 0 && (
+                    <div className="mt-1 flex flex-wrap gap-1">
+                      <span className="text-muted-foreground">failure:</span>
+                      {sig.failure_categories.map((cat) => (
+                        <Badge
+                          key={cat}
+                          variant="outline"
+                          className="font-mono text-[10px] text-amber-500"
+                        >
+                          {cat}
+                        </Badge>
+                      ))}
+                    </div>
+                  )}
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
       </CardContent>
     </Card>
   );

@@ -12,6 +12,7 @@ from sqlalchemy.orm import sessionmaker
 from app.api.v1 import admin as admin_api
 from app.memory import strategy_store
 from app.models.base import Base
+from app.models.generation_trace import GenerationTrace
 from app.models.strategy_memory import (
     StrategyMemory,
     StrategyMemoryUsage,
@@ -146,8 +147,60 @@ def test_admin_strategy_signals_and_usages_are_listed() -> None:
 
     assert signals.status_code == 200
     assert signals.json()["count"] == 1
-    assert signals.json()["signals"][0]["group_key"].startswith("qa:score_recovery")
+    signal_row = signals.json()["signals"][0]
+    assert signal_row["group_key"].startswith("qa:score_recovery")
+    # PR5: failure_categories surfaces the structured taxonomy so
+    # admins can group signals by failure type without re-running
+    # the keyword inference. ``[]`` is also acceptable (no category).
+    assert "failure_categories" in signal_row
+    assert signal_row["failure_categories"] == ["missing_metrics"]
 
     assert usages.status_code == 200
     assert usages.json()["count"] == 1
     assert usages.json()["usages"][0]["strategy_id"] == "seed:senior_system_design"
+
+
+def test_admin_failure_category_overlap_endpoint_returns_counts() -> None:
+    """PR6: ``/admin/failure-category-stats`` returns the 4 mutually
+    exclusive buckets plus the sample size that fed the comparison."""
+    Session = _session_factory()
+    with Session() as sess:
+        sess.add(
+            GenerationTrace(
+                trace_id="trace-overlap-both",
+                session_id="sess-overlap",
+                turn_idx=0,
+                node="evaluator",
+                evaluation={
+                    "failure_categories": ["missing_metrics"],
+                    "failure_reason": "缺少量化指标",
+                    "weaknesses": ["缺少量化指标"],
+                },
+            )
+        )
+        sess.add(
+            GenerationTrace(
+                trace_id="trace-overlap-neither",
+                session_id="sess-overlap",
+                turn_idx=1,
+                node="evaluator",
+                evaluation={
+                    "failure_categories": [],
+                    "failure_reason": None,
+                    "weaknesses": [],
+                },
+            )
+        )
+        sess.commit()
+    client = _client(Session)
+
+    res = client.get("/admin/failure-category-stats")
+
+    assert res.status_code == 200
+    payload = res.json()
+    assert payload["sample_size"] == 2
+    assert payload["both"] == 1
+    assert payload["neither"] == 1
+    assert payload["llm_only"] == 0
+    assert payload["normalize_only"] == 0
+    assert payload["limit"] == 200
