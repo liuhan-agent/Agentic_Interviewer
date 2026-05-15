@@ -1,8 +1,9 @@
 """Post-interview experience extraction node.
 
 Runs after ``final_report_node`` to analyse the completed session and
-decide whether any reusable strategy knowledge should be persisted to
-the file-backed strategy memory layer.
+persist reusable strategy signals. Promotion into active strategy
+memory is handled by a separate aggregation job so a single session
+does not directly mutate global strategy behaviour.
 
 Two extraction paths run in sequence:
 
@@ -11,25 +12,22 @@ Two extraction paths run in sequence:
    or where ``deepen_technical`` consistently produced high scores).
 
 2. **Bandit-posterior extraction** — reads the current Thompson Sampling
-   posteriors and auto-generates strategy files for ``(context_key,
-   action_id)`` arms whose mean reward has crossed a confidence
-   threshold, bridging numerical RL signals with human-readable
-   strategy knowledge.
-
-Both paths write through ``strategy_store.save_strategy`` which keeps
-``MEMORY.md`` in sync.
+   posteriors and records signal rows for ``(context_key, action_id)``
+   arms whose mean reward has crossed a confidence threshold.
 """
 from __future__ import annotations
 
+import hashlib
 from typing import Any
 
 from app.core.logging import get_logger
 from app.core.settings import get_settings
 from app.core.tracer import get_tracer
 from app.engine.workflow.state import InterviewState
-from app.memory.strategy_store import list_strategies, save_strategy
 from app.ml.rl.action_space import ACTIONS_BY_ID
 from app.ml.rl.thompson import get_bandit
+from app.models import get_session
+from app.models.strategy_memory import StrategySignal
 from app.tasks.dream_tasks import increment_session_count
 
 log = get_logger(__name__)
@@ -72,6 +70,8 @@ def _extract_qa_patterns(state: InterviewState) -> list[dict[str, Any]]:
                 "dimension": dim,
                 "job_level": job_level,
                 "recovery_action": recovery_action,
+                "score_before": round(scores[0], 2),
+                "score_after": round(scores[-1], 2),
                 "score_delta": round(scores[-1] - scores[0], 2),
                 "detail": (
                     f"Candidate recovered from {scores[0]:.1f} to {scores[-1]:.1f} "
@@ -86,6 +86,8 @@ def _extract_qa_patterns(state: InterviewState) -> list[dict[str, Any]]:
                 "dimension": dim,
                 "job_level": job_level,
                 "failing_action": failing_action,
+                "score_before": round(scores[0], 2),
+                "score_after": round(scores[-1], 2),
                 "score_delta": round(scores[-1] - scores[0], 2),
                 "detail": (
                     f"Score declined from {scores[0]:.1f} to {scores[-1]:.1f} "
@@ -169,14 +171,6 @@ def _extract_bandit_insights() -> list[dict[str, Any]]:
     return insights
 
 
-def _strategy_exists(name_slug_prefix: str) -> bool:
-    """Check if a strategy with a similar name already exists."""
-    for entry in list_strategies():
-        if entry.path.stem.startswith(name_slug_prefix):
-            return True
-    return False
-
-
 def strategy_memory_key_for_pattern(pattern: dict[str, Any]) -> str:
     ptype = _safe_key_part(pattern.get("type"))
     dim = _safe_key_part(pattern.get("dimension"))
@@ -199,127 +193,117 @@ def strategy_memory_key_for_insight(insight: dict[str, Any]) -> str:
     return f"bandit:{itype}:{ctx}:{action_id}"
 
 
-def strategy_exists_by_memory_key(memory_key: str) -> bool:
-    needle = f"memory_key: {memory_key}"
-    for entry in list_strategies():
-        try:
-            if needle in entry.path.read_text(encoding="utf-8"):
-                return True
-        except OSError:
-            continue
-    return False
+def _signal_id(signal_key: str) -> str:
+    digest = hashlib.sha1(signal_key.encode("utf-8"), usedforsecurity=False).hexdigest()
+    return f"signal:{digest[:24]}"
 
 
-def _persist_qa_pattern(pattern: dict[str, Any]) -> tuple[str, str]:
-    dim = pattern.get("dimension", "unknown")
-    job_level = pattern.get("job_level", "mid")
-    ptype = pattern.get("type", "")
-    slug_prefix = f"auto_{ptype}_{dim}"
-    memory_key = strategy_memory_key_for_pattern(pattern)
-
-    if strategy_exists_by_memory_key(memory_key) or _strategy_exists(slug_prefix):
-        return "skipped_existing", memory_key
-
-    if ptype == "score_recovery":
-        action = pattern.get("recovery_action", "unknown")
-        save_strategy(
-            name=f"Auto: {dim} recovery via {action}",
-            description=pattern.get("detail", ""),
-            dimensions=[dim],
-            job_levels=[job_level],
-            memory_key=memory_key,
-            body=(
-                f"{pattern.get('detail', '')}\n\n"
-                f"How to apply:\n"
-                f"- When a candidate scores low in {dim}, try '{action}' "
-                f"before switching dimensions.\n"
-                f"- This pattern was observed with a score delta of "
-                f"{pattern.get('score_delta', 0):.1f} points.\n"
-            ),
-        )
-        return "saved", memory_key
-
-    if ptype == "hint_effective":
-        save_strategy(
-            name=f"Auto: hints effective in {dim}",
-            description=pattern.get("detail", ""),
-            dimensions=[dim],
-            job_levels=[job_level],
-            memory_key=memory_key,
-            body=(
-                f"{pattern.get('detail', '')}\n\n"
-                f"How to apply:\n"
-                f"- In {dim}, prefer 'give_hint' when candidates give "
-                f"incomplete initial answers.\n"
-                f"- Average hint-assisted score: {pattern.get('avg_hint_score', 0):.1f}\n"
-            ),
-        )
-        return "saved", memory_key
-
-    return "skipped_unsupported", memory_key
+def _signal_payload_from_qa_pattern(
+    state: InterviewState,
+    pattern: dict[str, Any],
+) -> dict[str, Any]:
+    ptype = str(pattern.get("type") or "unknown")
+    action_id = (
+        pattern.get("recovery_action")
+        or pattern.get("failing_action")
+        or ("give_hint" if ptype == "hint_effective" else None)
+    )
+    group_key = strategy_memory_key_for_pattern(pattern)
+    session_id = str(state.get("session_id") or "unknown")
+    return {
+        "signal_key": f"{session_id}:{group_key}",
+        "group_key": group_key,
+        "session_id": session_id,
+        "turn_idx": int(state.get("turn_idx", len(state.get("qa_history", [])))),
+        "dimension": str(pattern.get("dimension") or "unknown"),
+        "job_level": str(pattern.get("job_level") or "mid"),
+        "action_id": str(action_id or ""),
+        "plan_template": str(action_id or "") or None,
+        "probe_intent": None,
+        "failure_categories": [],
+        "score_before": _optional_float(pattern.get("score_before")),
+        "score_after": _optional_float(
+            pattern.get("score_after") or pattern.get("avg_hint_score")
+        ),
+        "score_delta": _optional_float(pattern.get("score_delta")),
+        "immediate_reward": None,
+        "verifier_overruled": False,
+        "signal_type": ptype,
+    }
 
 
-def _persist_bandit_insight(insight: dict[str, Any]) -> tuple[str, str]:
-    ctx = insight.get("context_key", "unknown")
-    action_id = insight.get("action_id", "unknown")
-    slug_prefix = f"auto_bandit_{ctx}_{action_id}".replace(":", "_")
-    memory_key = strategy_memory_key_for_insight(insight)
-
-    if strategy_exists_by_memory_key(memory_key) or _strategy_exists(slug_prefix):
-        return "skipped_existing", memory_key
-
+def _signal_payload_from_bandit_insight(
+    state: InterviewState,
+    insight: dict[str, Any],
+) -> dict[str, Any]:
+    group_key = strategy_memory_key_for_insight(insight)
+    session_id = str(state.get("session_id") or "unknown")
+    ctx = str(insight.get("context_key") or "")
     parts = ctx.split(":", 1)
     job_level = parts[0] if parts else "mid"
-    dim = parts[1] if len(parts) > 1 else "general"
+    dimension = parts[1] if len(parts) > 1 else "general"
+    action_id = str(insight.get("action_id") or "")
+    return {
+        "signal_key": f"{session_id}:{group_key}",
+        "group_key": group_key,
+        "session_id": session_id,
+        "turn_idx": int(state.get("turn_idx", len(state.get("qa_history", [])))),
+        "dimension": dimension,
+        "job_level": job_level,
+        "action_id": action_id,
+        "plan_template": action_id or None,
+        "probe_intent": None,
+        "failure_categories": [],
+        "score_before": None,
+        "score_after": None,
+        "score_delta": None,
+        "immediate_reward": _optional_float(insight.get("mean_reward")),
+        "verifier_overruled": False,
+        "signal_type": str(insight.get("type") or "bandit_insight"),
+    }
 
-    itype = insight.get("type", "")
-    action_label = insight.get("action_label", action_id)
-    mean = insight.get("mean_reward", 0)
-    obs = insight.get("observations", 0)
 
-    if itype == "high_reward_arm":
-        save_strategy(
-            name=f"Auto: {action_label} excels in {dim} ({job_level})",
-            description=f"Bandit evidence: {action_label} has {mean:.0%} mean reward in {ctx}",
-            dimensions=[dim],
-            job_levels=[job_level],
-            memory_key=memory_key,
-            body=(
-                f"Thompson Sampling evidence ({obs} observations):\n"
-                f"Action '{action_label}' consistently produces high rewards "
-                f"(mean {mean:.3f}) for {job_level}-level candidates in {dim}.\n\n"
-                f"How to apply:\n"
-                f"- When interviewing {job_level} candidates on {dim}, "
-                f"'{action_label}' is the statistically preferred action.\n"
-                f"- The bandit has accumulated {obs} observations supporting this.\n\n"
-                f"Pitfalls:\n"
-                f"- Statistical preference does not mean always correct; "
-                f"context matters.\n"
-                f"- Exploration rate ensures alternatives are still tried.\n"
-            ),
+def _persist_strategy_signal(payload: dict[str, Any]) -> tuple[str, str]:
+    signal_key = str(payload.get("signal_key") or "")
+    if not signal_key:
+        return "skipped_invalid", ""
+    signal_id = _signal_id(signal_key)
+    with get_session() as session:
+        existing = session.get(StrategySignal, signal_id)
+        if existing is not None:
+            return "skipped_existing", signal_key
+        session.add(
+            StrategySignal(
+                id=signal_id,
+                signal_key=signal_key,
+                group_key=str(payload.get("group_key") or ""),
+                session_id=str(payload.get("session_id") or ""),
+                turn_idx=int(payload.get("turn_idx") or 0),
+                dimension=str(payload.get("dimension") or "unknown"),
+                job_level=str(payload.get("job_level") or "mid"),
+                action_id=str(payload.get("action_id") or "") or None,
+                plan_template=str(payload.get("plan_template") or "") or None,
+                probe_intent=str(payload.get("probe_intent") or "") or None,
+                failure_categories=list(payload.get("failure_categories") or []),
+                score_before=payload.get("score_before"),
+                score_after=payload.get("score_after"),
+                score_delta=payload.get("score_delta"),
+                immediate_reward=payload.get("immediate_reward"),
+                verifier_overruled=bool(payload.get("verifier_overruled")),
+                signal_type=str(payload.get("signal_type") or "unknown"),
+                status="observed",
+            )
         )
-        return "saved", memory_key
+    return "saved", signal_key
 
-    if itype == "low_reward_arm":
-        save_strategy(
-            name=f"Auto: avoid {action_label} in {dim} ({job_level})",
-            description=f"Bandit evidence: {action_label} underperforms in {ctx}",
-            dimensions=[dim],
-            job_levels=[job_level],
-            memory_key=memory_key,
-            body=(
-                f"Thompson Sampling evidence ({obs} observations):\n"
-                f"Action '{action_label}' consistently produces low rewards "
-                f"(mean {mean:.3f}) for {job_level}-level candidates in {dim}.\n\n"
-                f"How to apply:\n"
-                f"- Avoid defaulting to '{action_label}' for {job_level} "
-                f"candidates in {dim} unless other actions are masked.\n"
-                f"- Consider 'deepen_technical' or 'give_hint' instead.\n"
-            ),
-        )
-        return "saved", memory_key
 
-    return "skipped_unsupported", memory_key
+def _optional_float(value: Any) -> float | None:
+    if value is None or isinstance(value, bool):
+        return None
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return None
 
 
 def experience_extractor_node(state: InterviewState) -> dict[str, Any]:
@@ -346,12 +330,14 @@ def experience_extractor_node(state: InterviewState) -> dict[str, Any]:
     failed_keys: list[str] = []
     for pattern in qa_patterns:
         try:
-            status, memory_key = _persist_qa_pattern(pattern)
+            status, memory_key = _persist_strategy_signal(
+                _signal_payload_from_qa_pattern(state, pattern)
+            )
             if status == "saved":
                 saved += 1
                 saved_keys.append(memory_key)
                 log.info(
-                    "experience_extractor: saved QA pattern %s key=%s",
+                    "experience_extractor: saved QA signal %s key=%s",
                     pattern.get("type"),
                     memory_key,
                 )
@@ -366,16 +352,18 @@ def experience_extractor_node(state: InterviewState) -> dict[str, Any]:
             failed += 1
             memory_key = strategy_memory_key_for_pattern(pattern)
             failed_keys.append(memory_key)
-            log.warning("experience_extractor: failed to save QA pattern: %s", e)
+            log.warning("experience_extractor: failed to save QA signal: %s", e)
 
     for insight in bandit_insights:
         try:
-            status, memory_key = _persist_bandit_insight(insight)
+            status, memory_key = _persist_strategy_signal(
+                _signal_payload_from_bandit_insight(state, insight)
+            )
             if status == "saved":
                 saved += 1
                 saved_keys.append(memory_key)
                 log.info(
-                    "experience_extractor: saved bandit insight %s key=%s",
+                    "experience_extractor: saved bandit signal %s key=%s",
                     insight.get("type"),
                     memory_key,
                 )

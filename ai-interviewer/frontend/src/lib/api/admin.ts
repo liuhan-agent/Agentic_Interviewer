@@ -174,11 +174,19 @@ export interface TraceExplorerResponse {
 }
 
 export interface Strategy {
+  id?: string | null;
+  slug?: string | null;
+  memory_key?: string | null;
   path: string;
   name: string;
   dimensions: string[];
   job_levels: string[];
   description: string;
+  source?: string;
+  status?: string;
+  promotion_stage?: string;
+  confidence?: number;
+  support_count?: number;
 }
 
 export interface Strategies {
@@ -531,6 +539,89 @@ export function getQuestionQualityRollUp(
 
 export function getStrategies(signal?: AbortSignal): Promise<Strategies> {
   return adminGet<Strategies>("/admin/strategies", signal);
+}
+
+export interface StrategySignalItem {
+  id: string;
+  signal_key: string;
+  group_key: string;
+  session_id: string;
+  turn_idx: number;
+  dimension: string;
+  job_level?: string | null;
+  action_id?: string | null;
+  plan_template?: string | null;
+  probe_intent?: string | null;
+  failure_categories?: string[];
+  score_after?: number | null;
+  score_delta?: number | null;
+  immediate_reward?: number | null;
+  verifier_overruled?: boolean;
+  signal_type: string;
+  status: string;
+  created_at?: string | null;
+}
+
+export interface StrategySignals {
+  count: number;
+  signals: StrategySignalItem[];
+}
+
+export interface StrategyUsageItem {
+  id: string;
+  strategy_id: string;
+  session_id: string;
+  turn_idx: number;
+  trace_id?: string | null;
+  context_key?: string | null;
+  action_id?: string | null;
+  plan_template?: string | null;
+  score?: number | null;
+  passed?: boolean | null;
+  immediate_reward?: number | null;
+  delayed_reward?: number | null;
+  verifier_overruled?: boolean;
+  helpful_score?: number | null;
+  created_at?: string | null;
+}
+
+export interface StrategyUsages {
+  count: number;
+  usages: StrategyUsageItem[];
+}
+
+export function getStrategySignals(
+  signal?: AbortSignal,
+): Promise<StrategySignals> {
+  return adminGet<StrategySignals>("/admin/strategy-signals", signal);
+}
+
+export function getStrategyUsages(
+  signal?: AbortSignal,
+): Promise<StrategyUsages> {
+  return adminGet<StrategyUsages>("/admin/strategy-usages", signal);
+}
+
+export function disableStrategy(strategyId: string): Promise<{ id: string; status: string }> {
+  return adminPost<{ id: string; status: string }>(
+    `/admin/strategies/${encodeURIComponent(strategyId)}/disable`,
+    {},
+  );
+}
+
+export function archiveStrategy(strategyId: string): Promise<{ id: string; status: string }> {
+  return adminPost<{ id: string; status: string }>(
+    `/admin/strategies/${encodeURIComponent(strategyId)}/archive`,
+    {},
+  );
+}
+
+export function runStrategyPromotion(): Promise<{
+  promoted: number;
+  unchanged: number;
+  skipped: number;
+}> {
+  return adminPost("/admin/strategy-promotion/run", {});
 }
 
 // ---------------------------------------------------------------------------

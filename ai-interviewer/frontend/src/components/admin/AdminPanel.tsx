@@ -46,10 +46,15 @@ import {
   getInterviewSessionsHistory,
   getQuestionQualityRollUp,
   getRecentTracesByNode,
+  getStrategySignals,
+  getStrategyUsages,
   getStrategies,
   getTraceRollUp,
   getVerifierDrift,
   loadAdminToken,
+  archiveStrategy,
+  disableStrategy,
+  runStrategyPromotion,
   saveAdminToken,
   type AdminSessions,
   type BackendHealth,
@@ -62,6 +67,8 @@ import {
   type QuestionQualityRollupResponse,
   type RecentTracesResponse,
   type Strategies,
+  type StrategySignals,
+  type StrategyUsages,
   type TraceRollupResponse,
   type VerifierDriftSnapshot,
 } from "@/lib/api/admin";
@@ -160,6 +167,16 @@ export function AdminPanel() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [tokenSaved],
   );
+  const strategySignalsFetcher = useCallback(
+    (signal?: AbortSignal) => getStrategySignals(signal),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [tokenSaved],
+  );
+  const strategyUsagesFetcher = useCallback(
+    (signal?: AbortSignal) => getStrategyUsages(signal),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [tokenSaved],
+  );
   const traceRollupFetcher = useCallback(
     (signal?: AbortSignal) => getTraceRollUp({ since: "24h", groupby: "health" }, signal),
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -198,6 +215,8 @@ export function AdminPanel() {
   const sessions = useAutoFetch(sessionsFetcher, tick);
   const history = useAutoFetch(historyFetcher, tick);
   const strategies = useAutoFetch(strategiesFetcher, tick);
+  const strategySignals = useAutoFetch(strategySignalsFetcher, tick);
+  const strategyUsages = useAutoFetch(strategyUsagesFetcher, tick);
   const traceRollup = useAutoFetch(traceRollupFetcher, tick);
   const fallbackRollup = useAutoFetch(fallbackRollupFetcher, tick);
   const evidenceRollup = useAutoFetch(evidenceRollupFetcher, tick);
@@ -258,7 +277,12 @@ export function AdminPanel() {
 
       <SessionsCard state={sessions} />
       <HistoricalSessionsCard state={history} onRefresh={() => setTick((t) => t + 1)} />
-      <StrategiesCard state={strategies} />
+      <StrategiesCard
+        state={strategies}
+        signals={strategySignals}
+        usages={strategyUsages}
+        onRefresh={() => setTick((t) => t + 1)}
+      />
       <RagEvalSection />
     </div>
   );
@@ -2254,7 +2278,69 @@ function SessionStatusBadge({ session }: { session: AdminSessions["sessions"][nu
 // Strategies memory
 // ---------------------------------------------------------------------------
 
-const StrategiesCard = React.memo(function StrategiesCard({ state }: { state: Loadable<Strategies> }) {
+const StrategiesCard = React.memo(function StrategiesCard({
+  state,
+  signals,
+  usages,
+  onRefresh,
+}: {
+  state: Loadable<Strategies>;
+  signals: Loadable<StrategySignals>;
+  usages: Loadable<StrategyUsages>;
+  onRefresh: () => void;
+}) {
+  const { toast } = useToast();
+  const [busy, setBusy] = useState<string | null>(null);
+
+  async function handleStatusAction(
+    strategyId: string | null | undefined,
+    action: "disable" | "archive",
+  ) {
+    if (!strategyId || busy) return;
+    setBusy(`${action}:${strategyId}`);
+    try {
+      if (action === "disable") {
+        await disableStrategy(strategyId);
+      } else {
+        await archiveStrategy(strategyId);
+      }
+      toast({ title: action === "disable" ? "策略已禁用" : "策略已归档" });
+      onRefresh();
+    } catch (err) {
+      toast({
+        title: "策略操作失败",
+        description: err instanceof Error ? err.message : String(err),
+        variant: "destructive",
+      });
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  async function handlePromotionRun() {
+    if (busy) return;
+    setBusy("promotion");
+    try {
+      const result = await runStrategyPromotion();
+      toast({
+        title: "策略晋升已执行",
+        description: `promoted=${result.promoted}, unchanged=${result.unchanged}, skipped=${result.skipped}`,
+      });
+      onRefresh();
+    } catch (err) {
+      toast({
+        title: "策略晋升失败",
+        description: err instanceof Error ? err.message : String(err),
+        variant: "destructive",
+      });
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  const signalCount = signals.phase === "ready" ? signals.data.count : null;
+  const usageCount = usages.phase === "ready" ? usages.data.count : null;
+
   return (
     <Card>
       <CardHeader>
@@ -2265,22 +2351,52 @@ const StrategiesCard = React.memo(function StrategiesCard({ state }: { state: Lo
               策略记忆
             </CardTitle>
             <CardDescription className="mt-1">
-              策略存储中保存的战术，按评分维度和职级索引。
+              DB-backed 策略记忆、晋升信号和 reward usage 归因。
             </CardDescription>
           </div>
-          {state.phase === "ready" && (
-            <Badge variant="outline" className="font-mono text-[10px]">
-              {state.data.count} 条
-            </Badge>
-          )}
+          <div className="flex flex-wrap justify-end gap-2">
+            {state.phase === "ready" && (
+              <Badge variant="outline" className="font-mono text-[10px]">
+                {state.data.count} 策略
+              </Badge>
+            )}
+            {signalCount !== null && (
+              <Badge variant="secondary" className="font-mono text-[10px]">
+                {signalCount} signals
+              </Badge>
+            )}
+            {usageCount !== null && (
+              <Badge variant="secondary" className="font-mono text-[10px]">
+                {usageCount} usages
+              </Badge>
+            )}
+          </div>
         </div>
       </CardHeader>
-      <CardContent>
+      <CardContent className="space-y-3">
+        <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border bg-secondary/20 p-3">
+          <div>
+            <p className="text-sm font-medium">自动晋升</p>
+            <p className="text-xs text-muted-foreground">
+              聚合 observed signals，达标后生成 low-confidence active strategy。
+            </p>
+          </div>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={handlePromotionRun}
+            disabled={busy !== null}
+          >
+            {busy === "promotion" && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
+            运行晋升
+          </Button>
+        </div>
         {state.phase === "loading" && <LoadingList rows={3} />}
         {state.phase === "error" && <ErrorBox message={state.message} />}
         {state.phase === "ready" && state.data.strategies.length === 0 && (
           <p className="text-xs text-muted-foreground">
-            <code>backend/knowledge/strategy</code> 目录下暂无策略文件。
+            数据库中暂无 active 策略记忆。可以先导入 seed 或等待 signals 晋升。
           </p>
         )}
         {state.phase === "ready" && state.data.strategies.length > 0 && (
@@ -2291,9 +2407,28 @@ const StrategiesCard = React.memo(function StrategiesCard({ state }: { state: Lo
                 className="rounded-lg border bg-card/50 p-3 text-sm"
               >
                 <div className="flex items-center justify-between gap-2">
-                  <span className="font-medium">{s.name || s.path}</span>
+                  <div>
+                    <span className="font-medium">{s.name || s.path}</span>
+                    <div className="mt-1 flex flex-wrap gap-1.5">
+                      {s.source && (
+                        <Badge variant="secondary" className="font-mono text-[10px]">
+                          {s.source}
+                        </Badge>
+                      )}
+                      {s.status && (
+                        <Badge variant="outline" className="font-mono text-[10px]">
+                          {s.status}
+                        </Badge>
+                      )}
+                      {s.promotion_stage && (
+                        <Badge variant="outline" className="font-mono text-[10px]">
+                          {s.promotion_stage}
+                        </Badge>
+                      )}
+                    </div>
+                  </div>
                   <span className="font-mono text-[10px] text-muted-foreground">
-                    {s.path}
+                    {s.id ?? s.path}
                   </span>
                 </div>
                 {s.description && (
@@ -2301,6 +2436,11 @@ const StrategiesCard = React.memo(function StrategiesCard({ state }: { state: Lo
                     {s.description}
                   </p>
                 )}
+                <div className="mt-2 flex flex-wrap gap-3 text-[11px] text-muted-foreground">
+                  <span>confidence {formatMaybeNumber(s.confidence)}</span>
+                  <span>support {s.support_count ?? 0}</span>
+                  {s.memory_key && <span className="font-mono">{s.memory_key}</span>}
+                </div>
                 <div className="mt-2 flex flex-wrap gap-1.5">
                   {s.dimensions.map((d) => (
                     <Badge
@@ -2321,6 +2461,28 @@ const StrategiesCard = React.memo(function StrategiesCard({ state }: { state: Lo
                     </Badge>
                   ))}
                 </div>
+                {s.id && (
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      onClick={() => handleStatusAction(s.id, "disable")}
+                      disabled={busy !== null || s.status !== "active"}
+                    >
+                      禁用
+                    </Button>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="ghost"
+                      onClick={() => handleStatusAction(s.id, "archive")}
+                      disabled={busy !== null || s.status === "archived"}
+                    >
+                      归档
+                    </Button>
+                  </div>
+                )}
               </li>
             ))}
           </ul>
@@ -2447,6 +2609,11 @@ function formatDateTime(iso: string): string {
 function formatPercent(value: number): string {
   if (!Number.isFinite(value)) return "0%";
   return `${Math.round(value * 100)}%`;
+}
+
+function formatMaybeNumber(value: number | null | undefined): string {
+  if (typeof value !== "number" || !Number.isFinite(value)) return "—";
+  return value.toFixed(2);
 }
 
 // ---------------------------------------------------------------------------
