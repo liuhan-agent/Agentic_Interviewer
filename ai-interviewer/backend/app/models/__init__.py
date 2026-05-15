@@ -6,7 +6,12 @@ from .base import Base, get_engine, get_session, init_db
 from .generation_trace import GenerationTrace
 from .interview_session import InterviewSession
 from .outcome_record import OutcomeRecord
-from .strategy_memory import StrategyMemory, StrategyMemoryUsage, StrategySignal
+from .strategy_memory import (
+    StrategyMemory,
+    StrategyMemoryStats,
+    StrategyMemoryUsage,
+    StrategySignal,
+)
 from .trace_annotation import TraceAnnotation
 
 
@@ -25,6 +30,7 @@ __all__ = [
     "InterviewSession",
     "OutcomeRecord",
     "StrategyMemory",
+    "StrategyMemoryStats",
     "StrategyMemoryUsage",
     "StrategySignal",
     "TraceAnnotation",

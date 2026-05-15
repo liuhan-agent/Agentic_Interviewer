@@ -1159,35 +1159,35 @@ def checkpoint_health() -> dict[str, Any]:
 
 @router.get("/strategies", dependencies=[Depends(require_admin_token)])
 def list_strategies_route() -> dict[str, Any]:
-    """Return a compact index of strategy memory entries.
+    """Return strategy memory entries across all admin-visible statuses."""
+    from app.models.strategy_memory import StrategyMemory
 
-    Reads directly from :class:`~app.memory.strategy_store.StrategyEntry`
-    fields (``name`` / ``description`` / ``dimensions`` / ``job_levels``)
-    rather than a nested ``metadata`` dict - the dataclass has always
-    stored frontmatter as flat attributes.
-    """
-    from app.memory.strategy_store import list_strategies
-
-    entries = list_strategies()
+    with get_session() as sess:
+        entries = (
+            sess.query(StrategyMemory)
+            .order_by(StrategyMemory.status.asc(), StrategyMemory.slug.asc())
+            .all()
+        )
     return {
         "count": len(entries),
         "strategies": [
             {
-                "id": e.id,
-                "slug": e.slug,
-                "memory_key": e.memory_key,
-                "path": e.path.name,
-                "name": e.name,
-                "dimensions": list(e.dimensions),
-                "job_levels": list(e.job_levels),
-                "description": (e.description or "")[:200],
-                "source": e.source,
-                "status": e.status,
-                "promotion_stage": e.promotion_stage,
-                "confidence": e.confidence,
-                "support_count": e.support_count,
+                "id": row.id,
+                "slug": row.slug,
+                "memory_key": row.memory_key,
+                "path": f"{row.slug}.md",
+                "name": row.name,
+                "dimensions": list(row.dimensions or []),
+                "job_levels": list(row.job_levels or []),
+                "description": (row.description or "")[:200],
+                "source": row.source,
+                "status": row.status,
+                "quality_reason": row.quality_reason,
+                "promotion_stage": row.promotion_stage,
+                "confidence": row.confidence,
+                "support_count": row.support_count,
             }
-            for e in entries
+            for row in entries
         ],
     }
 
@@ -1288,6 +1288,54 @@ def list_strategy_usages(limit: int = 100) -> dict[str, Any]:
             for row in rows
         ],
     }
+
+
+@router.get("/strategy-stats", dependencies=[Depends(require_admin_token)])
+def list_strategy_stats(limit: int = 100) -> dict[str, Any]:
+    from app.models.strategy_memory import StrategyMemoryStats
+
+    capped_limit = max(1, min(int(limit or 100), 500))
+    with get_session() as sess:
+        rows = (
+            sess.query(StrategyMemoryStats)
+            .order_by(
+                StrategyMemoryStats.strategy_id.asc(),
+                StrategyMemoryStats.context_key.asc(),
+            )
+            .limit(capped_limit)
+            .all()
+        )
+    return {
+        "count": len(rows),
+        "stats": [
+            {
+                "id": row.id,
+                "strategy_id": row.strategy_id,
+                "context_key": row.context_key,
+                "uses": row.uses,
+                "avg_score": row.avg_score,
+                "pass_rate": row.pass_rate,
+                "avg_immediate_reward": row.avg_immediate_reward,
+                "avg_delayed_reward": row.avg_delayed_reward,
+                "avg_blended_reward": row.avg_blended_reward,
+                "overrule_rate": row.overrule_rate,
+                "helpful_avg": row.helpful_avg,
+                "last_used_at": row.last_used_at.isoformat()
+                if row.last_used_at else None,
+                "updated_at": row.updated_at.isoformat() if row.updated_at else None,
+            }
+            for row in rows
+        ],
+    }
+
+
+@router.post("/strategy-stats/refresh", dependencies=[Depends(require_admin_token)])
+def refresh_strategy_stats() -> dict[str, int]:
+    from app.services.strategy_memory_stats import refresh_strategy_memory_stats
+
+    with get_session() as sess:
+        result = refresh_strategy_memory_stats(session=sess)
+    return {"refreshed": result.refreshed, "deleted": result.deleted}
 
 
 @router.post("/strategy-promotion/run", dependencies=[Depends(require_admin_token)])

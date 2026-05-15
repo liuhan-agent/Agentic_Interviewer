@@ -118,11 +118,30 @@ def test_run_strategy_promotion_now_wraps_service(monkeypatch) -> None:
     monkeypatch.setattr(tasks, "get_session", lambda: _Context())
     monkeypatch.setattr(
         tasks,
+        "refresh_strategy_memory_stats",
+        lambda *, session: calls.append("refresh"),
+        raising=False,
+    )
+    monkeypatch.setattr(
+        tasks,
         "promote_strategy_signals",
-        lambda *, session: StrategyPromotionResult(promoted=1, unchanged=2, skipped=3),
+        lambda *, session: calls.append("promote")
+        or StrategyPromotionResult(promoted=1, unchanged=2, skipped=3),
+    )
+    monkeypatch.setattr(
+        tasks,
+        "apply_strategy_quality_transitions",
+        lambda *, session: calls.append("quality")
+        or StrategyPromotionResult(unchanged=4, disabled=5, stabilized=6),
     )
 
     result = tasks.run_strategy_promotion_now()
 
-    assert calls == ["enter", "exit"]
-    assert result == {"promoted": 1, "unchanged": 2, "skipped": 3}
+    assert calls == ["enter", "refresh", "promote", "quality", "exit"]
+    assert result == {
+        "promoted": 1,
+        "unchanged": 6,
+        "skipped": 3,
+        "disabled": 5,
+        "stabilized": 6,
+    }

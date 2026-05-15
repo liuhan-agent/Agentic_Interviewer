@@ -133,6 +133,9 @@ _SQLITE_UPGRADES: dict[str, dict[str, str]] = {
         "source": "VARCHAR(32) DEFAULT 'ats_sync'",
         "helpful_score": "REAL",
     },
+    "strategy_memories": {
+        "quality_reason": "VARCHAR(512)",
+    },
 }
 
 _POSTGRES_UPGRADES: dict[str, dict[str, str]] = {
@@ -164,6 +167,9 @@ _POSTGRES_UPGRADES: dict[str, dict[str, str]] = {
     "outcome_records": {
         "source": "VARCHAR(32) DEFAULT 'ats_sync'",
         "helpful_score": "DOUBLE PRECISION",
+    },
+    "strategy_memories": {
+        "quality_reason": "VARCHAR(512)",
     },
 }
 

@@ -9,7 +9,7 @@ from statistics import mean
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.models.strategy_memory import StrategyMemory, StrategySignal
+from app.models.strategy_memory import StrategyMemory, StrategyMemoryStats, StrategySignal
 
 LOW_CONFIDENCE_MIN_SESSIONS = 30
 LOW_CONFIDENCE_MIN_REWARD = 0.68
@@ -26,6 +26,8 @@ class StrategyPromotionResult:
     promoted: int = 0
     unchanged: int = 0
     skipped: int = 0
+    disabled: int = 0
+    stabilized: int = 0
 
 
 @dataclass(frozen=True)
@@ -93,6 +95,68 @@ def promote_strategy_signals(*, session: Session) -> StrategyPromotionResult:
         promoted=promoted,
         unchanged=unchanged,
         skipped=skipped,
+    )
+
+
+def apply_strategy_quality_transitions(*, session: Session) -> StrategyPromotionResult:
+    """Disable weak active strategies and mark strong ones as stable."""
+
+    session.flush()
+    disabled = stabilized = unchanged = skipped = 0
+    stats_rows = list(
+        session.scalars(
+            select(StrategyMemoryStats)
+            .where(StrategyMemoryStats.context_key == "__global__")
+            .order_by(StrategyMemoryStats.strategy_id.asc())
+        )
+    )
+    for stats in stats_rows:
+        memory = session.get(StrategyMemory, stats.strategy_id)
+        if memory is None or memory.status != "active":
+            skipped += 1
+            continue
+        uses = int(stats.uses or 0)
+        avg_reward = float(stats.avg_blended_reward or 0.0)
+        overrule_rate = float(stats.overrule_rate or 0.0)
+
+        if uses >= 30 and (avg_reward < 0.55 or overrule_rate > 0.35):
+            memory.status = "disabled"
+            memory.confidence = min(float(memory.confidence or 0.0), 0.2)
+            memory.quality_reason = _quality_reason(
+                "disabled",
+                uses=uses,
+                avg_reward=avg_reward,
+                overrule_rate=overrule_rate,
+            )
+            disabled += 1
+            continue
+
+        if (
+            uses >= STABLE_MIN_SESSIONS
+            and avg_reward >= STABLE_MIN_REWARD
+            and overrule_rate <= STABLE_MAX_OVERRULE_RATE
+            and memory.promotion_stage != "stable"
+        ):
+            memory.promotion_stage = "stable"
+            memory.confidence = max(float(memory.confidence or 0.0), 0.75)
+            memory.quality_reason = _quality_reason(
+                "stable",
+                uses=uses,
+                avg_reward=avg_reward,
+                overrule_rate=overrule_rate,
+            )
+            stabilized += 1
+            continue
+
+        unchanged += 1
+
+    if disabled or stabilized:
+        session.flush()
+    return StrategyPromotionResult(
+        unchanged=unchanged,
+        skipped=skipped,
+        disabled=disabled,
+        stabilized=stabilized,
     )
 
 
@@ -223,3 +287,17 @@ def _content_hash(group: _SignalGroup) -> str:
     )
     digest = hashlib.sha1(payload.encode("utf-8"), usedforsecurity=False).hexdigest()
     return f"sha1:{digest}"
+
+
+def _quality_reason(
+    status: str,
+    *,
+    uses: int,
+    avg_reward: float,
+    overrule_rate: float,
+) -> str:
+    return (
+        f"{status}: uses={uses}, "
+        f"avg_blended_reward={avg_reward:.2f}, "
+        f"overrule_rate={overrule_rate:.2f}"
+    )

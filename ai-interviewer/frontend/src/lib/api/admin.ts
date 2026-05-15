@@ -184,6 +184,7 @@ export interface Strategy {
   description: string;
   source?: string;
   status?: string;
+  quality_reason?: string | null;
   promotion_stage?: string;
   confidence?: number;
   support_count?: number;
@@ -590,6 +591,27 @@ export interface StrategyUsages {
   usages: StrategyUsageItem[];
 }
 
+export interface StrategyStatsItem {
+  id: string;
+  strategy_id: string;
+  context_key: string;
+  uses: number;
+  avg_score?: number | null;
+  pass_rate?: number | null;
+  avg_immediate_reward?: number | null;
+  avg_delayed_reward?: number | null;
+  avg_blended_reward?: number | null;
+  overrule_rate?: number | null;
+  helpful_avg?: number | null;
+  last_used_at?: string | null;
+  updated_at?: string | null;
+}
+
+export interface StrategyStats {
+  count: number;
+  stats: StrategyStatsItem[];
+}
+
 export function getStrategySignals(
   signal?: AbortSignal,
 ): Promise<StrategySignals> {
@@ -600,6 +622,17 @@ export function getStrategyUsages(
   signal?: AbortSignal,
 ): Promise<StrategyUsages> {
   return adminGet<StrategyUsages>("/admin/strategy-usages", signal);
+}
+
+export function getStrategyStats(signal?: AbortSignal): Promise<StrategyStats> {
+  return adminGet<StrategyStats>("/admin/strategy-stats", signal);
+}
+
+export function refreshStrategyStats(): Promise<{ refreshed: number; deleted: number }> {
+  return adminPost<{ refreshed: number; deleted: number }>(
+    "/admin/strategy-stats/refresh",
+    {},
+  );
 }
 
 export function disableStrategy(strategyId: string): Promise<{ id: string; status: string }> {
@@ -620,6 +653,8 @@ export function runStrategyPromotion(): Promise<{
   promoted: number;
   unchanged: number;
   skipped: number;
+  disabled?: number;
+  stabilized?: number;
 }> {
   return adminPost("/admin/strategy-promotion/run", {});
 }

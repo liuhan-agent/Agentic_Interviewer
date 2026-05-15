@@ -497,6 +497,11 @@ class Settings(BaseSettings):
     # ``knowledge/strategy/*.md`` seed files.
     # ------------------------------------------------------------------
     strategy_memory_backend: Literal["db", "file"] = "db"
+    strategy_memory_ranking_mode: Literal[
+        "metadata",
+        "reward_shadow",
+        "reward",
+    ] = "reward_shadow"
 
     # ------------------------------------------------------------------
     # Skill injection (see docs/PLAN_SKILL_INJECTION.md).  When ON,
