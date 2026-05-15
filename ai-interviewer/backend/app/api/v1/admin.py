@@ -213,6 +213,231 @@ def verifier_drift_snapshot() -> dict[str, Any]:
     return snap
 
 
+# ---------------------------------------------------------------------------
+# Persisted-drift admin routes (PR6 of drift-feedback persistence)
+#
+# These four routes surface the ``verifier_drift_events`` /
+# ``verifier_drift_patterns`` tables and the aggregation / retention
+# triggers so an operator can monitor the rollout without raw SQL.
+# Implementation notes:
+#
+# * GET endpoints clamp limits / windows so a misconfigured client cannot
+#   trigger a table scan; payloads stay best-effort (empty list + meta)
+#   when the DB hand-off fails so the panel never returns a 500.
+# * POST endpoints reuse the task wrappers in ``app/tasks/`` so the same
+#   entrypoints can be wired into APScheduler later without divergence.
+# * Both GETs include enough meta (``persistence_enabled`` /
+#   ``feedback_source``) for the dashboard to render "off but waiting for
+#   data" vs "on with empty table" without a second lookup.
+# ---------------------------------------------------------------------------
+
+_DRIFT_EVENTS_SINCE_HOURS_CAP = 24 * 30  # 30 days
+_DRIFT_EVENTS_LIMIT_CAP = 1000
+_DRIFT_PATTERNS_LIMIT_CAP = 500
+
+
+def _drift_event_payload(row: Any) -> dict[str, Any]:
+    return {
+        "id": row.id,
+        "session_id": row.session_id,
+        "trace_id": row.trace_id,
+        "turn_idx": row.turn_idx,
+        "dimension": row.dimension,
+        "job_level": row.job_level,
+        "evaluator_passed": bool(row.evaluator_passed),
+        "verifier_verdict": row.verifier_verdict,
+        "verifier_confidence": row.verifier_confidence,
+        "verifier_abstained": bool(row.verifier_abstained),
+        "overruled": bool(row.overruled),
+        "span_miss_count": row.span_miss_count,
+        "span_total": row.span_total,
+        "overruled_check_name": row.overruled_check_name,
+        "evaluator_evidence_quotes": list(
+            row.evaluator_evidence_quotes or []
+        ),
+        "verifier_reasons": list(row.verifier_reasons or []),
+        "failure_categories": list(row.failure_categories or []),
+        "created_at": row.created_at.isoformat() if row.created_at else None,
+    }
+
+
+def _drift_pattern_payload(row: Any) -> dict[str, Any]:
+    return {
+        "id": row.id,
+        "dimension": row.dimension,
+        "check_name": row.check_name,
+        "failure_category": row.failure_category,
+        "uses": row.uses,
+        "overruled_count": row.overruled_count,
+        "overrule_rate": row.overrule_rate,
+        "sample_evidence": list(row.sample_evidence or []),
+        "reasons_sample": list(row.reasons_sample or []),
+        "first_seen_at": row.first_seen_at.isoformat()
+        if row.first_seen_at
+        else None,
+        "last_seen_at": row.last_seen_at.isoformat()
+        if row.last_seen_at
+        else None,
+        "updated_at": row.updated_at.isoformat() if row.updated_at else None,
+    }
+
+
+@router.get("/drift/events", dependencies=[Depends(require_admin_token)])
+def list_drift_events(
+    since_hours: int = 24,
+    limit: int = 200,
+    overruled_only: bool = True,
+) -> dict[str, Any]:
+    """Return persisted drift events for the most recent ``since_hours``.
+
+    Defaults reflect the headline use case: surface the last day of
+    overruled events so an operator can sanity-check the dual-write
+    output. ``overruled_only=False`` includes clean / abstain events
+    for full audit traces.
+    """
+    from datetime import UTC, datetime, timedelta
+
+    from app.models.verifier_drift import VerifierDriftEvent
+
+    clamped_since = max(1, min(int(since_hours or 1), _DRIFT_EVENTS_SINCE_HOURS_CAP))
+    clamped_limit = max(1, min(int(limit or 200), _DRIFT_EVENTS_LIMIT_CAP))
+    # SQLite serialises tz-aware datetimes with a ``+00:00`` suffix while
+    # round-tripping the column reads back as tz-naive — a string-prefix
+    # comparison then makes ``cutoff`` look ~30µs newer than a row stamped
+    # in the same second. Strip the tzinfo so the comparison uses
+    # identical wall-clock representations on both SQLite (dev / CI) and
+    # Postgres (prod), without changing the semantic UTC anchor.
+    cutoff = (datetime.now(UTC) - timedelta(hours=clamped_since)).replace(
+        tzinfo=None
+    )
+    settings = get_settings()
+
+    payload: dict[str, Any] = {
+        "since_hours": clamped_since,
+        "limit": clamped_limit,
+        "overruled_only": bool(overruled_only),
+        "persistence_enabled": bool(
+            getattr(settings, "enable_verifier_drift_persistence", False)
+        ),
+        "count": 0,
+        "events": [],
+    }
+    try:
+        with get_session() as sess:
+            q = sess.query(VerifierDriftEvent).filter(
+                VerifierDriftEvent.created_at >= cutoff
+            )
+            if overruled_only:
+                q = q.filter(VerifierDriftEvent.overruled.is_(True))
+            rows = (
+                q.order_by(
+                    VerifierDriftEvent.created_at.desc(),
+                    VerifierDriftEvent.id.desc(),
+                )
+                .limit(clamped_limit)
+                .all()
+            )
+    except Exception as e:  # pragma: no cover - admin must remain best-effort
+        log.warning("list_drift_events query failed: %s", e)
+        return payload
+
+    payload["count"] = len(rows)
+    payload["events"] = [_drift_event_payload(row) for row in rows]
+    return payload
+
+
+@router.get("/drift/patterns", dependencies=[Depends(require_admin_token)])
+def list_drift_patterns(
+    dimension: str | None = None,
+    failure_category: str | None = None,
+    limit: int = 100,
+) -> dict[str, Any]:
+    """Return the aggregated drift patterns read model.
+
+    Optional ``dimension`` and ``failure_category`` filters let
+    dashboards drill into specific buckets; ``feedback_source`` meta
+    tells the dashboard which renderer the deployment is currently
+    using (monitor / db_shadow / db) so the operator can spot
+    misalignment between data and prompt path.
+    """
+    from app.models.verifier_drift import VerifierDriftPattern
+
+    clamped_limit = max(1, min(int(limit or 100), _DRIFT_PATTERNS_LIMIT_CAP))
+    settings = get_settings()
+    payload: dict[str, Any] = {
+        "dimension": dimension,
+        "failure_category": failure_category,
+        "limit": clamped_limit,
+        "feedback_source": str(
+            getattr(settings, "drift_feedback_source", "monitor") or "monitor"
+        ),
+        "count": 0,
+        "patterns": [],
+    }
+    try:
+        with get_session() as sess:
+            q = sess.query(VerifierDriftPattern)
+            if dimension is not None:
+                q = q.filter(VerifierDriftPattern.dimension == dimension)
+            if failure_category is not None:
+                q = q.filter(
+                    VerifierDriftPattern.failure_category == failure_category
+                )
+            rows = (
+                q.order_by(
+                    VerifierDriftPattern.uses.desc(),
+                    VerifierDriftPattern.dimension.asc(),
+                    VerifierDriftPattern.check_name.asc(),
+                )
+                .limit(clamped_limit)
+                .all()
+            )
+    except Exception as e:  # pragma: no cover - admin must remain best-effort
+        log.warning("list_drift_patterns query failed: %s", e)
+        return payload
+
+    payload["count"] = len(rows)
+    payload["patterns"] = [_drift_pattern_payload(row) for row in rows]
+    return payload
+
+
+@router.post(
+    "/drift/aggregation/run",
+    dependencies=[Depends(require_admin_token)],
+)
+def run_drift_pattern_aggregation_route() -> dict[str, int]:
+    """Trigger one drift-pattern aggregation pass on demand.
+
+    Wraps :func:`run_drift_pattern_aggregation_now` so the admin
+    surface and a future scheduler share the same entrypoint;
+    idempotent so an operator can re-run it after manually mutating
+    the events table.
+    """
+    from app.tasks.drift_pattern_aggregation_tasks import (
+        run_drift_pattern_aggregation_now,
+    )
+
+    return run_drift_pattern_aggregation_now()
+
+
+@router.post(
+    "/drift/retention/run",
+    dependencies=[Depends(require_admin_token)],
+)
+def run_drift_event_retention_route() -> dict[str, int]:
+    """Trigger one retention sweep on demand.
+
+    Wraps :func:`run_drift_event_retention_now`; idempotent so a
+    repeated call with no new stale rows simply returns
+    ``{"deleted": 0}``.
+    """
+    from app.tasks.drift_event_retention_tasks import (
+        run_drift_event_retention_now,
+    )
+
+    return run_drift_event_retention_now()
+
+
 @api_v1_router.get("/knowledge/coverage", dependencies=[Depends(require_admin_token)])
 @router.get("/knowledge/coverage", dependencies=[Depends(require_admin_token)])
 def knowledge_coverage() -> dict[str, Any]:
