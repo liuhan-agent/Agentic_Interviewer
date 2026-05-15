@@ -13,6 +13,7 @@ from .strategy_memory import (
     StrategySignal,
 )
 from .trace_annotation import TraceAnnotation
+from .verifier_drift import VerifierDriftEvent, VerifierDriftPattern
 
 
 def __getattr__(name: str) -> Engine:
@@ -34,4 +35,6 @@ __all__ = [
     "StrategyMemoryUsage",
     "StrategySignal",
     "TraceAnnotation",
+    "VerifierDriftEvent",
+    "VerifierDriftPattern",
 ]
