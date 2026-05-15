@@ -121,6 +121,8 @@ def _step_retrieve_strategy(state: InterviewState, ctx: dict[str, Any]) -> None:
         use_llm_selector=use_llm_selector,
         recent_qa_summary=recent_qa_summary,
     )
+    refs = [_strategy_memory_ref(entry) for entry in strategies]
+    ctx["strategy_memory_refs"] = [ref for ref in refs if ref]
     ctx["strategy_block"] = format_strategies_for_prompt(strategies)
 
     # Skill injection is a sibling signal to strategy memory: strategies
@@ -347,6 +349,23 @@ def _display_dimension(dimension: str) -> str:
         "pipeline_management": "过程推进",
     }
     return labels.get(dimension, dimension.replace("_", " "))
+
+
+def _strategy_memory_ref(entry: Any) -> dict[str, Any]:
+    ref = {
+        "id": getattr(entry, "id", None),
+        "slug": getattr(entry, "slug", None),
+        "memory_key": getattr(entry, "memory_key", None),
+        "name": getattr(entry, "name", ""),
+        "source": getattr(entry, "source", ""),
+        "status": getattr(entry, "status", ""),
+        "promotion_stage": getattr(entry, "promotion_stage", ""),
+        "confidence": float(getattr(entry, "confidence", 0.0) or 0.0),
+        "support_count": int(getattr(entry, "support_count", 0) or 0),
+    }
+    if not any(ref.get(key) for key in ("id", "slug", "memory_key", "name")):
+        return {}
+    return ref
 
 
 def _has_cjk(text: str) -> bool:
@@ -576,6 +595,7 @@ def ask_question_node(state: InterviewState) -> dict[str, Any]:
         "strategy_block": "(no relevant strategy memories)",
         "skill_block": "(no relevant interview skills)",
         "avoid_patterns": "(no historical shallow patterns on this dimension)",
+        "strategy_memory_refs": [],
         "question_payload": {},
         "proposed_contract": {},
         "contract": None,
@@ -622,6 +642,9 @@ def ask_question_node(state: InterviewState) -> dict[str, Any]:
     )
     if ctx.get("resume_anchor"):
         question_payload.setdefault("resume_anchor", ctx["resume_anchor"])
+    question_payload["strategy_memory_refs"] = list(
+        ctx.get("strategy_memory_refs") or []
+    )
     question_payload["target_skills"] = list(ctx.get("target_skills") or [])
     question_payload["skill_focus"] = ctx.get("skill_focus") or {}
     question_basis = build_replay_question_basis(
@@ -697,6 +720,7 @@ def ask_question_node(state: InterviewState) -> dict[str, Any]:
                 "contract_bar_level": contract.get("bar_level"),
                 "target_skills": ctx.get("target_skills") or [],
                 "skill_focus": ctx.get("skill_focus") or {},
+                "strategy_memory_refs": ctx.get("strategy_memory_refs") or [],
                 "elapsed_ms": int((time.perf_counter() - node_started_at) * 1000),
             },
         )

@@ -309,7 +309,7 @@ def init_db() -> None:
     Intentionally lazy-imports the models so that importing ``base``
     doesn't pull them in unless ``init_db`` is actually called.
     """
-    from app.models import generation_trace, interview_session, outcome_record  # noqa: F401
+    from app.models import generation_trace, interview_session, outcome_record, strategy_memory  # noqa: F401
 
     eng = get_engine()
     Base.metadata.create_all(eng)

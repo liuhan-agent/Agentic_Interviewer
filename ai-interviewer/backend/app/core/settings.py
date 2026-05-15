@@ -492,6 +492,13 @@ class Settings(BaseSettings):
     verifier_adaptive_min_samples: int = 30
 
     # ------------------------------------------------------------------
+    # Strategy memory backend. Production uses Postgres-backed strategy
+    # memories; ``file`` is kept as a dev/test fallback for the legacy
+    # ``knowledge/strategy/*.md`` seed files.
+    # ------------------------------------------------------------------
+    strategy_memory_backend: Literal["db", "file"] = "db"
+
+    # ------------------------------------------------------------------
     # Skill injection (see docs/PLAN_SKILL_INJECTION.md).  When ON,
     # ``ask_question_node`` reads ``app.memory.skill_store`` for cards
     # matching the current ``(dimension, job_level)`` and splices them

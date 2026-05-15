@@ -1,7 +1,9 @@
 """Reward-update node: apply bandit feedback after verification."""
 from __future__ import annotations
 
+import hashlib
 import time
+import uuid
 from typing import Any
 
 from app.core.logging import get_logger
@@ -12,6 +14,8 @@ from app.engine.workflow.state import InterviewState
 from app.ml.rl.action_space import ALIAS_MAP
 from app.ml.rl.reward_fn import immediate_reward
 from app.ml.rl.thompson import get_bandit
+from app.models import get_session
+from app.models.strategy_memory import StrategyMemoryUsage
 
 log = get_logger(__name__)
 
@@ -67,6 +71,16 @@ def reward_update_node(state: InterviewState) -> dict[str, Any]:
         for context_key in keys:
             bandit.update(context_key, alias, reward)
 
+    _record_strategy_memory_usage(
+        state=state,
+        question=question,
+        evaluation=evaluation,
+        action=action,
+        context_keys=keys,
+        reward=reward,
+        turn_idx=answer_turn_idx,
+    )
+
     update = {
         "messages": [
             {
@@ -106,3 +120,92 @@ def reward_update_node(state: InterviewState) -> dict[str, Any]:
     except Exception as e:  # pragma: no cover - side channel
         log.warning("reward_update tracer side-channel failed: %s", e)
     return update
+
+
+def _record_strategy_memory_usage(
+    *,
+    state: InterviewState,
+    question: dict[str, Any],
+    evaluation: dict[str, Any],
+    action: dict[str, Any],
+    context_keys: list[str],
+    reward: float,
+    turn_idx: int,
+) -> None:
+    refs = [
+        ref
+        for ref in (question.get("strategy_memory_refs") or [])
+        if isinstance(ref, dict) and _strategy_ref_id(ref)
+    ]
+    if not refs:
+        return
+
+    try:
+        keys = context_keys or [None]
+        with get_session() as session:
+            for ref in refs:
+                strategy_id = _strategy_ref_id(ref)
+                if not strategy_id:
+                    continue
+                for context_key in keys:
+                    session.add(
+                        StrategyMemoryUsage(
+                            id=f"usage:{uuid.uuid4().hex}",
+                            strategy_id=str(strategy_id),
+                            session_id=str(state.get("session_id") or ""),
+                            turn_idx=turn_idx,
+                            trace_id=_optional_str(state.get("trace_id")),
+                            context_key=_optional_str(context_key),
+                            action_id=_optional_str(action.get("id")),
+                            plan_template=_optional_str(action.get("plan_template")),
+                            question_id=_optional_str(question.get("id")),
+                            question_text_hash=_question_text_hash(
+                                question.get("question")
+                            ),
+                            score=_optional_float(evaluation.get("score")),
+                            passed=_optional_bool(evaluation.get("passed")),
+                            immediate_reward=reward,
+                            verifier_overruled=bool(
+                                evaluation.get("verifier_forced_refine")
+                                or evaluation.get("verifier_overruled")
+                            ),
+                        )
+                    )
+    except Exception as e:  # pragma: no cover - attribution is best-effort
+        log.warning("strategy memory usage attribution failed: %s", e)
+
+
+def _strategy_ref_id(ref: dict[str, Any]) -> str | None:
+    for key in ("id", "memory_key", "slug"):
+        value = _optional_str(ref.get(key))
+        if value:
+            return value
+    return None
+
+
+def _question_text_hash(value: Any) -> str | None:
+    text = str(value or "").strip()
+    if not text:
+        return None
+    digest = hashlib.sha1(text.encode("utf-8"), usedforsecurity=False).hexdigest()
+    return f"sha1:{digest}"
+
+
+def _optional_str(value: Any) -> str | None:
+    text = str(value or "").strip()
+    return text or None
+
+
+def _optional_float(value: Any) -> float | None:
+    if value is None or isinstance(value, bool):
+        return None
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return None
+
+
+def _optional_bool(value: Any) -> bool | None:
+    if value is None:
+        return None
+    return bool(value)

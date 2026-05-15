@@ -19,6 +19,7 @@ from fastapi import APIRouter, Depends, Header, HTTPException, Response, status
 
 from app.core.logging import get_logger
 from app.core.settings import get_settings
+from app.models import get_session
 
 log = get_logger(__name__)
 
@@ -1172,15 +1173,128 @@ def list_strategies_route() -> dict[str, Any]:
         "count": len(entries),
         "strategies": [
             {
+                "id": e.id,
+                "slug": e.slug,
+                "memory_key": e.memory_key,
                 "path": e.path.name,
                 "name": e.name,
                 "dimensions": list(e.dimensions),
                 "job_levels": list(e.job_levels),
                 "description": (e.description or "")[:200],
+                "source": e.source,
+                "status": e.status,
+                "promotion_stage": e.promotion_stage,
+                "confidence": e.confidence,
+                "support_count": e.support_count,
             }
             for e in entries
         ],
     }
+
+
+def _set_strategy_status(strategy_id: str, status_value: str) -> dict[str, str]:
+    from app.models.strategy_memory import StrategyMemory
+
+    with get_session() as sess:
+        row = sess.get(StrategyMemory, strategy_id)
+        if row is None:
+            raise HTTPException(status_code=404, detail="strategy not found")
+        row.status = status_value
+    return {"id": strategy_id, "status": status_value}
+
+
+@router.post("/strategies/{strategy_id}/disable", dependencies=[Depends(require_admin_token)])
+def disable_strategy(strategy_id: str) -> dict[str, str]:
+    return _set_strategy_status(strategy_id, "disabled")
+
+
+@router.post("/strategies/{strategy_id}/archive", dependencies=[Depends(require_admin_token)])
+def archive_strategy(strategy_id: str) -> dict[str, str]:
+    return _set_strategy_status(strategy_id, "archived")
+
+
+@router.get("/strategy-signals", dependencies=[Depends(require_admin_token)])
+def list_strategy_signals(limit: int = 100) -> dict[str, Any]:
+    from app.models.strategy_memory import StrategySignal
+
+    capped_limit = max(1, min(int(limit or 100), 500))
+    with get_session() as sess:
+        rows = (
+            sess.query(StrategySignal)
+            .order_by(StrategySignal.created_at.desc())
+            .limit(capped_limit)
+            .all()
+        )
+    return {
+        "count": len(rows),
+        "signals": [
+            {
+                "id": row.id,
+                "signal_key": row.signal_key,
+                "group_key": row.group_key,
+                "session_id": row.session_id,
+                "turn_idx": row.turn_idx,
+                "dimension": row.dimension,
+                "job_level": row.job_level,
+                "action_id": row.action_id,
+                "plan_template": row.plan_template,
+                "probe_intent": row.probe_intent,
+                "failure_categories": row.failure_categories or [],
+                "score_after": row.score_after,
+                "score_delta": row.score_delta,
+                "immediate_reward": row.immediate_reward,
+                "verifier_overruled": row.verifier_overruled,
+                "signal_type": row.signal_type,
+                "status": row.status,
+                "created_at": row.created_at.isoformat() if row.created_at else None,
+            }
+            for row in rows
+        ],
+    }
+
+
+@router.get("/strategy-usages", dependencies=[Depends(require_admin_token)])
+def list_strategy_usages(limit: int = 100) -> dict[str, Any]:
+    from app.models.strategy_memory import StrategyMemoryUsage
+
+    capped_limit = max(1, min(int(limit or 100), 500))
+    with get_session() as sess:
+        rows = (
+            sess.query(StrategyMemoryUsage)
+            .order_by(StrategyMemoryUsage.created_at.desc())
+            .limit(capped_limit)
+            .all()
+        )
+    return {
+        "count": len(rows),
+        "usages": [
+            {
+                "id": row.id,
+                "strategy_id": row.strategy_id,
+                "session_id": row.session_id,
+                "turn_idx": row.turn_idx,
+                "trace_id": row.trace_id,
+                "context_key": row.context_key,
+                "action_id": row.action_id,
+                "plan_template": row.plan_template,
+                "score": row.score,
+                "passed": row.passed,
+                "immediate_reward": row.immediate_reward,
+                "delayed_reward": row.delayed_reward,
+                "verifier_overruled": row.verifier_overruled,
+                "helpful_score": row.helpful_score,
+                "created_at": row.created_at.isoformat() if row.created_at else None,
+            }
+            for row in rows
+        ],
+    }
+
+
+@router.post("/strategy-promotion/run", dependencies=[Depends(require_admin_token)])
+def run_strategy_promotion() -> dict[str, int]:
+    from app.tasks.strategy_promotion_tasks import run_strategy_promotion_now
+
+    return run_strategy_promotion_now()
 
 
 @router.get(

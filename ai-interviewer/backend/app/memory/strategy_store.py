@@ -20,8 +20,12 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
+from sqlalchemy import select
+
 from app.core.logging import get_logger
 from app.core.settings import get_settings
+from app.models import get_session
+from app.models.strategy_memory import StrategyMemory
 
 log = get_logger(__name__)
 
@@ -53,9 +57,17 @@ _strategy_cache: _StrategyCache | None = None
 @dataclass
 class StrategyEntry:
     path: Path
+    id: str | None = None
+    slug: str | None = None
+    memory_key: str | None = None
     name: str = ""
     description: str = ""
     entry_type: str = "strategy"
+    source: str = "file"
+    status: str = "active"
+    promotion_stage: str = ""
+    confidence: float = 0.0
+    support_count: int = 0
     dimensions: list[str] = field(default_factory=list)
     job_levels: list[str] = field(default_factory=list)
     body: str = ""
@@ -86,6 +98,10 @@ def _strategy_dir() -> Path:
     return get_settings().knowledge_dir / "strategy"
 
 
+def _strategy_backend() -> str:
+    return str(getattr(get_settings(), "strategy_memory_backend", "file") or "file")
+
+
 def _strategy_signature(root: Path) -> tuple[tuple[str, int, int], ...]:
     if not root.is_dir():
         return ()
@@ -107,6 +123,43 @@ def clear_strategy_cache_for_tests() -> None:
 
 
 def list_strategies() -> list[StrategyEntry]:
+    if _strategy_backend() == "db":
+        return _list_db_strategies()
+    return _list_file_strategies()
+
+
+def _list_db_strategies() -> list[StrategyEntry]:
+    with get_session() as session:
+        rows = list(
+            session.scalars(
+                select(StrategyMemory)
+                .where(StrategyMemory.status == "active")
+                .order_by(StrategyMemory.slug.asc())
+            )
+        )
+    return [
+        StrategyEntry(
+            path=Path(f"{row.slug}.md"),
+            id=row.id,
+            slug=row.slug,
+            memory_key=row.memory_key,
+            name=row.name,
+            description=row.description,
+            entry_type="strategy",
+            source=row.source,
+            status=row.status,
+            promotion_stage=row.promotion_stage,
+            confidence=float(row.confidence or 0.0),
+            support_count=int(row.support_count or 0),
+            dimensions=list(row.dimensions or []),
+            job_levels=list(row.job_levels or []),
+            body=row.body_markdown or "",
+        )
+        for row in rows
+    ]
+
+
+def _list_file_strategies() -> list[StrategyEntry]:
     global _strategy_cache
     root = _strategy_dir()
     if not root.is_dir():
@@ -130,9 +183,12 @@ def list_strategies() -> list[StrategyEntry]:
         fm = _parse_frontmatter(text)
         entries.append(StrategyEntry(
             path=p,
+            slug=p.stem,
             name=fm.get("name", p.stem),
             description=fm.get("description", ""),
             entry_type=fm.get("type", "strategy"),
+            source="file",
+            status="active",
             dimensions=fm.get("dimensions", []),
             job_levels=fm.get("job_levels", []),
             body=_strip_frontmatter(text),
@@ -160,11 +216,15 @@ def retrieve_strategies(
     scored: list[tuple[int, StrategyEntry]] = []
     for entry in all_entries:
         score = 0
-        if entry.dimensions and dimension in entry.dimensions:
+        if entry.dimensions:
+            if dimension not in entry.dimensions:
+                continue
             score += 2
-        if entry.job_levels and job_level in entry.job_levels:
+        else:
             score += 1
-        if not entry.dimensions:
+        if entry.job_levels:
+            if job_level not in entry.job_levels:
+                continue
             score += 1
         scored.append((score, entry))
     scored.sort(key=lambda x: x[0], reverse=True)
@@ -275,6 +335,15 @@ def save_strategy(
     memory_key: str | None = None,
 ) -> Path:
     """Persist a new or updated strategy topic file and refresh the index."""
+    if _strategy_backend() == "db":
+        return _save_db_strategy(
+            name=name,
+            description=description,
+            dimensions=dimensions,
+            job_levels=job_levels,
+            body=body,
+            memory_key=memory_key,
+        )
     root = _strategy_dir()
     root.mkdir(parents=True, exist_ok=True)
     slug = _slugify(name)
@@ -301,6 +370,42 @@ def save_strategy(
     clear_strategy_cache_for_tests()
     _rebuild_memory_index()
     return path
+
+
+def _save_db_strategy(
+    *,
+    name: str,
+    description: str,
+    dimensions: list[str],
+    job_levels: list[str],
+    body: str,
+    memory_key: str | None = None,
+) -> Path:
+    slug = _slugify(name)
+    with get_session() as session:
+        row = session.scalar(select(StrategyMemory).where(StrategyMemory.slug == slug))
+        if row is None and memory_key:
+            row = session.scalar(
+                select(StrategyMemory).where(StrategyMemory.memory_key == memory_key)
+            )
+        if row is None:
+            row = StrategyMemory(
+                id=f"auto:{slug}",
+                slug=slug,
+                source="promoted_signal",
+                status="active",
+                promotion_stage="low_confidence",
+            )
+            session.add(row)
+        row.name = name
+        row.description = description
+        row.memory_key = memory_key
+        row.dimensions = list(dimensions)
+        row.job_levels = list(job_levels)
+        row.body_markdown = body
+        row.version = int(row.version or 1) + 1
+    clear_strategy_cache_for_tests()
+    return Path(f"{slug}.md")
 
 
 def delete_strategy(path: Path) -> bool:
