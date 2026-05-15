@@ -8,6 +8,7 @@
 > - `app/ml/drift/verifier_drift.py`（in-memory / Redis monitor）
 > - `app/models/verifier_drift.py`（本 plan 引入的两张表）
 > - `app/services/drift_pattern_aggregation.py` / `drift_event_retention.py`
+> - `app/services/drift_feedback_parity.py`（§7 monitor↔DB parity）
 > - `app/tasks/drift_pattern_aggregation_tasks.py` / `drift_event_retention_tasks.py` /
 >   `drift_maintenance_tasks.py`
 > - `app/ml/drift/prompt_feedback.py`（多源切换）
@@ -161,6 +162,7 @@ drift_event_retention_interval_hours: int = 24
 | GET | `/admin/drift/events` | 列原始事件，含 `since_hours` / `limit` / `overruled_only` |
 | GET | `/admin/drift/patterns` | 列聚合 pattern，含 `dimension` / `failure_category` / `limit` |
 | GET | `/admin/drift/freshness` | scheduler 状态、interval、event/pattern 计数、最近 job 结果与错误 |
+| GET | `/admin/drift/shadow-parity` | monitor↔DB 重合率（§7） |
 | POST | `/admin/drift/aggregation/run` | 手动触发聚合（tracked，状态会写到 freshness） |
 | POST | `/admin/drift/retention/run` | 手动触发过期清理（tracked） |
 
@@ -179,14 +181,97 @@ drift_event_retention_interval_hours: int = 24
 
 ### 仍 OPEN 的下一阶段任务
 
-1. **db_shadow parity 真正可观测**：现在 `_load_overruled_patterns(source="db_shadow")`
-   只 log 一条 diff，无聚合、无告警。建议加一张 `drift_feedback_shadow_diffs`
-   或 admin `/admin/drift/shadow-parity` 给出 7 日重合率。
-2. **从 `db_shadow` flip 到 `db`**：当 shadow parity 持续 ≥ 90% 后，把
+1. ~~**db_shadow parity 真正可观测**~~：✅ 已实现，see §7。
+2. **从 `db_shadow` flip 到 `db`**：当 §7 的 admin parity 持续 ≥ 0.9 后，把
    `drift_feedback_source` 默认改为 `"db"`，让 prompt 真正消费 DB 聚合。
 3. **failure taxonomy 升档决策**：观察 `/admin/failure-category-stats` 4 桶分布，
    决定 refine_followup 是否切到「LLM 主、normalize fallback」。
 4. **接 Verifier 自身输出 failure_categories**：当前 fc 全部来自 evaluator；
    verifier 也输出后，drift event 的 fc 维度可以双源校验。
-5. **前端 AdminPanel**：把 freshness / patterns / events 三个表面接进 AdminPanel
-   的 drift tab。
+5. **前端 AdminPanel**：把 freshness / patterns / events / shadow-parity 四个表面接
+   进 AdminPanel 的 drift tab。
+6. **历史 parity 表**：如果一周观察不够（例如 jaccard 持续在 0.7-0.9 摆动），
+   加一张 `drift_feedback_shadow_snapshots(captured_at, dimension, monitor_count,
+   db_count, jaccard)` + cron 每小时跑一次，让 §7 的瞬时 snapshot 变成可绘趋势的
+   时序数据。
+
+---
+
+## 7. db_shadow parity admin 接口
+
+### 7.1 用途
+
+`drift_feedback_source="db_shadow"` 让 prompt 仍走 monitor 路径（byte-identical
+保护候选人），同时 DB 路径被并行查询并写出一行 `log.info` 形式的 parity diff。
+但 log 只对值班工程师有用，运营无法快速回答「这一周 monitor 与 DB 在哪些 dim
+上对得上、对不上」。本接口把这个问题做成结构化报告：
+
+| 维度 | 含义 |
+|---|---|
+| `monitor_count` / `db_count` | 各自当前在 ``(dim, check)`` 维度的桶数 |
+| `intersection` | 两边都返回的 ``(dim, check)`` 对（升序） |
+| `monitor_only` / `db_only` | 只在一边出现的 ``(dim, check)`` 对 |
+| `jaccard_similarity` | `\|∩\| / \|∪\|`；两边均空时为 `null` |
+
+### 7.2 请求
+
+```
+GET /admin/drift/shadow-parity?top_n=5&min_support=2[&dimensions=a,b,c]
+```
+
+- `top_n`（默认 5，clamp 1-50）：每边每个 dim 输出的最大 pattern 数，与
+  `build_evaluator_drift_negatives` / `build_generator_avoid_patterns` 的
+  rollout 默认对齐。
+- `min_support`（默认 2，clamp 1-1000）：低于此 count 的 pattern 不计入比较。
+- `dimensions`（可选，逗号分隔）：缺省时自动扫
+  `monitor.snapshot()["per_dimension"].keys()` ∪
+  `SELECT DISTINCT dimension FROM verifier_drift_patterns`，并去重排序。
+
+### 7.3 响应体
+
+```json
+{
+  "top_n": 5,
+  "min_support": 2,
+  "feedback_source": "db_shadow",
+  "monitor_backend": "memory",
+  "per_dimension": [
+    {
+      "dimension": "system_design",
+      "monitor_count": 3,
+      "db_count": 4,
+      "intersection": [["system_design", "Mentions concrete failure modes"]],
+      "monitor_only": [["system_design", "Quantifies blast radius"]],
+      "db_only": [["system_design", "Picks a consistency model"]],
+      "jaccard_similarity": 0.2
+    }
+  ],
+  "summary": {
+    "dimensions_checked": 1,
+    "avg_jaccard": 0.2,
+    "min_jaccard": 0.2,
+    "max_jaccard": 0.2
+  }
+}
+```
+
+DB 异常时仍返 200，附加 `"db_error": "<msg>"` 字段，`per_dimension` 退化为空。
+
+### 7.4 Flip 决策线
+
+- 连续 7 天 `summary.avg_jaccard ≥ 0.9` 且 `min_jaccard ≥ 0.7` → 可把
+  `Settings.drift_feedback_source` 默认升档到 `"db"`，让 prompt 真正消费 DB 聚合。
+- 若 `monitor_count` 大幅高于 `db_count` → 大概率是 aggregation 没跑（看
+  `/admin/drift/freshness` 的 `maintenance.aggregation.last_finished_at`）或
+  `enable_drift_maintenance_scheduler=False`。
+- 若 `db_count` 大幅高于 `monitor_count` → monitor 窗口（`verifier_drift_window_size`）
+  太小，把历史高频 pattern 滚出了内存；db 反而是更稳定的真值。可考虑直接 flip
+  而不再观察。
+
+### 7.5 已知限制
+
+- §7 不写历史表（OPEN #6 计划补）。当前是瞬时 snapshot；如果跑得太频繁，
+  monitor / db 都可能在采样间隙内发生变化，差异不一定来源于路径分歧本身。
+- `__global__` 维度回退：DB 端 `failure_categories=None` 时只查 ``__global__`` 桶；
+  Caller 透传 fc 走 (dim, check, fc) 细桶的 parity 暂不纳入此接口，等
+  evaluator → ask_question → generator 的 fc 透传链稳定后再扩。

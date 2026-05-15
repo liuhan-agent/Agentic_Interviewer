@@ -30,6 +30,7 @@ from __future__ import annotations
 from contextlib import contextmanager
 from datetime import UTC, datetime, timedelta
 from types import SimpleNamespace
+from typing import Any
 
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
@@ -65,6 +66,7 @@ def _client(
     enable_drift_maintenance_scheduler: bool = False,
     drift_pattern_aggregation_interval_minutes: int = 30,
     drift_event_retention_interval_hours: int = 24,
+    verifier_drift_backend: str = "memory",
 ) -> TestClient:
     """Build a FastAPI TestClient bound to the in-memory drift DB.
 
@@ -97,6 +99,7 @@ def _client(
             drift_pattern_aggregation_interval_minutes
         ),
         drift_event_retention_interval_hours=drift_event_retention_interval_hours,
+        verifier_drift_backend=verifier_drift_backend,
     )
     admin_api.get_settings = lambda: fake_settings
     admin_api.get_session = get_session
@@ -118,6 +121,51 @@ def _client(
     aggregation_mod.refresh_verifier_drift_patterns  # noqa: B018 - keep ref
 
     return TestClient(app)
+
+
+def _install_parity_wiring(
+    monkeypatch,
+    Session,
+    *,
+    monitor_snapshot: dict[str, Any] | None = None,
+) -> None:
+    """Stitch the parity service and prompt_feedback to ``Session``.
+
+    Uses :func:`monkeypatch.setattr` so the rewiring is automatically
+    reverted at test-teardown — :func:`_client` rewires admin / tasks
+    via plain assignment, which is safe because no production caller
+    imports those module attributes, but :mod:`prompt_feedback` IS
+    imported directly by the evaluator / generator renderers in other
+    unrelated tests. Leaking a stub ``get_verifier_drift_monitor`` into
+    that module breaks every downstream drift-feedback test in the
+    suite the moment they run after this one.
+    """
+    from contextlib import contextmanager
+
+    from app.ml.drift import prompt_feedback as feedback_mod
+    from app.services import drift_feedback_parity as parity_mod
+
+    @contextmanager
+    def get_session():
+        with Session() as sess:
+            yield sess
+            sess.commit()
+
+    class _FakeMonitor:
+        def snapshot(self) -> dict[str, Any]:
+            return monitor_snapshot or {
+                "per_dimension": {},
+                "overruled_patterns": [],
+            }
+
+    monkeypatch.setattr(parity_mod, "get_session", get_session)
+    monkeypatch.setattr(feedback_mod, "get_session", get_session)
+    monkeypatch.setattr(
+        parity_mod, "get_verifier_drift_monitor", lambda: _FakeMonitor()
+    )
+    monkeypatch.setattr(
+        feedback_mod, "get_verifier_drift_monitor", lambda: _FakeMonitor()
+    )
 
 
 def _seed_event(
@@ -453,3 +501,117 @@ def test_admin_drift_manual_aggregation_updates_freshness_status() -> None:
     body = fresh_res.json()
     assert body["maintenance"]["aggregation"]["last_result"]["refreshed"] == 2
     assert body["maintenance"]["aggregation"]["last_error"] is None
+
+
+def test_admin_drift_shadow_parity_requires_admin_auth(monkeypatch) -> None:
+    """No bearer token + configured ``api_token`` → 401.
+
+    Pins ``require_admin_token`` on the parity route so an attacker
+    cannot derive which checks the verifier overrules most often (a
+    weak adversarial signal about the rubric) without authenticating.
+    """
+    Session = _session_factory()
+    _install_parity_wiring(monkeypatch, Session)
+    client = _client(Session, api_token="secret-token", allow_open_admin=False)
+
+    res = client.get("/admin/drift/shadow-parity")
+
+    assert res.status_code == 401
+
+
+def test_admin_drift_shadow_parity_empty_returns_zero_dimensions(monkeypatch) -> None:
+    """No DB rows + empty monitor snapshot → ``per_dimension=[]`` and
+    a sentinel summary so the dashboard can distinguish "feature off"
+    from "feature on, no overruled traffic yet"."""
+    Session = _session_factory()
+    _install_parity_wiring(monkeypatch, Session)
+    client = _client(
+        Session,
+        drift_feedback_source="db_shadow",
+        verifier_drift_backend="memory",
+    )
+
+    res = client.get("/admin/drift/shadow-parity")
+
+    assert res.status_code == 200
+    body = res.json()
+    assert body["per_dimension"] == []
+    assert body["summary"]["dimensions_checked"] == 0
+    assert body["summary"]["avg_jaccard"] is None
+    assert body["feedback_source"] == "db_shadow"
+    assert body["monitor_backend"] == "memory"
+    assert body["top_n"] == 5
+    assert body["min_support"] == 2
+
+
+def test_admin_drift_shadow_parity_with_seeded_data_reports_jaccard(
+    monkeypatch,
+) -> None:
+    """Seed one DB-only pattern + one shared pattern, with the monitor
+    snapshot mirroring only the shared one. Parity should:
+
+    - List both ``system_design`` rows in DB (so ``db_count == 2``).
+    - Mirror one in monitor (``monitor_count == 1``).
+    - Report ``intersection`` of length 1, ``db_only`` of length 1.
+    - Compute ``jaccard = 1/2 = 0.5``.
+
+    This is the closest the test pyramid lets us get to "what would
+    the operator see one week into the ``db_shadow`` rollout" without
+    spinning up a real interview.
+    """
+    Session = _session_factory()
+    with Session() as sess:
+        _seed_pattern(
+            sess,
+            id_="pat-shared",
+            dimension="system_design",
+            check_name="Mentions concrete failure modes",
+            failure_category="__global__",
+            uses=5,
+        )
+        _seed_pattern(
+            sess,
+            id_="pat-db-only",
+            dimension="system_design",
+            check_name="Quantifies blast radius",
+            failure_category="__global__",
+            uses=4,
+        )
+        sess.commit()
+
+    monitor_snapshot = {
+        "per_dimension": {"system_design": {"calls": 7}},
+        "overruled_patterns": [
+            {
+                "dimension": "system_design",
+                "check": "Mentions concrete failure modes",
+                "count": 3,
+                "sample_evidence": ["we used Redis"],
+                "reasons_sample": ["evidence is generic boilerplate"],
+            }
+        ],
+    }
+    _install_parity_wiring(monkeypatch, Session, monitor_snapshot=monitor_snapshot)
+    client = _client(Session)
+
+    res = client.get("/admin/drift/shadow-parity?top_n=5&min_support=2")
+
+    assert res.status_code == 200
+    body = res.json()
+    assert len(body["per_dimension"]) == 1
+    dim = body["per_dimension"][0]
+    assert dim["dimension"] == "system_design"
+    assert dim["monitor_count"] == 1
+    assert dim["db_count"] == 2
+    assert dim["intersection"] == [
+        ["system_design", "Mentions concrete failure modes"]
+    ]
+    assert dim["monitor_only"] == []
+    assert dim["db_only"] == [
+        ["system_design", "Quantifies blast radius"]
+    ]
+    assert dim["jaccard_similarity"] == 0.5
+    assert body["summary"]["dimensions_checked"] == 1
+    assert body["summary"]["avg_jaccard"] == 0.5
+    assert body["summary"]["min_jaccard"] == 0.5
+    assert body["summary"]["max_jaccard"] == 0.5
