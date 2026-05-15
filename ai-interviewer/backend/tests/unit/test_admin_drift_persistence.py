@@ -62,6 +62,9 @@ def _client(
     drift_feedback_source: str = "db_shadow",
     verifier_drift_event_retention_days: int = 90,
     drift_pattern_aggregation_window_days: int = 30,
+    enable_drift_maintenance_scheduler: bool = False,
+    drift_pattern_aggregation_interval_minutes: int = 30,
+    drift_event_retention_interval_hours: int = 24,
 ) -> TestClient:
     """Build a FastAPI TestClient bound to the in-memory drift DB.
 
@@ -89,15 +92,22 @@ def _client(
         drift_feedback_source=drift_feedback_source,
         verifier_drift_event_retention_days=verifier_drift_event_retention_days,
         drift_pattern_aggregation_window_days=drift_pattern_aggregation_window_days,
+        enable_drift_maintenance_scheduler=enable_drift_maintenance_scheduler,
+        drift_pattern_aggregation_interval_minutes=(
+            drift_pattern_aggregation_interval_minutes
+        ),
+        drift_event_retention_interval_hours=drift_event_retention_interval_hours,
     )
     admin_api.get_settings = lambda: fake_settings
     admin_api.get_session = get_session
 
     from app.services import drift_event_retention as retention_mod
     from app.services import drift_pattern_aggregation as aggregation_mod
+    from app.tasks import drift_maintenance_tasks as maintenance_tasks
     from app.tasks import drift_event_retention_tasks as retention_tasks
     from app.tasks import drift_pattern_aggregation_tasks as aggregation_tasks
 
+    maintenance_tasks.reset_drift_maintenance_status()
     retention_tasks.get_session = get_session
     aggregation_tasks.get_session = get_session
     retention_tasks.get_settings = lambda: fake_settings
@@ -386,3 +396,60 @@ def test_admin_drift_retention_run_deletes_old_events() -> None:
     assert listed.status_code == 200
     ids = {event["id"] for event in listed.json()["events"]}
     assert ids == {"evt-fresh"}
+
+
+def test_admin_drift_freshness_returns_empty_meta() -> None:
+    Session = _session_factory()
+    client = _client(Session)
+
+    res = client.get("/admin/drift/freshness")
+
+    assert res.status_code == 200
+    body = res.json()
+    assert body["scheduler_enabled"] is False
+    assert body["aggregation_interval_minutes"] == 30
+    assert body["retention_interval_hours"] == 24
+    assert body["event_count"] == 0
+    assert body["pattern_count"] == 0
+    assert body["newest_event_at"] is None
+    assert body["newest_pattern_updated_at"] is None
+    assert body["maintenance"]["aggregation"]["last_finished_at"] is None
+
+
+def test_admin_drift_freshness_reports_event_and_pattern_age() -> None:
+    Session = _session_factory()
+    with Session() as sess:
+        _seed_event(sess, id_="evt-fresh")
+        _seed_pattern(sess, id_="pat-fresh")
+        sess.commit()
+    client = _client(Session)
+
+    res = client.get("/admin/drift/freshness")
+
+    assert res.status_code == 200
+    body = res.json()
+    assert body["event_count"] == 1
+    assert body["pattern_count"] == 1
+    assert body["newest_event_at"] is not None
+    assert body["newest_pattern_updated_at"] is not None
+
+
+def test_admin_drift_manual_aggregation_updates_freshness_status() -> None:
+    Session = _session_factory()
+    with Session() as sess:
+        _seed_event(
+            sess,
+            id_="evt-cat",
+            failure_categories=["missing_metrics"],
+        )
+        sess.commit()
+    client = _client(Session)
+
+    run_res = client.post("/admin/drift/aggregation/run")
+    fresh_res = client.get("/admin/drift/freshness")
+
+    assert run_res.status_code == 200
+    assert run_res.json()["refreshed"] == 2
+    body = fresh_res.json()
+    assert body["maintenance"]["aggregation"]["last_result"]["refreshed"] == 2
+    assert body["maintenance"]["aggregation"]["last_error"] is None
