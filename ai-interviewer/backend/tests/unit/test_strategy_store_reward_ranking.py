@@ -63,6 +63,22 @@ def _db_session_context():
                     avg_blended_reward=0.9,
                     overrule_rate=0.0,
                 ),
+                StrategyMemoryStats(
+                    id="stats-context-low",
+                    strategy_id="seed:aaa_low_reward",
+                    context_key="java_backend:senior:system_design",
+                    uses=40,
+                    avg_blended_reward=0.95,
+                    overrule_rate=0.0,
+                ),
+                StrategyMemoryStats(
+                    id="stats-context-high",
+                    strategy_id="seed:zzz_high_reward",
+                    context_key="java_backend:senior:system_design",
+                    uses=40,
+                    avg_blended_reward=0.1,
+                    overrule_rate=0.5,
+                ),
             ]
         )
         sess.commit()
@@ -99,6 +115,7 @@ def test_reward_shadow_calculates_rank_without_changing_metadata_order(monkeypat
     assert entries[0].shadow_rank == 2
     assert entries[1].shadow_rank == 1
     assert entries[1].ranking_reason["avg_blended_reward"] == 0.9
+    assert entries[1].ranking_reason["stats_context_key"] == "__global__"
 
 
 def test_reward_mode_uses_stats_order(monkeypatch) -> None:
@@ -122,3 +139,67 @@ def test_reward_mode_uses_stats_order(monkeypatch) -> None:
         "seed:zzz_high_reward",
         "seed:aaa_low_reward",
     ]
+
+
+def test_reward_shadow_prefers_exact_context_stats_without_changing_order(
+    monkeypatch,
+) -> None:
+    monkeypatch.setattr(
+        ss,
+        "get_settings",
+        lambda: SimpleNamespace(
+            strategy_memory_backend="db",
+            strategy_memory_ranking_mode="reward_shadow",
+        ),
+    )
+    monkeypatch.setattr(ss, "get_session", _db_session_context())
+
+    entries = ss.retrieve_strategies(
+        dimension="system_design",
+        job_level="senior",
+        policy_context_keys=[
+            "java_backend:senior:system_design",
+            "senior:system_design",
+        ],
+        limit=2,
+    )
+
+    assert [entry.id for entry in entries] == [
+        "seed:aaa_low_reward",
+        "seed:zzz_high_reward",
+    ]
+    assert entries[0].shadow_rank == 1
+    assert entries[0].ranking_reason["stats_context_key"] == (
+        "java_backend:senior:system_design"
+    )
+    assert entries[0].ranking_reason["stats_scope"] == "exact"
+    assert entries[0].ranking_reason["avg_blended_reward"] == 0.95
+    assert entries[1].shadow_rank == 2
+
+
+def test_reward_mode_uses_exact_context_stats_order(monkeypatch) -> None:
+    monkeypatch.setattr(
+        ss,
+        "get_settings",
+        lambda: SimpleNamespace(
+            strategy_memory_backend="db",
+            strategy_memory_ranking_mode="reward",
+        ),
+    )
+    monkeypatch.setattr(ss, "get_session", _db_session_context())
+
+    entries = ss.retrieve_strategies(
+        dimension="system_design",
+        job_level="senior",
+        policy_context_keys=[
+            "java_backend:senior:system_design",
+            "senior:system_design",
+        ],
+        limit=2,
+    )
+
+    assert [entry.id for entry in entries] == [
+        "seed:aaa_low_reward",
+        "seed:zzz_high_reward",
+    ]
+    assert entries[0].ranking_reason["stats_scope"] == "exact"

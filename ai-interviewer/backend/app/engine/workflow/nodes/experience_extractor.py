@@ -23,6 +23,7 @@ from typing import Any
 from app.core.logging import get_logger
 from app.core.settings import get_settings
 from app.core.tracer import get_tracer
+from app.engine.workflow.policy_context import parse_policy_context_key
 from app.engine.workflow.state import InterviewState
 from app.ml.rl.action_space import ACTIONS_BY_ID
 from app.ml.rl.thompson import get_bandit
@@ -239,17 +240,15 @@ def _signal_payload_from_bandit_insight(
     group_key = strategy_memory_key_for_insight(insight)
     session_id = str(state.get("session_id") or "unknown")
     ctx = str(insight.get("context_key") or "")
-    parts = ctx.split(":", 1)
-    job_level = parts[0] if parts else "mid"
-    dimension = parts[1] if len(parts) > 1 else "general"
+    parsed_context = parse_policy_context_key(ctx)
     action_id = str(insight.get("action_id") or "")
     return {
         "signal_key": f"{session_id}:{group_key}",
         "group_key": group_key,
         "session_id": session_id,
         "turn_idx": int(state.get("turn_idx", len(state.get("qa_history", [])))),
-        "dimension": dimension,
-        "job_level": job_level,
+        "dimension": parsed_context.dimension,
+        "job_level": parsed_context.job_level,
         "action_id": action_id,
         "plan_template": action_id or None,
         "probe_intent": None,

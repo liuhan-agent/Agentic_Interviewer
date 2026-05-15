@@ -48,8 +48,14 @@ def test_ask_question_persists_strategy_memory_refs(monkeypatch) -> None:
     def fake_negotiate(**kwargs):
         return {**kwargs["proposed_contract"], "signed_by": ["generator", "evaluator"]}
 
+    captured_retrieve_kwargs: dict[str, Any] = {}
+
+    def fake_retrieve_strategies(**kwargs):
+        captured_retrieve_kwargs.update(kwargs)
+        return [strategy]
+
     monkeypatch.setattr(ask_mod, "retrieve_for_question", fake_retrieve_for_question)
-    monkeypatch.setattr(ask_mod, "retrieve_strategies", lambda **_kwargs: [strategy])
+    monkeypatch.setattr(ask_mod, "retrieve_strategies", fake_retrieve_strategies)
     monkeypatch.setattr(
         ask_mod,
         "format_strategies_for_prompt",
@@ -89,6 +95,10 @@ def test_ask_question_persists_strategy_memory_refs(monkeypatch) -> None:
         "pending_plan_template": None,
         "pending_contract_hints": None,
         "selected_action": {"id": "plan_adaptive", "plan_template": "adaptive"},
+        "policy_context_keys": [
+            "java_backend:senior:system_design",
+            "senior:system_design",
+        ],
     }
 
     out = ask_mod.ask_question_node(state)  # type: ignore[arg-type]
@@ -106,3 +116,7 @@ def test_ask_question_persists_strategy_memory_refs(monkeypatch) -> None:
     }
     assert out["current_question"]["strategy_memory_refs"] == [expected_ref]
     assert captured_trace["strategy_memory_refs"] == [expected_ref]
+    assert captured_retrieve_kwargs["policy_context_keys"] == [
+        "java_backend:senior:system_design",
+        "senior:system_design",
+    ]
