@@ -33,6 +33,21 @@ from .wait_answer import get_raw_answer_for_state
 log = get_logger(__name__)
 
 
+def _failure_categories_for_drift_feedback(
+    state: InterviewState,
+    question: dict[str, Any],
+) -> list[str]:
+    artifacts = question.get("selection_artifacts") or {}
+    raw = None
+    if isinstance(artifacts, dict):
+        raw = artifacts.get("failure_categories")
+    if not raw:
+        raw = (state.get("evaluation") or {}).get("failure_categories")
+    if not isinstance(raw, list):
+        return []
+    return [str(value) for value in raw if isinstance(value, str) and value.strip()]
+
+
 def _has_scored_evaluator_turn(
     qa_history: list[dict[str, Any]],
     dimension: str,
@@ -86,6 +101,10 @@ def evaluator_node(state: InterviewState) -> dict[str, Any]:
                 dimension=dimension,
                 top_n=settings.drift_feedback_top_n,
                 min_support=settings.drift_feedback_min_support,
+                failure_categories=_failure_categories_for_drift_feedback(
+                    state,
+                    question,
+                ),
             )
         except Exception as e:  # pragma: no cover - feedback is non-critical
             log.debug("drift feedback render failed: %s", e)

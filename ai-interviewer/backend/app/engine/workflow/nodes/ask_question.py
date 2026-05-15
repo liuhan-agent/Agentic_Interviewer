@@ -180,11 +180,24 @@ def _step_retrieve_strategy(state: InterviewState, ctx: dict[str, Any]) -> None:
         "min_support": avoid_min_support,
     }
     if avoid_enabled:
+        # PR5+6 of drift-feedback persistence: when ``drift_feedback_source``
+        # is ``db`` / ``db_shadow``, the renderer can drill into the
+        # ``(dimension, check, failure_category)`` rows of
+        # ``verifier_drift_patterns`` instead of always rolling up to
+        # ``__global__``. Forwarding the structured failure categories
+        # from ``contract_hints`` here is what closes that loop — the
+        # caller already has them via ``_failure_categories_from_hints``
+        # for ``selection_artifacts``, so reusing the same helper keeps
+        # both sites reading from the same source of truth.
+        avoid_failure_categories = _failure_categories_from_hints(
+            ctx.get("contract_hints")
+        )
         try:
             rendered = build_generator_avoid_patterns(
                 dimension=ctx["dimension"],
                 top_n=avoid_top_n,
                 min_support=avoid_min_support,
+                failure_categories=avoid_failure_categories,
             )
             if rendered:
                 ctx["avoid_patterns"] = rendered
