@@ -401,6 +401,66 @@ def list_drift_patterns(
     return payload
 
 
+def _iso_or_none(value: Any) -> str | None:
+    if value is None:
+        return None
+    if hasattr(value, "isoformat"):
+        return value.isoformat()
+    return str(value)
+
+
+@router.get("/drift/freshness", dependencies=[Depends(require_admin_token)])
+def drift_freshness() -> dict[str, Any]:
+    """Return scheduler and DB freshness meta for persisted drift."""
+    from sqlalchemy import func
+
+    from app.models.verifier_drift import VerifierDriftEvent, VerifierDriftPattern
+    from app.tasks.drift_maintenance_tasks import get_drift_maintenance_status
+
+    settings = get_settings()
+    payload: dict[str, Any] = {
+        "scheduler_enabled": bool(
+            getattr(settings, "enable_drift_maintenance_scheduler", False)
+        ),
+        "aggregation_interval_minutes": int(
+            getattr(settings, "drift_pattern_aggregation_interval_minutes", 30)
+            or 30
+        ),
+        "retention_interval_hours": int(
+            getattr(settings, "drift_event_retention_interval_hours", 24) or 24
+        ),
+        "persistence_enabled": bool(
+            getattr(settings, "enable_verifier_drift_persistence", False)
+        ),
+        "feedback_source": str(
+            getattr(settings, "drift_feedback_source", "monitor") or "monitor"
+        ),
+        "maintenance": get_drift_maintenance_status(),
+        "event_count": 0,
+        "pattern_count": 0,
+        "newest_event_at": None,
+        "newest_pattern_updated_at": None,
+    }
+    try:
+        with get_session() as sess:
+            payload["event_count"] = int(
+                sess.query(func.count(VerifierDriftEvent.id)).scalar() or 0
+            )
+            payload["pattern_count"] = int(
+                sess.query(func.count(VerifierDriftPattern.id)).scalar() or 0
+            )
+            payload["newest_event_at"] = _iso_or_none(
+                sess.query(func.max(VerifierDriftEvent.created_at)).scalar()
+            )
+            payload["newest_pattern_updated_at"] = _iso_or_none(
+                sess.query(func.max(VerifierDriftPattern.updated_at)).scalar()
+            )
+    except Exception as e:  # pragma: no cover - admin must remain best-effort
+        log.warning("drift freshness query failed: %s", e)
+        payload["db_error"] = str(e)
+    return payload
+
+
 @router.post(
     "/drift/aggregation/run",
     dependencies=[Depends(require_admin_token)],
@@ -413,11 +473,11 @@ def run_drift_pattern_aggregation_route() -> dict[str, int]:
     idempotent so an operator can re-run it after manually mutating
     the events table.
     """
-    from app.tasks.drift_pattern_aggregation_tasks import (
-        run_drift_pattern_aggregation_now,
+    from app.tasks.drift_maintenance_tasks import (
+        run_drift_pattern_aggregation_tracked,
     )
 
-    return run_drift_pattern_aggregation_now()
+    return run_drift_pattern_aggregation_tracked()
 
 
 @router.post(
@@ -431,11 +491,11 @@ def run_drift_event_retention_route() -> dict[str, int]:
     repeated call with no new stale rows simply returns
     ``{"deleted": 0}``.
     """
-    from app.tasks.drift_event_retention_tasks import (
-        run_drift_event_retention_now,
+    from app.tasks.drift_maintenance_tasks import (
+        run_drift_event_retention_tracked,
     )
 
-    return run_drift_event_retention_now()
+    return run_drift_event_retention_tracked()
 
 
 @api_v1_router.get("/knowledge/coverage", dependencies=[Depends(require_admin_token)])
