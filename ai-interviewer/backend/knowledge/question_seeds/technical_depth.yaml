@@ -1,0 +1,403 @@
+dimension: technical_depth
+seeds:
+  - id: technical_depth.frontend_runtime_mechanics
+    version: 1
+    title: 前端运行时机制与性能取舍
+    dimension: technical_depth
+    job_levels: [mid, senior, staff]
+    skill_tags: [frontend, javascript, browser, performance, rendering]
+    direction_tags: [internet_tech]
+    role_tags: [frontend_web]
+    rubric:
+      must_cover: [浏览器渲染, JavaScript 执行, 性能瓶颈, 验证方法]
+      minimum_bar: 能解释一个真实前端性能问题背后的运行时机制和定位方法。
+      stretch: 能把框架机制、浏览器管线、构建产物和线上观测联系起来。
+    priority: 24
+    status: active
+    source: manual_yaml
+    scope: global
+    language: zh-CN
+    variants:
+      - id: technical_depth.frontend_runtime_mechanics.long_task
+        version: 1
+        intent: opening
+        difficulty: standard
+        scenario_brief: 页面交互出现明显卡顿，Performance 面板显示主线程存在多个 long task。
+        question_stem: 请说明你会如何定位并优化一个由主线程 long task 导致的前端卡顿问题。
+        prompt_template: 结合候选人的前端项目经验，生成一道技术深度题，要求说明浏览器主线程、渲染管线、定位工具和优化方案。
+        scenario_skill_tags: [javascript, long task, rendering, performance]
+        resume_anchor_hints: [performance, react, vue, browser, long task]
+        failure_categories: [shallow_debugging, vague_metrics, missing_tradeoff]
+        rubric_additions: [说明主线程阻塞来源, 说明定位工具和指标, 说明拆分任务或减少渲染成本]
+        expected_signals: [能解释事件循环和渲染阻塞, 能使用 Performance 或 RUM 指标, 能提出可验证优化]
+        anti_patterns: [只说加防抖, 不看性能证据, 不区分网络慢和渲染慢]
+        good_answer_hints: [先复现和采样, 再定位主线程任务, 最后选择拆分计算或减少渲染]
+        priority: 16
+        status: active
+      - id: technical_depth.frontend_runtime_mechanics.bundle_hydration
+        version: 1
+        intent: deep_probe
+        difficulty: deep_probe
+        scenario_brief: 首屏资源体积较大，SSR 页面 hydration 期间交互延迟明显。
+        question_stem: SSR 页面首屏可见但不可交互时，你会如何分析 bundle、hydration 和交互延迟？
+        prompt_template: 生成一道前端运行时深挖题，要求候选人说明 bundle 分析、hydration 成本、交互指标和优化边界。
+        scenario_skill_tags: [ssr, hydration, bundle splitting, interaction latency]
+        resume_anchor_hints: [ssr, nextjs, bundle, hydration, frontend]
+        failure_categories: [vague_metrics, missing_tradeoff, missing_observability]
+        rubric_additions: [说明 LCP 与 INP 差异, 说明代码拆分和延迟 hydration, 说明监控验证方式]
+        expected_signals: [能区分可见和可交互, 能分析 JS 体积与执行成本, 能权衡 SSR 与客户端渲染]
+        anti_patterns: [只压缩图片, 不分析 JS 执行, 不定义交互指标]
+        good_answer_hints: [先拆指标, 再看资源和执行瀑布, 最后给渐进加载方案]
+        priority: 14
+        status: active
+
+  - id: technical_depth.sre_linux_kubernetes_foundation
+    version: 1
+    title: SRE Linux 与 Kubernetes 基础深度
+    dimension: technical_depth
+    job_levels: [mid, senior, staff]
+    skill_tags: [sre, linux, kubernetes, networking, observability]
+    direction_tags: [internet_tech]
+    role_tags: [sre]
+    rubric:
+      must_cover: [系统资源, 网络链路, 容器调度, 观测证据]
+      minimum_bar: 能用系统和平台层面的证据定位一个稳定性问题。
+      stretch: 能把节点、容器、服务发现、网络和监控链路串起来分析。
+    priority: 24
+    status: active
+    source: manual_yaml
+    scope: global
+    language: zh-CN
+    variants:
+      - id: technical_depth.sre_linux_kubernetes_foundation.pod_restart
+        version: 1
+        intent: opening
+        difficulty: standard
+        scenario_brief: Kubernetes 集群中某服务 Pod 间歇性重启，应用日志只看到连接中断。
+        question_stem: 请说明你会如何从 Kubernetes、Linux 资源和应用指标定位 Pod 间歇性重启问题。
+        prompt_template: 结合候选人的 SRE 或运维经验，生成一道技术深度题，要求说明排查顺序、关键命令、指标和可能根因。
+        scenario_skill_tags: [kubernetes, pod restart, linux, metrics]
+        resume_anchor_hints: [kubernetes, pod, linux, metrics, sre]
+        failure_categories: [shallow_debugging, missing_observability, missing_action]
+        rubric_additions: [说明事件和重启原因, 说明资源限制与 OOM, 说明应用和节点指标对照]
+        expected_signals: [能查看 event 和 container status, 能区分 OOM 与探针失败, 能结合节点资源判断]
+        anti_patterns: [只重启服务, 不看事件, 不区分应用和平台原因]
+        good_answer_hints: [先看事件和状态, 再看资源与探针, 最后关联应用日志和节点指标]
+        priority: 16
+        status: active
+      - id: technical_depth.sre_linux_kubernetes_foundation.network_timeout
+        version: 1
+        intent: deep_probe
+        difficulty: deep_probe
+        scenario_brief: 服务间调用偶发超时，只有跨节点流量明显更容易触发。
+        question_stem: 如果服务跨节点调用偶发超时，你会如何从 DNS、Service、网络策略和节点层定位？
+        prompt_template: 生成一道 SRE 网络深挖题，要求候选人说明 Kubernetes 服务发现、网络路径、超时证据和隔离实验。
+        scenario_skill_tags: [kubernetes networking, dns, service discovery, timeout]
+        resume_anchor_hints: [networking, dns, service, kubernetes, timeout]
+        failure_categories: [missing_observability, shallow_debugging, missing_edge_case]
+        rubric_additions: [说明 DNS 和 Service 检查, 说明跨节点网络路径, 说明抓包或隔离验证]
+        expected_signals: [能设计分层排查路径, 能用指标或抓包验证假设, 能区分客户端超时和网络丢包]
+        anti_patterns: [只调大超时, 不分层定位, 不做对照实验]
+        good_answer_hints: [先确认影响范围, 再拆 DNS Service 网络路径, 最后做隔离和抓包]
+        priority: 14
+        status: active
+  - id: technical_depth.ai_agent_llm_tool_boundaries
+    version: 1
+    title: Agent LLM 与工具边界
+    dimension: technical_depth
+    job_levels: [mid, senior, staff]
+    skill_tags: [llm, agent, tool calling, rag, prompt]
+    direction_tags: [internet_tech]
+    role_tags: [ai_agent]
+    rubric:
+      must_cover: [模型能力边界, tool schema, 错误恢复, 安全约束]
+      minimum_bar: 能说明 Agent 何时依赖模型推理、何时应交给工具或确定性代码处理。
+      stretch: 能把工具调用、权限、幂等、观测和评估闭环串成一套工程边界。
+    priority: 28
+    status: active
+    source: manual_yaml
+    scope: global
+    language: zh-CN
+    variants:
+      - id: technical_depth.ai_agent_llm_tool_boundaries.tool_schema
+        version: 1
+        intent: opening
+        difficulty: standard
+        scenario_brief: 一个客服 Agent 需要查询订单、发起退款和生成回复，工具调用失败会影响真实用户。
+        question_stem: 你会如何设计 Agent 的工具 schema、参数校验和失败处理边界？
+        prompt_template: 结合候选人的 Agent 或后端集成经验，生成一道技术深度题，要求说明 LLM 与工具调用的职责边界。
+        scenario_skill_tags: [agent, tool calling, schema, validation]
+        resume_anchor_hints: [agent, tool, function calling, api, llm]
+        failure_categories: [missing_edge_case, missing_action, shallow_debugging]
+        rubric_additions: [说明工具 schema 设计, 说明参数校验和权限边界, 说明失败重试和人工兜底]
+        expected_signals: [能区分模型生成与确定性工具执行, 能提到幂等和权限, 能设计失败恢复路径]
+        anti_patterns: [让模型直接改业务状态, 不校验工具参数, 工具失败后只要求重试]
+        good_answer_hints: [先定义动作风险等级, 再设计 schema 和校验, 最后补观测与兜底]
+        priority: 18
+        status: active
+      - id: technical_depth.ai_agent_llm_tool_boundaries.prompt_injection
+        version: 1
+        intent: deep_probe
+        difficulty: deep_probe
+        scenario_brief: Agent 会读取用户上传文档并调用内部工具，文档里可能包含诱导模型越权的内容。
+        question_stem: 如果 Agent 面临 prompt injection 和工具越权风险，你会如何在技术链路上做隔离和防护？
+        prompt_template: 生成一道 AI Agent 安全边界深挖题，要求候选人说明上下文隔离、工具权限和风险观测。
+        scenario_skill_tags: [agent, prompt injection, tool permission, security]
+        resume_anchor_hints: [agent, security, prompt, tool calling, rag]
+        failure_categories: [missing_edge_case, missing_tradeoff, missing_observability]
+        rubric_additions: [说明不可信上下文隔离, 说明工具权限最小化, 说明风险日志和拦截策略]
+        expected_signals: [能区分指令层级, 能限制敏感工具调用, 能设计审计和人工确认]
+        anti_patterns: [相信所有检索文本, 只靠提示词声明安全, 没有工具权限分级]
+        good_answer_hints: [先标记不可信输入, 再做工具授权, 最后补审计和评估用例]
+        priority: 16
+        status: active
+  - id: technical_depth.ai_fullstack_ai_app_integration
+    version: 1
+    title: AI 全栈应用集成基础
+    dimension: technical_depth
+    job_levels: [mid, senior]
+    skill_tags: [ai fullstack, llm, react, python, api]
+    direction_tags: [internet_tech]
+    role_tags: [ai_fullstack]
+    rubric:
+      must_cover: [模型 API, 前后端状态, 异步任务, 错误处理]
+      minimum_bar: 能说明 AI 应用从前端交互到后端模型调用的关键链路。
+      stretch: 能兼顾流式响应、任务状态、权限、成本和失败重试。
+    priority: 26
+    status: active
+    source: manual_yaml
+    scope: global
+    language: zh-CN
+    variants:
+      - id: technical_depth.ai_fullstack_ai_app_integration.streaming_response
+        version: 1
+        intent: opening
+        difficulty: standard
+        scenario_brief: 一个 AI 写作应用需要把模型输出实时展示给用户，同时支持取消和错误提示。
+        question_stem: 你会如何设计前端到后端的 LLM 流式响应、取消和错误处理链路？
+        prompt_template: 结合候选人的全栈项目经验，生成一道 AI 应用集成题，要求说明前端状态、后端接口和模型调用边界。
+        scenario_skill_tags: [ai fullstack, llm, streaming, react, api]
+        resume_anchor_hints: [llm, streaming, react, api, python]
+        failure_categories: [missing_edge_case, missing_action, vague_metrics]
+        rubric_additions: [说明流式协议选择, 说明取消和超时处理, 说明前端状态一致性]
+        expected_signals: [能提到 SSE 或 WebSocket 取舍, 能处理部分输出和错误, 能避免重复计费或重复任务]
+        anti_patterns: [只等完整结果返回, 没有取消语义, 前端状态不可恢复]
+        good_answer_hints: [先定义交互状态机, 再设计流式接口, 最后补失败和重试]
+        priority: 17
+        status: active
+      - id: technical_depth.ai_fullstack_ai_app_integration.async_job
+        version: 1
+        intent: deep_probe
+        difficulty: deep_probe
+        scenario_brief: AI 报告生成可能运行数分钟，用户可能刷新页面或重复提交。
+        question_stem: 面对长耗时 AI 任务，你会如何设计任务状态、幂等提交和结果回查？
+        prompt_template: 生成一道 AI 全栈异步任务深挖题，要求说明任务模型、幂等、进度展示和失败恢复。
+        scenario_skill_tags: [ai fullstack, async job, idempotency, task status]
+        resume_anchor_hints: [async, queue, llm, task, fullstack]
+        failure_categories: [missing_edge_case, missing_tradeoff, missing_observability]
+        rubric_additions: [说明任务 ID 和状态机, 说明幂等和重复提交, 说明进度和失败回查]
+        expected_signals: [能设计 pending running failed done 状态, 能处理刷新和重复提交, 能记录模型调用和成本]
+        anti_patterns: [请求一直阻塞, 刷新后丢失任务, 重复提交导致多次扣费]
+        good_answer_hints: [先建任务表和幂等键, 再设计状态轮询或推送, 最后补观测和补偿]
+        priority: 15
+        status: active
+  - id: technical_depth.mobile_runtime_lifecycle
+    version: 1
+    title: 移动端运行时与生命周期
+    dimension: technical_depth
+    job_levels: [mid, senior]
+    skill_tags: [mobile, android, ios, flutter, lifecycle]
+    direction_tags: [internet_tech]
+    role_tags: [mobile]
+    rubric:
+      must_cover: [生命周期, UI 渲染, 后台限制, 资源释放]
+      minimum_bar: 能说明移动端页面和应用生命周期对稳定性与性能的影响。
+      stretch: 能结合端侧缓存、网络、权限和系统限制设计可靠方案。
+    priority: 25
+    status: active
+    source: manual_yaml
+    scope: global
+    language: zh-CN
+    variants:
+      - id: technical_depth.mobile_runtime_lifecycle.background_resume
+        version: 1
+        intent: opening
+        difficulty: standard
+        scenario_brief: 移动 App 从后台恢复后页面数据偶发过期，部分请求也会重复触发。
+        question_stem: 你会如何处理移动端从后台恢复时的数据刷新、请求去重和 UI 状态恢复？
+        prompt_template: 结合候选人的移动端项目经验，生成一道生命周期技术深度题，要求说明后台恢复、缓存和请求控制。
+        scenario_skill_tags: [mobile, app lifecycle, cache, request dedupe]
+        resume_anchor_hints: [android, ios, flutter, lifecycle, mobile]
+        failure_categories: [missing_edge_case, missing_action, shallow_debugging]
+        rubric_additions: [说明生命周期事件, 说明缓存新鲜度判断, 说明请求去重和 UI 恢复]
+        expected_signals: [能处理前后台切换, 能避免重复请求, 能区分本地状态和远端状态]
+        anti_patterns: [每次恢复全量刷新, 不处理并发请求, 忽略系统回收]
+        good_answer_hints: [先定义页面状态, 再做缓存策略, 最后处理恢复和重试]
+        priority: 16
+        status: active
+      - id: technical_depth.mobile_runtime_lifecycle.render_jank
+        version: 1
+        intent: deep_probe
+        difficulty: deep_probe
+        scenario_brief: 一个信息流页面滑动卡顿，列表包含图片、视频和复杂组件。
+        question_stem: 你会如何从渲染、数据加载和资源管理角度定位移动端列表卡顿？
+        prompt_template: 生成一道移动端性能深挖题，要求候选人说明渲染链路、列表复用、图片加载和指标观测。
+        scenario_skill_tags: [mobile, rendering, list performance, jank]
+        resume_anchor_hints: [mobile, list, performance, rendering, image]
+        failure_categories: [missing_metrics, shallow_debugging, missing_observability]
+        rubric_additions: [说明帧率和卡顿指标, 说明列表复用和懒加载, 说明图片视频资源控制]
+        expected_signals: [能用 profiler 定位主线程耗时, 能优化列表复用, 能控制图片解码和缓存]
+        anti_patterns: [只减少页面元素, 不看性能指标, 忽略低端设备]
+        good_answer_hints: [先量化卡顿, 再拆渲染和数据加载, 最后做低端机验证]
+        priority: 15
+        status: active
+  - id: technical_depth.ai_algorithm_model_foundation
+    version: 1
+    title: 算法模型基础与工程实现
+    dimension: technical_depth
+    job_levels: [mid, senior]
+    skill_tags: [ai algorithm, model, pytorch, tensorflow, training]
+    direction_tags: [internet_tech]
+    role_tags: [ai_algorithm]
+    rubric:
+      must_cover: [模型目标, 数据特征, 训练验证, 工程约束]
+      minimum_bar: 能说明模型训练和推理链路中的核心技术要素。
+      stretch: 能把算法效果、数据质量、推理性能和线上反馈联动起来。
+    priority: 26
+    status: active
+    source: manual_yaml
+    scope: global
+    language: zh-CN
+    variants:
+      - id: technical_depth.ai_algorithm_model_foundation.recommendation_model
+        version: 1
+        intent: opening
+        difficulty: standard
+        scenario_brief: 推荐模型线上点击率下降，候选人需要解释模型输入、训练和验证链路。
+        question_stem: 你会如何分析一个推荐模型从特征、训练到线上推理的关键技术环节？
+        prompt_template: 结合候选人的算法项目经验，生成一道模型基础题，要求说明数据、特征、训练和推理链路。
+        scenario_skill_tags: [ai algorithm, model, feature, training]
+        resume_anchor_hints: [model, recommendation, feature, pytorch, tensorflow]
+        failure_categories: [vague_metrics, missing_tradeoff, shallow_debugging]
+        rubric_additions: [说明目标和特征, 说明训练验证切分, 说明线上推理和监控]
+        expected_signals: [能解释数据分布和特征质量, 能区分离线和线上指标, 能说明推理延迟约束]
+        anti_patterns: [只说调参, 不讨论数据, 不区分训练和线上]
+        good_answer_hints: [先定义目标指标, 再看数据特征, 最后连接训练验证和线上]
+        priority: 16
+        status: active
+      - id: technical_depth.ai_algorithm_model_foundation.inference_performance
+        version: 1
+        intent: deep_probe
+        difficulty: deep_probe
+        scenario_brief: 模型效果达标但推理延迟过高，影响在线业务体验。
+        question_stem: 如果模型推理延迟过高，你会从模型、服务和硬件资源哪些方向优化？
+        prompt_template: 生成一道算法工程性能深挖题，要求候选人说明模型压缩、批处理、缓存和服务化取舍。
+        scenario_skill_tags: [ai algorithm, inference, latency, model optimization]
+        resume_anchor_hints: [inference, latency, model, gpu, serving]
+        failure_categories: [missing_tradeoff, missing_metrics, missing_edge_case]
+        rubric_additions: [说明延迟指标拆解, 说明模型和服务优化, 说明效果损失和资源成本取舍]
+        expected_signals: [能拆分模型计算和服务开销, 能提到量化蒸馏或缓存, 能评估效果和成本]
+        anti_patterns: [只加机器, 不评估效果损失, 不看 P95 延迟]
+        good_answer_hints: [先量化瓶颈, 再选择模型或服务优化, 最后做效果回归]
+        priority: 15
+        status: active
+  - id: technical_depth.ai_algorithm_evaluation_metrics
+    version: 1
+    title: 算法评估指标与实验设计基础
+    dimension: technical_depth
+    job_levels: [mid, senior]
+    skill_tags: [ai algorithm, evaluation, metric, experiment, dataset]
+    direction_tags: [internet_tech]
+    role_tags: [ai_algorithm]
+    rubric:
+      must_cover: [离线指标, 在线指标, 数据切分, 偏差风险]
+      minimum_bar: 能说明模型评估指标如何服务业务目标和实验判断。
+      stretch: 能识别数据泄漏、样本偏差、指标代理失真和实验显著性问题。
+    priority: 25
+    status: active
+    source: manual_yaml
+    scope: global
+    language: zh-CN
+    variants:
+      - id: technical_depth.ai_algorithm_evaluation_metrics.offline_online_gap
+        version: 1
+        intent: opening
+        difficulty: standard
+        scenario_brief: 模型离线 AUC 提升明显，但灰度后业务转化没有改善。
+        question_stem: 你会如何分析算法模型离线指标提升但线上业务指标不涨的问题？
+        prompt_template: 结合候选人的算法评估经验，生成一道指标和实验设计题，要求说明离线线上差异。
+        scenario_skill_tags: [ai algorithm, evaluation, offline metric, online metric]
+        resume_anchor_hints: [auc, evaluation, experiment, metric, model]
+        failure_categories: [vague_metrics, missing_tradeoff, shallow_debugging]
+        rubric_additions: [说明指标代理关系, 说明样本和分布差异, 说明灰度实验验证]
+        expected_signals: [能识别离线指标不等于业务目标, 能检查数据分布, 能设计线上实验]
+        anti_patterns: [只相信离线分数, 不看业务漏斗, 不排查样本偏差]
+        good_answer_hints: [先对齐业务指标, 再查离线数据和线上流量, 最后做实验归因]
+        priority: 16
+        status: active
+      - id: technical_depth.ai_algorithm_evaluation_metrics.data_leakage
+        version: 1
+        intent: deep_probe
+        difficulty: deep_probe
+        scenario_brief: 新模型离线表现异常好，上线后迅速回落，怀疑存在数据泄漏或验证偏差。
+        question_stem: 如果你怀疑模型评估存在数据泄漏，你会如何验证和修正实验流程？
+        prompt_template: 生成一道算法评估深挖题，要求候选人说明数据泄漏、切分策略和验证集设计。
+        scenario_skill_tags: [ai algorithm, data leakage, validation, dataset]
+        resume_anchor_hints: [dataset, validation, leakage, experiment, model]
+        failure_categories: [missing_edge_case, missing_metrics, shallow_debugging]
+        rubric_additions: [说明泄漏来源, 说明时间或用户维度切分, 说明重新验证和回归]
+        expected_signals: [能检查标签穿越和重复样本, 能设计时间切分, 能重建可信验证集]
+        anti_patterns: [只重新训练, 不查数据链路, 忽略线上反馈]
+        good_answer_hints: [先列泄漏假设, 再审查数据生成, 最后重跑验证和线上对照]
+        priority: 15
+        status: active
+  - id: technical_depth.architect_distributed_risk
+    version: 1
+    title: 架构师分布式风险识别
+    dimension: technical_depth
+    job_levels: [senior, staff]
+    skill_tags: [architect, distributed systems, consistency, scalability, risk]
+    direction_tags: [internet_tech]
+    role_tags: [architect]
+    rubric:
+      must_cover: [一致性, 可用性, 容量, 故障边界]
+      minimum_bar: 能识别复杂分布式方案中的关键技术风险和验证路径。
+      stretch: 能把风险拆成架构约束、组织协作、演进成本和应急预案。
+    priority: 27
+    status: active
+    source: manual_yaml
+    scope: global
+    language: zh-CN
+    variants:
+      - id: technical_depth.architect_distributed_risk.cross_region_consistency
+        version: 1
+        intent: opening
+        difficulty: standard
+        scenario_brief: 核心业务计划做多地域部署，但订单状态、库存和支付回调存在一致性要求。
+        question_stem: 你会如何识别多地域架构中的一致性、可用性和故障恢复风险？
+        prompt_template: 结合候选人的架构经验，生成一道分布式风险识别题，要求说明技术约束和验证路径。
+        scenario_skill_tags: [architect, distributed systems, consistency, availability]
+        resume_anchor_hints: [architecture, distributed, consistency, multi region, risk]
+        failure_categories: [missing_tradeoff, missing_failure_mode, vague_scale]
+        rubric_additions: [说明一致性边界, 说明故障域和恢复目标, 说明验证和演练方法]
+        expected_signals: [能区分强一致和最终一致, 能识别跨地域延迟, 能设计故障演练]
+        anti_patterns: [只说多活, 不定义数据边界, 不考虑故障切换]
+        good_answer_hints: [先划分业务不变量, 再定义故障域, 最后设计验证和演练]
+        priority: 17
+        status: active
+      - id: technical_depth.architect_distributed_risk.hotspot_scalability
+        version: 1
+        intent: deep_probe
+        difficulty: deep_probe
+        scenario_brief: 平台增长后出现热点租户和热点数据，单点优化很难继续支撑。
+        question_stem: 面对热点租户和热点数据，你会如何从架构层识别瓶颈并设计长期治理方案？
+        prompt_template: 生成一道架构师技术深度题，要求候选人说明热点识别、分片、隔离和演进成本。
+        scenario_skill_tags: [architect, scalability, hotspot, sharding]
+        resume_anchor_hints: [architecture, scalability, sharding, hotspot, distributed]
+        failure_categories: [vague_scale, missing_tradeoff, missing_metrics]
+        rubric_additions: [说明热点指标, 说明隔离和分片策略, 说明迁移和兼容成本]
+        expected_signals: [能用指标定位热点, 能比较水平扩展方案, 能考虑迁移风险]
+        anti_patterns: [只加缓存, 不看数据分布, 不设计迁移路径]
+        good_answer_hints: [先量化热点, 再比较隔离方案, 最后规划灰度迁移]
+        priority: 15
+        status: active

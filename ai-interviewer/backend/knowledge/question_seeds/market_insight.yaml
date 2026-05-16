@@ -1,0 +1,52 @@
+dimension: market_insight
+seeds:
+  - id: market_insight.competitor_trend_analysis
+    version: 1
+    title: 市场洞察与竞品趋势判断
+    dimension: market_insight
+    job_levels: [mid, senior]
+    skill_tags: [marketing_brand, market_insight, competitor, trend, research]
+    direction_tags: [business]
+    role_tags: [marketing_brand]
+    rubric:
+      must_cover: [洞察来源, 竞品分析, 用户变化, 策略影响]
+      minimum_bar: 能说明市场判断来自哪些信号，以及如何影响后续策略。
+      stretch: 能处理多源信号冲突，并识别趋势判断中的不确定性。
+    priority: 30
+    status: active
+    source: manual_yaml
+    scope: global
+    language: zh-CN
+    variants:
+      - id: market_insight.competitor_trend_analysis.contrarian_research
+        version: 1
+        intent: opening
+        difficulty: standard
+        scenario_brief: 团队认为年轻用户正在流向短视频平台，但访谈和搜索数据给出的信号并不完全一致。
+        question_stem: 多源市场信号互相冲突时，你会如何形成判断并影响营销策略？
+        prompt_template: 生成一道市场洞察题，要求候选人说明研究方法、信号权重、用户变化和策略落地。
+        scenario_skill_tags: [marketing_brand, market_insight, research, trend]
+        resume_anchor_hints: [market, research, competitor, trend, marketing]
+        failure_categories: [missing_evidence, shallow_analysis, missing_tradeoff]
+        rubric_additions: [说明洞察来源, 说明冲突信号处理, 说明策略影响]
+        expected_signals: [能比较信号质量, 能承认不确定性, 能把洞察转成动作]
+        anti_patterns: [只引用单一报告, 迎合团队预设, 没有策略落地]
+        good_answer_hints: [先分信号来源, 再判断可信度, 最后落到策略选择]
+        priority: 18
+        status: active
+      - id: market_insight.competitor_trend_analysis.competitor_shift
+        version: 1
+        intent: deep_probe
+        difficulty: deep_probe
+        scenario_brief: 竞品突然改变定价和传播主张，抢走了部分高价值用户。
+        question_stem: 竞品策略突变时，你会如何判断影响范围，并决定是否调整自己的市场打法？
+        prompt_template: 生成一道竞品趋势追问，要求候选人说明竞品拆解、用户影响、策略取舍和验证方式。
+        scenario_skill_tags: [marketing_brand, competitor, market_insight, positioning]
+        resume_anchor_hints: [competitor, positioning, market, campaign, user]
+        failure_categories: [shallow_analysis, missing_action, vague_metrics]
+        rubric_additions: [说明竞品变化拆解, 说明影响人群, 说明是否跟进和验证]
+        expected_signals: [能区分价格战和定位变化, 能识别受影响用户, 能避免盲目跟随]
+        anti_patterns: [竞品变就照抄, 只看声量不看转化, 不分析自身定位]
+        good_answer_hints: [先拆竞品动作, 再看用户迁移, 最后决定防守或差异化]
+        priority: 16
+        status: active

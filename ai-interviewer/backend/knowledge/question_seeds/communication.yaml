@@ -1,0 +1,52 @@
+dimension: communication
+seeds:
+  - id: communication.architect_review_alignment
+    version: 1
+    title: 架构师方案表达与跨团队对齐
+    dimension: communication
+    job_levels: [senior, staff]
+    skill_tags: [architect, communication, alignment, review, stakeholder]
+    direction_tags: [internet_tech]
+    role_tags: [architect]
+    rubric:
+      must_cover: [方案表达, 风险沟通, 分歧处理, 决策对齐]
+      minimum_bar: 能清晰表达复杂技术方案，并让不同角色理解影响和取舍。
+      stretch: 能在冲突约束下推动共识、记录决策并维护执行节奏。
+    priority: 24
+    status: active
+    source: manual_yaml
+    scope: global
+    language: zh-CN
+    variants:
+      - id: communication.architect_review_alignment.risk_explanation
+        version: 1
+        intent: opening
+        difficulty: standard
+        scenario_brief: 架构方案涉及稳定性风险和交付延期，业务方担心影响上线窗口。
+        question_stem: 你会如何向业务和研发团队解释架构风险、取舍和推荐方案？
+        prompt_template: 结合候选人的架构沟通经验，生成一道沟通表达题，要求说明表达结构、风险对齐和决策推进。
+        scenario_skill_tags: [architect, communication, risk, alignment]
+        resume_anchor_hints: [architecture, communication, stakeholder, risk, review]
+        failure_categories: [vague_ownership, missing_tradeoff, missing_action]
+        rubric_additions: [说明不同受众关注点, 说明风险和备选方案, 说明决策记录和后续动作]
+        expected_signals: [能用业务语言解释技术风险, 能提供备选方案, 能推动明确决策]
+        anti_patterns: [只讲技术细节, 不说业务影响, 没有结论和后续动作]
+        good_answer_hints: [先对齐目标和受众, 再解释风险取舍, 最后给推荐和行动]
+        priority: 14
+        status: active
+      - id: communication.architect_review_alignment.disagreement_resolution
+        version: 1
+        intent: deep_probe
+        difficulty: deep_probe
+        scenario_brief: 两个团队对架构方案分歧很大，一个重视交付速度，一个重视长期治理。
+        question_stem: 遇到跨团队技术方案分歧时，你会如何推动讨论收敛并形成可执行决策？
+        prompt_template: 生成一道架构师沟通深挖题，要求候选人说明分歧拆解、决策标准和执行跟踪。
+        scenario_skill_tags: [architect, communication, disagreement, decision]
+        resume_anchor_hints: [architecture, alignment, decision, communication, governance]
+        failure_categories: [missing_tradeoff, missing_action, vague_metrics]
+        rubric_additions: [说明分歧背后的目标, 说明决策标准, 说明试点或阶段性方案]
+        expected_signals: [能把立场转成约束和指标, 能组织小范围验证, 能记录决策和责任人]
+        anti_patterns: [靠职位压服, 反复争论不收敛, 没有验证方案]
+        good_answer_hints: [先拆目标和约束, 再定义决策标准, 最后用试点和记录推进]
+        priority: 13
+        status: active
