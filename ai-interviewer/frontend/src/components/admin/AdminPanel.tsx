@@ -45,6 +45,11 @@ import {
   getFallbackRates,
   getInterviewSessionsHistory,
   getQuestionQualityRollUp,
+  getQuestionRerankUsages,
+  getQuestionReviews,
+  getQuestionSeed,
+  getQuestionSeeds,
+  getQuestionUsages,
   getRecentTracesByNode,
   getStrategySignals,
   getStrategyStats,
@@ -52,9 +57,16 @@ import {
   getStrategies,
   getTraceRollUp,
   getVerifierDrift,
+  importQuestionSeeds,
+  runQuestionSeedLint,
   loadAdminToken,
+  archiveQuestionSeed,
+  archiveQuestionVariant,
   archiveStrategy,
+  disableQuestionSeed,
+  disableQuestionVariant,
   disableStrategy,
+  createQuestionReview,
   refreshStrategyStats,
   runStrategyPromotion,
   saveAdminToken,
@@ -66,6 +78,11 @@ import {
   type FallbackRatesResponse,
   type InterviewSessionHistory,
   type InterviewSessionHistoryItem,
+  type QuestionSeedDetail,
+  type QuestionSeeds,
+  type QuestionRerankUsages,
+  type QuestionReviews,
+  type QuestionUsages,
   type QuestionQualityRollupResponse,
   type RecentTracesResponse,
   type Strategies,
@@ -170,6 +187,26 @@ export function AdminPanel() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [tokenSaved],
   );
+  const questionSeedsFetcher = useCallback(
+    (signal?: AbortSignal) => getQuestionSeeds(signal),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [tokenSaved],
+  );
+  const questionUsagesFetcher = useCallback(
+    (signal?: AbortSignal) => getQuestionUsages(signal),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [tokenSaved],
+  );
+  const questionRerankUsagesFetcher = useCallback(
+    (signal?: AbortSignal) => getQuestionRerankUsages(signal),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [tokenSaved],
+  );
+  const questionReviewsFetcher = useCallback(
+    (signal?: AbortSignal) => getQuestionReviews(signal),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [tokenSaved],
+  );
   const strategySignalsFetcher = useCallback(
     (signal?: AbortSignal) => getStrategySignals(signal),
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -223,6 +260,10 @@ export function AdminPanel() {
   const sessions = useAutoFetch(sessionsFetcher, tick);
   const history = useAutoFetch(historyFetcher, tick);
   const strategies = useAutoFetch(strategiesFetcher, tick);
+  const questionSeeds = useAutoFetch(questionSeedsFetcher, tick);
+  const questionUsages = useAutoFetch(questionUsagesFetcher, tick);
+  const questionRerankUsages = useAutoFetch(questionRerankUsagesFetcher, tick);
+  const questionReviews = useAutoFetch(questionReviewsFetcher, tick);
   const strategySignals = useAutoFetch(strategySignalsFetcher, tick);
   const strategyUsages = useAutoFetch(strategyUsagesFetcher, tick);
   const strategyStats = useAutoFetch(strategyStatsFetcher, tick);
@@ -286,6 +327,13 @@ export function AdminPanel() {
 
       <SessionsCard state={sessions} />
       <HistoricalSessionsCard state={history} onRefresh={() => setTick((t) => t + 1)} />
+      <QuestionBankCard
+        state={questionSeeds}
+        usages={questionUsages}
+        rerankUsages={questionRerankUsages}
+        reviews={questionReviews}
+        onRefresh={() => setTick((t) => t + 1)}
+      />
       <StrategiesCard
         state={strategies}
         signals={strategySignals}
@@ -2287,6 +2335,555 @@ function SessionStatusBadge({ session }: { session: AdminSessions["sessions"][nu
 // ---------------------------------------------------------------------------
 // Strategies memory
 // ---------------------------------------------------------------------------
+
+function QuestionBankCard({
+  state,
+  usages,
+  rerankUsages,
+  reviews,
+  onRefresh,
+}: {
+  state: Loadable<QuestionSeeds>;
+  usages: Loadable<QuestionUsages>;
+  rerankUsages: Loadable<QuestionRerankUsages>;
+  reviews: Loadable<QuestionReviews>;
+  onRefresh: () => void;
+}) {
+  const { toast } = useToast();
+  const [selectedSeedId, setSelectedSeedId] = useState<string | null>(null);
+  const [detail, setDetail] = useState<Loadable<QuestionSeedDetail> | null>(null);
+  const [busy, setBusy] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (selectedSeedId || state.phase !== "ready") return;
+    const first = state.data.question_seeds[0];
+    if (first) setSelectedSeedId(first.id);
+  }, [selectedSeedId, state]);
+
+  useEffect(() => {
+    if (!selectedSeedId) {
+      setDetail(null);
+      return;
+    }
+    const ctrl = new AbortController();
+    setDetail({ phase: "loading" });
+    getQuestionSeed(selectedSeedId, ctrl.signal)
+      .then((data) => {
+        if (!ctrl.signal.aborted) setDetail({ phase: "ready", data });
+      })
+      .catch((err) => {
+        if (!ctrl.signal.aborted) {
+          setDetail({
+            phase: "error",
+            message: err instanceof Error ? err.message : String(err),
+          });
+        }
+      });
+    return () => ctrl.abort();
+  }, [selectedSeedId]);
+
+  async function handleImport(archiveMissing: boolean) {
+    if (busy) return;
+    setBusy(archiveMissing ? "import-archive" : "import");
+    try {
+      const result = await importQuestionSeeds(archiveMissing);
+      toast({
+        title: "结构化题库已导入",
+        description: `seeds +${result.imported_seeds}/${result.updated_seeds}, variants +${result.imported_variants}/${result.updated_variants}, archived=${result.archived_seeds + result.archived_variants}`,
+      });
+      onRefresh();
+    } catch (err) {
+      toast({
+        title: "结构化题库导入失败",
+        description: err instanceof Error ? err.message : String(err),
+        variant: "destructive",
+      });
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  async function handleLint(strictQuality: boolean) {
+    if (busy) return;
+    setBusy(strictQuality ? "lint-strict" : "lint");
+    try {
+      const result = await runQuestionSeedLint(strictQuality);
+      toast({
+        title: result.passed ? "题库质量 lint 通过" : "题库质量 lint 有阻断项",
+        description: `warnings=${result.warning_count}, errors=${result.error_count}`,
+        variant: result.passed ? undefined : "destructive",
+      });
+      onRefresh();
+    } catch (err) {
+      toast({
+        title: "题库质量 lint 失败",
+        description: err instanceof Error ? err.message : String(err),
+        variant: "destructive",
+      });
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  async function handleReviewFromRerank(winner: "rule" | "llm" | "tie" | "neither") {
+    if (busy || rerankUsages.phase !== "ready") return;
+    const row = rerankUsages.data.rerank_usages[0];
+    if (!row) return;
+    setBusy(`review:${winner}`);
+    try {
+      await createQuestionReview({
+        question_rerank_usage_id: row.id,
+        session_id: row.session_id,
+        turn_idx: row.turn_idx,
+        trace_id: row.trace_id,
+        rule_variant_id: row.rule_top_variant_id,
+        llm_variant_id: row.llm_top_variant_id,
+        winner,
+        reasons: ["admin_pairwise_review"],
+        notes: "",
+        reviewer: "admin",
+        context_summary: {
+          dimension: row.dimension,
+          probe_intent: row.probe_intent,
+          anchor_choice: row.anchor_choice,
+        },
+      });
+      toast({ title: "pairwise review 已记录" });
+      onRefresh();
+    } catch (err) {
+      toast({
+        title: "pairwise review 记录失败",
+        description: err instanceof Error ? err.message : String(err),
+        variant: "destructive",
+      });
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  async function handleSeedAction(seedId: string, action: "disable" | "archive") {
+    if (busy) return;
+    setBusy(`${action}:${seedId}`);
+    try {
+      const result =
+        action === "disable"
+          ? await disableQuestionSeed(seedId)
+          : await archiveQuestionSeed(seedId);
+      toast({
+        title: "题目种子状态已更新",
+        description: `${result.id} -> ${result.status}`,
+      });
+      onRefresh();
+      setSelectedSeedId(seedId);
+    } catch (err) {
+      toast({
+        title: "题目种子操作失败",
+        description: err instanceof Error ? err.message : String(err),
+        variant: "destructive",
+      });
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  async function handleVariantAction(
+    variantId: string,
+    action: "disable" | "archive",
+  ) {
+    if (busy) return;
+    setBusy(`${action}:${variantId}`);
+    try {
+      const result =
+        action === "disable"
+          ? await disableQuestionVariant(variantId)
+          : await archiveQuestionVariant(variantId);
+      toast({
+        title: "题目变体状态已更新",
+        description: `${result.id} -> ${result.status}`,
+      });
+      onRefresh();
+      if (selectedSeedId) {
+        const refreshed = await getQuestionSeed(selectedSeedId);
+        setDetail({ phase: "ready", data: refreshed });
+      }
+    } catch (err) {
+      toast({
+        title: "题目变体操作失败",
+        description: err instanceof Error ? err.message : String(err),
+        variant: "destructive",
+      });
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  return (
+    <Card>
+      <CardHeader>
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <CardTitle className="flex items-center gap-2 text-base">
+              <ClipboardList className="h-4 w-4 text-sky-400" />
+              结构化题库
+            </CardTitle>
+            <CardDescription className="mt-1">
+              YAML 权威源、结构化 seed/variant 和最近 selector usage。
+            </CardDescription>
+          </div>
+          <div className="flex flex-wrap justify-end gap-2">
+            {state.phase === "ready" && (
+              <Badge variant="outline" className="font-mono text-[10px]">
+                {state.data.count} seeds
+              </Badge>
+            )}
+            {usages.phase === "ready" && (
+              <Badge variant="secondary" className="font-mono text-[10px]">
+                {usages.data.count} usages
+              </Badge>
+            )}
+            {rerankUsages.phase === "ready" && (
+              <Badge variant="outline" className="font-mono text-[10px]">
+                {rerankUsages.data.count} reranks
+              </Badge>
+            )}
+            {reviews.phase === "ready" && (
+              <Badge variant="outline" className="font-mono text-[10px]">
+                {reviews.data.count} reviews
+              </Badge>
+            )}
+          </div>
+        </div>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border bg-secondary/20 p-3">
+          <div>
+            <p className="text-sm font-medium">YAML 导入</p>
+            <p className="text-xs text-muted-foreground">
+              内容编辑仍在 knowledge/question_seeds，面板只触发导入和状态切换。
+            </p>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => handleImport(false)}
+              disabled={busy !== null}
+            >
+              {busy === "import" && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
+              导入 YAML
+            </Button>
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              onClick={() => handleImport(true)}
+              disabled={busy !== null}
+            >
+              {busy === "import-archive" && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
+              归档缺失
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => handleLint(false)}
+              disabled={busy !== null}
+            >
+              {busy === "lint" && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
+              Lint
+            </Button>
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              onClick={() => handleLint(true)}
+              disabled={busy !== null}
+            >
+              {busy === "lint-strict" && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
+              Strict lint
+            </Button>
+          </div>
+        </div>
+
+        {state.phase === "loading" && <LoadingList rows={3} />}
+        {state.phase === "error" && <ErrorBox message={state.message} />}
+        {state.phase === "ready" && state.data.question_seeds.length === 0 && (
+          <p className="text-xs text-muted-foreground">
+            暂无结构化题目种子。先导入 YAML 后再查看 selector usage。
+          </p>
+        )}
+        {state.phase === "ready" && state.data.question_seeds.length > 0 && (
+          <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.2fr)]">
+            <ul className="space-y-2">
+              {state.data.question_seeds.map((seed) => (
+                <li
+                  key={seed.id}
+                  className={cn(
+                    "rounded-lg border bg-card/50 p-3 text-sm",
+                    selectedSeedId === seed.id && "border-primary/50",
+                  )}
+                >
+                  <button
+                    type="button"
+                    className="w-full text-left"
+                    onClick={() => setSelectedSeedId(seed.id)}
+                  >
+                    <div className="flex items-start justify-between gap-2">
+                      <span className="font-medium">{seed.title}</span>
+                      <Badge variant="outline" className="font-mono text-[10px]">
+                        {seed.status}
+                      </Badge>
+                    </div>
+                    <div className="mt-1 font-mono text-[10px] text-muted-foreground">
+                      {seed.id}
+                    </div>
+                    <div className="mt-2 flex flex-wrap gap-1.5">
+                      <Badge variant="secondary" className="font-mono text-[10px]">
+                        {seed.dimension}
+                      </Badge>
+                      {seed.direction_tags.map((tag) => (
+                        <Badge key={tag} variant="outline" className="font-mono text-[10px]">
+                          {tag}
+                        </Badge>
+                      ))}
+                      {seed.role_tags.map((tag) => (
+                        <Badge key={tag} variant="outline" className="font-mono text-[10px]">
+                          {tag}
+                        </Badge>
+                      ))}
+                      <Badge variant="outline" className="font-mono text-[10px]">
+                        {seed.variant_count ?? 0} variants
+                      </Badge>
+                      {seed.job_levels.slice(0, 3).map((level) => (
+                        <Badge key={level} variant="outline" className="font-mono text-[10px]">
+                          {level}
+                        </Badge>
+                      ))}
+                    </div>
+                  </button>
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      onClick={() => handleSeedAction(seed.id, "disable")}
+                      disabled={busy !== null || seed.status !== "active"}
+                    >
+                      禁用
+                    </Button>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="ghost"
+                      onClick={() => handleSeedAction(seed.id, "archive")}
+                      disabled={busy !== null || seed.status === "archived"}
+                    >
+                      归档
+                    </Button>
+                  </div>
+                </li>
+              ))}
+            </ul>
+
+            <div className="rounded-lg border bg-card/40 p-3">
+              {detail?.phase === "loading" && <LoadingList rows={4} />}
+              {detail?.phase === "error" && <ErrorBox message={detail.message} />}
+              {detail?.phase === "ready" && (
+                <div className="space-y-3">
+                  <div>
+                    <p className="text-sm font-medium">{detail.data.seed.title}</p>
+                    <p className="mt-1 font-mono text-[10px] text-muted-foreground">
+                      {detail.data.seed.id}
+                    </p>
+                  </div>
+                  <div className="flex flex-wrap gap-1.5">
+                    {detail.data.seed.direction_tags.map((tag) => (
+                      <Badge key={tag} variant="outline" className="font-mono text-[10px]">
+                        {tag}
+                      </Badge>
+                    ))}
+                    {detail.data.seed.role_tags.map((tag) => (
+                      <Badge key={tag} variant="outline" className="font-mono text-[10px]">
+                        {tag}
+                      </Badge>
+                    ))}
+                    {detail.data.seed.skill_tags.map((tag) => (
+                      <Badge key={tag} variant="secondary" className="font-mono text-[10px]">
+                        {tag}
+                      </Badge>
+                    ))}
+                  </div>
+                  <Separator />
+                  <div className="space-y-2">
+                    {detail.data.variants.map((variant) => (
+                      <div key={variant.id} className="rounded-md border bg-background/40 p-2 text-xs">
+                        <div className="flex flex-wrap items-center justify-between gap-2">
+                          <span className="font-medium">{variant.intent}</span>
+                          <div className="flex flex-wrap gap-1">
+                            <Badge variant="outline" className="font-mono text-[10px]">
+                              {variant.difficulty}
+                            </Badge>
+                            <Badge variant="outline" className="font-mono text-[10px]">
+                              {variant.status}
+                            </Badge>
+                          </div>
+                        </div>
+                        <p className="mt-1 text-muted-foreground">{variant.scenario_brief}</p>
+                        <p className="mt-1 font-mono text-[10px] text-muted-foreground">
+                          {variant.id}
+                        </p>
+                        <div className="mt-2 flex flex-wrap gap-1">
+                          {variant.role_tags.map((tag) => (
+                            <Badge key={tag} variant="secondary" className="font-mono text-[10px]">
+                              {tag}
+                            </Badge>
+                          ))}
+                          {variant.failure_categories.map((cat) => (
+                            <Badge key={cat} variant="outline" className="font-mono text-[10px]">
+                              {cat}
+                            </Badge>
+                          ))}
+                        </div>
+                        <div className="mt-2 flex flex-wrap gap-2">
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="outline"
+                            onClick={() => handleVariantAction(variant.id, "disable")}
+                            disabled={busy !== null || variant.status !== "active"}
+                          >
+                            禁用
+                          </Button>
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => handleVariantAction(variant.id, "archive")}
+                            disabled={busy !== null || variant.status === "archived"}
+                          >
+                            归档
+                          </Button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {usages.phase === "ready" && usages.data.usages.length > 0 && (
+          <div className="space-y-2 border-t border-border/40 pt-3">
+            <p className="text-xs font-medium text-muted-foreground">最近 question usage</p>
+            <ul className="space-y-1.5">
+              {usages.data.usages.slice(0, 5).map((usage) => (
+                <li key={usage.id} className="rounded-md border bg-card/30 p-2 text-[11px]">
+                  <div className="flex flex-wrap items-center gap-1.5">
+                    <Badge variant={usage.injected ? "success" : "outline"} className="font-mono text-[10px]">
+                      rank {usage.rank}
+                    </Badge>
+                    <Badge variant="secondary" className="font-mono text-[10px]">
+                      {usage.question_selector_mode}
+                    </Badge>
+                    <span className="font-mono text-muted-foreground">
+                      {usage.variant_id}
+                    </span>
+                    {(usage.role_tags ?? []).map((tag) => (
+                      <Badge key={tag} variant="outline" className="font-mono text-[10px]">
+                        {tag}
+                      </Badge>
+                    ))}
+                  </div>
+                  <div className="mt-1 flex flex-wrap gap-3 text-muted-foreground">
+                    <span>score {formatMaybeNumber(usage.match_score)}</span>
+                    <span>eval {formatMaybeNumber(usage.score)}</span>
+                    <span>reward {formatMaybeNumber(usage.immediate_reward)}</span>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+
+        {rerankUsages.phase === "ready" && rerankUsages.data.rerank_usages.length > 0 && (
+          <div className="space-y-2 border-t border-border/40 pt-3">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <p className="text-xs font-medium text-muted-foreground">
+                shadow reranker pairwise review
+              </p>
+              <div className="flex flex-wrap gap-1.5">
+                {(["rule", "llm", "tie", "neither"] as const).map((winner) => (
+                  <Button
+                    key={winner}
+                    type="button"
+                    size="sm"
+                    variant={winner === "llm" ? "outline" : "ghost"}
+                    onClick={() => handleReviewFromRerank(winner)}
+                    disabled={busy !== null}
+                  >
+                    {winner}
+                  </Button>
+                ))}
+              </div>
+            </div>
+            <ul className="space-y-1.5">
+              {rerankUsages.data.rerank_usages.slice(0, 3).map((row) => (
+                <li key={row.id} className="rounded-md border bg-card/30 p-2 text-[11px]">
+                  <div className="flex flex-wrap gap-1.5">
+                    <Badge variant={row.status === "ok" ? "success" : "warn"} className="font-mono text-[10px]">
+                      {row.status}
+                    </Badge>
+                    <Badge variant="secondary" className="font-mono text-[10px]">
+                      conf {formatMaybeNumber(row.confidence)}
+                    </Badge>
+                    <span className="font-mono text-muted-foreground">
+                      rule {row.rule_top_variant_id ?? "-"}
+                    </span>
+                    <span className="font-mono text-muted-foreground">
+                      llm {row.llm_top_variant_id ?? "-"}
+                    </span>
+                  </div>
+                  {row.anchor_choice && (
+                    <p className="mt-1 text-muted-foreground">anchor {row.anchor_choice}</p>
+                  )}
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+
+        {reviews.phase === "ready" && reviews.data.reviews.length > 0 && (
+          <div className="space-y-2 border-t border-border/40 pt-3">
+            <p className="text-xs font-medium text-muted-foreground">
+              recent question reviews
+            </p>
+            <ul className="space-y-1.5">
+              {reviews.data.reviews.slice(0, 3).map((review) => (
+                <li key={review.id} className="rounded-md border bg-card/30 p-2 text-[11px]">
+                  <div className="flex flex-wrap gap-1.5">
+                    <Badge variant="outline" className="font-mono text-[10px]">
+                      {review.winner}
+                    </Badge>
+                    <span className="font-mono text-muted-foreground">
+                      {review.rule_variant_id ?? "-"} vs {review.llm_variant_id ?? "-"}
+                    </span>
+                  </div>
+                  {review.reasons.length > 0 && (
+                    <p className="mt-1 text-muted-foreground">
+                      {review.reasons.slice(0, 2).join(", ")}
+                    </p>
+                  )}
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
 
 const StrategiesCard = React.memo(function StrategiesCard({
   state,

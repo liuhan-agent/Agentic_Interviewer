@@ -536,6 +536,24 @@ class Settings(BaseSettings):
         "reward",
     ] = "reward_shadow"
 
+    # Structured question-bank rollout mode.
+    # - vector: current vector/hybrid RAG question generation only.
+    # - structured_shadow: select YAML question seeds and record artifacts/usages
+    #   without changing the Generator prompt.
+    # - structured_primary: inject rank-1 seed when available and keep vector RAG
+    #   as a shadow/fallback artifact.
+    question_selector_mode: Literal[
+        "vector",
+        "structured_shadow",
+        "structured_primary",
+    ] = "structured_shadow"
+    enable_question_fit_profile: bool = True
+    enable_question_reranker_shadow: bool = False
+    question_reranker_timeout_ms: int = 4000
+    question_primary_role_tags: list[str] = Field(
+        default_factory=lambda: ["java_backend"],
+    )
+
     # ------------------------------------------------------------------
     # Skill injection (see docs/PLAN_SKILL_INJECTION.md).  When ON,
     # ``ask_question_node`` reads ``app.memory.skill_store`` for cards

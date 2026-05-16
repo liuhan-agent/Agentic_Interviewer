@@ -16,6 +16,7 @@ dependencies = [
     "pydantic>=2.9",
     "pydantic-settings>=2.6",
     "python-dotenv>=1.0",
+    "pyyaml>=6.0",
     "langgraph>=1.0,<2",
     "langgraph-checkpoint-postgres>=2.0",
     "langchain>=1.0,<2",
@@ -68,6 +69,7 @@ voice = [
 [project.scripts]
 interviewer-demo = "app.scripts.run_demo:main"
 interviewer-seed = "app.scripts.seed_kb:main"
+interviewer-import-question-seeds = "app.scripts.import_question_seeds:main"
 
 [tool.hatch.build.targets.wheel]
 packages = ["app"]

@@ -1,0 +1,52 @@
+dimension: campaign_execution
+seeds:
+  - id: campaign_execution.campaign_launch_review
+    version: 1
+    title: 活动执行与上线复盘
+    dimension: campaign_execution
+    job_levels: [mid, senior]
+    skill_tags: [operations, campaign, campaign_execution, launch, review]
+    direction_tags: [business]
+    role_tags: [operations]
+    rubric:
+      must_cover: [活动目标, 执行节点, 风险预案, 复盘归因]
+      minimum_bar: 能还原一次活动从立项到复盘的关键节点和个人动作。
+      stretch: 能识别执行风险暴露点，并把经验沉淀到下一次活动机制里。
+    priority: 28
+    status: active
+    source: manual_yaml
+    scope: global
+    language: zh-CN
+    variants:
+      - id: campaign_execution.campaign_launch_review.launch_timeline
+        version: 1
+        intent: opening
+        difficulty: standard
+        scenario_brief: 一个大促活动涉及商品、设计、客服、技术和渠道，只有三周准备时间。
+        question_stem: 你会如何拆活动执行计划，确保关键节点、负责人和风险都可控？
+        prompt_template: 生成一道活动执行题，要求候选人说明目标拆解、时间排期、协作机制和风险预案。
+        scenario_skill_tags: [operations, campaign_execution, launch, project_management]
+        resume_anchor_hints: [campaign, launch, operations, timeline, coordination]
+        failure_categories: [unclear_owner, missing_risk, weak_stakeholder_alignment]
+        rubric_additions: [说明时间节点和责任人, 说明关键风险和预案, 说明复盘指标]
+        expected_signals: [能拆里程碑, 能识别依赖和缓冲, 能设计 check-in 机制]
+        anti_patterns: [只列待办清单, 没有负责人, 风险到上线才暴露]
+        good_answer_hints: [先拆目标和节点, 再明确责任, 最后设置风险预案]
+        priority: 17
+        status: active
+      - id: campaign_execution.campaign_launch_review.incident_response
+        version: 1
+        intent: deep_probe
+        difficulty: deep_probe
+        scenario_brief: 活动上线当天优惠券配置错误，用户投诉增加，GMV 和品牌体验都受到影响。
+        question_stem: 活动执行中突发事故时，你会如何止损、沟通和复盘沉淀？
+        prompt_template: 生成一道活动事故追问，要求候选人说明现场止损、用户沟通、跨团队协作和机制复盘。
+        scenario_skill_tags: [operations, incident_response, campaign_execution, review]
+        resume_anchor_hints: [campaign, incident, customer_complaint, operations, review]
+        failure_categories: [missing_action, missing_risk, weak_communication]
+        rubric_additions: [说明止损优先级, 说明对用户和内部沟通, 说明复盘机制]
+        expected_signals: [能先保护用户和业务, 能同步关键方, 能把事故转成 SOP 改进]
+        anti_patterns: [先追责不止损, 隐瞒影响, 复盘没有行动]
+        good_answer_hints: [先止损, 再沟通补偿, 最后复盘改流程]
+        priority: 16
+        status: active

@@ -1,0 +1,52 @@
+dimension: pipeline_management
+seeds:
+  - id: pipeline_management.sales_forecast_risk
+    version: 1
+    title: 销售漏斗健康度与预测风险
+    dimension: pipeline_management
+    job_levels: [mid, senior]
+    skill_tags: [sales_business, pipeline, crm, forecast, sales_management]
+    direction_tags: [business]
+    role_tags: [sales_business]
+    rubric:
+      must_cover: [阶段分布, 停留时间, 预测依据, 清理标准]
+      minimum_bar: 能用 CRM 和阶段信号判断漏斗是否健康。
+      stretch: 能复盘预测偏差，建立更可靠的商机推进和清理机制。
+    priority: 27
+    status: active
+    source: manual_yaml
+    scope: global
+    language: zh-CN
+    variants:
+      - id: pipeline_management.sales_forecast_risk.stalled_big_deal
+        version: 1
+        intent: opening
+        difficulty: standard
+        scenario_brief: 一个大单停留在方案阶段超过两个月，金额很大但客户内部推进信号变弱。
+        question_stem: 你会如何判断这个大单是否仍然健康，并决定继续投入还是降级处理？
+        prompt_template: 生成一道销售漏斗管理题，要求候选人说明阶段信号、停留时间、客户动作和资源取舍。
+        scenario_skill_tags: [sales_business, pipeline, forecast, stalled_deal]
+        resume_anchor_hints: [pipeline, crm, sales, forecast, customer]
+        failure_categories: [weak_prioritization, vague_customer, missing_evidence]
+        rubric_additions: [说明阶段健康信号, 说明客户真实动作, 说明资源取舍]
+        expected_signals: [能看客户侧推进证据, 能判断停留风险, 能设置下一步验证]
+        anti_patterns: [金额大就一直投入, CRM 阶段不更新, 不敢清理漏斗]
+        good_answer_hints: [先看阶段信号, 再验证关键人动作, 最后决定投入强度]
+        priority: 16
+        status: active
+      - id: pipeline_management.sales_forecast_risk.crm_hygiene
+        version: 1
+        intent: deep_probe
+        difficulty: deep_probe
+        scenario_brief: 团队预测连续两个季度偏差很大，CRM 里很多商机缺少下一步动作和真实概率。
+        question_stem: 销售预测不准时，你会如何改进 CRM 纪律和预测机制？
+        prompt_template: 生成一道销售预测追问，要求候选人说明数据纪律、阶段定义、预测偏差复盘和团队机制。
+        scenario_skill_tags: [sales_business, crm, pipeline, forecast_accuracy]
+        resume_anchor_hints: [crm, forecast, sales, pipeline, review]
+        failure_categories: [vague_metrics, missing_process, missing_action]
+        rubric_additions: [说明 CRM 字段和阶段标准, 说明预测偏差复盘, 说明机制改进]
+        expected_signals: [能把 CRM 看成管理资产, 能校准阶段概率, 能建立复盘节奏]
+        anti_patterns: [只责怪销售填得差, 不定义阶段, 不复盘预测偏差]
+        good_answer_hints: [先定义数据标准, 再校准阶段概率, 最后固定预测复盘]
+        priority: 15
+        status: active

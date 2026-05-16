@@ -799,6 +799,15 @@ def _current_formal_turn_idx(
     return _turn_idx_or_none(fallback_turn_idx)
 
 
+def _public_current_question(current_question: Any) -> Any:
+    if not isinstance(current_question, dict):
+        return current_question
+    public = dict(current_question)
+    public.pop("selection_artifacts", None)
+    public.pop("strategy_memory_refs", None)
+    return public
+
+
 def _checkpoint_values_for_resume(manager: Any, session_id: str) -> dict[str, Any]:
     checkpoint_waiting = getattr(manager, "_checkpoint_waiting_question", None)
     if not callable(checkpoint_waiting):
@@ -1835,7 +1844,7 @@ def resume_session(
         "status": "waiting_for_answer" if current_question else "running",
         **time_payload,
         "turn_idx": turn_idx,
-        "question": current_question,
+        "question": _public_current_question(current_question),
         "max_turns": max_turns,
         "enable_video_analysis": enable_video_analysis,
         "previous_turn_evaluation": previous_turn_evaluation,

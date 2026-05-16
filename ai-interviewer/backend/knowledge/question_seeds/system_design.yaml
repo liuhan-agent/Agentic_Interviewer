@@ -1,0 +1,657 @@
+dimension: system_design
+seeds:
+  - id: system_design.cache_consistency
+    version: 1
+    title: 缓存一致性与失效策略
+    dimension: system_design
+    job_levels: [mid, senior, staff]
+    skill_tags: [cache, redis, consistency, high traffic]
+    direction_tags: [internet_tech]
+    role_tags: [java_backend]
+    rubric:
+      must_cover: [一致性目标, 失效策略, 写路径取舍, 降级补偿]
+      minimum_bar: 能说明强一致和最终一致的边界，并给出可落地的缓存失效方案。
+      stretch: 能量化热点、穿透、雪崩风险，并设计观测与回滚。
+    priority: 30
+    status: active
+    source: manual_yaml
+    scope: global
+    language: zh-CN
+    variants:
+      - id: system_design.cache_consistency.flash_sale_inventory
+        version: 1
+        intent: opening
+        difficulty: standard
+        scenario_brief: 秒杀库存读多写少，缓存、数据库和异步扣减链路可能短暂不一致。
+        question_stem: 请设计一个秒杀库存服务的缓存一致性方案。
+        prompt_template: 基于候选人的缓存或 Redis 经历，生成一道系统设计题，要求候选人说明读写路径、一致性边界和异常补偿。
+        scenario_skill_tags: [redis, inventory service, cache invalidation]
+        resume_anchor_hints: [redis, cache, 高并发, 秒杀]
+        failure_categories: [missing_tradeoff, missing_metrics, shallow_failure_mode]
+        rubric_additions: [说明缓存失效窗口, 说明超卖与少卖处理, 给出监控指标]
+        expected_signals: [能区分强一致和最终一致, 能讨论写穿/旁路/延迟双删等取舍, 能提出降级补偿]
+        anti_patterns: [只说加锁不讨论吞吐, 只说用 Redis 不说明失效, 忽略异常重试和幂等]
+        good_answer_hints: [先定义一致性目标, 再拆读写路径, 最后补充失败恢复和观测]
+        priority: 20
+        status: active
+      - id: system_design.cache_consistency.redis_failover_repair
+        version: 1
+        intent: deep_probe
+        difficulty: deep_probe
+        scenario_brief: Redis 主从切换后出现短时间旧库存读，业务需要判断是否允许下单以及如何修复。
+        question_stem: 如果 Redis 故障切换导致库存缓存短暂读旧，你会怎样设计检测、阻断、修复和对账流程？
+        prompt_template: 结合候选人的 Redis 或高并发项目经验，生成一道追问缓存故障切换后一致性修复的系统设计题。
+        scenario_skill_tags: [redis, failover, reconciliation]
+        resume_anchor_hints: [redis, cache, failover, inventory]
+        failure_categories: [missing_failure_mode, missing_observability, missing_metrics]
+        rubric_additions: [说明故障检测信号, 说明阻断或降级策略, 说明异步对账和修复闭环]
+        expected_signals: [能区分读旧窗口和资金库存不变量, 能提出监控告警和对账任务, 能说明人工兜底边界]
+        anti_patterns: [只说重试, 只清缓存不解释对账, 没有业务阻断策略]
+        good_answer_hints: [先定义不可破坏的不变量, 再设计检测阻断修复三段流程]
+        priority: 16
+        status: active
+
+  - id: system_design.capacity_planning
+    version: 1
+    title: 容量规划与削峰
+    dimension: system_design
+    job_levels: [mid, senior, staff]
+    skill_tags: [capacity planning, queue, rate limiting, scalability]
+    direction_tags: [internet_tech]
+    role_tags: [java_backend]
+    rubric:
+      must_cover: [流量估算, 瓶颈定位, 削峰限流, 扩容策略]
+      minimum_bar: 能基于业务假设推导核心容量，并说明至少一种保护系统的手段。
+      stretch: 能把容量、成本、可用性和用户体验放在同一套权衡里。
+    priority: 26
+    status: active
+    source: manual_yaml
+    scope: global
+    language: zh-CN
+    variants:
+      - id: system_design.capacity_planning.live_event_ticketing
+        version: 1
+        intent: opening
+        difficulty: standard
+        scenario_brief: 演唱会开票瞬时流量暴涨，读写峰值相差数十倍。
+        question_stem: 请设计开票系统的容量规划、限流和削峰方案。
+        prompt_template: 生成一道围绕容量估算和流量保护的系统设计题，追问候选人的量化推理。
+        scenario_skill_tags: [rate limiting, queue, autoscaling]
+        resume_anchor_hints: [高并发, 限流, 消息队列, autoscaling]
+        failure_categories: [missing_metrics, vague_scale, missing_tradeoff]
+        rubric_additions: [要求候选人先给流量假设, 要求解释排队和拒绝策略, 要求说明扩容触发条件]
+        expected_signals: [能做数量级估算, 能设计限流排队和熔断, 能讨论热点资源保护]
+        anti_patterns: [直接堆机器, 没有容量公式, 忽略用户等待体验]
+        good_answer_hints: [用峰值 QPS 和库存写入比例展开, 说明保护核心库存链路]
+        priority: 18
+        status: active
+      - id: system_design.capacity_planning.queue_backpressure
+        version: 1
+        intent: deep_probe
+        difficulty: deep_probe
+        scenario_brief: 活动峰值超过预估三倍，入口限流后仍有大量请求堆积在队列和库存写入链路。
+        question_stem: 当活动流量超过预估且队列开始堆积时，你会如何设计背压、削峰、扩容和用户体验降级？
+        prompt_template: 围绕候选人的高并发或队列经验，生成一道容量规划深挖题，要求量化瓶颈、背压策略和降级边界。
+        scenario_skill_tags: [queue, backpressure, rate limiting, autoscaling]
+        resume_anchor_hints: [queue, rate limiting, high traffic, autoscaling]
+        failure_categories: [vague_scale, missing_tradeoff, missing_metrics]
+        rubric_additions: [说明队列水位和处理速率, 说明入口与下游背压关系, 说明扩容和降级触发条件]
+        expected_signals: [能用吞吐差估算堆积, 能区分保护库存和保护体验, 能提出可观测指标]
+        anti_patterns: [只说加机器, 没有拒绝策略, 不估算队列耗尽时间]
+        good_answer_hints: [先估算峰值与消费能力差, 再设计限流排队降级和扩容]
+        priority: 14
+        status: active
+
+  - id: system_design.failure_isolation
+    version: 1
+    title: 故障隔离与降级恢复
+    dimension: system_design
+    job_levels: [mid, senior, staff]
+    skill_tags: [resilience, circuit breaker, fallback, fault isolation]
+    direction_tags: [internet_tech]
+    role_tags: [java_backend]
+    rubric:
+      must_cover: [依赖识别, 隔离边界, 降级策略, 恢复验证]
+      minimum_bar: 能识别关键依赖故障并给出隔离和降级方案。
+      stretch: 能设计灰度恢复、错误预算和跨团队预案。
+    priority: 24
+    status: active
+    source: manual_yaml
+    scope: global
+    language: zh-CN
+    variants:
+      - id: system_design.failure_isolation.recommendation_dependency
+        version: 1
+        intent: deep_probe
+        difficulty: deep_probe
+        scenario_brief: 主站首页依赖推荐服务，推荐服务延迟抖动会拖垮首页。
+        question_stem: 请设计首页对推荐服务的隔离、降级和恢复方案。
+        prompt_template: 生成一道故障隔离深挖题，要求候选人处理慢依赖、降级内容和恢复流程。
+        scenario_skill_tags: [circuit breaker, timeout, fallback, bulkhead]
+        resume_anchor_hints: [降级, 熔断, 稳定性, SLA, SLO]
+        failure_categories: [shallow_failure_mode, missing_observability, missing_tradeoff]
+        rubric_additions: [说明超时预算, 说明默认内容或缓存兜底, 说明恢复观察窗口]
+        expected_signals: [能把超时重试和熔断联系起来, 能隔离资源池, 能设计恢复验证]
+        anti_patterns: [无限重试, 全量关闭核心功能, 没有回切策略]
+        good_answer_hints: [先标出依赖链路, 再给隔离策略, 最后说明降级体验和恢复门槛]
+        priority: 16
+        status: active
+      - id: system_design.failure_isolation.payment_dependency
+        version: 1
+        intent: followup
+        difficulty: standard
+        scenario_brief: 下单链路依赖支付风控服务，风控偶发超时会放大为下单失败和用户投诉。
+        question_stem: 如果支付风控服务不稳定，你会如何划分同步依赖、超时预算、降级策略和恢复验证？
+        prompt_template: 结合候选人的核心链路稳定性经验，生成一道故障隔离追问题，要求说明同步边界和降级可接受性。
+        scenario_skill_tags: [timeout, fallback, circuit breaker, dependency isolation]
+        resume_anchor_hints: [payment, timeout, fallback, circuit breaker]
+        failure_categories: [shallow_failure_mode, missing_tradeoff, missing_observability]
+        rubric_additions: [说明哪些请求必须阻断, 说明超时和熔断阈值, 说明恢复后的补偿或审计]
+        expected_signals: [能区分安全风控和体验降级, 能给出超时预算, 能说明回切观察窗口]
+        anti_patterns: [无条件放行, 无限重试, 没有恢复验证]
+        good_answer_hints: [先按业务风险分级, 再设计隔离降级和恢复验证]
+        priority: 13
+        status: active
+
+  - id: system_design.data_modeling_tradeoffs
+    version: 1
+    title: 数据建模与一致性权衡
+    dimension: system_design
+    job_levels: [mid, senior, staff]
+    skill_tags: [data modeling, consistency, database, event sourcing]
+    direction_tags: [internet_tech]
+    role_tags: [java_backend]
+    rubric:
+      must_cover: [核心实体, 查询模式, 一致性边界, 演进成本]
+      minimum_bar: 能从业务查询和写入约束推导数据模型。
+      stretch: 能说明读模型、事件流、索引和迁移策略之间的权衡。
+    priority: 22
+    status: active
+    source: manual_yaml
+    scope: global
+    language: zh-CN
+    variants:
+      - id: system_design.data_modeling_tradeoffs.order_lifecycle
+        version: 1
+        intent: followup
+        difficulty: standard
+        scenario_brief: 订单会经历创建、支付、履约、退款等状态，多个服务都要读写相关状态。
+        question_stem: 请设计订单生命周期的数据模型和状态一致性方案。
+        prompt_template: 生成一道数据建模追问题，要求候选人解释实体、状态流转和跨服务一致性。
+        scenario_skill_tags: [database, state machine, consistency]
+        resume_anchor_hints: [订单, 支付, 数据库, 状态机]
+        failure_categories: [missing_domain_model, missing_tradeoff, missing_edge_case]
+        rubric_additions: [说明状态机边界, 说明查询索引, 说明并发状态变更处理]
+        expected_signals: [能画出核心实体, 能讨论事务边界, 能处理补偿和幂等]
+        anti_patterns: [只有一张大表, 状态随意更新, 忽略历史审计]
+        good_answer_hints: [从核心查询和写入动作开始, 逐步扩展状态和事件]
+        priority: 14
+        status: active
+      - id: system_design.data_modeling_tradeoffs.audit_projection
+        version: 1
+        intent: deep_probe
+        difficulty: deep_probe
+        scenario_brief: 订单状态需要支持客服查询、财务审计和用户实时展示，三类读取对一致性和历史记录要求不同。
+        question_stem: 面对实时展示、客服查询和财务审计三种读模型，你会如何设计订单数据模型和一致性边界？
+        prompt_template: 生成一道数据建模深挖题，要求候选人比较单表、读模型投影、事件日志和审计表的取舍。
+        scenario_skill_tags: [data modeling, event sourcing, read model, audit]
+        resume_anchor_hints: [order, database, audit, event]
+        failure_categories: [missing_domain_model, missing_tradeoff, missing_edge_case]
+        rubric_additions: [说明不同读模型的字段和时效, 说明事件或审计日志作用, 说明迁移和回放成本]
+        expected_signals: [能按查询场景拆模型, 能说明强一致和最终一致边界, 能考虑历史审计不可变性]
+        anti_patterns: [所有需求塞进一张表, 不保留历史, 不讨论迁移成本]
+        good_answer_hints: [先列读写场景, 再决定主模型投影和审计日志]
+        priority: 12
+        status: active
+  - id: system_design.observability_slo
+    version: 1
+    title: 可观测性与 SLO 设计
+    dimension: system_design
+    job_levels: [mid, senior, staff]
+    skill_tags: [observability, slo, monitoring, alerting]
+    direction_tags: [internet_tech]
+    role_tags: [java_backend]
+    rubric:
+      must_cover: [关键指标, 日志追踪, 告警阈值, 复盘改进]
+      minimum_bar: 能针对核心用户路径定义指标并设计告警。
+      stretch: 能把 SLO、错误预算、容量和发布策略关联起来。
+    priority: 20
+    status: active
+    source: manual_yaml
+    scope: global
+    language: zh-CN
+    variants:
+      - id: system_design.observability_slo.checkout_latency
+        version: 1
+        intent: recovery
+        difficulty: standard
+        scenario_brief: 结算链路偶发高延迟，用户投诉但服务日志没有明显错误。
+        question_stem: 请设计结算链路的可观测性和 SLO 方案。
+        prompt_template: 生成一道恢复型系统设计题，要求候选人补齐指标、链路追踪和告警策略。
+        scenario_skill_tags: [tracing, metrics, alerting, slo]
+        resume_anchor_hints: [监控, tracing, 链路追踪, SLO]
+        failure_categories: [missing_observability, vague_metrics, shallow_debugging]
+        rubric_additions: [说明黄金指标, 说明 trace 采样, 说明告警降噪]
+        expected_signals: [能定义端到端延迟指标, 能用 trace 定位瓶颈, 能说明告警和复盘机制]
+        anti_patterns: [只看 CPU, 告警过多没有分级, 不关注用户路径]
+        good_answer_hints: [围绕用户路径定义 SLIs, 再补日志指标追踪三件套]
+        priority: 12
+        status: active
+      - id: system_design.observability_slo.error_budget_release
+        version: 1
+        intent: followup
+        difficulty: standard
+        scenario_brief: 结算链路近期错误预算消耗过快，但产品仍希望继续发布促销相关改动。
+        question_stem: 如果核心链路错误预算已经被快速消耗，你会如何用 SLO 决定是否继续发布、限流或回滚？
+        prompt_template: 结合候选人的监控或发布治理经验，生成一道 SLO 与发布决策追问题。
+        scenario_skill_tags: [slo, error budget, release governance, alerting]
+        resume_anchor_hints: [slo, monitoring, release, rollback]
+        failure_categories: [vague_metrics, missing_action, missing_tradeoff]
+        rubric_additions: [说明 SLI 和错误预算计算, 说明发布闸门, 说明告警和复盘动作]
+        expected_signals: [能把用户路径指标和发布决策关联, 能定义暂停或回滚阈值, 能说明后续治理]
+        anti_patterns: [只看单机指标, 错误预算耗尽仍继续发布, 没有责任归因和复盘]
+        good_answer_hints: [先定义 SLO 和错误预算, 再给发布闸门和恢复动作]
+        priority: 11
+        status: active
+
+  - id: system_design.frontend_rendering_resilience
+    version: 1
+    title: 前端页面架构与渲染韧性
+    dimension: system_design
+    job_levels: [mid, senior, staff]
+    skill_tags: [frontend, react, rendering, performance, resilience]
+    direction_tags: [internet_tech]
+    role_tags: [frontend_web]
+    rubric:
+      must_cover: [页面拆分, 数据流, 性能预算, 降级兜底]
+      minimum_bar: 能说明复杂前端页面从数据获取到渲染交互的关键设计取舍。
+      stretch: 能把首屏性能、错误边界、灰度发布和可观测性连成闭环。
+    priority: 24
+    status: active
+    source: manual_yaml
+    scope: global
+    language: zh-CN
+    variants:
+      - id: system_design.frontend_rendering_resilience.dashboard
+        version: 1
+        intent: opening
+        difficulty: standard
+        scenario_brief: 运营数据看板同时包含实时指标、筛选器、图表和权限控制，首屏变慢且错误会影响整页可用。
+        question_stem: 请设计一个复杂运营看板的前端页面架构，说明数据流、渲染性能和错误兜底方案。
+        prompt_template: 结合候选人的前端项目经验，生成一道复杂页面架构题，要求说明组件拆分、数据获取、性能预算和降级策略。
+        scenario_skill_tags: [react, dashboard, data fetching, error boundary]
+        resume_anchor_hints: [react, vue, dashboard, performance, frontend]
+        failure_categories: [missing_tradeoff, vague_metrics, shallow_failure_mode]
+        rubric_additions: [说明首屏和交互指标, 说明错误边界与局部降级, 说明缓存与请求编排]
+        expected_signals: [能区分页面状态和服务端状态, 能提出分层组件和数据流方案, 能给出性能观测指标]
+        anti_patterns: [只说组件化, 不讨论数据加载失败, 不量化性能目标]
+        good_answer_hints: [先定义页面关键路径, 再拆数据流和渲染边界, 最后补充观测和降级]
+        priority: 16
+        status: active
+      - id: system_design.frontend_rendering_resilience.checkout
+        version: 1
+        intent: deep_probe
+        difficulty: deep_probe
+        scenario_brief: 下单页依赖库存、优惠、地址和支付组件，任一接口慢或失败都会影响转化。
+        question_stem: 如果下单页存在多个关键依赖，你会如何设计前端容错、并发请求、加载状态和性能监控？
+        prompt_template: 生成一道前端韧性深挖题，要求候选人说明关键依赖拆分、失败兜底、并发请求和体验指标。
+        scenario_skill_tags: [frontend resilience, checkout, concurrency, monitoring]
+        resume_anchor_hints: [checkout, order, frontend, performance, monitoring]
+        failure_categories: [missing_failure_mode, missing_observability, missing_tradeoff]
+        rubric_additions: [说明关键依赖优先级, 说明部分失败时的体验策略, 说明前端监控和回滚信号]
+        expected_signals: [能划分阻断与非阻断依赖, 能处理重复提交和加载状态, 能定义前端可用性指标]
+        anti_patterns: [所有接口串行等待, 失败只弹通用错误, 没有埋点和回滚依据]
+        good_answer_hints: [先划分购买链路不可破坏的动作, 再设计并发和兜底, 最后给观测指标]
+        priority: 14
+        status: active
+
+  - id: system_design.sre_service_reliability
+    version: 1
+    title: SRE 服务可靠性体系设计
+    dimension: system_design
+    job_levels: [mid, senior, staff]
+    skill_tags: [sre, reliability, slo, observability, incident]
+    direction_tags: [internet_tech]
+    role_tags: [sre]
+    rubric:
+      must_cover: [SLO, 监控告警, 容量风险, 故障响应]
+      minimum_bar: 能围绕核心服务定义可靠性目标、观测信号和故障处理路径。
+      stretch: 能把发布、容量、值班、演练和复盘机制纳入同一套可靠性治理。
+    priority: 24
+    status: active
+    source: manual_yaml
+    scope: global
+    language: zh-CN
+    variants:
+      - id: system_design.sre_service_reliability.checkout_slo
+        version: 1
+        intent: opening
+        difficulty: standard
+        scenario_brief: 核心交易服务偶发超时，业务希望建立 SLO、告警和故障响应机制。
+        question_stem: 请为核心交易服务设计一套 SLO、监控告警和故障响应方案。
+        prompt_template: 结合候选人的稳定性或运维经验，生成一道 SRE 可靠性体系设计题，要求说明 SLI/SLO、告警分级和响应流程。
+        scenario_skill_tags: [slo, alerting, incident response, observability]
+        resume_anchor_hints: [sre, monitoring, alerting, slo, incident]
+        failure_categories: [vague_metrics, missing_action, missing_observability]
+        rubric_additions: [说明用户视角 SLI, 说明告警分级和降噪, 说明应急响应和复盘]
+        expected_signals: [能从用户路径定义可用性指标, 能区分症状告警和原因告警, 能提出值班和复盘机制]
+        anti_patterns: [只看机器 CPU, 告警没有优先级, 故障后不复盘]
+        good_answer_hints: [先定义用户影响, 再设计指标和告警, 最后补响应和治理闭环]
+        priority: 16
+        status: active
+      - id: system_design.sre_service_reliability.capacity_risk
+        version: 1
+        intent: deep_probe
+        difficulty: deep_probe
+        scenario_brief: 大促前核心链路容量风险不清晰，历史压测与线上流量存在偏差。
+        question_stem: 大促前你会如何评估核心链路容量、识别瓶颈、设计压测和扩容预案？
+        prompt_template: 生成一道 SRE 容量与可靠性深挖题，要求候选人说明容量模型、压测方案、瓶颈定位和预案。
+        scenario_skill_tags: [capacity planning, load testing, autoscaling, reliability]
+        resume_anchor_hints: [capacity, load testing, kubernetes, autoscaling, sre]
+        failure_categories: [vague_scale, missing_metrics, missing_tradeoff]
+        rubric_additions: [说明容量估算假设, 说明压测与线上差异, 说明扩容和降级预案]
+        expected_signals: [能估算峰值和瓶颈链路, 能设计压测保护措施, 能准备扩容回滚和降级策略]
+        anti_patterns: [只说加机器, 不说明压测风险, 不准备降级预案]
+        good_answer_hints: [先估算流量模型, 再找瓶颈和压测边界, 最后准备扩容降级预案]
+        priority: 14
+        status: active
+  - id: system_design.ai_agent_execution_chain
+    version: 1
+    title: Agent 执行链路设计
+    dimension: system_design
+    job_levels: [mid, senior, staff]
+    skill_tags: [agent, llm, workflow, tool calling, observability]
+    direction_tags: [internet_tech]
+    role_tags: [ai_agent]
+    rubric:
+      must_cover: [任务规划, 工具编排, 状态管理, 可观测性]
+      minimum_bar: 能说明一个 Agent 从用户请求到工具执行再到结果反馈的主要链路。
+      stretch: 能兼顾并发、失败恢复、权限、安全和评估回放。
+    priority: 29
+    status: active
+    source: manual_yaml
+    scope: global
+    language: zh-CN
+    variants:
+      - id: system_design.ai_agent_execution_chain.customer_support
+        version: 1
+        intent: opening
+        difficulty: standard
+        scenario_brief: 客服 Agent 需要理解用户问题、查询知识库、调用订单工具并生成可审计回复。
+        question_stem: 你会如何设计一个客服 Agent 的执行链路和状态管理？
+        prompt_template: 结合候选人的 Agent 或 AI 应用经验，生成一道系统设计题，要求说明执行链路、工具编排和观测。
+        scenario_skill_tags: [agent, workflow, tool calling, observability]
+        resume_anchor_hints: [agent, workflow, tool, rag, llm]
+        failure_categories: [missing_failure_mode, missing_observability, missing_action]
+        rubric_additions: [说明任务分解和工具编排, 说明状态记录和审计, 说明失败恢复和人工兜底]
+        expected_signals: [能设计执行状态机, 能记录工具输入输出, 能处理工具失败和用户追问]
+        anti_patterns: [把所有逻辑放进一个 prompt, 不保存执行状态, 无法复盘错误]
+        good_answer_hints: [先定义执行阶段, 再设计工具和状态, 最后补观测和兜底]
+        priority: 18
+        status: active
+      - id: system_design.ai_agent_execution_chain.parallel_tools
+        version: 1
+        intent: deep_probe
+        difficulty: deep_probe
+        scenario_brief: Agent 需要并行调用搜索、CRM 和内部知识库，部分工具慢或失败。
+        question_stem: 如果 Agent 需要并行调用多个工具，你会如何设计超时、合并和降级策略？
+        prompt_template: 生成一道 Agent 执行链路深挖题，要求候选人说明并发工具调用、超时控制、结果合并和降级。
+        scenario_skill_tags: [agent, parallel tools, timeout, fallback]
+        resume_anchor_hints: [agent, concurrency, timeout, tool calling, workflow]
+        failure_categories: [missing_edge_case, missing_tradeoff, missing_observability]
+        rubric_additions: [说明超时和预算, 说明结果合并可信度, 说明失败降级和重试]
+        expected_signals: [能设置调用预算, 能区分关键和可选工具, 能记录中间证据]
+        anti_patterns: [无限等待最慢工具, 所有工具失败都返回空, 不记录工具证据]
+        good_answer_hints: [先分工具优先级, 再设预算和超时, 最后定义合并和降级]
+        priority: 16
+        status: active
+  - id: system_design.ai_agent_memory_context
+    version: 1
+    title: Agent 记忆与上下文设计
+    dimension: system_design
+    job_levels: [mid, senior, staff]
+    skill_tags: [agent, memory, context, rag, retrieval]
+    direction_tags: [internet_tech]
+    role_tags: [ai_agent]
+    rubric:
+      must_cover: [短期上下文, 长期记忆, 检索策略, 隐私边界]
+      minimum_bar: 能区分会话上下文、用户记忆和知识库检索的职责。
+      stretch: 能设计记忆写入准入、过期、冲突处理和效果评估。
+    priority: 28
+    status: active
+    source: manual_yaml
+    scope: global
+    language: zh-CN
+    variants:
+      - id: system_design.ai_agent_memory_context.personalization
+        version: 1
+        intent: opening
+        difficulty: standard
+        scenario_brief: 助手需要记住用户偏好和历史任务，但不能把临时错误信息长期保存。
+        question_stem: 你会如何设计 Agent 的短期上下文和长期记忆写入机制？
+        prompt_template: 生成一道 Agent 记忆设计题，要求候选人说明上下文、长期记忆、写入准入和隐私边界。
+        scenario_skill_tags: [agent, memory, context, personalization]
+        resume_anchor_hints: [agent, memory, context, personalization, rag]
+        failure_categories: [missing_tradeoff, missing_edge_case, missing_observability]
+        rubric_additions: [说明记忆类型分层, 说明写入准入和删除, 说明隐私和冲突处理]
+        expected_signals: [能区分会话和长期记忆, 能设计写入过滤, 能处理用户修改或删除]
+        anti_patterns: [所有对话都写长期记忆, 不处理隐私, 不处理过期]
+        good_answer_hints: [先划分记忆类型, 再定义写入规则, 最后补冲突和删除]
+        priority: 17
+        status: active
+      - id: system_design.ai_agent_memory_context.retrieval_conflict
+        version: 1
+        intent: deep_probe
+        difficulty: deep_probe
+        scenario_brief: Agent 检索到的知识库内容和用户长期偏好冲突，生成结果不稳定。
+        question_stem: 当 Agent 的检索结果、用户记忆和当前指令冲突时，你会如何设计优先级和可解释性？
+        prompt_template: 生成一道 Agent 上下文冲突深挖题，要求候选人说明优先级、证据引用和冲突处理。
+        scenario_skill_tags: [agent, memory conflict, retrieval, context]
+        resume_anchor_hints: [agent, retrieval, memory, context, rag]
+        failure_categories: [missing_edge_case, missing_tradeoff, shallow_debugging]
+        rubric_additions: [说明上下文优先级, 说明证据选择和引用, 说明冲突日志和用户确认]
+        expected_signals: [能定义指令层级, 能区分事实知识和偏好, 能让用户确认关键冲突]
+        anti_patterns: [任意拼接所有上下文, 不记录冲突, 不解释依据]
+        good_answer_hints: [先定义上下文层级, 再处理冲突, 最后记录证据和确认]
+        priority: 15
+        status: active
+  - id: system_design.ai_fullstack_workflow_observability
+    version: 1
+    title: AI 全栈工作流与可观测性
+    dimension: system_design
+    job_levels: [mid, senior]
+    skill_tags: [ai fullstack, workflow, observability, llm, tracing]
+    direction_tags: [internet_tech]
+    role_tags: [ai_fullstack]
+    rubric:
+      must_cover: [工作流状态, 调用链追踪, 成本指标, 失败补偿]
+      minimum_bar: 能说明 AI 应用中多步骤工作流如何落库、追踪和恢复。
+      stretch: 能把模型调用、用户交互、异步任务和运营观测形成闭环。
+    priority: 27
+    status: active
+    source: manual_yaml
+    scope: global
+    language: zh-CN
+    variants:
+      - id: system_design.ai_fullstack_workflow_observability.report_generation
+        version: 1
+        intent: opening
+        difficulty: standard
+        scenario_brief: AI 报告生成包含资料解析、检索、模型总结和人工编辑多个步骤。
+        question_stem: 你会如何设计 AI 报告生成工作流的状态、追踪和失败恢复？
+        prompt_template: 结合候选人的全栈或 AI 应用经验，生成一道工作流系统设计题，要求说明状态和可观测性。
+        scenario_skill_tags: [ai fullstack, workflow, tracing, observability]
+        resume_anchor_hints: [workflow, llm, tracing, fullstack, observability]
+        failure_categories: [missing_observability, missing_action, missing_edge_case]
+        rubric_additions: [说明步骤状态机, 说明调用链和日志, 说明失败恢复和人工接管]
+        expected_signals: [能设计 workflow run, 能追踪模型调用, 能恢复部分失败步骤]
+        anti_patterns: [只有一个同步接口, 失败后无法定位步骤, 不记录模型输入输出摘要]
+        good_answer_hints: [先拆步骤, 再设计状态和 trace, 最后补失败恢复]
+        priority: 17
+        status: active
+      - id: system_design.ai_fullstack_workflow_observability.cost_control
+        version: 1
+        intent: deep_probe
+        difficulty: deep_probe
+        scenario_brief: AI 应用上线后成本增长很快，但团队无法定位哪些功能和用户消耗最高。
+        question_stem: 你会如何设计 AI 应用的调用成本观测、配额和异常消耗治理？
+        prompt_template: 生成一道 AI 全栈成本治理深挖题，要求说明模型调用统计、配额、告警和用户体验取舍。
+        scenario_skill_tags: [ai fullstack, cost, quota, observability]
+        resume_anchor_hints: [llm cost, quota, observability, api, product]
+        failure_categories: [vague_metrics, missing_tradeoff, missing_action]
+        rubric_additions: [说明成本归因维度, 说明配额和限流, 说明异常告警和体验兜底]
+        expected_signals: [能按用户功能模型统计成本, 能设计配额和限流, 能识别异常调用]
+        anti_patterns: [只看总账单, 不做用户或功能归因, 成本超限直接失败]
+        good_answer_hints: [先定义成本维度, 再做配额和告警, 最后设计体验降级]
+        priority: 15
+        status: active
+  - id: system_design.ai_fullstack_rag_productization
+    version: 1
+    title: AI 全栈 RAG 产品化设计
+    dimension: system_design
+    job_levels: [mid, senior]
+    skill_tags: [ai fullstack, rag, retrieval, llm, product]
+    direction_tags: [internet_tech]
+    role_tags: [ai_fullstack]
+    rubric:
+      must_cover: [文档 ingestion, 检索召回, 权限过滤, 答案反馈]
+      minimum_bar: 能说明 RAG 从数据接入到回答生成的产品化链路。
+      stretch: 能兼顾权限、多租户、评估集、反馈闭环和运营维护。
+    priority: 27
+    status: active
+    source: manual_yaml
+    scope: global
+    language: zh-CN
+    variants:
+      - id: system_design.ai_fullstack_rag_productization.knowledge_assistant
+        version: 1
+        intent: opening
+        difficulty: standard
+        scenario_brief: 企业知识助手需要接入多部门文档，并按用户权限回答问题。
+        question_stem: 你会如何设计一个带权限控制的企业 RAG 知识助手？
+        prompt_template: 生成一道 AI 全栈 RAG 系统设计题，要求候选人说明数据接入、检索、权限和回答反馈。
+        scenario_skill_tags: [ai fullstack, rag, permission, retrieval]
+        resume_anchor_hints: [rag, retrieval, vector, permission, llm]
+        failure_categories: [missing_edge_case, missing_tradeoff, missing_observability]
+        rubric_additions: [说明文档处理和索引, 说明权限过滤, 说明答案证据和反馈]
+        expected_signals: [能处理文档更新, 能在检索前后做权限控制, 能引用来源和收集反馈]
+        anti_patterns: [所有文档混在一个索引, 不做权限过滤, 答案没有来源]
+        good_answer_hints: [先设计数据和权限模型, 再做检索链路, 最后补反馈和评估]
+        priority: 17
+        status: active
+      - id: system_design.ai_fullstack_rag_productization.quality_regression
+        version: 1
+        intent: deep_probe
+        difficulty: deep_probe
+        scenario_brief: RAG 知识库更新后，用户反馈答案质量波动，无法判断是召回还是生成问题。
+        question_stem: 当 RAG 答案质量波动时，你会如何设计评估和回归定位链路？
+        prompt_template: 生成一道 RAG 产品化深挖题，要求说明评估集、召回分析、生成质量和发布回滚。
+        scenario_skill_tags: [ai fullstack, rag evaluation, retrieval quality, regression]
+        resume_anchor_hints: [rag, evaluation, retrieval, regression, llm]
+        failure_categories: [missing_metrics, shallow_debugging, missing_action]
+        rubric_additions: [说明评估集和基线, 说明召回和生成拆分, 说明索引发布和回滚]
+        expected_signals: [能区分召回不足和生成错误, 能建立离线评估集, 能灰度索引更新]
+        anti_patterns: [只改 prompt, 不看召回证据, 没有回归基线]
+        good_answer_hints: [先拆质量链路, 再建立评估集, 最后治理发布回归]
+        priority: 15
+        status: active
+  - id: system_design.architect_complex_system_evolution
+    version: 1
+    title: 架构师复杂系统演进
+    dimension: system_design
+    job_levels: [senior, staff]
+    skill_tags: [architect, architecture, evolution, domain modeling, migration]
+    direction_tags: [internet_tech]
+    role_tags: [architect]
+    rubric:
+      must_cover: [现状约束, 目标架构, 迁移路径, 风险控制]
+      minimum_bar: 能说明复杂系统演进不是一次性重写，而是分阶段治理。
+      stretch: 能把技术方案、组织协作、业务风险和验收指标结合起来。
+    priority: 30
+    status: active
+    source: manual_yaml
+    scope: global
+    language: zh-CN
+    variants:
+      - id: system_design.architect_complex_system_evolution.monolith_split
+        version: 1
+        intent: opening
+        difficulty: standard
+        scenario_brief: 一个核心单体系统支撑多条业务线，发布慢、边界混乱、故障影响面大。
+        question_stem: 你会如何规划核心单体系统的拆分和演进路线？
+        prompt_template: 结合候选人的架构经验，生成一道复杂系统演进题，要求说明边界识别、迁移路径和风险控制。
+        scenario_skill_tags: [architect, architecture, monolith, migration]
+        resume_anchor_hints: [architecture, migration, domain, monolith, service]
+        failure_categories: [missing_tradeoff, missing_action, vague_scale]
+        rubric_additions: [说明领域边界, 说明阶段性迁移, 说明回滚和兼容]
+        expected_signals: [能识别业务边界, 能设计双写或适配层, 能控制发布和数据风险]
+        anti_patterns: [直接全量重写, 不考虑数据迁移, 不给验收指标]
+        good_answer_hints: [先梳理边界和痛点, 再分阶段迁移, 最后设指标和回滚]
+        priority: 18
+        status: active
+      - id: system_design.architect_complex_system_evolution.platform_capability
+        version: 1
+        intent: deep_probe
+        difficulty: deep_probe
+        scenario_brief: 多个业务团队重复建设权限、审批和消息能力，平台化诉求越来越强。
+        question_stem: 你会如何判断哪些能力适合平台化，并设计平台化演进方案？
+        prompt_template: 生成一道架构师平台化深挖题，要求说明抽象边界、接入成本、治理和演进节奏。
+        scenario_skill_tags: [architect, platform, capability, governance]
+        resume_anchor_hints: [platform, architecture, governance, capability, migration]
+        failure_categories: [missing_tradeoff, missing_edge_case, missing_metrics]
+        rubric_additions: [说明平台化准入标准, 说明抽象和扩展点, 说明接入和治理成本]
+        expected_signals: [能判断重复度和稳定性, 能设计扩展点, 能治理平台滥用]
+        anti_patterns: [看到重复就平台化, 忽略业务差异, 没有接入迁移计划]
+        good_answer_hints: [先判断共性和变化点, 再设计平台边界, 最后规划迁移和治理]
+        priority: 16
+        status: active
+  - id: system_design.architect_technical_choice_tradeoff
+    version: 1
+    title: 架构师技术选型取舍
+    dimension: system_design
+    job_levels: [senior, staff]
+    skill_tags: [architect, technical choice, tradeoff, scalability, governance]
+    direction_tags: [internet_tech]
+    role_tags: [architect]
+    rubric:
+      must_cover: [业务目标, 技术约束, 成本收益, 决策机制]
+      minimum_bar: 能从目标和约束出发比较多个技术方案。
+      stretch: 能说明试点、评审、退出机制和长期治理。
+    priority: 28
+    status: active
+    source: manual_yaml
+    scope: global
+    language: zh-CN
+    variants:
+      - id: system_design.architect_technical_choice_tradeoff.storage_selection
+        version: 1
+        intent: opening
+        difficulty: standard
+        scenario_brief: 团队要为高并发查询和复杂分析选择新的存储方案，候选方案各有成本和风险。
+        question_stem: 你会如何组织一次关键存储技术选型，并说明取舍依据？
+        prompt_template: 生成一道架构师技术选型题，要求候选人说明业务目标、技术约束、验证和决策。
+        scenario_skill_tags: [architect, technical choice, storage, tradeoff]
+        resume_anchor_hints: [architecture, storage, tradeoff, database, review]
+        failure_categories: [missing_tradeoff, vague_metrics, missing_action]
+        rubric_additions: [说明核心需求和约束, 说明候选方案比较, 说明 PoC 和决策记录]
+        expected_signals: [能定义评估指标, 能比较成本和风险, 能设计验证和退出]
+        anti_patterns: [按流行度选型, 不做 PoC, 不考虑团队维护能力]
+        good_answer_hints: [先定义决策标准, 再做小规模验证, 最后沉淀决策和治理]
+        priority: 17
+        status: active
+      - id: system_design.architect_technical_choice_tradeoff.build_vs_buy
+        version: 1
+        intent: deep_probe
+        difficulty: deep_probe
+        scenario_brief: 公司考虑自研工作流平台或采购 SaaS，业务希望快，技术团队担心长期锁定。
+        question_stem: 面对自研和采购的技术选择，你会如何评估长期成本、风险和演进空间？
+        prompt_template: 生成一道架构师方案取舍深挖题，要求说明 build vs buy 的成本、风险、集成和退出机制。
+        scenario_skill_tags: [architect, build vs buy, governance, integration]
+        resume_anchor_hints: [architecture, governance, integration, platform, tradeoff]
+        failure_categories: [missing_tradeoff, missing_edge_case, vague_metrics]
+        rubric_additions: [说明短期交付和长期成本, 说明锁定和退出, 说明集成和安全风险]
+        expected_signals: [能拆一次性和持续成本, 能评估供应商锁定, 能设计退出预案]
+        anti_patterns: [只看采购价格, 不考虑数据和权限, 不评估替换成本]
+        good_answer_hints: [先对齐业务期限, 再比较总成本和风险, 最后设计退出机制]
+        priority: 15
+        status: active

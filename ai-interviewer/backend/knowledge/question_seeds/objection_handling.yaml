@@ -1,0 +1,52 @@
+dimension: objection_handling
+seeds:
+  - id: objection_handling.price_competitor_budget
+    version: 1
+    title: 价格、竞品与预算异议处理
+    dimension: objection_handling
+    job_levels: [mid, senior]
+    skill_tags: [sales_business, objection_handling, price, competitor, budget]
+    direction_tags: [business]
+    role_tags: [sales_business]
+    rubric:
+      must_cover: [异议类型, 真实原因, 价值重构, 推进动作]
+      minimum_bar: 能区分价格异议、价值异议、预算异议和决策异议。
+      stretch: 能用客户业务价值和竞争差异重新构建谈判空间。
+    priority: 28
+    status: active
+    source: manual_yaml
+    scope: global
+    language: zh-CN
+    variants:
+      - id: objection_handling.price_competitor_budget.price_pushback
+        version: 1
+        intent: opening
+        difficulty: standard
+        scenario_brief: 客户说价格太贵，并拿竞品低价方案作为对比，采购希望你直接降价。
+        question_stem: 面对价格和竞品异议，你会如何判断真实阻力并回应客户？
+        prompt_template: 生成一道销售异议处理题，要求候选人说明异议分类、价值重构、竞品对比和推进动作。
+        scenario_skill_tags: [sales_business, objection_handling, price, competitor]
+        resume_anchor_hints: [sales, price, competitor, objection, negotiation]
+        failure_categories: [weak_objection_handling, missing_evidence, missing_tradeoff]
+        rubric_additions: [说明价格异议背后的真实原因, 说明价值和竞品差异, 说明是否让步]
+        expected_signals: [能先澄清异议, 能避免直接降价, 能把讨论拉回价值]
+        anti_patterns: [立刻打折, 贬低竞品, 不问客户预算和决策标准]
+        good_answer_hints: [先澄清异议类型, 再重构价值, 最后谈交换条件]
+        priority: 17
+        status: active
+      - id: objection_handling.price_competitor_budget.budget_timing
+        version: 1
+        intent: deep_probe
+        difficulty: deep_probe
+        scenario_brief: 客户说今年没有预算，明年再看，但业务痛点正在影响团队效率。
+        question_stem: 客户以预算和时间为理由推迟时，你会如何判断是真没需求还是优先级不够？
+        prompt_template: 生成一道预算异议追问，要求候选人说明需求强度、事件驱动、预算路径和下一步推进。
+        scenario_skill_tags: [sales_business, budget, objection_handling, timing]
+        resume_anchor_hints: [budget, sales, customer, objection, pipeline]
+        failure_categories: [weak_objection_handling, missing_action, vague_customer]
+        rubric_additions: [说明真实优先级判断, 说明事件或损失量化, 说明预算路径和下一步]
+        expected_signals: [能区分真预算约束和优先级低, 能找到触发事件, 能设计持续跟进]
+        anti_patterns: [听到没预算就结束, 一味催单, 不理解客户采购流程]
+        good_answer_hints: [先判断痛点强度, 再找预算路径, 最后设置下一触点]
+        priority: 16
+        status: active

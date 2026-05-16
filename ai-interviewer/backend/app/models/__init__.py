@@ -6,6 +6,13 @@ from .base import Base, get_engine, get_session, init_db
 from .generation_trace import GenerationTrace
 from .interview_session import InterviewSession
 from .outcome_record import OutcomeRecord
+from .question_bank import (
+    QuestionRerankUsage,
+    QuestionReview,
+    QuestionSeed,
+    QuestionUsage,
+    QuestionVariant,
+)
 from .strategy_memory import (
     StrategyMemory,
     StrategyMemoryStats,
@@ -30,6 +37,11 @@ __all__ = [
     "GenerationTrace",
     "InterviewSession",
     "OutcomeRecord",
+    "QuestionSeed",
+    "QuestionRerankUsage",
+    "QuestionReview",
+    "QuestionUsage",
+    "QuestionVariant",
     "StrategyMemory",
     "StrategyMemoryStats",
     "StrategyMemoryUsage",
