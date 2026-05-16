@@ -6,6 +6,8 @@ import time
 import uuid
 from typing import Any
 
+from sqlalchemy import select
+
 from app.core.logging import get_logger
 from app.core.timing import get_latest_db_write_ms
 from app.core.tracer import get_tracer
@@ -15,6 +17,7 @@ from app.ml.rl.action_space import ALIAS_MAP
 from app.ml.rl.reward_fn import immediate_reward
 from app.ml.rl.thompson import get_bandit
 from app.models import get_session
+from app.models.question_bank import QuestionUsage
 from app.models.strategy_memory import StrategyMemoryUsage
 
 log = get_logger(__name__)
@@ -77,6 +80,13 @@ def reward_update_node(state: InterviewState) -> dict[str, Any]:
         evaluation=evaluation,
         action=action,
         context_keys=keys,
+        reward=reward,
+        turn_idx=answer_turn_idx,
+    )
+    _backfill_question_usage_result(
+        state=state,
+        question=question,
+        evaluation=evaluation,
         reward=reward,
         turn_idx=answer_turn_idx,
     )
@@ -173,6 +183,61 @@ def _record_strategy_memory_usage(
                     )
     except Exception as e:  # pragma: no cover - attribution is best-effort
         log.warning("strategy memory usage attribution failed: %s", e)
+
+
+def _backfill_question_usage_result(
+    *,
+    state: InterviewState,
+    question: dict[str, Any],
+    evaluation: dict[str, Any],
+    reward: float,
+    turn_idx: int,
+) -> None:
+    variant_ids = _injected_primary_variant_ids(question)
+    if not variant_ids:
+        return
+    try:
+        with get_session() as session:
+            rows = list(
+                session.scalars(
+                    select(QuestionUsage)
+                    .where(QuestionUsage.session_id == str(state.get("session_id") or ""))
+                    .where(QuestionUsage.turn_idx == turn_idx)
+                    .where(QuestionUsage.question_selector_mode == "structured_primary")
+                    .where(QuestionUsage.injected.is_(True))
+                    .where(QuestionUsage.rank == 1)
+                )
+            )
+            for row in rows:
+                if row.variant_id not in variant_ids:
+                    continue
+                row.score = _optional_float(evaluation.get("score"))
+                row.passed = _optional_bool(evaluation.get("passed"))
+                row.immediate_reward = reward
+    except Exception as e:  # pragma: no cover - attribution is best-effort
+        log.warning("question usage reward backfill failed: %s", e)
+
+
+def _injected_primary_variant_ids(question: dict[str, Any]) -> set[str]:
+    artifacts = question.get("selection_artifacts") or {}
+    items = artifacts.get("question_items") if isinstance(artifacts, dict) else None
+    if not isinstance(items, list):
+        return set()
+    variant_ids: set[str] = set()
+    for item in items:
+        if not isinstance(item, dict):
+            continue
+        if not bool(item.get("injected")):
+            continue
+        if int(item.get("rank") or 0) != 1:
+            continue
+        mode = str(item.get("question_selector_mode") or "structured_primary")
+        if mode != "structured_primary":
+            continue
+        variant_id = _optional_str(item.get("variant_id"))
+        if variant_id:
+            variant_ids.add(variant_id)
+    return variant_ids
 
 
 def _strategy_ref_id(ref: dict[str, Any]) -> str | None:

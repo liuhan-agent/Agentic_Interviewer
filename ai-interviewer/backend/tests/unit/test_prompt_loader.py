@@ -220,6 +220,8 @@ def test_render_generator_task_end_to_end() -> None:
         user_material_boundary="USER_MATERIAL_BOUNDARY",
         history_section="RECENT_QA = []",
         retrieval="(no docs)",
+        question_seed="",
+        candidate_anchor="",
         strategy="(no memories)",
         skills="(no relevant interview skills)",
         avoid_patterns="(no historical shallow patterns on this dimension)",
@@ -235,6 +237,7 @@ def test_render_generator_task_end_to_end() -> None:
     # PLAN_DRIFT_RAG_FEEDBACK: the new ``avoid_patterns`` variable
     # renders into the ``AVOID_PATTERNS`` block; same regression-guard.
     assert "AVOID_PATTERNS =" in out
+    assert "CANDIDATE_ANCHOR =" in out
     assert "简体中文" in out
     assert "Do not output English" in out
 
@@ -277,6 +280,8 @@ def test_generator_task_documents_quick_review_positioning() -> None:
         user_material_boundary="USER_MATERIAL_BOUNDARY",
         history_section="RECENT_QA = []",
         retrieval="(no docs)",
+        question_seed="",
+        candidate_anchor="",
         strategy="(no memories)",
         skills="(no relevant interview skills)",
         avoid_patterns="(no historical shallow patterns on this dimension)",

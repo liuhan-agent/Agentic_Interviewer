@@ -5,6 +5,15 @@ from typing import Any
 from app.services.interview_runtime import terminal_error_payload
 
 
+def _public_question(question: dict[str, Any] | None) -> dict[str, Any] | None:
+    if question is None:
+        return None
+    public = dict(question)
+    public.pop("selection_artifacts", None)
+    public.pop("strategy_memory_refs", None)
+    return public
+
+
 def build_question_poll_payload(
     *,
     session_id: str,
@@ -60,7 +69,7 @@ def build_question_poll_payload(
         "session_id": session_id,
         "status": "waiting_for_answer" if question else "pending",
         "turn_idx": turn_idx,
-        "question": question,
+        "question": _public_question(question),
         "max_turns": max_turns,
         "enable_video_analysis": bool(enable_video_analysis),
         "previous_turn_evaluation": previous_turn_evaluation,

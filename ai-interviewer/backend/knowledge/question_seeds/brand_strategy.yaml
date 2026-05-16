@@ -1,0 +1,52 @@
+dimension: brand_strategy
+seeds:
+  - id: brand_strategy.positioning_message
+    version: 1
+    title: 品牌定位与传播主张设计
+    dimension: brand_strategy
+    job_levels: [mid, senior]
+    skill_tags: [marketing_brand, brand_strategy, positioning, message, consistency]
+    direction_tags: [business]
+    role_tags: [marketing_brand]
+    rubric:
+      must_cover: [目标人群, 差异化定位, 传播主张, 一致性管理]
+      minimum_bar: 能说明品牌主张如何来自用户、竞品和自身能力。
+      stretch: 能在短期增长压力和长期品牌资产之间做取舍。
+    priority: 29
+    status: active
+    source: manual_yaml
+    scope: global
+    language: zh-CN
+    variants:
+      - id: brand_strategy.positioning_message.repositioning
+        version: 1
+        intent: opening
+        difficulty: standard
+        scenario_brief: 产品从工具型定位转向专业服务定位，老用户担心品牌变陌生，新用户认知还未建立。
+        question_stem: 你会如何设计品牌重新定位的传播节奏，让新老用户都能理解变化？
+        prompt_template: 生成一道品牌策略题，要求候选人说明目标人群、差异化主张、传播节奏和风险控制。
+        scenario_skill_tags: [marketing_brand, brand_strategy, repositioning, message]
+        resume_anchor_hints: [brand, positioning, message, user, campaign]
+        failure_categories: [missing_tradeoff, weak_user_insight, missing_risk]
+        rubric_additions: [说明定位依据, 说明新老用户沟通差异, 说明节奏和风险]
+        expected_signals: [能从用户认知出发, 能保护既有品牌资产, 能设计过渡节奏]
+        anti_patterns: [只换 slogan, 不解释变化原因, 忽略老用户]
+        good_answer_hints: [先定义定位变化, 再分人群沟通, 最后跟踪认知指标]
+        priority: 17
+        status: active
+      - id: brand_strategy.positioning_message.brand_consistency
+        version: 1
+        intent: deep_probe
+        difficulty: deep_probe
+        scenario_brief: 多个渠道团队各自写传播文案，短期转化不错，但品牌调性开始混乱。
+        question_stem: 渠道转化和品牌一致性冲突时，你会如何建立底线和治理机制？
+        prompt_template: 生成一道品牌一致性追问，要求候选人说明品牌资产、渠道自由度、审核机制和效果指标。
+        scenario_skill_tags: [marketing_brand, brand_consistency, channel, governance]
+        resume_anchor_hints: [brand, channel, content, governance, marketing]
+        failure_categories: [missing_tradeoff, missing_process, vague_metrics]
+        rubric_additions: [说明品牌底线, 说明渠道自由度, 说明治理和指标]
+        expected_signals: [能区分调性底线和创意空间, 能建立 review 机制, 能看长期品牌指标]
+        anti_patterns: [所有文案统一模板, 只看短期转化, 只靠口头提醒]
+        good_answer_hints: [先定底线, 再给渠道空间, 最后用机制和指标治理]
+        priority: 16
+        status: active

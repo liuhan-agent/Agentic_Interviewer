@@ -195,6 +195,189 @@ export interface Strategies {
   strategies: Strategy[];
 }
 
+export interface QuestionSeed {
+  id: string;
+  version: number;
+  title: string;
+  dimension: string;
+  job_levels: string[];
+  skill_tags: string[];
+  direction_tags: string[];
+  role_tags: string[];
+  rubric?: Record<string, unknown>;
+  priority?: number;
+  status?: string;
+  source?: string;
+  scope?: string;
+  org_id?: string | null;
+  job_template_id?: string | null;
+  language?: string;
+  variant_count?: number;
+  created_at?: string | null;
+  updated_at?: string | null;
+}
+
+export interface QuestionVariant {
+  id: string;
+  seed_id: string;
+  version: number;
+  intent: string;
+  difficulty: string;
+  scenario_brief: string;
+  question_stem: string;
+  prompt_template: string;
+  scenario_skill_tags: string[];
+  resume_anchor_hints: string[];
+  failure_categories: string[];
+  rubric_additions: string[];
+  expected_signals: string[];
+  anti_patterns: string[];
+  good_answer_hints: string[];
+  role_tags: string[];
+  priority?: number;
+  status?: string;
+  created_at?: string | null;
+  updated_at?: string | null;
+}
+
+export interface QuestionSeeds {
+  count: number;
+  question_seeds: QuestionSeed[];
+}
+
+export interface QuestionSeedDetail {
+  seed: QuestionSeed;
+  variants: QuestionVariant[];
+}
+
+export interface QuestionUsageItem {
+  id: string;
+  session_id: string;
+  turn_idx: number;
+  trace_id?: string | null;
+  seed_id: string;
+  variant_id: string;
+  seed_version: number;
+  variant_version: number;
+  rank: number;
+  match_score: number;
+  match_reasons: string[];
+  injected: boolean;
+  question_selector_mode: string;
+  direction_tags?: string[];
+  role_tags?: string[];
+  score?: number | null;
+  passed?: boolean | null;
+  immediate_reward?: number | null;
+  created_at?: string | null;
+  updated_at?: string | null;
+}
+
+export interface QuestionUsages {
+  count: number;
+  usages: QuestionUsageItem[];
+}
+
+export interface QuestionRerankUsageItem {
+  id: string;
+  session_id: string;
+  turn_idx: number;
+  trace_id?: string | null;
+  dimension: string;
+  probe_intent?: string | null;
+  question_selector_mode: string;
+  rule_top_seed_id?: string | null;
+  rule_top_variant_id?: string | null;
+  llm_top_seed_id?: string | null;
+  llm_top_variant_id?: string | null;
+  candidate_variant_ids: string[];
+  ranked_variant_ids: string[];
+  fit_scores?: Record<string, number>;
+  anchor_choice?: string | null;
+  reasons: string[];
+  confidence?: number | null;
+  model?: string | null;
+  latency_ms?: number | null;
+  status: string;
+  error?: string | null;
+  created_at?: string | null;
+  updated_at?: string | null;
+}
+
+export interface QuestionRerankUsages {
+  count: number;
+  rerank_usages: QuestionRerankUsageItem[];
+}
+
+export type QuestionReviewWinner = "rule" | "llm" | "tie" | "neither";
+
+export interface QuestionReviewItem {
+  id: string;
+  session_id: string;
+  turn_idx: number;
+  trace_id?: string | null;
+  question_rerank_usage_id?: string | null;
+  rule_variant_id?: string | null;
+  llm_variant_id?: string | null;
+  winner: QuestionReviewWinner;
+  reasons: string[];
+  notes?: string;
+  reviewer?: string;
+  context_summary?: Record<string, unknown>;
+  created_at?: string | null;
+  updated_at?: string | null;
+}
+
+export interface QuestionReviews {
+  count: number;
+  reviews: QuestionReviewItem[];
+}
+
+export interface CreateQuestionReviewInput {
+  question_rerank_usage_id?: string | null;
+  session_id: string;
+  turn_idx: number;
+  trace_id?: string | null;
+  rule_variant_id?: string | null;
+  llm_variant_id?: string | null;
+  winner: QuestionReviewWinner;
+  reasons?: string[];
+  notes?: string;
+  reviewer?: string;
+  context_summary?: Record<string, unknown>;
+}
+
+export interface QuestionReviewCreateResponse {
+  review: QuestionReviewItem;
+}
+
+export interface QuestionSeedLintIssue {
+  severity: "warning" | "error";
+  code: string;
+  seed_id?: string | null;
+  variant_id?: string | null;
+  message: string;
+}
+
+export interface QuestionSeedLintResponse {
+  passed: boolean;
+  strict: boolean;
+  warning_count: number;
+  error_count: number;
+  issues: QuestionSeedLintIssue[];
+}
+
+export interface QuestionSeedImportResult {
+  imported_seeds: number;
+  updated_seeds: number;
+  unchanged_seeds: number;
+  imported_variants: number;
+  updated_variants: number;
+  unchanged_variants: number;
+  archived_seeds: number;
+  archived_variants: number;
+}
+
 export interface BackendHealth {
   status?: string;
   version?: string;
@@ -540,6 +723,106 @@ export function getQuestionQualityRollUp(
 
 export function getStrategies(signal?: AbortSignal): Promise<Strategies> {
   return adminGet<Strategies>("/admin/strategies", signal);
+}
+
+export function getQuestionSeeds(
+  signal?: AbortSignal,
+  filters?: { directionTag?: string; roleTag?: string },
+): Promise<QuestionSeeds> {
+  const params = new URLSearchParams();
+  if (filters?.directionTag) params.set("direction_tag", filters.directionTag);
+  if (filters?.roleTag) params.set("role_tag", filters.roleTag);
+  const suffix = params.toString() ? `?${params.toString()}` : "";
+  return adminGet<QuestionSeeds>(`/admin/question-seeds${suffix}`, signal);
+}
+
+export function getQuestionSeed(
+  seedId: string,
+  signal?: AbortSignal,
+): Promise<QuestionSeedDetail> {
+  return adminGet<QuestionSeedDetail>(
+    `/admin/question-seeds/${encodeURIComponent(seedId)}`,
+    signal,
+  );
+}
+
+export function getQuestionUsages(
+  signal?: AbortSignal,
+  filters?: { directionTag?: string; roleTag?: string },
+): Promise<QuestionUsages> {
+  const params = new URLSearchParams({ limit: "100" });
+  if (filters?.directionTag) params.set("direction_tag", filters.directionTag);
+  if (filters?.roleTag) params.set("role_tag", filters.roleTag);
+  return adminGet<QuestionUsages>(`/admin/question-usages?${params.toString()}`, signal);
+}
+
+export function getQuestionRerankUsages(
+  signal?: AbortSignal,
+): Promise<QuestionRerankUsages> {
+  return adminGet<QuestionRerankUsages>(
+    "/admin/question-rerank-usages?limit=100",
+    signal,
+  );
+}
+
+export function getQuestionReviews(
+  signal?: AbortSignal,
+): Promise<QuestionReviews> {
+  return adminGet<QuestionReviews>("/admin/question-reviews?limit=100", signal);
+}
+
+export function createQuestionReview(
+  payload: CreateQuestionReviewInput,
+): Promise<QuestionReviewCreateResponse> {
+  return adminPost<QuestionReviewCreateResponse>("/admin/question-reviews", payload);
+}
+
+export function runQuestionSeedLint(
+  strictQuality = false,
+): Promise<QuestionSeedLintResponse> {
+  const suffix = strictQuality ? "?strict_quality=true" : "";
+  return adminPost<QuestionSeedLintResponse>(
+    `/admin/question-seeds/lint${suffix}`,
+    {},
+  );
+}
+
+export function importQuestionSeeds(
+  archiveMissing = false,
+): Promise<QuestionSeedImportResult> {
+  const suffix = archiveMissing ? "?archive_missing=true" : "";
+  return adminPost<QuestionSeedImportResult>(
+    `/admin/question-seeds/import${suffix}`,
+    {},
+  );
+}
+
+export function disableQuestionSeed(seedId: string): Promise<{ id: string; status: string }> {
+  return adminPost<{ id: string; status: string }>(
+    `/admin/question-seeds/${encodeURIComponent(seedId)}/disable`,
+    {},
+  );
+}
+
+export function archiveQuestionSeed(seedId: string): Promise<{ id: string; status: string }> {
+  return adminPost<{ id: string; status: string }>(
+    `/admin/question-seeds/${encodeURIComponent(seedId)}/archive`,
+    {},
+  );
+}
+
+export function disableQuestionVariant(variantId: string): Promise<{ id: string; status: string }> {
+  return adminPost<{ id: string; status: string }>(
+    `/admin/question-variants/${encodeURIComponent(variantId)}/disable`,
+    {},
+  );
+}
+
+export function archiveQuestionVariant(variantId: string): Promise<{ id: string; status: string }> {
+  return adminPost<{ id: string; status: string }>(
+    `/admin/question-variants/${encodeURIComponent(variantId)}/archive`,
+    {},
+  );
 }
 
 export interface StrategySignalItem {

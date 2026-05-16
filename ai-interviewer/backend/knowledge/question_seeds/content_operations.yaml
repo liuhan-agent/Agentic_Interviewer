@@ -1,0 +1,52 @@
+dimension: content_operations
+seeds:
+  - id: content_operations.content_strategy_loop
+    version: 1
+    title: 内容运营选题与质量闭环
+    dimension: content_operations
+    job_levels: [mid, senior]
+    skill_tags: [operations, content, content_operations, strategy, quality]
+    direction_tags: [business]
+    role_tags: [operations]
+    rubric:
+      must_cover: [选题来源, 生产流程, 分发反馈, 质量复盘]
+      minimum_bar: 能说明内容选题为什么适合目标用户和业务目标。
+      stretch: 能建立可复用的内容生产和复盘机制，而不是依赖灵感。
+    priority: 29
+    status: active
+    source: manual_yaml
+    scope: global
+    language: zh-CN
+    variants:
+      - id: content_operations.content_strategy_loop.topic_selection
+        version: 1
+        intent: opening
+        difficulty: standard
+        scenario_brief: 社区内容打开率下降，团队准备重做选题机制，但不确定用户真正感兴趣的主题。
+        question_stem: 你会如何重新设计内容选题机制，让内容既贴用户又服务业务目标？
+        prompt_template: 生成一道内容运营题，要求候选人说明选题来源、用户证据、分发指标和复盘机制。
+        scenario_skill_tags: [operations, content_operations, topic_selection, user_insight]
+        resume_anchor_hints: [content, community, topic, operations, engagement]
+        failure_categories: [missing_evidence, vague_metrics, missing_action]
+        rubric_additions: [说明选题输入来源, 说明用户兴趣证据, 说明复盘和迭代机制]
+        expected_signals: [能结合用户反馈和数据, 能区分流量题和业务题, 能建立选题池]
+        anti_patterns: [只追热点, 只靠个人审美, 不复盘内容效果]
+        good_answer_hints: [先确定目标用户, 再建立选题输入, 最后按效果复盘]
+        priority: 17
+        status: active
+      - id: content_operations.content_strategy_loop.production_quality
+        version: 1
+        intent: deep_probe
+        difficulty: deep_probe
+        scenario_brief: 内容产能提升后，阅读完成率和收藏率下降，团队开始质疑是否为了数量牺牲质量。
+        question_stem: 内容产能和质量冲突时，你会如何判断问题在哪，并调整生产机制？
+        prompt_template: 生成一道内容质量追问，要求候选人说明质量指标、流程瓶颈、激励机制和改进闭环。
+        scenario_skill_tags: [operations, content_quality, process, content_operations]
+        resume_anchor_hints: [content, production, quality, review, operations]
+        failure_categories: [vague_metrics, missing_tradeoff, missing_process]
+        rubric_additions: [说明质量指标, 说明生产流程瓶颈, 说明机制调整]
+        expected_signals: [能定义质量门槛, 能识别流程或激励问题, 能平衡量和质]
+        anti_patterns: [只喊提高质量, 不改流程, 不看完成率和互动质量]
+        good_answer_hints: [先定义质量, 再定位瓶颈, 最后调整流程和激励]
+        priority: 16
+        status: active

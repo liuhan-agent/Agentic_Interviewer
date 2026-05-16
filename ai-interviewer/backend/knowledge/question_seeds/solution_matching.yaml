@@ -1,0 +1,52 @@
+dimension: solution_matching
+seeds:
+  - id: solution_matching.customer_value_proposal
+    version: 1
+    title: 客户场景方案匹配与价值表达
+    dimension: solution_matching
+    job_levels: [mid, senior]
+    skill_tags: [sales_business, solution_matching, value_proposition, poc, roi]
+    direction_tags: [business]
+    role_tags: [sales_business]
+    rubric:
+      must_cover: [客户场景, 产品能力, 价值量化, POC 范围]
+      minimum_bar: 能把客户问题翻译成匹配的产品方案，而不是照念功能清单。
+      stretch: 能设计最小 POC 证明价值，并处理客户对 ROI 的挑战。
+    priority: 29
+    status: active
+    source: manual_yaml
+    scope: global
+    language: zh-CN
+    variants:
+      - id: solution_matching.customer_value_proposal.poc_scope
+        version: 1
+        intent: opening
+        difficulty: standard
+        scenario_brief: 客户希望试用全部能力，但真实痛点集中在一个高频流程，内部资源只够支持两周 POC。
+        question_stem: 你会如何设计 POC 范围，让客户快速看到价值同时控制投入成本？
+        prompt_template: 生成一道方案匹配题，要求候选人说明客户痛点、POC 范围、成功标准和资源约束。
+        scenario_skill_tags: [sales_business, solution_matching, poc, customer_value]
+        resume_anchor_hints: [poc, solution, customer, sales, value]
+        failure_categories: [missing_scope, vague_metrics, missing_tradeoff]
+        rubric_additions: [说明 POC 成功标准, 说明最小验证场景, 说明资源和客户配合]
+        expected_signals: [能聚焦高价值场景, 能定义可验收标准, 能控制 POC 成本]
+        anti_patterns: [客户要什么都试, POC 没有成功标准, 只展示功能]
+        good_answer_hints: [先锁痛点, 再定最小场景, 最后约定成功指标]
+        priority: 17
+        status: active
+      - id: solution_matching.customer_value_proposal.roi_challenge
+        version: 1
+        intent: deep_probe
+        difficulty: deep_probe
+        scenario_brief: 客户认可方案方向，但质疑节省的人力和收入提升假设过于乐观。
+        question_stem: 当客户挑战你的 ROI 估算时，你会如何修正价值表达并推动继续评估？
+        prompt_template: 生成一道销售价值量化追问，要求候选人说明 ROI 假设、证据来源、保守估计和推进动作。
+        scenario_skill_tags: [sales_business, roi, solution_matching, value_proposition]
+        resume_anchor_hints: [roi, sales, customer, solution, business_case]
+        failure_categories: [vague_metrics, missing_evidence, weak_objection_handling]
+        rubric_additions: [说明 ROI 假设来源, 说明保守和乐观情景, 说明下一步验证]
+        expected_signals: [能把价值拆成收入成本风险, 能接受客户挑战并修正, 能用数据或试点验证]
+        anti_patterns: [强辩原估算, 只说客户案例, 没有下一步验证]
+        good_answer_hints: [先拆假设, 再校准证据, 最后设计验证路径]
+        priority: 16
+        status: active

@@ -45,6 +45,8 @@ def test_builder_produces_expected_slot_shape() -> None:
             candidate={"resume_parsed": {"highlights": ["h1", "h2"]}},
             recent_qa=[{"q": "Q1", "a": "A1"}],
             retrieval_block="RETRIEVAL",
+            question_seed_block="STRUCTURED_SEED",
+            candidate_anchor_block="CANDIDATE_ANCHOR",
             strategy_block="STRATEGY",
             resume_anchor={"project_name": "Payment Migration"},
             qa_summary="",
@@ -76,6 +78,8 @@ def test_builder_produces_expected_slot_shape() -> None:
     )
     assert 'RECENT_QA (verbatim) = [{"q": "Q1", "a": "A1"}]' in payload["history_section"]
     assert payload["retrieval"] == "RETRIEVAL"
+    assert payload["question_seed"] == "STRUCTURED_SEED"
+    assert payload["candidate_anchor"] == "CANDIDATE_ANCHOR"
     assert payload["strategy"] == "STRATEGY"
     # PLAN_SKILL_INJECTION: default placeholder when caller does not
     # pass ``skill_block`` (feature flag OFF path).

@@ -1,0 +1,52 @@
+dimension: requirement_analysis
+seeds:
+  - id: requirement_analysis.prd_scope_boundary
+    version: 1
+    title: 需求拆解与版本边界定义
+    dimension: requirement_analysis
+    job_levels: [mid, senior]
+    skill_tags: [product_manager, requirement_analysis, prd, scope, mvp]
+    direction_tags: [business]
+    role_tags: [product_manager]
+    rubric:
+      must_cover: [业务目标, 用户场景, 需求边界, 验收标准]
+      minimum_bar: 能把一句业务诉求拆成目标、用户、场景、范围和衡量方式。
+      stretch: 能解释为什么砍掉某些范围，以及如何为后续版本保留演进空间。
+    priority: 29
+    status: active
+    source: manual_yaml
+    scope: global
+    language: zh-CN
+    variants:
+      - id: requirement_analysis.prd_scope_boundary.one_sentence_request
+        version: 1
+        intent: opening
+        difficulty: standard
+        scenario_brief: 业务方只提出一句话诉求，希望提升老用户复购，但没有明确目标人群和业务约束。
+        question_stem: 接到一句话需求时，你会如何把它拆成可以进入 PRD 的清晰问题和边界？
+        prompt_template: 生成一道产品需求分析题，要求候选人说明拆解框架、澄清问题、边界判断和验收指标。
+        scenario_skill_tags: [product_manager, requirement_analysis, prd, business_goal]
+        resume_anchor_hints: [prd, requirement, product, stakeholder, metric]
+        failure_categories: [unclear_goal, missing_scope, vague_metrics]
+        rubric_additions: [说明澄清问题清单, 说明目标和非目标, 说明验收指标]
+        expected_signals: [能把诉求拆成问题定义, 能识别约束和边界, 能把结果转成验收标准]
+        anti_patterns: [直接写功能清单, 不追问业务目标, 没有衡量方式]
+        good_answer_hints: [先澄清目标, 再定义边界, 最后对齐验收]
+        priority: 17
+        status: active
+      - id: requirement_analysis.prd_scope_boundary.mvp_boundary
+        version: 1
+        intent: deep_probe
+        difficulty: deep_probe
+        scenario_brief: 研发排期只有两周，业务方希望一次性上线完整会员体系，团队必须做版本取舍。
+        question_stem: 在资源有限时，你会如何定义本版本做什么、不做什么，并让业务方接受这个边界？
+        prompt_template: 生成一道需求边界追问，要求候选人说明 MVP 划分、砍需求理由、风险兜底和沟通方式。
+        scenario_skill_tags: [product_manager, mvp, scope, requirement_analysis]
+        resume_anchor_hints: [mvp, scope, prd, product, roadmap]
+        failure_categories: [missing_tradeoff, weak_prioritization, missing_risk]
+        rubric_additions: [说明最小可验证范围, 说明被砍需求的理由, 说明后续演进路径]
+        expected_signals: [能围绕核心假设划范围, 能把取舍讲成业务语言, 能保留后续扩展空间]
+        anti_patterns: [平均砍功能, 只用研发没时间解释, 没有风险兜底]
+        good_answer_hints: [先锁定核心假设, 再划 MVP, 最后对齐风险和后续版本]
+        priority: 16
+        status: active

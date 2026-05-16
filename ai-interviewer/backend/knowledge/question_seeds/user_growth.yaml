@@ -1,0 +1,52 @@
+dimension: user_growth
+seeds:
+  - id: user_growth.activation_retention
+    version: 1
+    title: 用户增长激活与留存诊断
+    dimension: user_growth
+    job_levels: [mid, senior]
+    skill_tags: [operations, user_growth, activation, retention, conversion]
+    direction_tags: [business]
+    role_tags: [operations]
+    rubric:
+      must_cover: [目标人群, 增长杠杆, 数据归因, 复盘动作]
+      minimum_bar: 能说明增长动作服务哪类用户、解决哪个转化或留存问题。
+      stretch: 能区分短期拉量和高质量增长，并设计归因验证。
+    priority: 30
+    status: active
+    source: manual_yaml
+    scope: global
+    language: zh-CN
+    variants:
+      - id: user_growth.activation_retention.activation_dropoff
+        version: 1
+        intent: opening
+        difficulty: standard
+        scenario_brief: 新用户注册后首日关键动作完成率下降，渠道投放量没有明显变化。
+        question_stem: 你会如何定位激活率下降的原因，并设计可验证的增长动作？
+        prompt_template: 生成一道运营增长题，要求候选人说明漏斗拆解、人群分层、动作设计和效果归因。
+        scenario_skill_tags: [operations, user_growth, activation, funnel]
+        resume_anchor_hints: [growth, activation, funnel, conversion, operations]
+        failure_categories: [shallow_analysis, vague_metrics, missing_attribution]
+        rubric_additions: [说明漏斗流失点, 说明目标人群和渠道差异, 说明验证和复盘方式]
+        expected_signals: [能按人群和路径拆漏斗, 能提出可落地动作, 能区分相关和因果]
+        anti_patterns: [直接做补贴, 只看整体转化, 不设计对照]
+        good_answer_hints: [先拆漏斗, 再定位人群, 最后用实验验证]
+        priority: 18
+        status: active
+      - id: user_growth.activation_retention.retention_attribution
+        version: 1
+        intent: deep_probe
+        difficulty: deep_probe
+        scenario_brief: 留存活动上线后次周留存提升，但同一时间产品也做了版本更新和节假日促销。
+        question_stem: 多个因素同时变化时，你会如何判断留存提升是否来自运营动作？
+        prompt_template: 生成一道留存归因追问，要求候选人说明对照组、时间窗口、分群和外部因素处理。
+        scenario_skill_tags: [operations, retention, attribution, experiment]
+        resume_anchor_hints: [retention, operation, campaign, experiment, cohort]
+        failure_categories: [missing_attribution, vague_metrics, missing_counterfactual]
+        rubric_additions: [说明对照或准实验方法, 说明分群与时间窗口, 说明归因不确定性]
+        expected_signals: [能使用 cohort 或对照, 能排除节假日和版本影响, 能承认归因边界]
+        anti_patterns: [留存涨了就归功于活动, 不拆人群, 不看长期效果]
+        good_answer_hints: [先列干扰因素, 再设计对照, 最后给归因置信度]
+        priority: 16
+        status: active

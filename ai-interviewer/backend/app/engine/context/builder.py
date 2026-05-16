@@ -117,6 +117,8 @@ def build_context_frame_for_generator(
     candidate: dict[str, Any],
     recent_qa: list[dict[str, Any]],
     retrieval_block: str,
+    question_seed_block: str = "",
+    candidate_anchor_block: str = "",
     strategy_block: str = "(no relevant strategy memories)",
     skill_block: str = "(no relevant interview skills)",
     avoid_patterns_block: str = "(no historical shallow patterns on this dimension)",
@@ -159,7 +161,11 @@ def build_context_frame_for_generator(
     history_section = build_history_section(recent_qa, qa_summary)
 
     static_system = load_prompt("system_skeleton.md")
-    dynamic_system = build_strategy_index() or ""
+    try:
+        dynamic_system = build_strategy_index() or ""
+    except Exception as exc:  # pragma: no cover - defensive fallback
+        log.debug("generator strategy index unavailable: %s", exc)
+        dynamic_system = ""
 
     payload: dict[str, Any] = {
         "dimension": dimension,
@@ -182,6 +188,8 @@ def build_context_frame_for_generator(
         "user_material_boundary": _build_user_material_boundary(context_flags),
         "history_section": history_section,
         "retrieval": retrieval_block,
+        "question_seed": question_seed_block,
+        "candidate_anchor": candidate_anchor_block,
         "strategy": strategy_block,
         "skills": skill_block,
         "avoid_patterns": avoid_patterns_block,
