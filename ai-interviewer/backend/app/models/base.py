@@ -319,6 +319,7 @@ def init_db() -> None:
         generation_trace,
         interview_session,
         outcome_record,
+        question_bank,
         strategy_memory,
         verifier_drift,
     )

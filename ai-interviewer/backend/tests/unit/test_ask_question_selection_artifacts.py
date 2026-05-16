@@ -9,6 +9,7 @@ from app.engine.rag.vectorstore import RetrievedDoc
 from app.engine.workflow.nodes import ask_question as ask_mod
 from app.memory.skill_store import SkillEntry
 from app.memory.strategy_store import StrategyEntry
+from app.services.question_selector import QuestionCandidate, QuestionSelectionResult
 
 
 def test_ask_question_records_selection_artifacts(monkeypatch) -> None:
@@ -252,6 +253,8 @@ def _install_default_patches(
     avoid_patterns_output: str = "avoid shallow evidence",
     enable_skill_injection: bool = True,
     enable_generator_avoid_patterns: bool = True,
+    enable_question_fit_profile: bool = True,
+    enable_question_reranker_shadow: bool = False,
 ) -> dict[str, Any]:
     monkeypatch.setattr(ask_mod, "retrieve_for_question", lambda **_kw: retrieval)
     monkeypatch.setattr(ask_mod, "retrieve_strategies", lambda **_kw: list(strategies))
@@ -283,6 +286,9 @@ def _install_default_patches(
             enable_generator_avoid_patterns=enable_generator_avoid_patterns,
             drift_feedback_top_n=3,
             drift_feedback_min_support=2,
+            enable_question_fit_profile=enable_question_fit_profile,
+            enable_question_reranker_shadow=enable_question_reranker_shadow,
+            question_reranker_timeout_ms=4000,
         ),
     )
 
@@ -589,3 +595,423 @@ def test_ask_question_forwards_empty_failure_categories_when_no_hints(
     ask_mod.ask_question_node(_base_state())  # type: ignore[arg-type]
 
     assert captured_kwargs.get("failure_categories") == []
+
+
+def _question_candidate(*, rank: int = 1) -> QuestionCandidate:
+    return QuestionCandidate(
+        seed_id="system_design.cache_consistency",
+        variant_id="system_design.cache_consistency.flash_sale_inventory",
+        seed_version=1,
+        variant_version=1,
+        rank=rank,
+        match_score=42.0,
+        match_reasons=["priority:30", "target_skill:redis"],
+        injected=False,
+        title="缓存一致性与失效策略",
+        dimension="system_design",
+        seed_priority=30,
+        variant_priority=20,
+        skill_tags=["redis", "cache"],
+        rubric={"must_cover": ["一致性目标"]},
+        intent="opening",
+        difficulty="standard",
+        scenario_brief="秒杀库存读多写少。",
+        question_stem="请设计库存缓存一致性方案。",
+        prompt_template="围绕缓存经验生成一道系统设计题。",
+        scenario_skill_tags=["redis", "inventory"],
+        resume_anchor_hints=["redis"],
+        failure_categories=["missing_metrics"],
+        rubric_additions=["说明缓存失效窗口"],
+        expected_signals=["能区分强一致和最终一致"],
+        anti_patterns=["只说加锁不讨论吞吐"],
+        good_answer_hints=["先定义一致性目标"],
+        direction_tags=["internet_tech"],
+        role_tags=["java_backend"],
+    )
+
+
+def test_question_selector_vector_mode_preserves_empty_question_items(
+    monkeypatch,
+) -> None:
+    captured = _install_default_patches(
+        monkeypatch,
+        retrieval=_make_retrieval(),
+        strategies=[_make_strategy()],
+        skills=[_make_skill()],
+    )
+    monkeypatch.setattr(ask_mod, "select_question_candidates", _raise_if_called)
+    monkeypatch.setattr(ask_mod, "record_question_usages", _raise_if_called)
+    monkeypatch.setattr(ask_mod, "build_question_fit_profile", _raise_if_called)
+    monkeypatch.setattr(ask_mod, "rerank_question_candidates", _raise_if_called)
+
+    out = ask_mod.ask_question_node(
+        _base_state(runtime_config={"rag_mode": "vector", "question_selector_mode": "vector"})
+    )  # type: ignore[arg-type]
+
+    artifacts = out["current_question"]["selection_artifacts"]
+    assert captured["selection_artifacts"] == artifacts
+    assert artifacts["question_items"] == []
+    assert "question_fit_profile" not in artifacts
+    assert "question_reranker" not in artifacts
+    assert "candidate_anchor" not in artifacts
+
+
+def test_question_selector_structured_shadow_records_items_without_prompt_change(
+    monkeypatch,
+) -> None:
+    generated_kwargs: dict[str, Any] = {}
+    recorded: dict[str, Any] = {}
+    select_kwargs: dict[str, Any] = {}
+
+    def fake_generate_question(**kwargs):
+        generated_kwargs.update(kwargs)
+        return _fake_generate_question(**kwargs)
+
+    def fake_record(**kwargs):
+        recorded.update(kwargs)
+
+    _install_default_patches(
+        monkeypatch,
+        retrieval=_make_retrieval(),
+        strategies=[_make_strategy()],
+        skills=[_make_skill()],
+    )
+    monkeypatch.setattr(ask_mod, "generate_question", fake_generate_question)
+    monkeypatch.setattr(
+        ask_mod,
+        "select_question_candidates",
+        lambda **kwargs: select_kwargs.update(kwargs)
+        or QuestionSelectionResult(candidates=[_question_candidate()]),
+    )
+    monkeypatch.setattr(ask_mod, "record_question_usages", fake_record)
+
+    out = ask_mod.ask_question_node(
+        _base_state(
+            runtime_config={
+                "rag_mode": "vector",
+                "rag_top_k": 2,
+                "question_selector_mode": "structured_shadow",
+            }
+        )
+    )  # type: ignore[arg-type]
+
+    artifacts = out["current_question"]["selection_artifacts"]
+    assert artifacts["question_items"][0]["seed_id"] == "system_design.cache_consistency"
+    assert artifacts["question_items"][0]["injected"] is False
+    assert artifacts["question_fit_profile"]["anchor_confidence"] == "medium"
+    assert "candidate_anchor" not in artifacts
+    assert generated_kwargs["retrieval_block"] == "[1] retrieved prompt block"
+    assert generated_kwargs.get("question_seed_block", "") == ""
+    assert generated_kwargs.get("candidate_anchor_block", "") == ""
+    assert "question_seed" not in (generated_kwargs.get("contract_hints") or {})
+    assert select_kwargs["fit_profile"].dimension == "system_design"
+    assert recorded["question_selector_mode"] == "structured_shadow"
+    assert [candidate.injected for candidate in recorded["candidates"]] == [False]
+
+
+def test_question_selector_structured_shadow_reranker_records_artifact_but_keeps_rule_top(
+    monkeypatch,
+) -> None:
+    generated_kwargs: dict[str, Any] = {}
+    recorded_rerank: dict[str, Any] = {}
+    candidate_1 = _question_candidate(rank=1)
+    candidate_2 = QuestionCandidate(
+        **{
+            **candidate_1.__dict__,
+            "seed_id": "system_design.queue_backpressure",
+            "variant_id": "system_design.queue_backpressure.opening",
+            "rank": 2,
+            "match_score": 41.0,
+            "title": "Queue backpressure",
+        }
+    )
+
+    def fake_generate_question(**kwargs):
+        generated_kwargs.update(kwargs)
+        return _fake_generate_question(**kwargs)
+
+    def fake_rerank(**_kwargs):
+        return SimpleNamespace(
+            status="ok",
+            preferred_variant_id=candidate_2.variant_id,
+            ranked_variant_ids=[candidate_2.variant_id, candidate_1.variant_id],
+            fit_scores={candidate_2.variant_id: 0.9},
+            anchor_choice="Inventory",
+            reasons=["shadow prefers queue"],
+            confidence=0.7,
+            model="shadow",
+            latency_ms=100,
+            error=None,
+            as_artifact=lambda: {
+                "status": "ok",
+                "preferred_variant_id": candidate_2.variant_id,
+                "ranked_variant_ids": [candidate_2.variant_id, candidate_1.variant_id],
+                "confidence": 0.7,
+            },
+        )
+
+    _install_default_patches(
+        monkeypatch,
+        retrieval=_make_retrieval(),
+        strategies=[_make_strategy()],
+        skills=[_make_skill()],
+        enable_question_reranker_shadow=True,
+    )
+    monkeypatch.setattr(ask_mod, "generate_question", fake_generate_question)
+    monkeypatch.setattr(
+        ask_mod,
+        "select_question_candidates",
+        lambda **_kwargs: QuestionSelectionResult(candidates=[candidate_1, candidate_2]),
+    )
+    monkeypatch.setattr(ask_mod, "rerank_question_candidates", fake_rerank)
+    monkeypatch.setattr(
+        ask_mod,
+        "record_question_rerank_usage",
+        lambda **kwargs: recorded_rerank.update(kwargs),
+    )
+
+    out = ask_mod.ask_question_node(
+        _base_state(
+            runtime_config={
+                "rag_mode": "vector",
+                "question_selector_mode": "structured_shadow",
+            }
+        )
+    )  # type: ignore[arg-type]
+
+    artifacts = out["current_question"]["selection_artifacts"]
+    assert artifacts["question_items"][0]["variant_id"] == candidate_1.variant_id
+    assert artifacts["question_items"][0]["injected"] is False
+    assert artifacts["question_reranker"]["preferred_variant_id"] == candidate_2.variant_id
+    assert generated_kwargs["question_seed_block"] == ""
+    assert generated_kwargs.get("candidate_anchor_block", "") == ""
+    assert recorded_rerank["result"].preferred_variant_id == candidate_2.variant_id
+
+
+def test_question_selector_structured_primary_injects_top_seed_and_shadows_rag(
+    monkeypatch,
+) -> None:
+    generated_kwargs: dict[str, Any] = {}
+    negotiated_kwargs: dict[str, Any] = {}
+    recorded: dict[str, Any] = {}
+
+    def fake_generate_question(**kwargs):
+        generated_kwargs.update(kwargs)
+        return _fake_generate_question(**kwargs)
+
+    def fake_negotiate(**kwargs):
+        negotiated_kwargs.update(kwargs)
+        return _fake_negotiate(**kwargs)
+
+    def fake_record(**kwargs):
+        recorded.update(kwargs)
+
+    _install_default_patches(
+        monkeypatch,
+        retrieval=_make_retrieval(),
+        strategies=[_make_strategy()],
+        skills=[_make_skill()],
+    )
+    monkeypatch.setattr(ask_mod, "generate_question", fake_generate_question)
+    monkeypatch.setattr(ask_mod, "negotiate_contract_via_evaluator", fake_negotiate)
+    monkeypatch.setattr(
+        ask_mod,
+        "select_question_candidates",
+        lambda **_kwargs: QuestionSelectionResult(candidates=[_question_candidate()]),
+    )
+    monkeypatch.setattr(ask_mod, "record_question_usages", fake_record)
+
+    out = ask_mod.ask_question_node(
+        _base_state(
+            runtime_config={
+                "rag_mode": "hybrid",
+                "rag_top_k": 2,
+                "question_selector_mode": "structured_primary",
+            }
+        )
+    )  # type: ignore[arg-type]
+
+    artifacts = out["current_question"]["selection_artifacts"]
+    assert artifacts["rag"]["mode"] == "hybrid"
+    assert artifacts["question_items"][0]["injected"] is True
+    assert generated_kwargs["retrieval_block"] == ""
+    assert "秒杀库存读多写少" in generated_kwargs["question_seed_block"]
+    assert "redis" in generated_kwargs["candidate_anchor_block"]
+    assert artifacts["candidate_anchor"]["variant_id"] == (
+        "system_design.cache_consistency.flash_sale_inventory"
+    )
+    assert generated_kwargs["contract_hints"]["question_seed"]["seed_id"] == (
+        "system_design.cache_consistency"
+    )
+    assert negotiated_kwargs["contract_hints"]["question_seed"]["variant_id"] == (
+        "system_design.cache_consistency.flash_sale_inventory"
+    )
+    assert recorded["question_selector_mode"] == "structured_primary"
+    assert [candidate.injected for candidate in recorded["candidates"]] == [True]
+
+
+def test_question_selector_structured_primary_unmature_role_stays_shadow(
+    monkeypatch,
+) -> None:
+    generated_kwargs: dict[str, Any] = {}
+    recorded: dict[str, Any] = {}
+    frontend_candidate = QuestionCandidate(
+        **{
+            **_question_candidate().__dict__,
+            "seed_id": "system_design.frontend_performance",
+            "variant_id": "system_design.frontend_performance.opening",
+            "title": "Frontend performance",
+            "role_tags": ["frontend_web"],
+        }
+    )
+
+    def fake_generate_question(**kwargs):
+        generated_kwargs.update(kwargs)
+        return _fake_generate_question(**kwargs)
+
+    def fake_record(**kwargs):
+        recorded.update(kwargs)
+
+    _install_default_patches(
+        monkeypatch,
+        retrieval=_make_retrieval(),
+        strategies=[_make_strategy()],
+        skills=[_make_skill()],
+    )
+    monkeypatch.setattr(ask_mod, "generate_question", fake_generate_question)
+    monkeypatch.setattr(
+        ask_mod,
+        "select_question_candidates",
+        lambda **_kwargs: QuestionSelectionResult(candidates=[frontend_candidate]),
+    )
+    monkeypatch.setattr(ask_mod, "record_question_usages", fake_record)
+
+    out = ask_mod.ask_question_node(
+        _base_state(
+            job_spec={
+                "title": "高级前端开发工程师",
+                "level": "senior",
+                "required_skills": ["react"],
+                "interview_direction": "frontend",
+            },
+            runtime_config={
+                "rag_mode": "hybrid",
+                "rag_top_k": 2,
+                "question_selector_mode": "structured_primary",
+            },
+        )
+    )  # type: ignore[arg-type]
+
+    artifacts = out["current_question"]["selection_artifacts"]
+    assert artifacts["question_items"][0]["role_tags"] == ["frontend_web"]
+    assert artifacts["question_items"][0]["injected"] is False
+    assert generated_kwargs["retrieval_block"] == "[1] retrieved prompt block"
+    assert generated_kwargs.get("question_seed_block", "") == ""
+    assert generated_kwargs.get("candidate_anchor_block", "") == ""
+    assert [candidate.injected for candidate in recorded["candidates"]] == [False]
+
+
+def test_question_selector_structured_primary_business_role_stays_shadow(
+    monkeypatch,
+) -> None:
+    generated_kwargs: dict[str, Any] = {}
+    recorded: dict[str, Any] = {}
+    product_candidate = QuestionCandidate(
+        **{
+            **_question_candidate().__dict__,
+            "seed_id": "user_insight.user_journey_pain_point",
+            "variant_id": "user_insight.user_journey_pain_point.onboarding",
+            "title": "User journey pain point",
+            "dimension": "user_insight",
+            "direction_tags": ["business"],
+            "role_tags": ["product_manager"],
+            "skill_tags": ["user_research", "journey_map"],
+            "scenario_skill_tags": ["user_research", "conversion_funnel"],
+        }
+    )
+
+    def fake_generate_question(**kwargs):
+        generated_kwargs.update(kwargs)
+        return _fake_generate_question(**kwargs)
+
+    def fake_record(**kwargs):
+        recorded.update(kwargs)
+
+    _install_default_patches(
+        monkeypatch,
+        retrieval=_make_retrieval(),
+        strategies=[_make_strategy()],
+        skills=[_make_skill()],
+    )
+    monkeypatch.setattr(ask_mod, "generate_question", fake_generate_question)
+    monkeypatch.setattr(
+        ask_mod,
+        "select_question_candidates",
+        lambda **_kwargs: QuestionSelectionResult(candidates=[product_candidate]),
+    )
+    monkeypatch.setattr(ask_mod, "record_question_usages", fake_record)
+
+    out = ask_mod.ask_question_node(
+        _base_state(
+            job_spec={
+                "title": "产品经理",
+                "level": "mid",
+                "required_skills": ["用户洞察", "PRD", "指标"],
+                "interview_direction": "product_manager",
+            },
+            runtime_config={
+                "rag_mode": "hybrid",
+                "rag_top_k": 2,
+                "question_selector_mode": "structured_primary",
+            },
+        )
+    )  # type: ignore[arg-type]
+
+    artifacts = out["current_question"]["selection_artifacts"]
+    assert artifacts["question_items"][0]["direction_tags"] == ["business"]
+    assert artifacts["question_items"][0]["role_tags"] == ["product_manager"]
+    assert artifacts["question_items"][0]["injected"] is False
+    assert generated_kwargs["retrieval_block"] == "[1] retrieved prompt block"
+    assert generated_kwargs.get("question_seed_block", "") == ""
+    assert generated_kwargs.get("candidate_anchor_block", "") == ""
+    assert [candidate.injected for candidate in recorded["candidates"]] == [False]
+
+
+def test_question_selector_structured_primary_falls_back_to_rag_without_hit(
+    monkeypatch,
+) -> None:
+    generated_kwargs: dict[str, Any] = {}
+
+    def fake_generate_question(**kwargs):
+        generated_kwargs.update(kwargs)
+        return _fake_generate_question(**kwargs)
+
+    _install_default_patches(
+        monkeypatch,
+        retrieval=_make_retrieval(),
+        strategies=[_make_strategy()],
+        skills=[_make_skill()],
+    )
+    monkeypatch.setattr(ask_mod, "generate_question", fake_generate_question)
+    monkeypatch.setattr(
+        ask_mod,
+        "select_question_candidates",
+        lambda **_kwargs: QuestionSelectionResult(candidates=[]),
+    )
+
+    out = ask_mod.ask_question_node(
+        _base_state(
+            runtime_config={
+                "rag_mode": "vector",
+                "rag_top_k": 2,
+                "question_selector_mode": "structured_primary",
+            }
+        )
+    )  # type: ignore[arg-type]
+
+    artifacts = out["current_question"]["selection_artifacts"]
+    assert artifacts["question_items"] == []
+    assert generated_kwargs["retrieval_block"] == "[1] retrieved prompt block"
+    assert generated_kwargs.get("question_seed_block", "") == ""
+    assert generated_kwargs.get("candidate_anchor_block", "") == ""
+    assert "candidate_anchor" not in artifacts

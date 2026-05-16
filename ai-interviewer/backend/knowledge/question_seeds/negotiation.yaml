@@ -1,0 +1,52 @@
+dimension: negotiation
+seeds:
+  - id: negotiation.contract_terms_tradeoff
+    version: 1
+    title: 商务谈判让步与合同条款取舍
+    dimension: negotiation
+    job_levels: [mid, senior]
+    skill_tags: [sales_business, negotiation, contract, discount, procurement]
+    direction_tags: [business]
+    role_tags: [sales_business]
+    rubric:
+      must_cover: [谈判目标, 让步条件, 合同风险, 多方节奏]
+      minimum_bar: 能说明哪些条件可以谈、哪些不能让，以及每次让步换回什么。
+      stretch: 能处理采购、法务、业务多方目标冲突，并守住长期合作底线。
+    priority: 28
+    status: active
+    source: manual_yaml
+    scope: global
+    language: zh-CN
+    variants:
+      - id: negotiation.contract_terms_tradeoff.discount_exchange
+        version: 1
+        intent: opening
+        difficulty: standard
+        scenario_brief: 客户要求更大折扣，否则选择竞品，但你判断客户仍然认可方案价值。
+        question_stem: 你会如何决定是否让步，以及让步时要换回哪些条件？
+        prompt_template: 生成一道商务谈判题，要求候选人说明让步边界、交换条件、客户价值和成交风险。
+        scenario_skill_tags: [sales_business, negotiation, discount, value_exchange]
+        resume_anchor_hints: [discount, negotiation, contract, sales, procurement]
+        failure_categories: [missing_tradeoff, weak_negotiation, missing_risk]
+        rubric_additions: [说明让步底线, 说明交换条件, 说明客户和内部收益]
+        expected_signals: [能把让步当交换, 能守住底线, 能用价值而非价格推进]
+        anti_patterns: [无条件降价, 只追成交, 不考虑后续续约和交付]
+        good_answer_hints: [先判断成交概率, 再设让步底线, 最后换承诺或范围]
+        priority: 17
+        status: active
+      - id: negotiation.contract_terms_tradeoff.legal_procurement
+        version: 1
+        intent: deep_probe
+        difficulty: deep_probe
+        scenario_brief: 采购压价、法务卡付款和验收条款，业务方又希望尽快上线。
+        question_stem: 多方谈判卡在合同条款时，你会如何协调节奏并守住关键风险？
+        prompt_template: 生成一道合同谈判追问，要求候选人说明条款风险、内部外部多方协调、升级和替代方案。
+        scenario_skill_tags: [sales_business, contract, negotiation, procurement]
+        resume_anchor_hints: [contract, legal, procurement, negotiation, sales]
+        failure_categories: [weak_negotiation, missing_risk, weak_stakeholder_alignment]
+        rubric_additions: [说明条款风险级别, 说明多方节奏管理, 说明升级或替代方案]
+        expected_signals: [能区分原则和谈判空间, 能管理采购法务节奏, 能同步内部风险]
+        anti_patterns: [为了签单忽略条款, 绕过法务, 不管理业务方预期]
+        good_answer_hints: [先分条款风险, 再协调多方, 最后升级关键分歧]
+        priority: 16
+        status: active

@@ -35,8 +35,8 @@ from app.engine.agents.security import check_question
 from app.engine.rag.retriever import retrieve_for_question
 from app.engine.resume_plan import select_resume_anchor
 from app.engine.workflow.difficulty_adapter import difficulty_to_bar_level
-from app.engine.workflow.policy_context import policy_context_keys
 from app.engine.workflow.plans import build_llm_ask_plan, resolve_ask_plan
+from app.engine.workflow.policy_context import policy_context_keys
 from app.engine.workflow.probe_intent import resolve_probe_intent
 from app.engine.workflow.replay_basis import build_replay_question_basis
 from app.engine.workflow.skill_focus import select_target_skills
@@ -49,8 +49,71 @@ from app.engine.workflow.state import (
 from app.memory.skill_store import build_skills_block, retrieve_skills
 from app.memory.strategy_store import format_strategies_for_prompt, retrieve_strategies
 from app.ml.drift.prompt_feedback import build_generator_avoid_patterns
+from app.models.base import get_session
+from app.services.question_fit_profile import (
+    build_question_fit_profile as _build_question_fit_profile,
+)
+from app.services.question_fit_profile import (
+    candidate_anchor_artifact,
+    format_candidate_anchor_block,
+    resolve_question_bank_tags,
+)
+from app.services.question_reranker import (
+    QuestionRerankResult,
+)
+from app.services.question_reranker import (
+    record_question_rerank_usage as _record_question_rerank_usage,
+)
+from app.services.question_reranker import (
+    rerank_question_candidates as _rerank_question_candidates,
+)
+from app.services.question_selector import (
+    QuestionCandidate,
+    QuestionSelectionResult,
+    build_question_seed_contract_hints,
+    format_question_seed_block,
+)
+from app.services.question_selector import (
+    record_question_usages as _record_question_usages,
+)
+from app.services.question_selector import (
+    select_question_candidates as _select_question_candidates,
+)
 
 log = get_logger(__name__)
+
+_QUESTION_SELECTOR_MODES = {"vector", "structured_shadow", "structured_primary"}
+
+
+def select_question_candidates(**kwargs: Any) -> QuestionSelectionResult:
+    """Thin DB wrapper kept patchable for workflow tests."""
+
+    with get_session() as session:
+        return _select_question_candidates(session, **kwargs)
+
+
+def record_question_usages(**kwargs: Any) -> None:
+    """Thin persistence wrapper kept patchable for workflow tests."""
+
+    _record_question_usages(**kwargs)
+
+
+def build_question_fit_profile(**kwargs: Any) -> Any:
+    """Thin profile wrapper kept patchable for workflow tests."""
+
+    return _build_question_fit_profile(**kwargs)
+
+
+def rerank_question_candidates(**kwargs: Any) -> QuestionRerankResult:
+    """Thin shadow-reranker wrapper kept patchable for workflow tests."""
+
+    return _rerank_question_candidates(**kwargs)
+
+
+def record_question_rerank_usage(**kwargs: Any) -> None:
+    """Thin persistence wrapper kept patchable for workflow tests."""
+
+    _record_question_rerank_usage(**kwargs)
 
 
 def _step_retrieve_rag(state: InterviewState, ctx: dict[str, Any]) -> None:
@@ -253,7 +316,7 @@ def _skill_card_ref(entry: Any) -> dict[str, Any]:
 
 
 def _build_selection_artifacts(ctx: dict[str, Any]) -> dict[str, Any]:
-    return {
+    artifacts = {
         "rag": ctx.get("rag_artifact") or {
             "mode": "none",
             "top_k": 0,
@@ -273,11 +336,18 @@ def _build_selection_artifacts(ctx: dict[str, Any]) -> dict[str, Any]:
             "top_n": 0,
             "min_support": 0,
         },
-        "question_items": [],
+        "question_items": list(ctx.get("question_items") or []),
         "failure_categories": _failure_categories_from_hints(
             ctx.get("contract_hints"),
         ),
     }
+    if ctx.get("question_fit_profile_artifact") is not None:
+        artifacts["question_fit_profile"] = ctx["question_fit_profile_artifact"]
+    if ctx.get("question_reranker_artifact") is not None:
+        artifacts["question_reranker"] = ctx["question_reranker_artifact"]
+    if ctx.get("candidate_anchor_artifact") is not None:
+        artifacts["candidate_anchor"] = ctx["candidate_anchor_artifact"]
+    return artifacts
 
 
 def _failure_categories_from_hints(
@@ -300,6 +370,258 @@ def _failure_categories_from_hints(
     return []
 
 
+def _resolve_question_selector_mode(state: InterviewState) -> str:
+    runtime_config = state.get("runtime_config") or {}
+    raw = runtime_config.get("question_selector_mode")
+    if raw is None:
+        # Real Settings carries the production default (structured_shadow).
+        # Many legacy unit tests stub Settings with a narrow SimpleNamespace;
+        # defaulting that legacy stub to vector preserves their old no-DB path.
+        raw = getattr(get_settings(), "question_selector_mode", "vector")
+    mode = str(raw or "structured_shadow")
+    return mode if mode in _QUESTION_SELECTOR_MODES else "structured_shadow"
+
+
+def _question_variant_intent(
+    *,
+    state: InterviewState,
+    ctx: dict[str, Any],
+    probe_intent: str | None,
+) -> str:
+    try:
+        formal_turn = int(state.get("formal_turn_idx", state.get("turn_idx", 0)) or 0)
+    except Exception:
+        formal_turn = 0
+    if formal_turn <= 0 and not (state.get("qa_history") or []):
+        return "opening"
+
+    hints = ctx.get("contract_hints") or {}
+    if hints.get("failure_category") or hints.get("failure_categories"):
+        return "recovery"
+
+    selected = state.get("selected_action") or {}
+    template = str(selected.get("plan_template") or selected.get("id") or "")
+    if "deep_probe" in template:
+        return "deep_probe"
+    if probe_intent in {
+        "architecture_challenge",
+        "debugging_probe",
+        "performance_probe",
+        "metric_probe",
+    }:
+        return "deep_probe"
+    return "followup"
+
+
+def _question_selector_difficulty(target_difficulty: Any) -> str:
+    value = str(target_difficulty or "").strip().lower()
+    return {
+        "easy": "warmup",
+        "medium": "standard",
+        "hard": "deep_probe",
+        "intro": "warmup",
+    }.get(value, value if value in {"warmup", "standard", "deep_probe", "stretch"} else "standard")
+
+
+def _structured_primary_allowed(candidate: QuestionCandidate, settings: Any) -> bool:
+    candidate_roles = {str(tag) for tag in candidate.role_tags or [] if str(tag).strip()}
+    if not candidate_roles:
+        return True
+    allowed_roles = {
+        str(tag)
+        for tag in getattr(settings, "question_primary_role_tags", ["java_backend"])
+        if str(tag).strip()
+    }
+    return bool(candidate_roles & allowed_roles)
+
+
+def _resume_anchor_text(anchor: Any) -> str:
+    if not isinstance(anchor, dict):
+        return ""
+    parts: list[str] = []
+    for key in (
+        "project_name",
+        "name",
+        "label",
+        "project",
+        "summary",
+        "description",
+        "role",
+    ):
+        value = str(anchor.get(key) or "").strip()
+        if value:
+            parts.append(value)
+    for key in ("tech_stack", "skills", "keywords"):
+        values = anchor.get(key)
+        if isinstance(values, list):
+            parts.extend(str(item) for item in values if str(item or "").strip())
+    return " ".join(parts)
+
+
+def _merge_contract_hints(
+    base: dict[str, Any] | None,
+    addition: dict[str, Any] | None,
+) -> dict[str, Any]:
+    merged = dict(base or {})
+    for key, value in (addition or {}).items():
+        if isinstance(value, dict) and isinstance(merged.get(key), dict):
+            nested = dict(merged[key])
+            nested.update(value)
+            merged[key] = nested
+        else:
+            merged[key] = value
+    return merged
+
+
+def _step_select_structured_question(
+    state: InterviewState,
+    ctx: dict[str, Any],
+    *,
+    probe_intent: str | None,
+) -> None:
+    mode = _resolve_question_selector_mode(state)
+    ctx["question_selector_mode"] = mode
+    ctx["question_candidates"] = []
+    ctx["question_items"] = []
+    ctx["question_seed_block"] = ""
+    ctx["candidate_anchor_block"] = ""
+    ctx["question_fit_profile_artifact"] = None
+    ctx["question_reranker_artifact"] = None
+    ctx["candidate_anchor_artifact"] = None
+    ctx["structured_primary_seed_hit"] = False
+    if mode == "vector":
+        return
+
+    settings = get_settings()
+    intent = _question_variant_intent(state=state, ctx=ctx, probe_intent=probe_intent)
+    direction_tags, role_tags = resolve_question_bank_tags(
+        job_spec=state.get("job_spec", {}),
+        runtime_config=state.get("runtime_config") or {},
+    )
+    ctx["question_direction_tags"] = direction_tags
+    ctx["question_role_tags"] = role_tags
+    fit_profile = None
+    if bool(getattr(settings, "enable_question_fit_profile", True)):
+        try:
+            fit_profile = build_question_fit_profile(
+                candidate=state.get("candidate", {}),
+                self_intro_profile=state.get("self_intro_profile") or {},
+                job_spec=state.get("job_spec", {}),
+                target_skills=ctx.get("target_skills") or [],
+                resume_anchor=ctx.get("resume_anchor"),
+                pending_contract_hints=ctx.get("contract_hints"),
+                dimension=ctx["dimension"],
+                probe_intent=intent,
+                runtime_config=state.get("runtime_config") or {},
+            )
+            ctx["question_fit_profile"] = fit_profile
+            ctx["question_fit_profile_artifact"] = fit_profile.as_artifact()
+        except Exception as e:  # pragma: no cover - non-critical selection signal
+            log.debug("question fit profile build failed: %s", e)
+            fit_profile = None
+
+    try:
+        selection = select_question_candidates(
+            dimension=ctx["dimension"],
+            job_level=(state.get("job_spec") or {}).get("level", "mid"),
+            target_skills=ctx.get("target_skills") or [],
+            failure_categories=_failure_categories_from_hints(ctx.get("contract_hints")),
+            resume_anchor_text=_resume_anchor_text(ctx.get("resume_anchor")),
+            probe_intent=intent,
+            difficulty=_question_selector_difficulty(
+                state.get("target_difficulty", "medium")
+            ),
+            qa_history=state.get("qa_history", []),
+            fit_profile=fit_profile,
+            top_k=3,
+            direction_tags=ctx.get("question_direction_tags") or [],
+            role_tags=ctx.get("question_role_tags") or [],
+        )
+    except Exception as e:  # pragma: no cover - non-critical shadow path
+        log.debug("structured question selector failed: %s", e)
+        return
+
+    candidates: list[QuestionCandidate] = list(selection.candidates)
+    if (
+        mode == "structured_primary"
+        and candidates
+        and _structured_primary_allowed(candidates[0], settings)
+    ):
+        candidates = [
+            candidate.with_injected(candidate.rank == 1)
+            for candidate in candidates
+        ]
+        top = candidates[0]
+        ctx["structured_primary_seed_hit"] = True
+        ctx["question_seed_block"] = format_question_seed_block(top)
+        if fit_profile is not None:
+            ctx["candidate_anchor_block"] = format_candidate_anchor_block(
+                fit_profile,
+                top,
+            )
+            ctx["candidate_anchor_artifact"] = candidate_anchor_artifact(
+                fit_profile,
+                top,
+            )
+        ctx["question_seed_contract_hints"] = build_question_seed_contract_hints(top)
+        ctx["contract_hints"] = _merge_contract_hints(
+            ctx.get("contract_hints"),
+            ctx.get("question_seed_contract_hints"),
+        )
+
+    if (
+        bool(getattr(settings, "enable_question_reranker_shadow", False))
+        and len(candidates) >= 2
+    ):
+        try:
+            rerank_result = rerank_question_candidates(
+                candidates=candidates,
+                fit_profile=fit_profile,
+                question_selector_mode=mode,
+                enabled=True,
+                timeout_ms=int(getattr(settings, "question_reranker_timeout_ms", 4000)),
+            )
+            if getattr(rerank_result, "status", "skipped") != "skipped":
+                ctx["question_reranker_artifact"] = rerank_result.as_artifact()
+                try:
+                    record_question_rerank_usage(
+                        result=rerank_result,
+                        candidates=candidates,
+                        session_id=str(state.get("session_id") or ""),
+                        turn_idx=int(
+                            state.get("formal_turn_idx", state.get("turn_idx", 0)) or 0
+                        ),
+                        trace_id=state.get("trace_id"),
+                        dimension=ctx["dimension"],
+                        probe_intent=intent,
+                        question_selector_mode=mode,
+                    )
+                except Exception as e:  # pragma: no cover - observability only
+                    log.debug("question rerank usage write failed: %s", e)
+        except Exception as e:  # pragma: no cover - shadow-only path
+            log.debug("question shadow reranker failed: %s", e)
+
+    ctx["question_candidates"] = candidates
+    ctx["question_items"] = [candidate.as_artifact() for candidate in candidates]
+    if candidates:
+        try:
+            record_question_usages(
+                candidates=candidates,
+                session_id=str(state.get("session_id") or ""),
+                turn_idx=int(state.get("formal_turn_idx", state.get("turn_idx", 0)) or 0),
+                trace_id=state.get("trace_id"),
+                question_selector_mode=mode,
+            )
+        except Exception as e:  # pragma: no cover - observability only
+            log.debug("question usage write failed: %s", e)
+
+
+def _retrieval_block_for_prompt(ctx: dict[str, Any]) -> str:
+    if ctx.get("structured_primary_seed_hit"):
+        return ""
+    return ctx.get("retrieval_block", "")
+
+
 def _step_draft_question(state: InterviewState, ctx: dict[str, Any]) -> None:
     runtime_config = state.get("runtime_config") or {}
     refine_mode = bool(state.get("refine_mode")) or bool(
@@ -311,7 +633,9 @@ def _step_draft_question(state: InterviewState, ctx: dict[str, Any]) -> None:
         job_spec=state.get("job_spec", {}),
         candidate=state.get("candidate", {}),
         recent_qa=state.get("qa_history", []),
-        retrieval_block=ctx.get("retrieval_block", ""),
+        retrieval_block=_retrieval_block_for_prompt(ctx),
+        question_seed_block=ctx.get("question_seed_block", ""),
+        candidate_anchor_block=ctx.get("candidate_anchor_block", ""),
         strategy_block=ctx.get("strategy_block", "(no relevant strategy memories)"),
         skill_block=ctx.get("skill_block", "(no relevant interview skills)"),
         avoid_patterns_block=ctx.get(
@@ -359,7 +683,7 @@ def _step_challenge_with_reference(state: InterviewState, ctx: dict[str, Any]) -
     variant can be added later by swapping this helper out.
     """
     payload = ctx.get("question_payload") or {}
-    retrieval_block = ctx.get("retrieval_block", "") or ""
+    retrieval_block = _retrieval_block_for_prompt(ctx) or ""
     first_line = next(
         (line for line in retrieval_block.splitlines() if line.strip()),
         "",
@@ -766,6 +1090,7 @@ def ask_question_node(state: InterviewState) -> dict[str, Any]:
     )
     ctx["probe_intent"] = probe_intent
 
+    _step_select_structured_question(state, ctx, probe_intent=probe_intent)
     _run_plan(plan, state, ctx)
 
     question_payload: dict[str, Any] = ctx.get("question_payload") or {}

@@ -1,0 +1,203 @@
+dimension: coding_quality
+seeds:
+  - id: coding_quality.frontend_component_maintainability
+    version: 1
+    title: 前端组件可维护性与工程质量
+    dimension: coding_quality
+    job_levels: [mid, senior, staff]
+    skill_tags: [frontend, component design, testing, maintainability]
+    direction_tags: [internet_tech]
+    role_tags: [frontend_web]
+    rubric:
+      must_cover: [组件边界, 状态管理, 测试策略, 可演进性]
+      minimum_bar: 能说明如何让复杂前端组件在多人协作和长期迭代中保持可维护。
+      stretch: 能结合设计系统、数据契约、测试金字塔和性能约束提出治理方案。
+    priority: 22
+    status: active
+    source: manual_yaml
+    scope: global
+    language: zh-CN
+    variants:
+      - id: coding_quality.frontend_component_maintainability.form_builder
+        version: 1
+        intent: opening
+        difficulty: standard
+        scenario_brief: 一个动态表单组件支持多业务复用，字段规则、权限和联动逻辑不断增加。
+        question_stem: 请说明你会如何设计动态表单组件的边界、状态管理和测试策略。
+        prompt_template: 结合候选人的前端工程经验，生成一道代码质量题，要求说明组件 API、状态拆分、测试和演进风险。
+        scenario_skill_tags: [component api, form, testing, state management]
+        resume_anchor_hints: [component, form, react, vue, testing]
+        failure_categories: [missing_tradeoff, missing_test_strategy, vague_contract]
+        rubric_additions: [说明受控与非受控边界, 说明联动逻辑隔离, 说明单测和集成测试]
+        expected_signals: [能设计清晰组件契约, 能避免状态耦合, 能覆盖关键业务规则测试]
+        anti_patterns: [把所有逻辑塞进一个组件, 没有测试策略, API 随需求随意扩张]
+        good_answer_hints: [先定义使用方契约, 再拆状态和规则, 最后补测试和版本演进]
+        priority: 15
+        status: active
+      - id: coding_quality.frontend_component_maintainability.design_system
+        version: 1
+        intent: followup
+        difficulty: standard
+        scenario_brief: 多个业务线重复实现按钮、表格和弹窗，样式与交互逐渐不一致。
+        question_stem: 如果要推动前端组件库治理，你会如何处理 API 设计、兼容迁移和质量保障？
+        prompt_template: 生成一道前端组件库治理追问题，要求候选人说明 API 设计、迁移策略、测试和文档。
+        scenario_skill_tags: [design system, component library, migration, testing]
+        resume_anchor_hints: [component library, design system, ui, testing]
+        failure_categories: [missing_action, missing_tradeoff, vague_contract]
+        rubric_additions: [说明组件抽象边界, 说明旧用法迁移策略, 说明视觉和交互回归测试]
+        expected_signals: [能平衡统一和业务灵活性, 能设计渐进迁移, 能建立质量门禁]
+        anti_patterns: [一次性推翻重写, 只统一样式不统一行为, 没有迁移计划]
+        good_answer_hints: [先盘点重复模式, 再设计稳定 API, 最后灰度迁移和测试兜底]
+        priority: 13
+        status: active
+
+  - id: coding_quality.sre_automation_safety
+    version: 1
+    title: SRE 自动化脚本质量与安全边界
+    dimension: coding_quality
+    job_levels: [mid, senior, staff]
+    skill_tags: [sre, automation, runbook, safety, testing]
+    direction_tags: [internet_tech]
+    role_tags: [sre]
+    rubric:
+      must_cover: [幂等性, 权限边界, dry run, 回滚验证]
+      minimum_bar: 能说明自动化操作如何避免扩大故障和误伤生产。
+      stretch: 能把脚本、审批、审计、演练和 runbook 维护纳入治理闭环。
+    priority: 22
+    status: active
+    source: manual_yaml
+    scope: global
+    language: zh-CN
+    variants:
+      - id: coding_quality.sre_automation_safety.restart_runbook
+        version: 1
+        intent: opening
+        difficulty: standard
+        scenario_brief: 值班同学需要一键重启部分实例，但误选实例可能扩大影响面。
+        question_stem: 请说明你会如何设计一个生产重启自动化脚本的安全边界、幂等性和验证流程。
+        prompt_template: 结合候选人的运维自动化经验，生成一道代码质量题，要求说明 dry run、权限、幂等和回滚验证。
+        scenario_skill_tags: [automation, dry run, idempotency, rollback]
+        resume_anchor_hints: [automation, runbook, sre, script, rollback]
+        failure_categories: [missing_action, missing_edge_case, missing_observability]
+        rubric_additions: [说明目标选择校验, 说明 dry run 和审批, 说明执行后验证]
+        expected_signals: [能设计幂等脚本, 能限制权限和影响范围, 能保留审计和回滚路径]
+        anti_patterns: [直接批量执行, 没有 dry run, 失败后不知道执行到哪一步]
+        good_answer_hints: [先限制影响范围, 再做 dry run 和幂等, 最后加审计和验证]
+        priority: 15
+        status: active
+      - id: coding_quality.sre_automation_safety.config_change
+        version: 1
+        intent: deep_probe
+        difficulty: deep_probe
+        scenario_brief: 需要批量修改告警阈值和服务配置，错误配置可能导致告警风暴或服务不可用。
+        question_stem: 批量配置变更自动化时，你会如何设计校验、灰度、回滚和审计？
+        prompt_template: 生成一道 SRE 自动化深挖题，要求候选人说明配置校验、灰度发布、回滚和审计质量。
+        scenario_skill_tags: [configuration, automation, canary, audit]
+        resume_anchor_hints: [config, canary, automation, alerting, sre]
+        failure_categories: [missing_edge_case, missing_action, missing_observability]
+        rubric_additions: [说明配置 schema 校验, 说明分批灰度和回滚, 说明审计和告警验证]
+        expected_signals: [能阻断非法配置, 能分批控制风险, 能追踪每次变更结果]
+        anti_patterns: [全量直接改, 无法回滚, 没有配置校验]
+        good_answer_hints: [先做配置校验, 再灰度执行, 最后验证告警和服务指标]
+        priority: 13
+        status: active
+  - id: coding_quality.ai_fullstack_contract_quality
+    version: 1
+    title: AI 全栈接口契约与代码质量
+    dimension: coding_quality
+    job_levels: [mid, senior]
+    skill_tags: [ai fullstack, api contract, testing, schema, maintainability]
+    direction_tags: [internet_tech]
+    role_tags: [ai_fullstack]
+    rubric:
+      must_cover: [接口契约, 类型边界, 测试策略, 可维护性]
+      minimum_bar: 能说明 AI 应用前后端和模型服务之间的契约如何保持稳定。
+      stretch: 能把 schema 校验、mock、回归测试和模型返回不确定性纳入质量体系。
+    priority: 25
+    status: active
+    source: manual_yaml
+    scope: global
+    language: zh-CN
+    variants:
+      - id: coding_quality.ai_fullstack_contract_quality.model_response_schema
+        version: 1
+        intent: opening
+        difficulty: standard
+        scenario_brief: 前端依赖模型返回的结构化 JSON，但线上偶尔字段缺失导致页面异常。
+        question_stem: 你会如何设计 AI 应用的模型返回 schema、校验和前端容错？
+        prompt_template: 结合候选人的全栈代码质量经验，生成一道接口契约题，要求说明 schema、校验和测试。
+        scenario_skill_tags: [ai fullstack, schema, validation, testing]
+        resume_anchor_hints: [schema, api, fullstack, llm, testing]
+        failure_categories: [missing_edge_case, missing_action, shallow_debugging]
+        rubric_additions: [说明结构化输出 schema, 说明运行时校验和降级, 说明契约测试]
+        expected_signals: [能定义严格 schema, 能处理模型输出缺失, 能建立前后端契约测试]
+        anti_patterns: [前端直接相信模型字段, 只靠 TypeScript 类型, 没有异常兜底]
+        good_answer_hints: [先定义输出契约, 再做运行时校验, 最后补测试和降级]
+        priority: 16
+        status: active
+      - id: coding_quality.ai_fullstack_contract_quality.prompt_versioning
+        version: 1
+        intent: deep_probe
+        difficulty: deep_probe
+        scenario_brief: prompt 和后端解析逻辑频繁变化，导致旧任务结果无法兼容新页面。
+        question_stem: AI 全栈应用中 prompt、解析逻辑和前端展示耦合时，你会如何治理版本兼容？
+        prompt_template: 生成一道 AI 全栈可维护性深挖题，要求候选人说明版本、兼容、测试和回滚。
+        scenario_skill_tags: [ai fullstack, prompt versioning, compatibility, testing]
+        resume_anchor_hints: [prompt, versioning, fullstack, testing, compatibility]
+        failure_categories: [missing_tradeoff, missing_edge_case, missing_action]
+        rubric_additions: [说明 prompt 和 schema 版本, 说明兼容解析, 说明回归测试和回滚]
+        expected_signals: [能给 prompt 输出加版本, 能兼容历史任务, 能做样例回归测试]
+        anti_patterns: [直接覆盖 prompt, 不记录版本, 历史数据无法展示]
+        good_answer_hints: [先分离 prompt 和 schema, 再做版本兼容, 最后建立回归样例]
+        priority: 14
+        status: active
+  - id: coding_quality.mobile_modular_quality
+    version: 1
+    title: 移动端模块化与工程质量
+    dimension: coding_quality
+    job_levels: [mid, senior]
+    skill_tags: [mobile, modularization, testing, maintainability, app]
+    direction_tags: [internet_tech]
+    role_tags: [mobile]
+    rubric:
+      must_cover: [模块边界, 依赖管理, 测试策略, 发布影响]
+      minimum_bar: 能说明移动端复杂业务如何通过模块化和测试降低维护成本。
+      stretch: 能结合跨端、动态化、灰度发布和性能约束设计工程质量体系。
+    priority: 24
+    status: active
+    source: manual_yaml
+    scope: global
+    language: zh-CN
+    variants:
+      - id: coding_quality.mobile_modular_quality.feature_module
+        version: 1
+        intent: opening
+        difficulty: standard
+        scenario_brief: 移动 App 业务模块越来越多，公共组件和页面逻辑互相依赖，发布风险变高。
+        question_stem: 你会如何设计移动端业务模块边界、公共组件和依赖治理？
+        prompt_template: 结合候选人的移动端工程经验，生成一道代码质量题，要求说明模块化、依赖和测试。
+        scenario_skill_tags: [mobile, modularization, dependency, testing]
+        resume_anchor_hints: [mobile, module, component, testing, app]
+        failure_categories: [missing_tradeoff, missing_action, missing_edge_case]
+        rubric_additions: [说明模块划分原则, 说明公共组件边界, 说明依赖和测试策略]
+        expected_signals: [能避免循环依赖, 能分业务模块和基础模块, 能设计模块级测试]
+        anti_patterns: [所有模块互相调用, 公共组件承载业务逻辑, 没有发布影响评估]
+        good_answer_hints: [先按业务和基础能力分层, 再治理依赖, 最后补测试和发布检查]
+        priority: 15
+        status: active
+      - id: coding_quality.mobile_modular_quality.cross_platform
+        version: 1
+        intent: deep_probe
+        difficulty: deep_probe
+        scenario_brief: 团队同时维护 Android、iOS 和 Flutter 页面，功能一致性和质量回归压力很大。
+        question_stem: 多端移动应用如何治理复用、差异和测试，避免跨端质量失控？
+        prompt_template: 生成一道移动端跨端工程质量深挖题，要求候选人说明复用边界、平台差异和测试策略。
+        scenario_skill_tags: [mobile, cross platform, flutter, testing]
+        resume_anchor_hints: [android, ios, flutter, cross platform, testing]
+        failure_categories: [missing_tradeoff, missing_edge_case, missing_metrics]
+        rubric_additions: [说明跨端复用边界, 说明平台差异处理, 说明自动化和灰度验证]
+        expected_signals: [能区分业务逻辑复用和原生差异, 能建立多端验收用例, 能控制灰度风险]
+        anti_patterns: [强行完全一致, 不处理平台能力差异, 只靠人工回归]
+        good_answer_hints: [先定义复用层级, 再列平台差异, 最后做自动化和灰度]
+        priority: 13
+        status: active

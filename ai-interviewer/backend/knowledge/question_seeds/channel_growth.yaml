@@ -1,0 +1,52 @@
+dimension: channel_growth
+seeds:
+  - id: channel_growth.roi_lead_optimization
+    version: 1
+    title: 渠道增长 ROI 与线索质量优化
+    dimension: channel_growth
+    job_levels: [mid, senior]
+    skill_tags: [marketing_brand, channel_growth, roi, lead, paid_media]
+    direction_tags: [business]
+    role_tags: [marketing_brand]
+    rubric:
+      must_cover: [渠道选择, 线索质量, ROI 归因, 优化动作]
+      minimum_bar: 能说明渠道健康度不只看曝光或点击，而要看转化和线索质量。
+      stretch: 能平衡短期 ROI、长期 LTV 和归因模型不确定性。
+    priority: 28
+    status: active
+    source: manual_yaml
+    scope: global
+    language: zh-CN
+    variants:
+      - id: channel_growth.roi_lead_optimization.paid_channel_bottleneck
+        version: 1
+        intent: opening
+        difficulty: standard
+        scenario_brief: 付费投放 CTR 很高，但后续注册和销售转化偏低，团队不确定是素材、落地页还是人群问题。
+        question_stem: 你会如何拆解渠道转化瓶颈，并决定下一轮优化变量？
+        prompt_template: 生成一道渠道增长题，要求候选人说明 CTR、CVR、CPA、线索质量和优化实验。
+        scenario_skill_tags: [marketing_brand, channel_growth, paid_media, conversion]
+        resume_anchor_hints: [channel, paid_media, roi, lead, conversion]
+        failure_categories: [shallow_analysis, vague_metrics, missing_attribution]
+        rubric_additions: [说明漏斗指标拆解, 说明瓶颈定位, 说明下一轮实验变量]
+        expected_signals: [能拆 CTR CVR CPA, 能看线索质量, 能定位素材人群或落地页问题]
+        anti_patterns: [只优化点击率, 全部变量一起改, 不看下游成交]
+        good_answer_hints: [先拆漏斗, 再定位瓶颈, 最后一次只改关键变量]
+        priority: 17
+        status: active
+      - id: channel_growth.roi_lead_optimization.ltv_roi_tradeoff
+        version: 1
+        intent: deep_probe
+        difficulty: deep_probe
+        scenario_brief: 一个渠道短期 CPA 低但用户留存差，另一个渠道 CPA 高但长期 LTV 更好。
+        question_stem: 短期 ROI 和长期 LTV 冲突时，你会如何调整渠道预算？
+        prompt_template: 生成一道渠道预算追问，要求候选人说明归因窗口、LTV 估算、预算分配和验证节奏。
+        scenario_skill_tags: [marketing_brand, roi, ltv, channel_growth]
+        resume_anchor_hints: [roi, ltv, channel, marketing, attribution]
+        failure_categories: [missing_tradeoff, vague_metrics, missing_attribution]
+        rubric_additions: [说明归因窗口, 说明 LTV 与 CPA 比较, 说明预算灰度调整]
+        expected_signals: [能区分短期和长期价值, 能处理归因不确定性, 能分阶段调整预算]
+        anti_patterns: [只看当期 ROI, 忽略留存, 一次性砍掉高 CPA 渠道]
+        good_answer_hints: [先统一归因窗口, 再估算 LTV, 最后灰度调预算]
+        priority: 16
+        status: active

@@ -1,0 +1,52 @@
+dimension: content_creativity
+seeds:
+  - id: content_creativity.campaign_content_system
+    version: 1
+    title: 内容创意来源与效果归因
+    dimension: content_creativity
+    job_levels: [mid, senior]
+    skill_tags: [marketing_brand, content_creativity, creative, content, attribution]
+    direction_tags: [business]
+    role_tags: [marketing_brand]
+    rubric:
+      must_cover: [创意来源, 表达策略, 效果指标, 复用沉淀]
+      minimum_bar: 能说明内容创意从哪里来、服务谁、用什么指标判断有效。
+      stretch: 能复盘爆款的必然和偶然因素，并沉淀可复用创意机制。
+    priority: 27
+    status: active
+    source: manual_yaml
+    scope: global
+    language: zh-CN
+    variants:
+      - id: content_creativity.campaign_content_system.creative_source
+        version: 1
+        intent: opening
+        difficulty: standard
+        scenario_brief: 团队需要为新功能做一组短视频和图文素材，但用户对卖点认知分散，创意方向不明确。
+        question_stem: 你会如何找到内容创意来源，并判断哪种表达更能打动目标用户？
+        prompt_template: 生成一道内容创意题，要求候选人说明用户洞察、创意来源、表达测试和效果判断。
+        scenario_skill_tags: [marketing_brand, content_creativity, creative_source, user_insight]
+        resume_anchor_hints: [creative, content, campaign, user, marketing]
+        failure_categories: [weak_user_insight, missing_evidence, vague_metrics]
+        rubric_additions: [说明创意输入来源, 说明目标用户和表达假设, 说明测试和指标]
+        expected_signals: [能从用户语言中找创意, 能设计 A/B 或小样本测试, 能看互动质量]
+        anti_patterns: [只凭审美拍板, 只追热点, 不测试表达]
+        good_answer_hints: [先找用户语言, 再形成表达假设, 最后小规模测试]
+        priority: 16
+        status: active
+      - id: content_creativity.campaign_content_system.viral_attribution
+        version: 1
+        intent: deep_probe
+        difficulty: deep_probe
+        scenario_brief: 一条内容突然爆发，带来大量曝光和注册，但团队不知道能否复用。
+        question_stem: 内容爆发后，你会如何归因哪些因素可复用，哪些只是偶然？
+        prompt_template: 生成一道内容归因追问，要求候选人说明数据拆解、分发机制、用户反馈和复用策略。
+        scenario_skill_tags: [marketing_brand, content_creativity, viral, attribution]
+        resume_anchor_hints: [viral, content, attribution, campaign, marketing]
+        failure_categories: [missing_attribution, shallow_analysis, missing_action]
+        rubric_additions: [说明爆发因素拆解, 说明偶然和可复用因素, 说明后续内容机制]
+        expected_signals: [能看选题表达分发时机, 能承认偶然性, 能沉淀可复用素材或模板]
+        anti_patterns: [爆了就复制同款, 不看渠道机制, 不分析用户评论质量]
+        good_answer_hints: [先拆爆发链路, 再区分可控和偶然, 最后沉淀下一轮实验]
+        priority: 15
+        status: active

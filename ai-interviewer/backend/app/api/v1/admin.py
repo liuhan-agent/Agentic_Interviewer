@@ -11,6 +11,8 @@ schema so the admin surface is not advertised to casual clients.
 """
 from __future__ import annotations
 
+import hashlib
+import re
 from pathlib import Path
 from typing import Any
 from urllib.parse import urlparse, urlunparse
@@ -1507,6 +1509,458 @@ def security_summary() -> dict[str, Any]:
     from app.core.metrics import security_metrics_snapshot
 
     return security_metrics_snapshot()
+
+
+def _question_seed_payload(row: Any, *, variant_count: int | None = None) -> dict[str, Any]:
+    payload = {
+        "id": row.id,
+        "version": row.version,
+        "title": row.title,
+        "dimension": row.dimension,
+        "job_levels": list(row.job_levels or []),
+        "skill_tags": list(row.skill_tags or []),
+        "direction_tags": list(getattr(row, "direction_tags", []) or []),
+        "role_tags": list(getattr(row, "role_tags", []) or []),
+        "rubric": row.rubric or {},
+        "priority": row.priority,
+        "status": row.status,
+        "source": row.source,
+        "scope": row.scope,
+        "org_id": row.org_id,
+        "job_template_id": row.job_template_id,
+        "language": row.language,
+        "created_at": row.created_at.isoformat() if row.created_at else None,
+        "updated_at": row.updated_at.isoformat() if row.updated_at else None,
+    }
+    if variant_count is not None:
+        payload["variant_count"] = variant_count
+    return payload
+
+
+def _question_variant_payload(row: Any) -> dict[str, Any]:
+    return {
+        "id": row.id,
+        "seed_id": row.seed_id,
+        "version": row.version,
+        "intent": row.intent,
+        "difficulty": row.difficulty,
+        "scenario_brief": row.scenario_brief,
+        "question_stem": row.question_stem,
+        "prompt_template": row.prompt_template,
+        "scenario_skill_tags": list(row.scenario_skill_tags or []),
+        "resume_anchor_hints": list(row.resume_anchor_hints or []),
+        "failure_categories": list(row.failure_categories or []),
+        "rubric_additions": list(row.rubric_additions or []),
+        "expected_signals": list(row.expected_signals or []),
+        "anti_patterns": list(row.anti_patterns or []),
+        "good_answer_hints": list(row.good_answer_hints or []),
+        "role_tags": list(getattr(row, "role_tags", []) or []),
+        "priority": row.priority,
+        "status": row.status,
+        "created_at": row.created_at.isoformat() if row.created_at else None,
+        "updated_at": row.updated_at.isoformat() if row.updated_at else None,
+    }
+
+
+def _question_usage_payload(
+    row: Any,
+    *,
+    seed: Any | None = None,
+    variant: Any | None = None,
+) -> dict[str, Any]:
+    return {
+        "id": row.id,
+        "session_id": row.session_id,
+        "turn_idx": row.turn_idx,
+        "trace_id": row.trace_id,
+        "seed_id": row.seed_id,
+        "variant_id": row.variant_id,
+        "seed_version": row.seed_version,
+        "variant_version": row.variant_version,
+        "rank": row.rank,
+        "match_score": row.match_score,
+        "match_reasons": list(row.match_reasons or []),
+        "injected": row.injected,
+        "question_selector_mode": row.question_selector_mode,
+        "direction_tags": list(getattr(seed, "direction_tags", []) or []),
+        "role_tags": list(
+            getattr(variant, "role_tags", []) or getattr(seed, "role_tags", []) or []
+        ),
+        "score": row.score,
+        "passed": row.passed,
+        "immediate_reward": row.immediate_reward,
+        "created_at": row.created_at.isoformat() if row.created_at else None,
+        "updated_at": row.updated_at.isoformat() if row.updated_at else None,
+    }
+
+
+def _question_rerank_usage_payload(row: Any) -> dict[str, Any]:
+    return {
+        "id": row.id,
+        "session_id": row.session_id,
+        "turn_idx": row.turn_idx,
+        "trace_id": row.trace_id,
+        "dimension": row.dimension,
+        "probe_intent": row.probe_intent,
+        "question_selector_mode": row.question_selector_mode,
+        "rule_top_seed_id": row.rule_top_seed_id,
+        "rule_top_variant_id": row.rule_top_variant_id,
+        "llm_top_seed_id": row.llm_top_seed_id,
+        "llm_top_variant_id": row.llm_top_variant_id,
+        "candidate_variant_ids": list(row.candidate_variant_ids or []),
+        "ranked_variant_ids": list(row.ranked_variant_ids or []),
+        "fit_scores": row.fit_scores or {},
+        "anchor_choice": row.anchor_choice,
+        "reasons": list(row.reasons or []),
+        "confidence": row.confidence,
+        "model": row.model,
+        "latency_ms": row.latency_ms,
+        "status": row.status,
+        "error": row.error,
+        "created_at": row.created_at.isoformat() if row.created_at else None,
+        "updated_at": row.updated_at.isoformat() if row.updated_at else None,
+    }
+
+
+def _question_review_payload(row: Any) -> dict[str, Any]:
+    return {
+        "id": row.id,
+        "session_id": row.session_id,
+        "turn_idx": row.turn_idx,
+        "trace_id": row.trace_id,
+        "question_rerank_usage_id": row.question_rerank_usage_id,
+        "rule_variant_id": row.rule_variant_id,
+        "llm_variant_id": row.llm_variant_id,
+        "winner": row.winner,
+        "reasons": list(row.reasons or []),
+        "notes": row.notes,
+        "reviewer": row.reviewer,
+        "context_summary": row.context_summary or {},
+        "created_at": row.created_at.isoformat() if row.created_at else None,
+        "updated_at": row.updated_at.isoformat() if row.updated_at else None,
+    }
+
+
+@router.get("/question-seeds", dependencies=[Depends(require_admin_token)])
+def list_question_seeds(
+    direction_tag: str | None = None,
+    role_tag: str | None = None,
+) -> dict[str, Any]:
+    from app.models.question_bank import QuestionSeed, QuestionVariant
+
+    with get_session() as sess:
+        seeds = (
+            sess.query(QuestionSeed)
+            .order_by(
+                QuestionSeed.dimension.asc(),
+                QuestionSeed.status.asc(),
+                QuestionSeed.priority.desc(),
+                QuestionSeed.id.asc(),
+            )
+            .all()
+        )
+        variants = sess.query(QuestionVariant.seed_id).all()
+    direction_filter = _slug_filter(direction_tag)
+    role_filter = _slug_filter(role_tag)
+    if direction_filter:
+        seeds = [
+            seed
+            for seed in seeds
+            if direction_filter in set(getattr(seed, "direction_tags", []) or [])
+        ]
+    if role_filter:
+        seeds = [
+            seed
+            for seed in seeds
+            if role_filter in set(getattr(seed, "role_tags", []) or [])
+        ]
+    counts: dict[str, int] = {}
+    for (seed_id,) in variants:
+        counts[seed_id] = counts.get(seed_id, 0) + 1
+    return {
+        "count": len(seeds),
+        "question_seeds": [
+            _question_seed_payload(row, variant_count=counts.get(row.id, 0))
+            for row in seeds
+        ],
+    }
+
+
+@router.post("/question-seeds/import", dependencies=[Depends(require_admin_token)])
+def import_question_seeds(archive_missing: bool = False) -> dict[str, int]:
+    from app.services.question_seed_import import (
+        QuestionSeedImportError,
+        import_question_seed_dir,
+    )
+
+    seed_dir = Path(get_settings().knowledge_dir) / "question_seeds"
+    try:
+        with get_session() as sess:
+            result = import_question_seed_dir(
+                seed_dir,
+                session=sess,
+                archive_missing=archive_missing,
+            )
+    except QuestionSeedImportError as exc:
+        raise HTTPException(status_code=422, detail={"errors": exc.errors}) from exc
+    return {
+        "imported_seeds": result.imported_seeds,
+        "updated_seeds": result.updated_seeds,
+        "unchanged_seeds": result.unchanged_seeds,
+        "imported_variants": result.imported_variants,
+        "updated_variants": result.updated_variants,
+        "unchanged_variants": result.unchanged_variants,
+        "archived_seeds": result.archived_seeds,
+        "archived_variants": result.archived_variants,
+    }
+
+
+@router.post("/question-seeds/lint", dependencies=[Depends(require_admin_token)])
+def lint_question_seeds(strict_quality: bool = False) -> dict[str, Any]:
+    from app.services.question_seed_lint import lint_question_seed_dir
+
+    seed_dir = Path(get_settings().knowledge_dir) / "question_seeds"
+    result = lint_question_seed_dir(seed_dir, strict=bool(strict_quality))
+    return result.as_dict()
+
+
+@router.get("/question-seeds/{seed_id}", dependencies=[Depends(require_admin_token)])
+def get_question_seed(seed_id: str) -> dict[str, Any]:
+    from app.models.question_bank import QuestionSeed, QuestionVariant
+
+    with get_session() as sess:
+        seed = sess.get(QuestionSeed, seed_id)
+        if seed is None:
+            raise HTTPException(status_code=404, detail="question seed not found")
+        variants = (
+            sess.query(QuestionVariant)
+            .filter(QuestionVariant.seed_id == seed_id)
+            .order_by(
+                QuestionVariant.status.asc(),
+                QuestionVariant.priority.desc(),
+                QuestionVariant.id.asc(),
+            )
+            .all()
+        )
+    return {
+        "seed": _question_seed_payload(seed, variant_count=len(variants)),
+        "variants": [_question_variant_payload(row) for row in variants],
+    }
+
+
+@router.get("/question-usages", dependencies=[Depends(require_admin_token)])
+def list_question_usages(
+    limit: int = 100,
+    direction_tag: str | None = None,
+    role_tag: str | None = None,
+) -> dict[str, Any]:
+    from app.models.question_bank import QuestionSeed, QuestionUsage, QuestionVariant
+
+    capped_limit = max(1, min(int(limit or 100), 500))
+    direction_filter = _slug_filter(direction_tag)
+    role_filter = _slug_filter(role_tag)
+    query_limit = 500 if (direction_filter or role_filter) else capped_limit
+    with get_session() as sess:
+        rows = (
+            sess.query(QuestionUsage)
+            .order_by(QuestionUsage.created_at.desc())
+            .limit(query_limit)
+            .all()
+        )
+        seed_ids = {row.seed_id for row in rows}
+        variant_ids = {row.variant_id for row in rows}
+        seeds = {
+            row.id: row
+            for row in sess.query(QuestionSeed).filter(QuestionSeed.id.in_(seed_ids)).all()
+        } if seed_ids else {}
+        variants = {
+            row.id: row
+            for row in sess.query(QuestionVariant).filter(QuestionVariant.id.in_(variant_ids)).all()
+        } if variant_ids else {}
+    payloads = []
+    for row in rows:
+        seed = seeds.get(row.seed_id)
+        variant = variants.get(row.variant_id)
+        payload = _question_usage_payload(row, seed=seed, variant=variant)
+        if direction_filter and direction_filter not in set(payload["direction_tags"]):
+            continue
+        if role_filter and role_filter not in set(payload["role_tags"]):
+            continue
+        payloads.append(payload)
+        if len(payloads) >= capped_limit:
+            break
+    return {
+        "count": len(payloads),
+        "usages": payloads,
+    }
+
+
+@router.get("/question-rerank-usages", dependencies=[Depends(require_admin_token)])
+def list_question_rerank_usages(limit: int = 100) -> dict[str, Any]:
+    from app.models.question_bank import QuestionRerankUsage
+
+    capped_limit = max(1, min(int(limit or 100), 500))
+    with get_session() as sess:
+        rows = (
+            sess.query(QuestionRerankUsage)
+            .order_by(QuestionRerankUsage.created_at.desc())
+            .limit(capped_limit)
+            .all()
+        )
+    return {
+        "count": len(rows),
+        "rerank_usages": [_question_rerank_usage_payload(row) for row in rows],
+    }
+
+
+@router.get("/question-reviews", dependencies=[Depends(require_admin_token)])
+def list_question_reviews(limit: int = 100) -> dict[str, Any]:
+    from app.models.question_bank import QuestionReview
+
+    capped_limit = max(1, min(int(limit or 100), 500))
+    with get_session() as sess:
+        rows = (
+            sess.query(QuestionReview)
+            .order_by(QuestionReview.created_at.desc())
+            .limit(capped_limit)
+            .all()
+        )
+    return {
+        "count": len(rows),
+        "reviews": [_question_review_payload(row) for row in rows],
+    }
+
+
+@router.post("/question-reviews", dependencies=[Depends(require_admin_token)])
+def create_question_review(payload: dict[str, Any]) -> dict[str, Any]:
+    from app.models.question_bank import QuestionReview
+
+    winner = str(payload.get("winner") or "").strip().lower()
+    if winner not in {"rule", "llm", "tie", "neither"}:
+        raise HTTPException(status_code=422, detail="winner must be rule|llm|tie|neither")
+    session_id = str(payload.get("session_id") or "").strip()
+    if not session_id:
+        raise HTTPException(status_code=422, detail="session_id is required")
+    turn_idx = int(payload.get("turn_idx") or 0)
+    review_id = str(payload.get("id") or "").strip() or _question_review_id(
+        session_id=session_id,
+        turn_idx=turn_idx,
+        rule_variant_id=str(payload.get("rule_variant_id") or ""),
+        llm_variant_id=str(payload.get("llm_variant_id") or ""),
+        winner=winner,
+    )
+    values = {
+        "id": review_id,
+        "session_id": session_id,
+        "turn_idx": turn_idx,
+        "trace_id": _optional_str(payload.get("trace_id")),
+        "question_rerank_usage_id": _optional_str(payload.get("question_rerank_usage_id")),
+        "rule_variant_id": _optional_str(payload.get("rule_variant_id")),
+        "llm_variant_id": _optional_str(payload.get("llm_variant_id")),
+        "winner": winner,
+        "reasons": _list_of_str(payload.get("reasons")),
+        "notes": str(payload.get("notes") or "").strip()[:4000],
+        "reviewer": str(payload.get("reviewer") or "admin").strip()[:96] or "admin",
+        "context_summary": payload.get("context_summary")
+        if isinstance(payload.get("context_summary"), dict)
+        else {},
+    }
+    with get_session() as sess:
+        row = sess.get(QuestionReview, review_id)
+        if row is None:
+            row = QuestionReview(**values)
+            sess.add(row)
+        else:
+            for key, value in values.items():
+                setattr(row, key, value)
+        sess.flush()
+        response = _question_review_payload(row)
+    return {"review": response}
+
+
+def _question_review_id(
+    *,
+    session_id: str,
+    turn_idx: int,
+    rule_variant_id: str,
+    llm_variant_id: str,
+    winner: str,
+) -> str:
+    material = f"{session_id}|{turn_idx}|{rule_variant_id}|{llm_variant_id}|{winner}"
+    digest = hashlib.sha1(material.encode("utf-8"), usedforsecurity=False).hexdigest()
+    return f"question-review:{digest[:32]}"
+
+
+def _optional_str(value: Any) -> str | None:
+    text = str(value or "").strip()
+    return text or None
+
+
+def _list_of_str(value: Any) -> list[str]:
+    if not isinstance(value, list):
+        return []
+    return [text for item in value if (text := str(item or "").strip())]
+
+
+def _slug_filter(value: Any) -> str:
+    text = str(value or "").strip().lower()
+    text = re.sub(r"[^\w]+", "_", text, flags=re.UNICODE)
+    text = re.sub(r"_+", "_", text)
+    return text.strip("_")
+
+
+def _set_question_seed_status(seed_id: str, status_value: str) -> dict[str, str]:
+    from app.models.question_bank import QuestionSeed
+
+    with get_session() as sess:
+        row = sess.get(QuestionSeed, seed_id)
+        if row is None:
+            raise HTTPException(status_code=404, detail="question seed not found")
+        row.status = status_value
+    return {"id": seed_id, "status": status_value}
+
+
+def _set_question_variant_status(variant_id: str, status_value: str) -> dict[str, str]:
+    from app.models.question_bank import QuestionVariant
+
+    with get_session() as sess:
+        row = sess.get(QuestionVariant, variant_id)
+        if row is None:
+            raise HTTPException(status_code=404, detail="question variant not found")
+        row.status = status_value
+    return {"id": variant_id, "status": status_value}
+
+
+@router.post(
+    "/question-seeds/{seed_id}/disable",
+    dependencies=[Depends(require_admin_token)],
+)
+def disable_question_seed(seed_id: str) -> dict[str, str]:
+    return _set_question_seed_status(seed_id, "disabled")
+
+
+@router.post(
+    "/question-seeds/{seed_id}/archive",
+    dependencies=[Depends(require_admin_token)],
+)
+def archive_question_seed(seed_id: str) -> dict[str, str]:
+    return _set_question_seed_status(seed_id, "archived")
+
+
+@router.post(
+    "/question-variants/{variant_id}/disable",
+    dependencies=[Depends(require_admin_token)],
+)
+def disable_question_variant(variant_id: str) -> dict[str, str]:
+    return _set_question_variant_status(variant_id, "disabled")
+
+
+@router.post(
+    "/question-variants/{variant_id}/archive",
+    dependencies=[Depends(require_admin_token)],
+)
+def archive_question_variant(variant_id: str) -> dict[str, str]:
+    return _set_question_variant_status(variant_id, "archived")
 
 
 @router.get("/checkpoint/health", dependencies=[Depends(require_admin_token)])

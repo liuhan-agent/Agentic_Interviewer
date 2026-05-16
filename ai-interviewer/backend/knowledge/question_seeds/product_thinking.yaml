@@ -1,0 +1,152 @@
+dimension: product_thinking
+seeds:
+  - id: product_thinking.ai_agent_effect_loop
+    version: 1
+    title: Agent 效果闭环与产品落地
+    dimension: product_thinking
+    job_levels: [mid, senior, staff]
+    skill_tags: [agent, product, evaluation, feedback, llm]
+    direction_tags: [internet_tech]
+    role_tags: [ai_agent]
+    rubric:
+      must_cover: [用户目标, 效果指标, 反馈收集, 迭代闭环]
+      minimum_bar: 能说明 Agent 功能如何判断是否真正解决用户问题。
+      stretch: 能把人工 review、线上反馈、评估集和产品体验迭代结合起来。
+    priority: 26
+    status: active
+    source: manual_yaml
+    scope: global
+    language: zh-CN
+    variants:
+      - id: product_thinking.ai_agent_effect_loop.support_resolution
+        version: 1
+        intent: opening
+        difficulty: standard
+        scenario_brief: 客服 Agent 上线后回复率提高，但用户二次追问和人工转接也变多。
+        question_stem: 你会如何判断客服 Agent 的产品效果是否真的变好？
+        prompt_template: 结合候选人的 Agent 产品化经验，生成一道产品思维题，要求说明指标、反馈和迭代闭环。
+        scenario_skill_tags: [agent, product metric, feedback, evaluation]
+        resume_anchor_hints: [agent, product, metric, feedback, evaluation]
+        failure_categories: [vague_metrics, missing_tradeoff, missing_action]
+        rubric_additions: [说明业务目标和用户体验指标, 说明人工转接和追问分析, 说明评估和迭代闭环]
+        expected_signals: [能区分回复率和解决率, 能分析负反馈, 能设计人工 review 样本]
+        anti_patterns: [只看调用量, 不看用户是否解决问题, 没有反馈入口]
+        good_answer_hints: [先定义成功标准, 再采集反馈, 最后形成迭代样本]
+        priority: 16
+        status: active
+      - id: product_thinking.ai_agent_effect_loop.user_control
+        version: 1
+        intent: deep_probe
+        difficulty: deep_probe
+        scenario_brief: Agent 自动执行任务效率很高，但用户担心不可控和不可解释。
+        question_stem: 你会如何设计 Agent 的用户确认、解释和撤销体验？
+        prompt_template: 生成一道 Agent 产品体验深挖题，要求候选人说明用户控制、解释和风险动作确认。
+        scenario_skill_tags: [agent, user control, explainability, product]
+        resume_anchor_hints: [agent, user experience, explainability, product, workflow]
+        failure_categories: [missing_tradeoff, missing_edge_case, missing_action]
+        rubric_additions: [说明高风险动作确认, 说明过程解释, 说明撤销和人工接管]
+        expected_signals: [能按风险等级设计确认, 能展示关键证据, 能提供撤销或回滚]
+        anti_patterns: [所有动作全自动, 不解释执行依据, 用户无法纠错]
+        good_answer_hints: [先分风险动作, 再设计确认和解释, 最后补撤销]
+        priority: 14
+        status: active
+  - id: product_thinking.ai_fullstack_experience_metrics
+    version: 1
+    title: AI 全栈体验指标设计
+    dimension: product_thinking
+    job_levels: [mid, senior]
+    skill_tags: [ai fullstack, product, metric, user experience, llm]
+    direction_tags: [internet_tech]
+    role_tags: [ai_fullstack]
+    rubric:
+      must_cover: [用户路径, 体验指标, 模型质量, 工程约束]
+      minimum_bar: 能说明 AI 功能的体验指标如何连接技术质量和业务结果。
+      stretch: 能区分模型质量、交互体验、成本延迟和用户价值之间的取舍。
+    priority: 25
+    status: active
+    source: manual_yaml
+    scope: global
+    language: zh-CN
+    variants:
+      - id: product_thinking.ai_fullstack_experience_metrics.ai_copilot
+        version: 1
+        intent: opening
+        difficulty: standard
+        scenario_brief: AI Copilot 功能上线后使用率不错，但用户经常复制后大幅修改输出。
+        question_stem: 你会如何评估 AI Copilot 的真实用户价值和体验质量？
+        prompt_template: 结合候选人的 AI 应用交付经验，生成一道产品指标题，要求说明体验、质量和业务价值。
+        scenario_skill_tags: [ai fullstack, copilot, product metric, user experience]
+        resume_anchor_hints: [copilot, llm, product, metric, fullstack]
+        failure_categories: [vague_metrics, missing_tradeoff, missing_action]
+        rubric_additions: [说明采用率和编辑率, 说明任务完成和满意度, 说明质量样本分析]
+        expected_signals: [能看采纳和修改行为, 能区分使用率和价值, 能结合定性反馈]
+        anti_patterns: [只看调用次数, 不看输出是否被采用, 不分析用户路径]
+        good_answer_hints: [先定义用户任务, 再设计行为指标, 最后结合质量抽样]
+        priority: 15
+        status: active
+      - id: product_thinking.ai_fullstack_experience_metrics.latency_quality_tradeoff
+        version: 1
+        intent: deep_probe
+        difficulty: deep_probe
+        scenario_brief: 更强模型质量更好但响应慢且成本高，轻量模型体验快但答案不稳定。
+        question_stem: AI 功能中模型质量、延迟和成本冲突时，你会如何设计产品策略？
+        prompt_template: 生成一道 AI 全栈产品取舍题，要求候选人说明模型选择、体验分层和指标验证。
+        scenario_skill_tags: [ai fullstack, latency, quality, cost, product]
+        resume_anchor_hints: [llm, latency, cost, product, metric]
+        failure_categories: [missing_tradeoff, vague_metrics, missing_edge_case]
+        rubric_additions: [说明不同场景的质量要求, 说明延迟和成本约束, 说明分层策略和实验验证]
+        expected_signals: [能按任务风险选模型, 能设计快慢路径, 能用实验验证体验]
+        anti_patterns: [所有场景用同一个模型, 只追求质量不看体验, 不做成本归因]
+        good_answer_hints: [先分场景和风险, 再匹配模型策略, 最后用指标验证]
+        priority: 14
+        status: active
+  - id: product_thinking.ai_algorithm_business_metric
+    version: 1
+    title: 算法业务指标理解
+    dimension: product_thinking
+    job_levels: [mid, senior]
+    skill_tags: [ai algorithm, product metric, business, evaluation, model]
+    direction_tags: [internet_tech]
+    role_tags: [ai_algorithm]
+    rubric:
+      must_cover: [业务目标, 算法指标, 用户影响, 实验判断]
+      minimum_bar: 能把算法优化目标和真实业务指标连接起来。
+      stretch: 能识别指标代理失真、短期长期冲突和不同人群影响。
+    priority: 25
+    status: active
+    source: manual_yaml
+    scope: global
+    language: zh-CN
+    variants:
+      - id: product_thinking.ai_algorithm_business_metric.recommendation_ctr
+        version: 1
+        intent: opening
+        difficulty: standard
+        scenario_brief: 推荐模型 CTR 提升，但用户停留和复访没有改善。
+        question_stem: 算法指标提升但业务结果不明显时，你会如何重新审视目标和评估方式？
+        prompt_template: 结合候选人的算法落地经验，生成一道业务指标题，要求说明算法指标和产品目标关系。
+        scenario_skill_tags: [ai algorithm, business metric, recommendation, evaluation]
+        resume_anchor_hints: [ctr, recommendation, metric, model, business]
+        failure_categories: [vague_metrics, missing_tradeoff, shallow_debugging]
+        rubric_additions: [说明指标代理关系, 说明用户体验和长期指标, 说明实验和分层分析]
+        expected_signals: [能质疑单一 CTR, 能补充留存和满意度指标, 能分析人群差异]
+        anti_patterns: [只优化离线或点击指标, 不看长期价值, 不和产品目标对齐]
+        good_answer_hints: [先明确业务目标, 再评估指标代理关系, 最后做实验分层]
+        priority: 15
+        status: active
+      - id: product_thinking.ai_algorithm_business_metric.risk_metric
+        version: 1
+        intent: deep_probe
+        difficulty: deep_probe
+        scenario_brief: 风控模型拦截率提升，但误伤用户投诉增加，业务方对效果有争议。
+        question_stem: 风控模型在拦截收益和用户误伤之间冲突时，你会如何设计评估和决策？
+        prompt_template: 生成一道算法产品取舍题，要求候选人说明风险收益、误伤成本、阈值和实验验证。
+        scenario_skill_tags: [ai algorithm, risk model, threshold, product metric]
+        resume_anchor_hints: [risk model, threshold, metric, business, evaluation]
+        failure_categories: [missing_tradeoff, vague_metrics, missing_action]
+        rubric_additions: [说明误伤和漏放成本, 说明阈值和分层策略, 说明投诉和人工复核闭环]
+        expected_signals: [能量化 false positive 和 false negative, 能设计分层阈值, 能引入人工复核]
+        anti_patterns: [只追求拦截率, 不看误伤成本, 没有人工兜底]
+        good_answer_hints: [先定义收益和成本, 再设计阈值策略, 最后补复核和反馈]
+        priority: 14
+        status: active

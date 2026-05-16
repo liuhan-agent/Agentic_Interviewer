@@ -1,0 +1,52 @@
+dimension: metrics_thinking
+seeds:
+  - id: metrics_thinking.north_star_metric
+    version: 1
+    title: 产品北极星指标与效果归因
+    dimension: metrics_thinking
+    job_levels: [mid, senior]
+    skill_tags: [product_manager, metrics_thinking, north_star, data_analysis, experiment]
+    direction_tags: [business]
+    role_tags: [product_manager]
+    rubric:
+      must_cover: [核心指标, 辅助指标, 反作弊指标, 归因方法]
+      minimum_bar: 能说明一个功能或产品的核心指标为什么合理，并能设计辅助指标。
+      stretch: 能识别指标上涨但用户价值未提升的情况，并提出修正方法。
+    priority: 28
+    status: active
+    source: manual_yaml
+    scope: global
+    language: zh-CN
+    variants:
+      - id: metrics_thinking.north_star_metric.feature_success
+        version: 1
+        intent: opening
+        difficulty: standard
+        scenario_brief: 一个内容收藏功能上线后点击率很高，但团队不确定它是否真的提升了用户长期价值。
+        question_stem: 你会如何定义这个功能是否成功，除了点击率还应该看哪些指标？
+        prompt_template: 生成一道产品指标题，要求候选人说明核心指标、辅助指标、长期指标和归因方法。
+        scenario_skill_tags: [product_manager, metrics_thinking, north_star, feature_metric]
+        resume_anchor_hints: [metric, product, experiment, retention, user_value]
+        failure_categories: [vague_metrics, missing_attribution, missing_counter_metric]
+        rubric_additions: [说明核心指标与用户价值关系, 说明辅助和反向指标, 说明归因或实验方式]
+        expected_signals: [能区分行为指标和价值指标, 能补充留存或复访, 能考虑 A/B 或对照]
+        anti_patterns: [只看点击率, 不看长期效果, 不排除外部因素]
+        good_answer_hints: [先定义用户价值, 再选指标体系, 最后设计归因]
+        priority: 17
+        status: active
+      - id: metrics_thinking.north_star_metric.metric_side_effect
+        version: 1
+        intent: deep_probe
+        difficulty: deep_probe
+        scenario_brief: 团队优化分享率后，分享数量上涨，但用户投诉诱导分享和低质量分享也增加。
+        question_stem: 当核心指标上涨但体验和质量变差时，你会如何重新设计指标体系？
+        prompt_template: 生成一道指标副作用追问，要求候选人说明反作弊指标、质量指标、长期约束和决策调整。
+        scenario_skill_tags: [product_manager, metric_guardrail, user_experience, data_analysis]
+        resume_anchor_hints: [metric, guardrail, quality, product, growth]
+        failure_categories: [vague_metrics, missing_tradeoff, missing_risk]
+        rubric_additions: [说明护栏指标, 说明质量样本或用户反馈, 说明是否调整目标]
+        expected_signals: [能识别指标被钻空子, 能设计质量约束, 能把指标调整回用户价值]
+        anti_patterns: [指标涨了就算成功, 忽略投诉, 没有护栏]
+        good_answer_hints: [先识别副作用, 再补护栏指标, 最后调整决策规则]
+        priority: 16
+        status: active
