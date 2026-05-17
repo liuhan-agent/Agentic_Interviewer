@@ -1,10 +1,61 @@
 dimension: product_thinking
 seeds:
+  - id: product_thinking.frontend_experience_resilience
+    version: 1
+    title: 前端体验韧性与产品取舍
+    dimension: product_thinking
+    job_levels: [junior, mid, senior, staff]
+    skill_tags: [frontend, product_experience, resilience, performance, fallback]
+    direction_tags: [internet_tech]
+    role_tags: [frontend_web]
+    rubric:
+      must_cover: [用户路径, 体验指标, 降级边界, 验证方式]
+      minimum_bar: 能从用户体验和业务路径解释前端韧性方案的取舍。
+      stretch: 能把性能、可用性、埋点、灰度和回滚放进同一套体验闭环。
+    priority: 24
+    status: active
+    source: manual_yaml
+    scope: global
+    language: zh-CN
+    variants:
+      - id: product_thinking.frontend_experience_resilience.dashboard
+        version: 1
+        intent: opening
+        difficulty: standard
+        scenario_brief: 运营看板依赖多个接口，部分接口慢或失败时会影响用户判断业务状态。
+        question_stem: 如果一个复杂前端看板部分接口失败，你会如何设计页面降级和用户体验？
+        prompt_template: 结合候选人的前端项目经验，生成一道产品思维题，要求说明用户路径、关键指标、降级展示、重试和埋点验证。
+        scenario_skill_tags: [frontend, dashboard, fallback, user experience]
+        resume_anchor_hints: [frontend, react, vue, dashboard, user experience]
+        failure_categories: [missing_tradeoff, vague_metrics, missing_action]
+        rubric_additions: [说明关键用户任务, 说明局部失败体验, 说明埋点和恢复验证]
+        expected_signals: [能区分核心与非核心模块, 能设计局部降级和重试, 能用指标判断体验是否变好]
+        anti_patterns: [接口失败就白屏, 只从代码角度讨论, 没有用户侧提示]
+        good_answer_hints: [先拆用户任务和模块优先级, 再设计降级体验, 最后补数据验证]
+        priority: 16
+        status: active
+      - id: product_thinking.frontend_experience_resilience.checkout
+        version: 1
+        intent: deep_probe
+        difficulty: deep_probe
+        scenario_brief: 下单页包含优惠、库存、地址和支付等关键动作，任何体验误导都可能造成转化损失。
+        question_stem: 面对下单页关键链路的前端异常，你会如何平衡可用性、准确性和转化体验？
+        prompt_template: 生成一道前端体验韧性深挖题，要求候选人说明关键动作边界、错误提示、禁用策略、埋点和灰度回滚。
+        scenario_skill_tags: [frontend, checkout, conversion, fallback, metrics]
+        resume_anchor_hints: [checkout, frontend, payment, conversion, metrics]
+        failure_categories: [missing_tradeoff, missing_edge_case, vague_metrics]
+        rubric_additions: [说明不可误导用户的动作, 说明错误提示和重试, 说明转化与错误指标]
+        expected_signals: [能保护支付和库存等关键动作, 能设计可理解的错误提示, 能通过数据验证体验影响]
+        anti_patterns: [所有失败都提示稍后再试, 不区分阻断与非阻断, 没有埋点]
+        good_answer_hints: [先划分关键动作和风险, 再设计体验兜底, 最后用转化和错误指标验证]
+        priority: 14
+        status: active
+
   - id: product_thinking.ai_agent_effect_loop
     version: 1
     title: Agent 效果闭环与产品落地
     dimension: product_thinking
-    job_levels: [mid, senior, staff]
+    job_levels: [junior, mid, senior, staff]
     skill_tags: [agent, product, evaluation, feedback, llm]
     direction_tags: [internet_tech]
     role_tags: [ai_agent]
@@ -54,7 +105,7 @@ seeds:
     version: 1
     title: AI 全栈体验指标设计
     dimension: product_thinking
-    job_levels: [mid, senior]
+    job_levels: [junior, mid, senior]
     skill_tags: [ai fullstack, product, metric, user experience, llm]
     direction_tags: [internet_tech]
     role_tags: [ai_fullstack]
@@ -104,7 +155,7 @@ seeds:
     version: 1
     title: 算法业务指标理解
     dimension: product_thinking
-    job_levels: [mid, senior]
+    job_levels: [junior, mid, senior]
     skill_tags: [ai algorithm, product metric, business, evaluation, model]
     direction_tags: [internet_tech]
     role_tags: [ai_algorithm]

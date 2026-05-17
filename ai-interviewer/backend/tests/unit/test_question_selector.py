@@ -1,11 +1,14 @@
 from __future__ import annotations
 
+from pathlib import Path
+
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
 from app.models.base import Base
 from app.models.question_bank import QuestionSeed, QuestionVariant
 from app.services.question_fit_profile import build_question_fit_profile
+from app.services.question_seed_import import import_question_seed_dir
 from app.services.question_selector import select_question_candidates
 
 
@@ -476,3 +479,115 @@ def test_selector_opening_deduplicates_seed_but_followup_reuses_different_varian
     assert [candidate.variant_id for candidate in opening_result.candidates] == [followup]
     assert followup_result.candidates[0].seed_id == "system_design.cache"
     assert followup_result.candidates[0].variant_id == "system_design.cache.followup"
+
+
+def test_bundled_java_backend_junior_mainline_dimensions_return_structured_candidates() -> None:
+    seed_dir = Path(__file__).resolve().parents[2] / "knowledge" / "question_seeds"
+    mainline_dimensions = [
+        "technical_depth",
+        "system_design",
+        "problem_solving",
+        "coding_quality",
+        "project_experience",
+        "communication",
+    ]
+
+    session_local = _session_factory()
+    with session_local() as sess:
+        import_question_seed_dir(seed_dir, session=sess)
+
+        results = {
+            dimension: select_question_candidates(
+                sess,
+                dimension=dimension,
+                job_level="junior",
+                target_skills=["java", "spring", "mysql", "redis"],
+                direction_tags=["internet_tech"],
+                role_tags=["java_backend"],
+                probe_intent="followup",
+                top_k=3,
+            )
+            for dimension in mainline_dimensions
+        }
+
+    for dimension, result in results.items():
+        assert len(result.candidates) == 3, dimension
+        assert all(candidate.dimension == dimension for candidate in result.candidates)
+        assert all("java_backend" in candidate.role_tags for candidate in result.candidates)
+        assert all(candidate.dimension != "backend_systems" for candidate in result.candidates)
+        assert "role_tag:java_backend" in result.candidates[0].match_reasons
+        assert "direction_tag:internet_tech" in result.candidates[0].match_reasons
+
+
+def test_bundled_non_java_tech_roles_return_junior_mainline_candidates() -> None:
+    seed_dir = Path(__file__).resolve().parents[2] / "knowledge" / "question_seeds"
+    role_dimensions = {
+        "frontend_web": [
+            "technical_depth",
+            "coding_quality",
+            "problem_solving",
+            "project_experience",
+            "product_thinking",
+            "communication",
+        ],
+        "sre": [
+            "technical_depth",
+            "system_design",
+            "problem_solving",
+            "project_experience",
+            "communication",
+        ],
+        "ai_fullstack": [
+            "technical_depth",
+            "system_design",
+            "product_thinking",
+            "project_experience",
+            "problem_solving",
+            "communication",
+        ],
+        "ai_agent": [
+            "technical_depth",
+            "system_design",
+            "problem_solving",
+            "product_thinking",
+            "communication",
+        ],
+        "mobile": [
+            "technical_depth",
+            "problem_solving",
+            "coding_quality",
+            "project_experience",
+            "communication",
+        ],
+        "ai_algorithm": [
+            "technical_depth",
+            "problem_solving",
+            "project_experience",
+            "product_thinking",
+            "communication",
+        ],
+    }
+
+    session_local = _session_factory()
+    with session_local() as sess:
+        import_question_seed_dir(seed_dir, session=sess)
+        results = {
+            (role, dimension): select_question_candidates(
+                sess,
+                dimension=dimension,
+                job_level="junior",
+                direction_tags=["internet_tech"],
+                role_tags=[role],
+                probe_intent="followup",
+                top_k=3,
+            )
+            for role, dimensions in role_dimensions.items()
+            for dimension in dimensions
+        }
+
+    for (role, dimension), result in results.items():
+        assert result.candidates, f"{role}:{dimension}"
+        assert all(candidate.dimension == dimension for candidate in result.candidates)
+        assert all(role in candidate.role_tags for candidate in result.candidates)
+        assert f"role_tag:{role}" in result.candidates[0].match_reasons
+        assert "direction_tag:internet_tech" in result.candidates[0].match_reasons

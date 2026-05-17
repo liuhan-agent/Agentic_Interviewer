@@ -4,7 +4,7 @@ seeds:
     version: 1
     title: 缓存一致性与失效策略
     dimension: system_design
-    job_levels: [mid, senior, staff]
+    job_levels: [junior, mid, senior, staff]
     skill_tags: [cache, redis, consistency, high traffic]
     direction_tags: [internet_tech]
     role_tags: [java_backend]
@@ -55,7 +55,7 @@ seeds:
     version: 1
     title: 容量规划与削峰
     dimension: system_design
-    job_levels: [mid, senior, staff]
+    job_levels: [junior, mid, senior, staff]
     skill_tags: [capacity planning, queue, rate limiting, scalability]
     direction_tags: [internet_tech]
     role_tags: [java_backend]
@@ -106,7 +106,7 @@ seeds:
     version: 1
     title: 故障隔离与降级恢复
     dimension: system_design
-    job_levels: [mid, senior, staff]
+    job_levels: [junior, mid, senior, staff]
     skill_tags: [resilience, circuit breaker, fallback, fault isolation]
     direction_tags: [internet_tech]
     role_tags: [java_backend]
@@ -157,7 +157,7 @@ seeds:
     version: 1
     title: 数据建模与一致性权衡
     dimension: system_design
-    job_levels: [mid, senior, staff]
+    job_levels: [junior, mid, senior, staff]
     skill_tags: [data modeling, consistency, database, event sourcing]
     direction_tags: [internet_tech]
     role_tags: [java_backend]
@@ -207,7 +207,7 @@ seeds:
     version: 1
     title: 可观测性与 SLO 设计
     dimension: system_design
-    job_levels: [mid, senior, staff]
+    job_levels: [junior, mid, senior, staff]
     skill_tags: [observability, slo, monitoring, alerting]
     direction_tags: [internet_tech]
     role_tags: [java_backend]
@@ -254,62 +254,11 @@ seeds:
         priority: 11
         status: active
 
-  - id: system_design.frontend_rendering_resilience
-    version: 1
-    title: 前端页面架构与渲染韧性
-    dimension: system_design
-    job_levels: [mid, senior, staff]
-    skill_tags: [frontend, react, rendering, performance, resilience]
-    direction_tags: [internet_tech]
-    role_tags: [frontend_web]
-    rubric:
-      must_cover: [页面拆分, 数据流, 性能预算, 降级兜底]
-      minimum_bar: 能说明复杂前端页面从数据获取到渲染交互的关键设计取舍。
-      stretch: 能把首屏性能、错误边界、灰度发布和可观测性连成闭环。
-    priority: 24
-    status: active
-    source: manual_yaml
-    scope: global
-    language: zh-CN
-    variants:
-      - id: system_design.frontend_rendering_resilience.dashboard
-        version: 1
-        intent: opening
-        difficulty: standard
-        scenario_brief: 运营数据看板同时包含实时指标、筛选器、图表和权限控制，首屏变慢且错误会影响整页可用。
-        question_stem: 请设计一个复杂运营看板的前端页面架构，说明数据流、渲染性能和错误兜底方案。
-        prompt_template: 结合候选人的前端项目经验，生成一道复杂页面架构题，要求说明组件拆分、数据获取、性能预算和降级策略。
-        scenario_skill_tags: [react, dashboard, data fetching, error boundary]
-        resume_anchor_hints: [react, vue, dashboard, performance, frontend]
-        failure_categories: [missing_tradeoff, vague_metrics, shallow_failure_mode]
-        rubric_additions: [说明首屏和交互指标, 说明错误边界与局部降级, 说明缓存与请求编排]
-        expected_signals: [能区分页面状态和服务端状态, 能提出分层组件和数据流方案, 能给出性能观测指标]
-        anti_patterns: [只说组件化, 不讨论数据加载失败, 不量化性能目标]
-        good_answer_hints: [先定义页面关键路径, 再拆数据流和渲染边界, 最后补充观测和降级]
-        priority: 16
-        status: active
-      - id: system_design.frontend_rendering_resilience.checkout
-        version: 1
-        intent: deep_probe
-        difficulty: deep_probe
-        scenario_brief: 下单页依赖库存、优惠、地址和支付组件，任一接口慢或失败都会影响转化。
-        question_stem: 如果下单页存在多个关键依赖，你会如何设计前端容错、并发请求、加载状态和性能监控？
-        prompt_template: 生成一道前端韧性深挖题，要求候选人说明关键依赖拆分、失败兜底、并发请求和体验指标。
-        scenario_skill_tags: [frontend resilience, checkout, concurrency, monitoring]
-        resume_anchor_hints: [checkout, order, frontend, performance, monitoring]
-        failure_categories: [missing_failure_mode, missing_observability, missing_tradeoff]
-        rubric_additions: [说明关键依赖优先级, 说明部分失败时的体验策略, 说明前端监控和回滚信号]
-        expected_signals: [能划分阻断与非阻断依赖, 能处理重复提交和加载状态, 能定义前端可用性指标]
-        anti_patterns: [所有接口串行等待, 失败只弹通用错误, 没有埋点和回滚依据]
-        good_answer_hints: [先划分购买链路不可破坏的动作, 再设计并发和兜底, 最后给观测指标]
-        priority: 14
-        status: active
-
   - id: system_design.sre_service_reliability
     version: 1
     title: SRE 服务可靠性体系设计
     dimension: system_design
-    job_levels: [mid, senior, staff]
+    job_levels: [junior, mid, senior, staff]
     skill_tags: [sre, reliability, slo, observability, incident]
     direction_tags: [internet_tech]
     role_tags: [sre]
@@ -359,7 +308,7 @@ seeds:
     version: 1
     title: Agent 执行链路设计
     dimension: system_design
-    job_levels: [mid, senior, staff]
+    job_levels: [junior, mid, senior, staff]
     skill_tags: [agent, llm, workflow, tool calling, observability]
     direction_tags: [internet_tech]
     role_tags: [ai_agent]
@@ -409,7 +358,7 @@ seeds:
     version: 1
     title: Agent 记忆与上下文设计
     dimension: system_design
-    job_levels: [mid, senior, staff]
+    job_levels: [junior, mid, senior, staff]
     skill_tags: [agent, memory, context, rag, retrieval]
     direction_tags: [internet_tech]
     role_tags: [ai_agent]
@@ -459,7 +408,7 @@ seeds:
     version: 1
     title: AI 全栈工作流与可观测性
     dimension: system_design
-    job_levels: [mid, senior]
+    job_levels: [junior, mid, senior]
     skill_tags: [ai fullstack, workflow, observability, llm, tracing]
     direction_tags: [internet_tech]
     role_tags: [ai_fullstack]
@@ -509,7 +458,7 @@ seeds:
     version: 1
     title: AI 全栈 RAG 产品化设计
     dimension: system_design
-    job_levels: [mid, senior]
+    job_levels: [junior, mid, senior]
     skill_tags: [ai fullstack, rag, retrieval, llm, product]
     direction_tags: [internet_tech]
     role_tags: [ai_fullstack]

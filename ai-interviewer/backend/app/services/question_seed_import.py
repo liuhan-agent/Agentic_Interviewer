@@ -14,7 +14,6 @@ from app.models.question_bank import QuestionSeed, QuestionVariant
 
 SUPPORTED_DIMENSIONS = {
     "system_design",
-    "backend_systems",
     "technical_depth",
     "coding_quality",
     "problem_solving",
