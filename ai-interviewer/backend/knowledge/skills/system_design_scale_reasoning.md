@@ -1,8 +1,15 @@
 ---
+id: tech_system_design_scale_reasoning
 name: System Design Scale Reasoning
 description: Force one concrete failure mode + one quantified scale argument per answer.
+status: active
+priority: 8
+direction_tags: [internet_tech]
+role_tags: [java_backend, frontend_web, sre, ai_fullstack, ai_agent, mobile, ai_algorithm, architect]
 dimensions: [system_design, architecture]
 job_levels: [mid, senior, staff, principal]
+probe_intents: [architecture_challenge, performance_probe, tradeoff_probe]
+failure_categories: [missing_scale_reasoning, vague_architecture, missing_failure_mode]
 ---
 
 Every system-design question must, by the time the candidate is done,

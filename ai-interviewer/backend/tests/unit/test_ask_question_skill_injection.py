@@ -19,6 +19,7 @@ from types import SimpleNamespace
 
 import pytest
 
+from app.core.settings import Settings
 from app.engine.workflow.nodes import ask_question as ask_question_module
 from app.memory import skill_store
 
@@ -106,6 +107,10 @@ def test_flag_off_leaves_skill_block_untouched(
         monkeypatch=monkeypatch,
     )
     assert ctx["skill_block"] == "(no relevant interview skills)"
+
+
+def test_skill_injection_default_is_enabled() -> None:
+    assert Settings(_env_file=None).enable_skill_injection is True
 
 
 def test_flag_on_with_matching_skill_injects_rendered_block(
