@@ -962,3 +962,462 @@ seeds:
         good_answer_hints: [先增量接入, 再对照评估, 最后保留可解释]
         priority: 11
         status: active
+
+  - id: technical_depth.frontend_web_render_pipeline
+    version: 1
+    title: 浏览器渲染管线与性能优化
+    dimension: technical_depth
+    job_levels: [junior, mid, senior]
+    skill_tags: [frontend, browser, render, layout, paint, performance]
+    direction_tags: [internet_tech]
+    role_tags: [frontend_web]
+    rubric:
+      must_cover: [渲染阶段, 关键路径, 性能预算, 优化手段]
+      minimum_bar: 能说明浏览器从 HTML 到像素的关键阶段与性能瓶颈。
+      stretch: 能结合 Core Web Vitals、INP/LCP/CLS 给出系统化优化路径。
+    priority: 26
+    status: active
+    source: manual_yaml
+    scope: global
+    language: zh-CN
+    variants:
+      - id: technical_depth.frontend_web_render_pipeline.critical_path
+        version: 1
+        intent: opening
+        difficulty: standard
+        scenario_brief: 一个落地页 LCP 3.2 秒、CLS 0.18，业务方要求两周内压到 LCP < 1.8 / CLS < 0.05。
+        question_stem: 你会如何系统化优化浏览器渲染关键路径与核心指标？
+        prompt_template: 结合候选人的前端 / 性能经验，生成一道技术深度题，要求说明渲染管线与 Core Web Vitals。
+        scenario_skill_tags: [frontend, render, lcp, cls, performance]
+        resume_anchor_hints: [frontend, render, performance, lcp, web vitals]
+        failure_categories: [missing_metrics, missing_action, missing_tradeoff]
+        rubric_additions: [说明关键渲染路径, 说明核心指标拆解, 说明可量化优化动作]
+        expected_signals: [能拆 LCP/CLS/INP 三类指标, 能给出关键路径优化清单, 能区分布局抖动与首屏阻塞]
+        anti_patterns: [只说"加缓存", 不拆指标, 没量化目标]
+        good_answer_hints: [先拆指标, 再分阶段优化, 最后做监控]
+        priority: 16
+        status: active
+      - id: technical_depth.frontend_web_render_pipeline.layout_thrash
+        version: 1
+        intent: deep_probe
+        difficulty: deep_probe
+        scenario_brief: 列表滚动时频繁触发 layout 重计算，低端设备出现明显卡顿。
+        question_stem: 如果遇到大列表 layout thrashing，你会如何在 DOM 与样式两层定位并优化？
+        prompt_template: 生成一道布局抖动深挖题，要求候选人说明读写分离、虚拟列表与样式隔离。
+        scenario_skill_tags: [frontend, layout thrashing, virtual list, css containment]
+        resume_anchor_hints: [frontend, layout, virtual list, performance, css]
+        failure_categories: [shallow_debugging, missing_metrics, missing_tradeoff]
+        rubric_additions: [说明读写分离原理, 说明虚拟列表/容器化, 说明样式隔离]
+        expected_signals: [能用 layout/forced reflow 工具定位, 能用虚拟列表/css contain 减少重算, 能区分读写顺序]
+        anti_patterns: [只用 transform 改, 不分析根因, 不做样式隔离]
+        good_answer_hints: [先抓 forced reflow, 再做读写分离, 最后用虚拟化]
+        priority: 14
+        status: active
+
+  - id: technical_depth.frontend_web_state_management
+    version: 1
+    title: 大型 SPA 状态管理选型与边界
+    dimension: technical_depth
+    job_levels: [junior, mid, senior]
+    skill_tags: [frontend, react, state management, redux, zustand]
+    direction_tags: [internet_tech]
+    role_tags: [frontend_web]
+    rubric:
+      must_cover: [状态分类, 选型框架, 边界划分, 测试策略]
+      minimum_bar: 能区分组件级 / 跨组件 / 全局状态并给出选型。
+      stretch: 能从可测试性、SSR 兼容、并发渲染等维度评估。
+    priority: 25
+    status: active
+    source: manual_yaml
+    scope: global
+    language: zh-CN
+    variants:
+      - id: technical_depth.frontend_web_state_management.layer_selection
+        version: 1
+        intent: opening
+        difficulty: standard
+        scenario_brief: 一个中后台 SPA 涉及表单 / 列表 / 全局会话 / 多窗口同步等多种状态。
+        question_stem: 你会如何分层管理这些状态并给出技术选型框架？
+        prompt_template: 结合候选人的 React / 状态管理经验，生成一道技术深度题，要求说明分层与选型。
+        scenario_skill_tags: [frontend, state management, react, scope]
+        resume_anchor_hints: [frontend, state management, redux, zustand, react]
+        failure_categories: [missing_tradeoff, missing_action, missing_edge_case]
+        rubric_additions: [说明状态分类, 说明选型框架, 说明边界划分]
+        expected_signals: [能区分本地/跨组件/全局/服务器状态, 能给出选型决策树, 能避免状态污染]
+        anti_patterns: [一切都放 redux, 不分类乱用, 全 props drilling]
+        good_answer_hints: [先分类状态, 再选工具, 最后划边界]
+        priority: 14
+        status: active
+      - id: technical_depth.frontend_web_state_management.concurrent_rendering
+        version: 1
+        intent: deep_probe
+        difficulty: deep_probe
+        scenario_brief: 升级到 React 18 并发模式后某些状态更新出现重复渲染与状态撕裂。
+        question_stem: 如果状态管理在并发渲染下出现一致性问题，你会如何定位并设计稳定方案？
+        prompt_template: 生成一道并发渲染状态一致性深挖题，要求候选人说明 useSyncExternalStore、过渡更新等。
+        scenario_skill_tags: [react, concurrent, state, sync external store]
+        resume_anchor_hints: [react, concurrent, state, react 18, tearing]
+        failure_categories: [missing_consistency_boundary, shallow_debugging, missing_tradeoff]
+        rubric_additions: [说明撕裂现象, 说明外部 store 同步, 说明过渡更新]
+        expected_signals: [能用 useSyncExternalStore 解决撕裂, 能区分紧急/过渡更新, 能用回归测试验证]
+        anti_patterns: [回退非并发模式, 频繁手动 flushSync, 不写回归]
+        good_answer_hints: [先识别撕裂, 再用同步 API, 最后做回归]
+        priority: 12
+        status: active
+
+  - id: technical_depth.frontend_web_build_engineering
+    version: 1
+    title: 前端工程化：模块化、构建链与代码拆分
+    dimension: technical_depth
+    job_levels: [junior, mid, senior]
+    skill_tags: [frontend, build, webpack, vite, code splitting, tree shaking]
+    direction_tags: [internet_tech]
+    role_tags: [frontend_web]
+    rubric:
+      must_cover: [模块化策略, 构建链选型, 代码拆分, 体积/性能权衡]
+      minimum_bar: 能说明前端构建链的模块化与代码拆分基本能力。
+      stretch: 能结合包体积分析、长缓存、按需加载形成完整工程方案。
+    priority: 23
+    status: active
+    source: manual_yaml
+    scope: global
+    language: zh-CN
+    variants:
+      - id: technical_depth.frontend_web_build_engineering.bundle_diet
+        version: 1
+        intent: opening
+        difficulty: standard
+        scenario_brief: 一个产品首页 JS bundle 2.4MB，移动端首屏体感慢。
+        question_stem: 你会如何系统化优化前端 bundle 体积并保持长期可控？
+        prompt_template: 结合候选人的前端工程化经验，生成一道技术深度题，要求说明 bundle 优化全链路。
+        scenario_skill_tags: [frontend, bundle, code splitting, tree shaking, build]
+        resume_anchor_hints: [frontend, bundle, webpack, vite, build]
+        failure_categories: [missing_metrics, missing_action, missing_tradeoff]
+        rubric_additions: [说明分析方法, 说明拆分策略, 说明长期治理]
+        expected_signals: [能用 bundle analyzer 定位大头, 能按路由/特性拆分, 能定 CI 体积守护]
+        anti_patterns: [只升级框架版本, 不分析根因, 没有体积守护]
+        good_answer_hints: [先分析体积, 再做拆分, 最后建守护]
+        priority: 13
+        status: active
+      - id: technical_depth.frontend_web_build_engineering.cache_strategy
+        version: 1
+        intent: deep_probe
+        difficulty: deep_probe
+        scenario_brief: 长缓存策略下小改动导致整个 vendor chunk 失效，CDN 回源压力上升。
+        question_stem: 如果长缓存失效导致 CDN 压力上升，你会如何设计稳定的 hash / chunk 策略？
+        prompt_template: 生成一道前端长缓存与 chunk 策略深挖题，要求候选人说明 content hash、稳定 chunk 划分。
+        scenario_skill_tags: [frontend, long term cache, content hash, chunk strategy]
+        resume_anchor_hints: [frontend, cache, hash, chunk, build]
+        failure_categories: [shallow_debugging, missing_action, missing_metrics]
+        rubric_additions: [说明 hash 类型, 说明 chunk 边界, 说明回归监控]
+        expected_signals: [能区分 fullhash/chunkhash/contenthash, 能稳定 vendor/common chunk 边界, 能监控失效率]
+        anti_patterns: [全部 fullhash, 不分 vendor, 不监控失效]
+        good_answer_hints: [先稳定 hash, 再分 chunk, 最后监控]
+        priority: 11
+        status: active
+
+  - id: technical_depth.sre_linux_tuning
+    version: 1
+    title: Linux 系统调优（CPU/内存/I/O/网络）
+    dimension: technical_depth
+    job_levels: [junior, mid, senior]
+    skill_tags: [sre, linux, kernel, performance, tuning]
+    direction_tags: [internet_tech]
+    role_tags: [sre]
+    rubric:
+      must_cover: [指标识别, 工具链, 瓶颈定位, 长期治理]
+      minimum_bar: 能用 top/vmstat/iostat/sar 等定位 Linux 性能瓶颈。
+      stretch: 能结合 eBPF / perf / 火焰图 做深度剖析与治理。
+    priority: 26
+    status: active
+    source: manual_yaml
+    scope: global
+    language: zh-CN
+    variants:
+      - id: technical_depth.sre_linux_tuning.bottleneck
+        version: 1
+        intent: opening
+        difficulty: standard
+        scenario_brief: 一台业务机 CPU usr 突然飙到 90% 持续 30 分钟，但应用日志看不出异常。
+        question_stem: 你会如何用 Linux 工具链定位这类 CPU / 内存 / I/O / 网络瓶颈？
+        prompt_template: 结合候选人的 SRE / Linux 经验，生成一道技术深度题，要求说明工具链与诊断思路。
+        scenario_skill_tags: [sre, linux, tuning, debugging]
+        resume_anchor_hints: [sre, linux, tuning, performance, debugging]
+        failure_categories: [shallow_debugging, missing_metrics, missing_action]
+        rubric_additions: [说明指标识别, 说明工具链, 说明瓶颈定位]
+        expected_signals: [能按 CPU/IO/网络分维度选工具, 能用 perf / eBPF 做深度剖析, 能给出长期治理建议]
+        anti_patterns: [只看 top 重启服务, 不分维度, 没长期治理]
+        good_answer_hints: [先识别指标, 再选工具, 最后做治理]
+        priority: 14
+        status: active
+      - id: technical_depth.sre_linux_tuning.iowait
+        version: 1
+        intent: deep_probe
+        difficulty: deep_probe
+        scenario_brief: 数据库实例 iowait 飙升导致接口延迟翻倍。
+        question_stem: 如果 Linux iowait 异常持续上升，你会如何分层定位并优化？
+        prompt_template: 生成一道 Linux iowait 诊断深挖题，要求候选人说明 I/O 子系统的分层定位。
+        scenario_skill_tags: [sre, linux, iowait, storage, kernel]
+        resume_anchor_hints: [sre, linux, iowait, storage, perf]
+        failure_categories: [shallow_debugging, missing_metrics, missing_action]
+        rubric_additions: [说明 I/O 路径分层, 说明工具选择, 说明优化方向]
+        expected_signals: [能区分 user/kernel/disk 层瓶颈, 能用 iostat/blktrace 定位, 能给出磁盘/调度器/缓存层优化]
+        anti_patterns: [只换硬盘, 不分层, 不做长期监控]
+        good_answer_hints: [先分层定位, 再选工具, 最后优化]
+        priority: 12
+        status: active
+
+  - id: technical_depth.sre_kubernetes_ops
+    version: 1
+    title: Kubernetes 集群运维：Pod / 调度 / 网络策略
+    dimension: technical_depth
+    job_levels: [junior, mid, senior]
+    skill_tags: [sre, kubernetes, scheduling, network policy, ops]
+    direction_tags: [internet_tech]
+    role_tags: [sre]
+    rubric:
+      must_cover: [Pod 生命周期, 调度策略, 网络策略, 运维工具]
+      minimum_bar: 能解释 Kubernetes 核心运维要点。
+      stretch: 能结合 HPA / VPA / Cluster Autoscaler / NetworkPolicy / Operator 形成自动化运维。
+    priority: 25
+    status: active
+    source: manual_yaml
+    scope: global
+    language: zh-CN
+    variants:
+      - id: technical_depth.sre_kubernetes_ops.daily_ops
+        version: 1
+        intent: opening
+        difficulty: standard
+        scenario_brief: 一个新接手的 K8s 集群，常出现 Pod 调度失败 / 网络不通 / 健康检查抖动。
+        question_stem: 你会如何系统化排查 / 治理 Kubernetes 集群的运维问题？
+        prompt_template: 结合候选人的 SRE / K8s 经验，生成一道技术深度题，要求说明运维要点。
+        scenario_skill_tags: [sre, kubernetes, ops, debugging]
+        resume_anchor_hints: [sre, kubernetes, k8s, ops, devops]
+        failure_categories: [shallow_debugging, missing_action, missing_observability]
+        rubric_additions: [说明常见现象, 说明根因分类, 说明治理动作]
+        expected_signals: [能区分调度/网络/健康三类问题, 能用 kubectl / events / logs 定位, 能给出治理动作]
+        anti_patterns: [只重启 Pod, 不查 events, 没治理]
+        good_answer_hints: [先分类, 再定位, 最后治理]
+        priority: 13
+        status: active
+      - id: technical_depth.sre_kubernetes_ops.scheduling_optimization
+        version: 1
+        intent: deep_probe
+        difficulty: deep_probe
+        scenario_brief: 集群资源利用率不均：部分节点高负载，部分节点闲置。
+        question_stem: 如果 K8s 调度不均导致资源浪费，你会如何用调度策略优化？
+        prompt_template: 生成一道 K8s 调度优化深挖题，要求候选人说明调度策略与亲和性。
+        scenario_skill_tags: [sre, kubernetes, scheduling, affinity, optimization]
+        resume_anchor_hints: [sre, kubernetes, scheduling, affinity]
+        failure_categories: [missing_action, missing_tradeoff, missing_metrics]
+        rubric_additions: [说明现状测量, 说明调度策略, 说明效果验证]
+        expected_signals: [能用资源指标定位不均, 能选 affinity / topology spread / VPA, 能用指标验证效果]
+        anti_patterns: [只加节点, 不分析根因, 不验证]
+        good_answer_hints: [先测量, 再选策略, 最后验证]
+        priority: 11
+        status: active
+
+  - id: technical_depth.sre_cloud_native_ops
+    version: 1
+    title: 云原生运维：负载均衡 / 自动扩容 / 故障转移
+    dimension: technical_depth
+    job_levels: [junior, mid, senior]
+    skill_tags: [sre, cloud native, load balancing, autoscaling, failover]
+    direction_tags: [internet_tech]
+    role_tags: [sre]
+    rubric:
+      must_cover: [负载均衡, 自动扩容, 故障转移, 健康检查]
+      minimum_bar: 能说明云原生基础设施的关键能力。
+      stretch: 能结合多区域 / 多可用区 / Service Mesh 设计完整高可用。
+    priority: 23
+    status: active
+    source: manual_yaml
+    scope: global
+    language: zh-CN
+    variants:
+      - id: technical_depth.sre_cloud_native_ops.lb_autoscale
+        version: 1
+        intent: opening
+        difficulty: standard
+        scenario_brief: 一个新接入的云服务在突发流量下出现节点过载、扩容来不及。
+        question_stem: 你会如何系统化设计云原生服务的负载均衡和自动扩容机制？
+        prompt_template: 结合候选人的 SRE / 云原生经验，生成一道技术深度题，要求说明 LB 与扩容。
+        scenario_skill_tags: [sre, cloud native, lb, autoscaling]
+        resume_anchor_hints: [sre, cloud, lb, autoscaling, aws, azure]
+        failure_categories: [missing_action, missing_metrics, missing_tradeoff]
+        rubric_additions: [说明 LB 策略, 说明扩容触发, 说明健康检查]
+        expected_signals: [能选合适 LB 算法, 能定义合理扩容触发, 能用健康检查避免雪崩]
+        anti_patterns: [只看 CPU 扩容, 不分 LB 策略, 不做健康检查]
+        good_answer_hints: [先选 LB, 再定扩容, 最后做健康]
+        priority: 12
+        status: active
+      - id: technical_depth.sre_cloud_native_ops.cross_az_failover
+        version: 1
+        intent: deep_probe
+        difficulty: deep_probe
+        scenario_brief: 一个可用区故障导致服务下线 30 分钟，业务要求"再不出现这种问题"。
+        question_stem: 如果要做跨可用区 / 跨区域故障转移，你会如何设计架构与演练？
+        prompt_template: 生成一道跨区域故障转移深挖题，要求候选人说明架构与演练。
+        scenario_skill_tags: [sre, cross az, failover, ha, drills]
+        resume_anchor_hints: [sre, cross az, failover, disaster recovery]
+        failure_categories: [missing_action, missing_failure_mode, missing_tradeoff]
+        rubric_additions: [说明架构设计, 说明流量切换, 说明定期演练]
+        expected_signals: [能用多 AZ/多区域部署, 能设计快速流量切换, 能用混沌演练验证]
+        anti_patterns: [单 AZ 部署, 无切换预案, 不做演练]
+        good_answer_hints: [先多 AZ, 再做切换, 最后演练]
+        priority: 10
+        status: active
+
+  - id: technical_depth.mobile_platform_lifecycle
+    version: 1
+    title: Android / iOS 平台生命周期与状态保存
+    dimension: technical_depth
+    job_levels: [junior, mid, senior]
+    skill_tags: [mobile, android, ios, lifecycle, state restoration]
+    direction_tags: [internet_tech]
+    role_tags: [mobile]
+    rubric:
+      must_cover: [生命周期, 状态保存, 系统回收, 恢复策略]
+      minimum_bar: 能解释移动端 Activity / ViewController 生命周期与状态保存。
+      stretch: 能结合后台进程回收 / 内存压力 / 跨进程恢复给出完整方案。
+    priority: 25
+    status: active
+    source: manual_yaml
+    scope: global
+    language: zh-CN
+    variants:
+      - id: technical_depth.mobile_platform_lifecycle.state_restoration
+        version: 1
+        intent: opening
+        difficulty: standard
+        scenario_brief: 一个移动应用用户切回后台 30 分钟后回来，发现填了一半的表单丢失。
+        question_stem: 你会如何设计移动端生命周期与状态保存以防止此类问题？
+        prompt_template: 结合候选人的 Android / iOS 经验，生成一道技术深度题，要求说明生命周期与状态保存。
+        scenario_skill_tags: [mobile, lifecycle, state restoration, savedinstancestate]
+        resume_anchor_hints: [mobile, android, ios, lifecycle, state]
+        failure_categories: [missing_edge_case, missing_action, missing_consistency_boundary]
+        rubric_additions: [说明生命周期, 说明状态保存, 说明系统回收恢复]
+        expected_signals: [能用 onSaveInstanceState / state restoration 保存, 能区分进程被杀和暂停, 能恢复关键数据]
+        anti_patterns: [全用全局单例, 不区分回收, 不做恢复测试]
+        good_answer_hints: [先保关键状态, 再分场景恢复, 最后测试]
+        priority: 11
+        status: active
+      - id: technical_depth.mobile_platform_lifecycle.deep_link
+        version: 1
+        intent: deep_probe
+        difficulty: deep_probe
+        scenario_brief: 应用通过 deep link 启动时偶尔出现页面栈混乱。
+        question_stem: 如果 deep link 启动导致页面栈不一致，你会如何在生命周期层修复？
+        prompt_template: 生成一道 deep link 与页面栈深挖题，要求候选人说明导航栈管理。
+        scenario_skill_tags: [mobile, deep link, navigation stack, intent flag]
+        resume_anchor_hints: [mobile, deep link, navigation, intent]
+        failure_categories: [missing_edge_case, missing_action, missing_consistency_boundary]
+        rubric_additions: [说明启动模式, 说明栈管理, 说明状态对齐]
+        expected_signals: [能选合适 launch mode / scene, 能用栈管理避免错乱, 能在恢复时对齐状态]
+        anti_patterns: [全 standard 启动, 不管栈, 不测 deep link]
+        good_answer_hints: [先选启动模式, 再管栈, 最后对齐]
+        priority: 9
+        status: active
+
+  - id: technical_depth.mobile_cross_platform_tradeoff
+    version: 1
+    title: Flutter / React Native 跨端框架的取舍
+    dimension: technical_depth
+    job_levels: [junior, mid, senior]
+    skill_tags: [mobile, flutter, react native, cross platform, tradeoff]
+    direction_tags: [internet_tech]
+    role_tags: [mobile]
+    rubric:
+      must_cover: [适用场景, 性能差异, 工程成本, 演进策略]
+      minimum_bar: 能比较原生 / Flutter / RN 三种方案。
+      stretch: 能结合团队能力 / 项目规模 / 长期维护给出选型框架。
+    priority: 23
+    status: active
+    source: manual_yaml
+    scope: global
+    language: zh-CN
+    variants:
+      - id: technical_depth.mobile_cross_platform_tradeoff.selection
+        version: 1
+        intent: opening
+        difficulty: standard
+        scenario_brief: 一个新产品要决定选原生还是 Flutter / RN，团队倾向跨端但担心性能。
+        question_stem: 你会如何评估并选择 Flutter / RN / 原生方案？
+        prompt_template: 结合候选人的移动端 / 跨端经验，生成一道技术深度题，要求说明选型框架。
+        scenario_skill_tags: [mobile, flutter, react native, cross platform]
+        resume_anchor_hints: [mobile, flutter, react native, cross platform]
+        failure_categories: [missing_tradeoff, missing_action, missing_metrics]
+        rubric_additions: [说明适用场景, 说明性能差异, 说明工程成本]
+        expected_signals: [能给场景适用矩阵, 能比较性能/包体/渲染差异, 能评估团队能力与维护成本]
+        anti_patterns: [盲目跟新技术, 不评估团队能力, 不算长期成本]
+        good_answer_hints: [先评估场景, 再比性能, 最后算成本]
+        priority: 11
+        status: active
+      - id: technical_depth.mobile_cross_platform_tradeoff.migration
+        version: 1
+        intent: deep_probe
+        difficulty: deep_probe
+        scenario_brief: 现有 RN 项目某些模块性能不达标，团队想替换为原生。
+        question_stem: 如果要把跨端项目部分模块迁回原生，你会如何设计混合架构？
+        prompt_template: 生成一道跨端混合架构深挖题，要求候选人说明混合方案与边界。
+        scenario_skill_tags: [mobile, hybrid architecture, react native, native module]
+        resume_anchor_hints: [mobile, hybrid, react native, native module]
+        failure_categories: [missing_action, missing_tradeoff, missing_consistency_boundary]
+        rubric_additions: [说明混合边界, 说明通信机制, 说明回滚策略]
+        expected_signals: [能用 bridge / module 实现混合, 能定通信协议, 能给降级与回滚]
+        anti_patterns: [全量替换风险大, 通信无契约, 没回滚]
+        good_answer_hints: [先定边界, 再通信, 最后回滚]
+        priority: 9
+        status: active
+
+  - id: technical_depth.mobile_native_module_integration
+    version: 1
+    title: 原生模块集成（相机 / 蓝牙 / 推送）的工程边界
+    dimension: technical_depth
+    job_levels: [junior, mid, senior]
+    skill_tags: [mobile, native module, camera, bluetooth, push]
+    direction_tags: [internet_tech]
+    role_tags: [mobile]
+    rubric:
+      must_cover: [权限管理, 兼容差异, 失败处理, 用户体验]
+      minimum_bar: 能集成原生硬件 / 系统能力并处理常见兼容问题。
+      stretch: 能给出权限申请 / 兼容降级 / 失败处理的完整方案。
+    priority: 21
+    status: active
+    source: manual_yaml
+    scope: global
+    language: zh-CN
+    variants:
+      - id: technical_depth.mobile_native_module_integration.permission
+        version: 1
+        intent: opening
+        difficulty: standard
+        scenario_brief: 应用集成相机后，部分用户在权限拒绝后无法再次使用功能。
+        question_stem: 你会如何系统化设计原生能力（如相机）的权限申请与失败处理？
+        prompt_template: 结合候选人的 Android / iOS 经验，生成一道技术深度题，要求说明权限与失败处理。
+        scenario_skill_tags: [mobile, permission, camera, native, ux]
+        resume_anchor_hints: [mobile, permission, camera, native]
+        failure_categories: [missing_edge_case, missing_action, missing_observability]
+        rubric_additions: [说明权限流程, 说明拒绝处理, 说明引导恢复]
+        expected_signals: [能合理选择申请时机, 能区分首次/二次/永久拒绝, 能引导用户开启权限]
+        anti_patterns: [启动就要权限, 拒绝后无引导, 没失败处理]
+        good_answer_hints: [先时机, 再分情况, 最后引导]
+        priority: 10
+        status: active
+      - id: technical_depth.mobile_native_module_integration.compatibility
+        version: 1
+        intent: deep_probe
+        difficulty: deep_probe
+        scenario_brief: 蓝牙模块在部分老 Android 设备上无法稳定工作。
+        question_stem: 如果原生能力存在设备/系统版本兼容差异，你会如何在工程上稳定支持？
+        prompt_template: 生成一道原生模块兼容深挖题，要求候选人说明分层适配与降级。
+        scenario_skill_tags: [mobile, compatibility, bluetooth, fallback]
+        resume_anchor_hints: [mobile, compatibility, bluetooth, fallback]
+        failure_categories: [missing_edge_case, missing_action, missing_tradeoff]
+        rubric_additions: [说明兼容矩阵, 说明分层适配, 说明降级策略]
+        expected_signals: [能建兼容矩阵, 能按版本/厂商分层适配, 能给降级体验]
+        anti_patterns: [只测主流设备, 不分层, 不降级]
+        good_answer_hints: [先建矩阵, 再适配, 最后降级]
+        priority: 8
+        status: active

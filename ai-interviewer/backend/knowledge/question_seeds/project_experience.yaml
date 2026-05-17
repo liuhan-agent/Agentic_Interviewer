@@ -609,3 +609,309 @@ seeds:
         good_answer_hints: [先回归集, 再做对照, 最后定门槛]
         priority: 8
         status: active
+
+  - id: project_experience.frontend_web_end_to_end_delivery
+    version: 1
+    title: 前端大项目端到端交付经验
+    dimension: project_experience
+    job_levels: [junior, mid, senior]
+    skill_tags: [frontend, project, delivery, collaboration, milestones]
+    direction_tags: [internet_tech]
+    role_tags: [frontend_web]
+    rubric:
+      must_cover: [项目背景, 里程碑, 协作机制, 业务结果]
+      minimum_bar: 能完整复述一次复杂前端项目的端到端交付。
+      stretch: 能说明关键决策、踩坑与量化结果。
+    priority: 21
+    status: active
+    source: manual_yaml
+    scope: global
+    language: zh-CN
+    variants:
+      - id: project_experience.frontend_web_end_to_end_delivery.full_cycle
+        version: 1
+        intent: opening
+        difficulty: standard
+        scenario_brief: 候选人主导过一个 3 个月以上的复杂前端项目。
+        question_stem: 请讲一次你前端项目从需求到上线的完整端到端交付。
+        prompt_template: 结合候选人简历中的前端项目经验，生成一道项目经验题，要求叙述端到端交付。
+        scenario_skill_tags: [frontend, project, delivery, end-to-end]
+        resume_anchor_hints: [frontend, project, delivery, end-to-end]
+        failure_categories: [missing_metrics, missing_action, missing_tradeoff]
+        rubric_additions: [说明项目背景, 说明里程碑, 说明业务结果]
+        expected_signals: [能讲清项目目标和约束, 能给出里程碑节奏, 能给出业务量化结果]
+        anti_patterns: [只讲技术细节, 没有里程碑, 没有业务结果]
+        good_answer_hints: [先讲背景, 再讲里程碑, 最后讲结果]
+        priority: 11
+        status: active
+      - id: project_experience.frontend_web_end_to_end_delivery.collaboration
+        version: 1
+        intent: deep_probe
+        difficulty: deep_probe
+        scenario_brief: 项目中你需要与后端 / 设计 / QA / 业务 4 方协作。
+        question_stem: 在这个项目里，你如何与其他角色协作并解决冲突？
+        prompt_template: 生成一道前端项目协作深挖题，要求候选人说明协作机制与冲突解决。
+        scenario_skill_tags: [frontend, project, collaboration, conflict resolution]
+        resume_anchor_hints: [frontend, project, collaboration]
+        failure_categories: [missing_action, shallow_debugging, missing_tradeoff]
+        rubric_additions: [说明协作机制, 说明冲突类型, 说明解决路径]
+        expected_signals: [能描述周会/同步机制, 能讲出典型冲突, 能给出共识达成路径]
+        anti_patterns: [只讲自己工作, 不提冲突, 没共识机制]
+        good_answer_hints: [先讲机制, 再讲冲突, 最后讲共识]
+        priority: 9
+        status: active
+
+  - id: project_experience.frontend_web_perf_overhaul
+    version: 1
+    title: 前端性能优化项目从指标到改造的完整复盘
+    dimension: project_experience
+    job_levels: [junior, mid, senior]
+    skill_tags: [frontend, performance, project, optimization, metrics]
+    direction_tags: [internet_tech]
+    role_tags: [frontend_web]
+    rubric:
+      must_cover: [指标基线, 改造动作, 验证方法, 业务结果]
+      minimum_bar: 能复述一次性能优化项目的完整经历。
+      stretch: 能说明每一步改造的成本收益与回归保护。
+    priority: 19
+    status: active
+    source: manual_yaml
+    scope: global
+    language: zh-CN
+    variants:
+      - id: project_experience.frontend_web_perf_overhaul.before_after
+        version: 1
+        intent: opening
+        difficulty: standard
+        scenario_brief: 候选人参与过一个长期前端性能改造项目，关键指标有显著变化。
+        question_stem: 请讲一次你前端性能优化项目从指标基线到上线后的完整复盘。
+        prompt_template: 结合候选人的前端性能项目经验，生成一道项目经验题，要求叙述改造闭环。
+        scenario_skill_tags: [frontend, performance, project, metrics]
+        resume_anchor_hints: [frontend, performance, project, web vitals, optimization]
+        failure_categories: [missing_metrics, missing_action, missing_tradeoff]
+        rubric_additions: [说明基线指标, 说明关键改造, 说明业务结果]
+        expected_signals: [能定义基线与目标, 能给出改造清单与优先级, 能给出真实用户监控数据]
+        anti_patterns: [只讲技术手段, 没指标, 没真实数据]
+        good_answer_hints: [先讲基线, 再讲改造, 最后讲数据]
+        priority: 10
+        status: active
+      - id: project_experience.frontend_web_perf_overhaul.regression_guard
+        version: 1
+        intent: deep_probe
+        difficulty: deep_probe
+        scenario_brief: 优化上线后曾出现回退，团队后续建立了防回退机制。
+        question_stem: 你的项目里如何防止性能回归？讲讲机制与一次真实拦截案例。
+        prompt_template: 生成一道前端性能防回归深挖题，要求候选人说明 CI guard 与真实拦截。
+        scenario_skill_tags: [frontend, performance, regression, ci, guard]
+        resume_anchor_hints: [frontend, performance, regression, ci, guard]
+        failure_categories: [missing_action, missing_observability, missing_metrics]
+        rubric_additions: [说明 CI 守护, 说明真实用户监控, 说明拦截案例]
+        expected_signals: [能定义 budget 与守护, 能用真实监控发现回归, 能讲出真实拦截案例]
+        anti_patterns: [只看本地数据, 无 CI 守护, 无真实案例]
+        good_answer_hints: [先建守护, 再监控, 最后讲案例]
+        priority: 8
+        status: active
+
+  - id: project_experience.sre_incident_postmortem
+    version: 1
+    title: 重大故障复盘与改进项目
+    dimension: project_experience
+    job_levels: [junior, mid, senior]
+    skill_tags: [sre, incident, postmortem, improvement, project]
+    direction_tags: [internet_tech]
+    role_tags: [sre]
+    rubric:
+      must_cover: [事件背景, 根因分析, 改进项目, 长期效果]
+      minimum_bar: 能复述一次重大故障的复盘与改进过程。
+      stretch: 能给出可量化的长期改进效果。
+    priority: 21
+    status: active
+    source: manual_yaml
+    scope: global
+    language: zh-CN
+    variants:
+      - id: project_experience.sre_incident_postmortem.full_loop
+        version: 1
+        intent: opening
+        difficulty: standard
+        scenario_brief: 候选人主导过一次重大故障复盘并推动了系统性改进。
+        question_stem: 请讲一次你主导的重大故障复盘与改进项目的完整经历。
+        prompt_template: 结合候选人的 SRE / 复盘经验，生成一道项目经验题，要求叙述全闭环。
+        scenario_skill_tags: [sre, incident, postmortem, project]
+        resume_anchor_hints: [sre, incident, postmortem, project]
+        failure_categories: [missing_action, missing_metrics, missing_tradeoff]
+        rubric_additions: [说明事件背景, 说明根因分析, 说明改进效果]
+        expected_signals: [能讲清事件影响, 能给出多层根因, 能落地长期改进]
+        anti_patterns: [只甩锅, 没根因, 没长期改进]
+        good_answer_hints: [先讲背景, 再讲根因, 最后讲改进]
+        priority: 10
+        status: active
+      - id: project_experience.sre_incident_postmortem.culture
+        version: 1
+        intent: deep_probe
+        difficulty: deep_probe
+        scenario_brief: 你的复盘机制推行过程中曾遇到团队不愿暴露根因的阻力。
+        question_stem: 你如何在团队里建立"无指责"的复盘文化？
+        prompt_template: 生成一道复盘文化建设深挖题，要求候选人说明文化与机制。
+        scenario_skill_tags: [sre, blameless, postmortem, culture]
+        resume_anchor_hints: [sre, blameless, postmortem, culture]
+        failure_categories: [missing_action, shallow_debugging, missing_tradeoff]
+        rubric_additions: [说明文化设计, 说明机制保障, 说明真实成果]
+        expected_signals: [能讲文化设计原则, 能用机制（如固定模板/中立主持）保障, 能给真实改进案例]
+        anti_patterns: [只讲口号, 没机制, 没案例]
+        good_answer_hints: [先讲文化, 再讲机制, 最后讲案例]
+        priority: 8
+        status: active
+
+  - id: project_experience.sre_monitoring_buildup
+    version: 1
+    title: 监控告警体系从 0 到 1 的建设
+    dimension: project_experience
+    job_levels: [junior, mid, senior]
+    skill_tags: [sre, monitoring, alerting, project, buildup]
+    direction_tags: [internet_tech]
+    role_tags: [sre]
+    rubric:
+      must_cover: [架构选型, 指标设计, 告警治理, 业务结果]
+      minimum_bar: 能复述监控告警体系从 0 到 1 的建设过程。
+      stretch: 能给出告警降噪 / SLO 接入 / 自动恢复等长期演进。
+    priority: 19
+    status: active
+    source: manual_yaml
+    scope: global
+    language: zh-CN
+    variants:
+      - id: project_experience.sre_monitoring_buildup.zero_to_one
+        version: 1
+        intent: opening
+        difficulty: standard
+        scenario_brief: 候选人从 0 搭建过一个团队的监控告警体系。
+        question_stem: 请讲一次你建设监控告警体系从 0 到 1 的完整项目。
+        prompt_template: 结合候选人的 SRE 监控建设经验，生成一道项目经验题，要求叙述全闭环。
+        scenario_skill_tags: [sre, monitoring, alerting, buildup]
+        resume_anchor_hints: [sre, monitoring, alerting, project]
+        failure_categories: [missing_action, missing_metrics, missing_observability]
+        rubric_additions: [说明架构选型, 说明指标设计, 说明业务结果]
+        expected_signals: [能选合适监控架构, 能定关键指标, 能用业务量化结果]
+        anti_patterns: [只装工具, 没指标, 没结果]
+        good_answer_hints: [先选架构, 再定指标, 最后讲结果]
+        priority: 9
+        status: active
+      - id: project_experience.sre_monitoring_buildup.alert_noise
+        version: 1
+        intent: deep_probe
+        difficulty: deep_probe
+        scenario_brief: 上线后告警噪音过大，团队开始忽略告警。
+        question_stem: 如果告警噪音严重，你会如何在工程上降噪？
+        prompt_template: 生成一道告警降噪深挖题，要求候选人说明分级 / 抑制 / 关联。
+        scenario_skill_tags: [sre, alerting, noise, deduplication]
+        resume_anchor_hints: [sre, alerting, noise, deduplication]
+        failure_categories: [missing_action, missing_metrics, missing_observability]
+        rubric_additions: [说明分级机制, 说明抑制策略, 说明关联分析]
+        expected_signals: [能用 severity 分级, 能定告警抑制规则, 能用关联分析合并]
+        anti_patterns: [一刀切关告警, 不分级, 不关联]
+        good_answer_hints: [先分级, 再抑制, 最后关联]
+        priority: 7
+        status: active
+
+  - id: project_experience.mobile_release_management
+    version: 1
+    title: 复杂版本发布管理与灰度回滚
+    dimension: project_experience
+    job_levels: [junior, mid, senior]
+    skill_tags: [mobile, release, canary, rollback, project]
+    direction_tags: [internet_tech]
+    role_tags: [mobile]
+    rubric:
+      must_cover: [发布策略, 灰度机制, 回滚预案, 业务结果]
+      minimum_bar: 能复述一次复杂版本发布的管理过程。
+      stretch: 能结合真实回滚事件给出可量化改进。
+    priority: 20
+    status: active
+    source: manual_yaml
+    scope: global
+    language: zh-CN
+    variants:
+      - id: project_experience.mobile_release_management.canary
+        version: 1
+        intent: opening
+        difficulty: standard
+        scenario_brief: 候选人主导过移动应用大版本发布并设计了灰度机制。
+        question_stem: 请讲一次你移动端版本发布管理与灰度回滚的完整经历。
+        prompt_template: 结合候选人的移动端发布经验，生成一道项目经验题，要求叙述发布管理。
+        scenario_skill_tags: [mobile, release, canary, rollback]
+        resume_anchor_hints: [mobile, release, canary, rollback, project]
+        failure_categories: [missing_action, missing_metrics, missing_observability]
+        rubric_additions: [说明发布策略, 说明灰度机制, 说明业务结果]
+        expected_signals: [能选合适灰度比例, 能定监控指标, 能用业务量化结果]
+        anti_patterns: [一次全量, 没监控, 没结果]
+        good_answer_hints: [先选灰度, 再定监控, 最后讲结果]
+        priority: 9
+        status: active
+      - id: project_experience.mobile_release_management.crisis
+        version: 1
+        intent: deep_probe
+        difficulty: deep_probe
+        scenario_brief: 一次发布后出现重大问题，团队执行了回滚。
+        question_stem: 请讲一次你发布后回滚的完整经历：决策依据、过程与改进。
+        prompt_template: 生成一道移动端回滚深挖题，要求候选人说明决策与改进。
+        scenario_skill_tags: [mobile, rollback, crisis, postmortem]
+        resume_anchor_hints: [mobile, rollback, crisis, postmortem]
+        failure_categories: [shallow_debugging, missing_action, missing_metrics]
+        rubric_additions: [说明决策依据, 说明回滚过程, 说明长期改进]
+        expected_signals: [能讲清回滚触发条件, 能讲过程关键决策, 能给长期改进措施]
+        anti_patterns: [只甩锅, 没改进, 没机制]
+        good_answer_hints: [先讲触发, 再讲过程, 最后讲改进]
+        priority: 7
+        status: active
+
+  - id: project_experience.mobile_i18n_localization
+    version: 1
+    title: 移动端国际化 / 多语言 / 多地区适配
+    dimension: project_experience
+    job_levels: [junior, mid, senior]
+    skill_tags: [mobile, i18n, localization, project, region]
+    direction_tags: [internet_tech]
+    role_tags: [mobile]
+    rubric:
+      must_cover: [资源管理, 文化适配, 法规合规, 长期运营]
+      minimum_bar: 能复述一次国际化项目的完整经历。
+      stretch: 能给出文化 / 法规 / 运营全维度适配。
+    priority: 18
+    status: active
+    source: manual_yaml
+    scope: global
+    language: zh-CN
+    variants:
+      - id: project_experience.mobile_i18n_localization.expansion
+        version: 1
+        intent: opening
+        difficulty: standard
+        scenario_brief: 候选人参与过一个移动应用从国内扩展到东南亚 / 欧洲市场。
+        question_stem: 请讲一次你移动端国际化适配的完整项目经历。
+        prompt_template: 结合候选人的移动端国际化经验，生成一道项目经验题，要求叙述适配过程。
+        scenario_skill_tags: [mobile, i18n, localization, expansion]
+        resume_anchor_hints: [mobile, i18n, localization, project]
+        failure_categories: [missing_action, missing_edge_case, missing_tradeoff]
+        rubric_additions: [说明资源管理, 说明文化适配, 说明运营机制]
+        expected_signals: [能讲资源管理与翻译流程, 能讲文化/法规差异, 能给出运营机制]
+        anti_patterns: [只换文案, 不考虑文化, 没运营]
+        good_answer_hints: [先讲资源, 再讲文化, 最后讲运营]
+        priority: 8
+        status: active
+      - id: project_experience.mobile_i18n_localization.compliance
+        version: 1
+        intent: deep_probe
+        difficulty: deep_probe
+        scenario_brief: 在某市场遇到了与隐私法规相关的挑战，需要做合规改造。
+        question_stem: 你的国际化项目里如何处理隐私 / 数据合规挑战？
+        prompt_template: 生成一道国际化合规深挖题，要求候选人说明合规改造与协作。
+        scenario_skill_tags: [mobile, compliance, privacy, gdpr, i18n]
+        resume_anchor_hints: [mobile, compliance, privacy, gdpr]
+        failure_categories: [missing_action, missing_tradeoff, missing_edge_case]
+        rubric_additions: [说明法规识别, 说明改造路径, 说明长期合规]
+        expected_signals: [能识别核心法规要求, 能给改造路径, 能定长期合规机制]
+        anti_patterns: [只追功能, 不查合规, 没长期机制]
+        good_answer_hints: [先识别, 再改造, 最后长期]
+        priority: 6
+        status: active
