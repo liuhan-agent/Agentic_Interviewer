@@ -73,6 +73,7 @@ import {
   type GrowthHints as GrowthHintsType,
   type SessionDelta,
 } from "@/lib/sessionDelta";
+import { formatDimensionName } from "@/lib/constants/interview";
 import {
   getCompletedBefore,
   getHistory,
@@ -83,54 +84,6 @@ import {
   readVoiceReportCache,
 } from "@/lib/storage/voiceReportCache";
 
-const DIMENSION_LABELS: Record<string, string> = {
-  technical_depth: "技术深度",
-  problem_solving: "问题解决",
-  communication: "沟通表达",
-  system_design: "系统设计",
-  coding_quality: "代码质量",
-  project_experience: "项目经验",
-  product_thinking: "产品思维",
-  architecture: "架构能力",
-  behavioral: "行为面试",
-  leadership: "技术领导力",
-  user_insight: "用户洞察",
-  requirement_analysis: "需求分析",
-  prioritization: "优先级判断",
-  metrics_thinking: "指标思维",
-  stakeholder_management: "协同推进",
-  user_growth: "用户增长",
-  content_operations: "内容运营",
-  data_analysis: "数据分析",
-  campaign_execution: "活动执行",
-  process_optimization: "流程优化",
-  customer_discovery: "客户发现",
-  solution_matching: "方案匹配",
-  objection_handling: "异议处理",
-  negotiation: "商务谈判",
-  pipeline_management: "销售漏斗管理",
-  market_insight: "市场洞察",
-  brand_strategy: "品牌策略",
-  campaign_planning: "营销策划",
-  channel_growth: "渠道增长",
-  content_creativity: "内容创意",
-  talent_acquisition: "人才招聘",
-  employee_relations: "员工关系",
-  organization_development: "组织发展",
-  policy_compliance: "制度合规",
-  service_orientation: "服务意识",
-  customer_empathy: "客户同理心",
-  issue_diagnosis: "问题诊断",
-  solution_delivery: "方案交付",
-  escalation_management: "升级管理",
-  retention_growth: "留存增长",
-  goal_setting: "目标设定",
-  team_leadership: "团队领导",
-  decision_making: "决策判断",
-  execution_management: "执行管理",
-  cross_functional_alignment: "跨部门协同",
-};
-
 const scoreTooltipFormatter: Formatter<ValueType, NameType> = (value) => {
   const n = Array.isArray(value) ? Number(value[0]) : Number(value);
   if (Number.isFinite(n)) {
@@ -138,10 +91,6 @@ const scoreTooltipFormatter: Formatter<ValueType, NameType> = (value) => {
   }
   return [`${value ?? "-"}`, "得分"];
 };
-
-function formatDimensionName(id: string): string {
-  return DIMENSION_LABELS[id] ?? id.replaceAll("_", " ");
-}
 
 function isSystemFallbackText(value?: string | null): boolean {
   const text = String(value ?? "").trim();

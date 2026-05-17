@@ -172,7 +172,7 @@ test("InterviewRoom shows prominent turn labels and user-facing dimension labels
   const source = read("src/components/interview/InterviewRoom.tsx");
 
   assert.match(source, /formatDimensionName\(entry\.dimension\)/);
-  assert.match(source, /DIMENSION_LABELS/);
+  assert.match(source, /formatDimensionName.*@\/lib\/constants\/interview/s);
   assert.match(source, /第 \$\{turnLabel\} 题/);
   assert.match(source, /min-w-\[4\.5rem\]/);
   assert.match(source, /text-emerald-200/);

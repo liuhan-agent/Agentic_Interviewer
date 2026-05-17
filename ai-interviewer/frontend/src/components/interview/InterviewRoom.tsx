@@ -72,6 +72,7 @@ import {
 } from "@/lib/hooks/useTurnVideoCapture";
 import { useToast } from "@/lib/hooks/useToast";
 import { cn } from "@/lib/utils";
+import { formatDimensionName } from "@/lib/constants/interview";
 import {
   loadQuestionSpeechEnabled,
   storeQuestionSpeechEnabled,
@@ -87,15 +88,6 @@ const ENCOURAGEMENTS = [
   "提交成功，正在生成下一轮问题。",
 ];
 const ANSWER_MAX_LENGTH = 8000;
-const DIMENSION_LABELS: Record<string, string> = {
-  technical_depth: "技术深度",
-  problem_solving: "问题解决",
-  communication: "沟通表达",
-  system_design: "系统设计",
-  project_experience: "项目经验",
-  culture_fit: "文化匹配",
-  leadership: "领导力",
-};
 
 type QaEntry = {
   turnIdx: number | null;
@@ -2146,10 +2138,6 @@ function isFinalFormalTurn({
         ? turnIdx + 1
         : 0;
   return currentTurn >= maxTurns;
-}
-
-function formatDimensionName(id: string): string {
-  return DIMENSION_LABELS[id] ?? id.replaceAll("_", " ");
 }
 
 function resumeAnchorLabel(anchor?: ResumeAnchor): string {
