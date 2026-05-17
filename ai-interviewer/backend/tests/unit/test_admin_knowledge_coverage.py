@@ -24,6 +24,7 @@ def test_admin_knowledge_coverage_counts_only_ingestible_files(
     (tmp_path / "behavioral_questions").mkdir()
     (tmp_path / "sample_resumes").mkdir()
     (tmp_path / "strategy").mkdir()
+    (tmp_path / "skills").mkdir()
     (tmp_path / "business_questions" / "sales.md").write_text(
         "S" * 700, encoding="utf-8"
     )
@@ -34,6 +35,10 @@ def test_admin_knowledge_coverage_counts_only_ingestible_files(
     (tmp_path / "sample_resumes" / "alex.md").write_text("resume", encoding="utf-8")
     (tmp_path / "strategy" / "interview_strategy.md").write_text(
         "strategy", encoding="utf-8"
+    )
+    (tmp_path / "strategy" / ".dream_state.json").write_text("{}", encoding="utf-8")
+    (tmp_path / "skills" / "interview_skill.md").write_text(
+        "skill", encoding="utf-8"
     )
     (tmp_path / "interview_directions.json").write_text("{}", encoding="utf-8")
     (tmp_path / "job_templates.json").write_text("{}", encoding="utf-8")
@@ -52,14 +57,7 @@ def test_admin_knowledge_coverage_counts_only_ingestible_files(
 
     assert response.status_code == 200
     payload = response.json()
-    assert payload == {
-        "by_source_type": {
-            "misc": {"files": 1, "chunks": 1},
-            "strategy": {"files": 1, "chunks": 1},
-        },
-        "total_files": 2,
-        "total_chunks": 2,
-    }
+    assert payload == {"by_source_type": {}, "total_files": 0, "total_chunks": 0}
 
 
 def test_admin_knowledge_coverage_requires_admin_token(

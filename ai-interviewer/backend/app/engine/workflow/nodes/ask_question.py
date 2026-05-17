@@ -213,12 +213,27 @@ def _step_retrieve_strategy(state: InterviewState, ctx: dict[str, Any]) -> None:
     # about — same defensive pattern we use for the evidence-span and
     # drift-feedback knobs in ``evaluator_agent``.
     if skill_enabled:
+        direction_tags = ctx.get("question_direction_tags")
+        role_tags = ctx.get("question_role_tags")
+        if direction_tags is None or role_tags is None:
+            direction_tags, role_tags = resolve_question_bank_tags(
+                job_spec=state.get("job_spec", {}),
+                runtime_config=state.get("runtime_config") or {},
+            )
+            ctx["question_direction_tags"] = direction_tags
+            ctx["question_role_tags"] = role_tags
         skills = retrieve_skills(
             dimension=ctx["dimension"],
             job_level=job_level,
             limit=int(getattr(settings, "skill_retrieval_limit", 3)),
             use_llm_selector=use_llm_selector,
             recent_qa_summary=recent_qa_summary,
+            direction_tags=list(direction_tags or []),
+            role_tags=list(role_tags or []),
+            probe_intent=ctx.get("probe_intent"),
+            failure_categories=_failure_categories_from_hints(
+                ctx.get("contract_hints"),
+            ),
         )
         ctx["skill_artifact"]["refs"] = [
             _skill_card_ref(skill)
@@ -308,10 +323,19 @@ def _skill_card_ref(entry: Any) -> dict[str, Any]:
     path = getattr(entry, "path", None)
     return {
         "filename": path.name if path is not None else "",
+        "id": getattr(entry, "id", ""),
         "name": getattr(entry, "name", ""),
         "description": getattr(entry, "description", ""),
+        "status": getattr(entry, "status", "active"),
+        "priority": int(getattr(entry, "priority", 0) or 0),
+        "direction_tags": list(getattr(entry, "direction_tags", []) or []),
+        "role_tags": list(getattr(entry, "role_tags", []) or []),
         "dimensions": list(getattr(entry, "dimensions", []) or []),
         "job_levels": list(getattr(entry, "job_levels", []) or []),
+        "probe_intents": list(getattr(entry, "probe_intents", []) or []),
+        "failure_categories": list(getattr(entry, "failure_categories", []) or []),
+        "match_score": float(getattr(entry, "match_score", 0.0) or 0.0),
+        "match_reasons": list(getattr(entry, "match_reasons", []) or []),
     }
 
 

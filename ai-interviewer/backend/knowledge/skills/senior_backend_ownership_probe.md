@@ -1,8 +1,15 @@
 ---
+id: tech_ownership_rollout_probe
 name: Senior Backend Ownership Probe
 description: Force ownership and quantified impact in senior backend answers.
+status: active
+priority: 7
+direction_tags: [internet_tech]
+role_tags: [java_backend, architect]
 dimensions: [leadership, system_design, problem_solving]
 job_levels: [senior, staff, principal]
+probe_intents: [evidence_probe, case_study_probe, stakeholder_pushback_probe]
+failure_categories: [generic_storytelling, missing_evidence, weak_ownership]
 ---
 
 When interviewing senior / staff / principal backend candidates:

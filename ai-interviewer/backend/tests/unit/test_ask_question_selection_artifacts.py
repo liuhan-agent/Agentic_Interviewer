@@ -68,11 +68,19 @@ def test_ask_question_records_selection_artifacts(monkeypatch) -> None:
     )
     skill = SkillEntry(
         path=Path("system_design_scale_reasoning.md"),
+        id="system_design_scale_reasoning",
         name="System Design Scale Reasoning",
         description="Probe scale assumptions.",
+        priority=4,
+        direction_tags=["internet_tech"],
+        role_tags=["java_backend"],
         dimensions=["system_design"],
         job_levels=["senior"],
+        probe_intents=["architecture_challenge"],
+        failure_categories=["missing_scale_reasoning"],
         body="Ask for load and failure modes.",
+        match_score=42.0,
+        match_reasons=["dimension:system_design", "role_tag:java_backend"],
     )
 
     def fake_generate_question(**kwargs):
@@ -183,10 +191,19 @@ def test_ask_question_records_selection_artifacts(monkeypatch) -> None:
     assert artifacts["skills"]["refs"] == [
         {
             "filename": "system_design_scale_reasoning.md",
+            "id": "system_design_scale_reasoning",
             "name": "System Design Scale Reasoning",
             "description": "Probe scale assumptions.",
+            "status": "active",
+            "priority": 4,
+            "direction_tags": ["internet_tech"],
+            "role_tags": ["java_backend"],
             "dimensions": ["system_design"],
             "job_levels": ["senior"],
+            "probe_intents": ["architecture_challenge"],
+            "failure_categories": ["missing_scale_reasoning"],
+            "match_score": 42.0,
+            "match_reasons": ["dimension:system_design", "role_tag:java_backend"],
         }
     ]
     assert artifacts["avoid_patterns"] == {
@@ -237,11 +254,23 @@ def _make_strategy() -> StrategyEntry:
 def _make_skill() -> SkillEntry:
     return SkillEntry(
         path=Path("system_design_scale_reasoning.md"),
+        id="system_design_scale_reasoning",
         name="System Design Scale Reasoning",
         description="Probe scale assumptions.",
+        status="active",
+        priority=4,
+        direction_tags=["internet_tech"],
+        role_tags=["java_backend"],
         dimensions=["system_design"],
         job_levels=["senior"],
+        probe_intents=["architecture_challenge"],
+        failure_categories=["missing_scale_reasoning"],
         body="Ask for load and failure modes.",
+        match_score=42.0,
+        match_reasons=[
+            "dimension:system_design",
+            "role_tag:java_backend",
+        ],
     )
 
 
@@ -282,7 +311,13 @@ def _install_default_patches(
         "format_strategies_for_prompt",
         lambda entries: "\n".join(entry.body for entry in entries),
     )
-    monkeypatch.setattr(ask_mod, "retrieve_skills", lambda **_kw: list(skills or []))
+    captured: dict[str, Any] = {}
+
+    def fake_retrieve_skills(**kwargs):
+        captured["skill_retrieve_kwargs"] = kwargs
+        return list(skills or [])
+
+    monkeypatch.setattr(ask_mod, "retrieve_skills", fake_retrieve_skills)
     monkeypatch.setattr(
         ask_mod,
         "build_skills_block",
@@ -312,8 +347,6 @@ def _install_default_patches(
             or list(_COVERED_PRIMARY_ROLE_TAGS),
         ),
     )
-
-    captured: dict[str, Any] = {}
 
     class _Tracer:
         def trace_node_event(self, _state, *, node, payload, **_kwargs):
@@ -374,6 +407,9 @@ def test_ask_question_records_empty_rag(monkeypatch) -> None:
 
     artifacts = out["current_question"]["selection_artifacts"]
     assert captured["selection_artifacts"] == artifacts
+    assert captured["skill_retrieve_kwargs"]["direction_tags"] == ["internet_tech"]
+    assert captured["skill_retrieve_kwargs"]["role_tags"] == ["java_backend"]
+    assert captured["skill_retrieve_kwargs"]["probe_intent"] == "architecture_challenge"
     assert artifacts["rag"]["empty"] is True
     assert artifacts["rag"]["reason"] == "no_relevant_knowledge"
     assert artifacts["rag"]["doc_refs"] == []

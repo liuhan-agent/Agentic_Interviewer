@@ -577,12 +577,11 @@ class Settings(BaseSettings):
     # into the Generator's ``skills`` prompt slot.  Sibling feature to
     # the existing strategy injection (``strategy_store``): strategies
     # are reward-driven memory maintained by ``strategy_dream``, skills
-    # are hand-authored business know-how curated by humans.  Default
-    # OFF because shipping without any authored skill cards would
-    # inject the ``"(no relevant interview skills)"`` placeholder on
-    # every turn for no benefit.
+    # are hand-authored business know-how curated by humans. Skills are
+    # now structured playbook cards and selected by rules, so keep the
+    # slot on by default.
     # ------------------------------------------------------------------
-    enable_skill_injection: bool = False
+    enable_skill_injection: bool = True
     skill_retrieval_limit: int = 3
 
     # ------------------------------------------------------------------

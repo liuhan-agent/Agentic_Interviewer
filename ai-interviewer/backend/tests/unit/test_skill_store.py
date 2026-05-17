@@ -20,10 +20,17 @@ from app.memory import skill_store
 
 _SKILL_CARD_A = """\
 ---
+id: senior_backend_ownership
 name: Senior Backend Ownership
 description: Probe ownership, not buzzwords.
+status: active
+priority: 7
+direction_tags: [internet_tech]
+role_tags: [java_backend, architect]
 dimensions: [leadership, system_design]
 job_levels: [senior, staff]
+probe_intents: [architecture_challenge]
+failure_categories: [generic_storytelling]
 ---
 Body A goes here.
 Longer paragraph that explains the probe strategy in detail so the
@@ -87,8 +94,15 @@ def test_list_skills_parses_frontmatter(skills_root: Path) -> None:
     e = entries[0]
     assert e.name == "Senior Backend Ownership"
     assert e.description == "Probe ownership, not buzzwords."
+    assert e.id == "senior_backend_ownership"
+    assert e.status == "active"
+    assert e.priority == 7
+    assert e.direction_tags == ["internet_tech"]
+    assert e.role_tags == ["java_backend", "architect"]
     assert e.dimensions == ["leadership", "system_design"]
     assert e.job_levels == ["senior", "staff"]
+    assert e.probe_intents == ["architecture_challenge"]
+    assert e.failure_categories == ["generic_storytelling"]
     assert "Body A goes here." in e.body
     # Frontmatter must be stripped from the body.
     assert "---" not in e.body.splitlines()[0]
@@ -110,7 +124,10 @@ def test_retrieve_skills_scores_dimension_match_highest(
     _write_skill(skills_root, "u.md", _SKILL_CARD_UNIVERSAL)
 
     entries = skill_store.retrieve_skills(
-        dimension="system_design", job_level="senior"
+        dimension="system_design",
+        job_level="senior",
+        direction_tags=["internet_tech"],
+        role_tags=["java_backend"],
     )
 
     # "Senior Backend Ownership" matches both dimension (+2) and
@@ -123,6 +140,9 @@ def test_retrieve_skills_scores_dimension_match_highest(
         "Senior Backend Ownership",
         "Ask for Concrete Example",
     ]
+    assert entries[0].match_score > entries[1].match_score
+    assert "role_tag:java_backend" in entries[0].match_reasons
+    assert "direction_tag:internet_tech" in entries[0].match_reasons
 
 
 def test_retrieve_skills_returns_empty_when_nothing_matches(
@@ -133,6 +153,87 @@ def test_retrieve_skills_returns_empty_when_nothing_matches(
         dimension="system_design", job_level="senior"
     )
     assert entries == []
+
+
+def test_retrieve_skills_filters_inactive_and_role_mismatch(
+    skills_root: Path,
+) -> None:
+    _write_skill(
+        skills_root,
+        "inactive.md",
+        "---\n"
+        "name: Draft Card\n"
+        "status: draft\n"
+        "dimensions: [system_design]\n"
+        "job_levels: [senior]\n"
+        "---\nDraft body",
+    )
+    _write_skill(
+        skills_root,
+        "frontend.md",
+        "---\n"
+        "name: Frontend Only\n"
+        "status: active\n"
+        "direction_tags: [internet_tech]\n"
+        "role_tags: [frontend_web]\n"
+        "dimensions: [system_design]\n"
+        "job_levels: [senior]\n"
+        "---\nFrontend body",
+    )
+
+    entries = skill_store.retrieve_skills(
+        dimension="system_design",
+        job_level="senior",
+        direction_tags=["internet_tech"],
+        role_tags=["java_backend"],
+    )
+
+    assert entries == []
+
+
+def test_retrieve_skills_ranks_probe_and_failure_matches(
+    skills_root: Path,
+) -> None:
+    _write_skill(
+        skills_root,
+        "generic.md",
+        "---\n"
+        "id: generic_metric_probe\n"
+        "name: Generic Metric Probe\n"
+        "priority: 4\n"
+        "---\nGeneric body",
+    )
+    _write_skill(
+        skills_root,
+        "specific.md",
+        "---\n"
+        "id: java_incident_debugging\n"
+        "name: Java Incident Debugging\n"
+        "priority: 1\n"
+        "direction_tags: [internet_tech]\n"
+        "role_tags: [java_backend]\n"
+        "dimensions: [problem_solving]\n"
+        "job_levels: [senior]\n"
+        "probe_intents: [debugging_probe]\n"
+        "failure_categories: [root_cause_missing]\n"
+        "---\nSpecific body",
+    )
+
+    entries = skill_store.retrieve_skills(
+        dimension="problem_solving",
+        job_level="senior",
+        direction_tags=["internet_tech"],
+        role_tags=["java_backend"],
+        probe_intent="debugging_probe",
+        failure_categories=["root_cause_missing"],
+    )
+
+    assert [entry.id for entry in entries] == [
+        "java_incident_debugging",
+        "generic_metric_probe",
+    ]
+    assert "probe_intent:debugging_probe" in entries[0].match_reasons
+    assert "failure_category:root_cause_missing" in entries[0].match_reasons
 
 
 def test_retrieve_skills_with_llm_selector_filters_keyword_set(
@@ -206,6 +307,8 @@ def test_retrieve_skills_llm_selector_fallback_on_none(
         job_level="senior",
         limit=3,
         use_llm_selector=True,
+        direction_tags=["internet_tech"],
+        role_tags=["java_backend"],
     )
     assert [e.path.name for e in entries] == ["a.md"]
 
