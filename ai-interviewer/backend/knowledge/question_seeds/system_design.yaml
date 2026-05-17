@@ -604,3 +604,207 @@ seeds:
         good_answer_hints: [先对齐业务期限, 再比较总成本和风险, 最后设计退出机制]
         priority: 15
         status: active
+
+  - id: system_design.ai_agent_multi_step_rollback
+    version: 1
+    title: 多步 Agent 任务的失败回滚与人工 hand-off
+    dimension: system_design
+    job_levels: [junior, mid, senior]
+    skill_tags: [agent, workflow, rollback, hand-off, observability]
+    direction_tags: [internet_tech]
+    role_tags: [ai_agent]
+    rubric:
+      must_cover: [步骤幂等, 失败检测, 回滚策略, 人工 hand-off]
+      minimum_bar: 能说明多步 Agent 任务在某一步失败时的回滚与告警路径。
+      stretch: 能设计补偿事务、人工介入触发条件与审计回放。
+    priority: 27
+    status: active
+    source: manual_yaml
+    scope: global
+    language: zh-CN
+    variants:
+      - id: system_design.ai_agent_multi_step_rollback.refund_flow
+        version: 1
+        intent: opening
+        difficulty: standard
+        scenario_brief: 一个客服 Agent 需要"验证身份→冻结账户→发起退款→通知用户"四步，任一步失败都不能让数据不一致。
+        question_stem: 你会如何设计多步 Agent 任务的失败检测、回滚和人工 hand-off？
+        prompt_template: 结合候选人的 Agent / 工作流经验，生成一道系统设计题，要求说明回滚策略与 hand-off 触发。
+        scenario_skill_tags: [agent, workflow, rollback, idempotency, hand-off]
+        resume_anchor_hints: [agent, workflow, rollback, compensation, hand-off]
+        failure_categories: [missing_failure_mode, missing_action, missing_consistency_boundary]
+        rubric_additions: [说明步骤幂等设计, 说明失败检测点, 说明回滚与人工 hand-off]
+        expected_signals: [能定义每步幂等键, 能区分可补偿与不可补偿步骤, 能定义升级人工的明确条件]
+        anti_patterns: [失败后什么都不做, 简单重试整个流程, 不通知人工]
+        good_answer_hints: [先定义步骤边界, 再设计补偿与回滚, 最后给出 hand-off 触发]
+        priority: 17
+        status: active
+      - id: system_design.ai_agent_multi_step_rollback.partial_progress
+        version: 1
+        intent: deep_probe
+        difficulty: deep_probe
+        scenario_brief: 第二步"冻结账户"成功但第三步"退款"长时间无响应，Agent 不能让用户卡在中间状态。
+        question_stem: 如果某步执行成功但下游长期无响应，你会如何在 Agent 系统里维持一致性并给出可解释的兜底？
+        prompt_template: 生成一道 Agent 部分进度回滚深挖题，要求候选人说明状态持久化、补偿任务与用户可见状态。
+        scenario_skill_tags: [agent, partial progress, compensation, observability, user state]
+        resume_anchor_hints: [agent, compensation, observability, state machine, hand-off]
+        failure_categories: [missing_consistency_boundary, missing_action, missing_observability]
+        rubric_additions: [说明状态持久化, 说明补偿任务调度, 说明用户可见状态与升级]
+        expected_signals: [能把任务状态写入持久存储, 能定时跑补偿任务, 能让用户看到清晰状态与下一步]
+        anti_patterns: [只用内存状态机, 不做补偿任务, 用户看到不可解释的报错]
+        good_answer_hints: [先持久化状态, 再设计补偿任务, 最后做用户可解释]
+        priority: 15
+        status: active
+
+  - id: system_design.ai_agent_tool_registry
+    version: 1
+    title: Agent 工具池的注册 / 版本 / 权限 / 隔离
+    dimension: system_design
+    job_levels: [junior, mid, senior]
+    skill_tags: [agent, tool registry, versioning, permission, isolation]
+    direction_tags: [internet_tech]
+    role_tags: [ai_agent]
+    rubric:
+      must_cover: [工具注册, 版本演进, 权限分级, 多租户隔离]
+      minimum_bar: 能说明 Agent 工具池的注册、版本管理和最小权限原则。
+      stretch: 能设计灰度发布、跨租户隔离、撤回与回滚。
+    priority: 25
+    status: active
+    source: manual_yaml
+    scope: global
+    language: zh-CN
+    variants:
+      - id: system_design.ai_agent_tool_registry.permission_grading
+        version: 1
+        intent: opening
+        difficulty: standard
+        scenario_brief: 企业 Agent 平台支持上百个内部工具，部分工具有写权限且涉及资金或敏感数据。
+        question_stem: 你会如何设计 Agent 工具池的注册、版本和权限分级机制？
+        prompt_template: 结合候选人的 Agent / 平台工程经验，生成一道系统设计题，要求说明工具池治理。
+        scenario_skill_tags: [agent, tool registry, permission, audit]
+        resume_anchor_hints: [agent, tool registry, permission, audit, governance]
+        failure_categories: [missing_action, missing_observability, missing_edge_case]
+        rubric_additions: [说明注册与发现, 说明权限分级与审批, 说明审计日志]
+        expected_signals: [能按风险给工具分级, 能要求高风险工具人工确认, 能记录调用审计]
+        anti_patterns: [所有工具默认全权, 不做审批, 没有审计]
+        good_answer_hints: [先做工具分级, 再设权限审批, 最后补审计]
+        priority: 16
+        status: active
+      - id: system_design.ai_agent_tool_registry.version_rollback
+        version: 1
+        intent: deep_probe
+        difficulty: deep_probe
+        scenario_brief: 一个常用工具升级后在某些场景返回结构变化，多个 Agent 同时出现失败。
+        question_stem: 如果工具升级导致广域 Agent 失败，你会如何在系统层面设计灰度、回滚和兼容？
+        prompt_template: 生成一道 Agent 工具版本演进深挖题，要求候选人说明灰度、回滚和契约兼容。
+        scenario_skill_tags: [agent, tool versioning, rollback, contract compatibility]
+        resume_anchor_hints: [agent, versioning, rollback, contract, gateway]
+        failure_categories: [missing_action, missing_failure_mode, missing_tradeoff]
+        rubric_additions: [说明灰度与回滚, 说明契约兼容策略, 说明监控告警]
+        expected_signals: [能设计工具版本灰度, 能保留多版本契约, 能用监控触发自动回滚]
+        anti_patterns: [一次性全量升级, 不保留旧版本, 失败后没回滚机制]
+        good_answer_hints: [先灰度发布, 再保留双版本契约, 最后做监控与回滚]
+        priority: 14
+        status: active
+
+  - id: system_design.ai_fullstack_multi_tenant_ai
+    version: 1
+    title: 多租户 AI 应用的权限、配额与数据隔离
+    dimension: system_design
+    job_levels: [junior, mid, senior]
+    skill_tags: [ai fullstack, multi-tenant, isolation, quota, permission]
+    direction_tags: [internet_tech]
+    role_tags: [ai_fullstack]
+    rubric:
+      must_cover: [租户隔离, 权限模型, 配额限流, 数据安全]
+      minimum_bar: 能说明多租户 AI 应用的数据隔离与配额限流。
+      stretch: 能设计跨租户检索隔离、密钥分级与审计。
+    priority: 25
+    status: active
+    source: manual_yaml
+    scope: global
+    language: zh-CN
+    variants:
+      - id: system_design.ai_fullstack_multi_tenant_ai.tenant_isolation
+        version: 1
+        intent: opening
+        difficulty: standard
+        scenario_brief: 一个企业级 AI 助手要服务多家公司，公司之间数据严禁互访。
+        question_stem: 你会如何设计多租户 AI 应用的权限、配额和数据隔离？
+        prompt_template: 结合候选人的 AI 全栈 / 平台经验，生成一道系统设计题，要求说明隔离与配额。
+        scenario_skill_tags: [multi-tenant, isolation, permission, quota]
+        resume_anchor_hints: [multi-tenant, isolation, permission, quota, saas]
+        failure_categories: [missing_consistency_boundary, missing_edge_case, missing_action]
+        rubric_additions: [说明数据隔离层级, 说明权限模型, 说明配额限流]
+        expected_signals: [能从 DB / 向量 / 缓存全栈隔离租户, 能定义 RBAC + ABAC 权限, 能按租户限速限额]
+        anti_patterns: [共享向量库不隔离, 一刀切权限, 全局限流]
+        good_answer_hints: [先全栈隔离, 再权限模型, 最后配额限流]
+        priority: 16
+        status: active
+      - id: system_design.ai_fullstack_multi_tenant_ai.cross_tenant_search
+        version: 1
+        intent: deep_probe
+        difficulty: deep_probe
+        scenario_brief: 企业之间偶尔会有联合工作流（如共享供应商画像），需要受控跨租户检索。
+        question_stem: 如果业务需要受控跨租户检索，你会如何在数据安全前提下设计？
+        prompt_template: 生成一道多租户 AI 应用跨租户检索深挖题，要求候选人说明授权、最小披露与审计。
+        scenario_skill_tags: [multi-tenant, cross-tenant, permission, audit]
+        resume_anchor_hints: [multi-tenant, cross-tenant, permission, audit, embedding]
+        failure_categories: [missing_consistency_boundary, missing_edge_case, missing_observability]
+        rubric_additions: [说明授权流程, 说明最小披露策略, 说明审计与撤回]
+        expected_signals: [能定义双向授权流程, 能脱敏只暴露必要字段, 能记录跨租户访问审计]
+        anti_patterns: [一次授权永久访问, 全字段共享, 不留审计]
+        good_answer_hints: [先双向授权, 再最小披露, 最后审计撤回]
+        priority: 13
+        status: active
+
+  - id: system_design.ai_fullstack_llm_observability_stack
+    version: 1
+    title: LLM 应用的可观测性：trace / cost / quality 三栈一致
+    dimension: system_design
+    job_levels: [junior, mid, senior]
+    skill_tags: [ai fullstack, observability, llm, tracing, cost]
+    direction_tags: [internet_tech]
+    role_tags: [ai_fullstack]
+    rubric:
+      must_cover: [trace 链路, 成本归因, 质量评估, 三栈一致]
+      minimum_bar: 能说明 LLM 应用观测中 trace / cost / quality 三类信号的关系。
+      stretch: 能让三类信号按用户/会话/请求一致地串联起来。
+    priority: 23
+    status: active
+    source: manual_yaml
+    scope: global
+    language: zh-CN
+    variants:
+      - id: system_design.ai_fullstack_llm_observability_stack.three_signals
+        version: 1
+        intent: opening
+        difficulty: standard
+        scenario_brief: 一个 AI 应用同时有性能 trace、token 成本和质量评估三种监控，但彼此对不上。
+        question_stem: 你会如何设计 LLM 应用观测让 trace / cost / quality 三栈一致可串联？
+        prompt_template: 结合候选人的 AI 全栈 / 可观测性经验，生成一道系统设计题，要求说明三栈一致。
+        scenario_skill_tags: [ai fullstack, observability, trace, cost, quality]
+        resume_anchor_hints: [ai fullstack, observability, trace, cost, quality]
+        failure_categories: [missing_observability, missing_action, missing_consistency_boundary]
+        rubric_additions: [说明统一 trace id, 说明成本归因维度, 说明质量评估接入]
+        expected_signals: [能用统一 trace id 串联三栈, 能按用户/会话/请求归因成本, 能把质量评估写到同一时间线]
+        anti_patterns: [三套系统各自为政, 没有统一 id, 质量评估离线无法对齐 trace]
+        good_answer_hints: [先定统一 id, 再做成本归因, 最后接质量评估]
+        priority: 14
+        status: active
+      - id: system_design.ai_fullstack_llm_observability_stack.cost_attribution
+        version: 1
+        intent: deep_probe
+        difficulty: deep_probe
+        scenario_brief: 财务团队希望按团队/功能/客户分摊 LLM 成本，但当前只能看总成本。
+        question_stem: 如果要按团队/功能/客户多维分摊 LLM 成本，你会如何设计采集和聚合？
+        prompt_template: 生成一道 LLM 成本归因深挖题，要求候选人说明采集字段、聚合维度与异常告警。
+        scenario_skill_tags: [ai fullstack, cost attribution, observability, finops]
+        resume_anchor_hints: [ai fullstack, cost, attribution, observability]
+        failure_categories: [missing_observability, missing_metrics, missing_action]
+        rubric_additions: [说明采集字段, 说明聚合维度, 说明异常告警]
+        expected_signals: [能在每次调用打标团队/功能/客户, 能多维聚合分析, 能用阈值告警异常用量]
+        anti_patterns: [只看月度总成本, 不打标, 没异常告警]
+        good_answer_hints: [先打标, 再多维聚合, 最后异常告警]
+        priority: 12
+        status: active

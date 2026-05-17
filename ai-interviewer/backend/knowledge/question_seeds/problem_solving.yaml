@@ -555,3 +555,360 @@ seeds:
         good_answer_hints: [先量化痛点, 再按风险排序, 最后把治理嵌入业务迭代]
         priority: 16
         status: active
+
+  - id: problem_solving.ai_agent_infinite_loop_diagnosis
+    version: 1
+    title: Agent 死循环与工具调用风暴的诊断与熔断
+    dimension: problem_solving
+    job_levels: [junior, mid, senior]
+    skill_tags: [agent, infinite loop, tool storm, circuit breaker, debugging]
+    direction_tags: [internet_tech]
+    role_tags: [ai_agent]
+    rubric:
+      must_cover: [现象观察, 根因分类, 熔断策略, 复发预防]
+      minimum_bar: 能说明 Agent 死循环或工具风暴的快速识别与熔断思路。
+      stretch: 能从可观测性、prompt、工具协议三个层面追溯并做长期修复。
+    priority: 26
+    status: active
+    source: manual_yaml
+    scope: global
+    language: zh-CN
+    variants:
+      - id: problem_solving.ai_agent_infinite_loop_diagnosis.runtime_circuit
+        version: 1
+        intent: opening
+        difficulty: standard
+        scenario_brief: 监控显示一个 Agent 实例 30 分钟内调用同一个搜索工具 8000 次，token 成本暴涨。
+        question_stem: 你会如何快速诊断 Agent 死循环 / 工具风暴并做运行时熔断？
+        prompt_template: 结合候选人的 Agent / 可观测性经验，生成一道问题解决题，要求说明现场观察与熔断动作。
+        scenario_skill_tags: [agent, debugging, observability, circuit breaker]
+        resume_anchor_hints: [agent, monitoring, debugging, tool calling, cost]
+        failure_categories: [shallow_debugging, missing_metrics, missing_action]
+        rubric_additions: [说明现场观察手段, 说明根因分类, 说明熔断与降级动作]
+        expected_signals: [能用调用频率/相似度识别死循环, 能设最大步数与超时熔断, 能在熔断后保留 trace 供复盘]
+        anti_patterns: [直接重启实例, 不留 trace, 不分析根因]
+        good_answer_hints: [先快速止血, 再分类根因, 最后定预防机制]
+        priority: 16
+        status: active
+      - id: problem_solving.ai_agent_infinite_loop_diagnosis.root_cause
+        version: 1
+        intent: deep_probe
+        difficulty: deep_probe
+        scenario_brief: 熔断后复盘发现死循环源于工具返回错误码被 prompt 误解为"再试一次"。
+        question_stem: 如果死循环根因在 prompt 与工具协议之间，你会如何在长期上消除复发？
+        prompt_template: 生成一道 Agent 死循环根因深挖题，要求候选人说明 prompt 与工具协议的协同修复。
+        scenario_skill_tags: [agent, prompt engineering, tool contract, debugging]
+        resume_anchor_hints: [agent, prompt, tool contract, debugging, regression]
+        failure_categories: [shallow_debugging, missing_action, missing_observability]
+        rubric_additions: [说明 prompt 中错误处理逻辑, 说明工具协议明确性, 说明回归测试覆盖]
+        expected_signals: [能让 prompt 区分可重试与终止错误, 能让工具返回明确的失败语义, 能建死循环回归测试集]
+        anti_patterns: [只改提示词不改工具协议, 不建测试集, 修一次复发一次]
+        good_answer_hints: [先对齐工具语义, 再调 prompt, 最后建回归]
+        priority: 14
+        status: active
+
+  - id: problem_solving.ai_agent_offline_replay_eval
+    version: 1
+    title: Agent 输出质量回归的离线 replay 验证
+    dimension: problem_solving
+    job_levels: [junior, mid, senior]
+    skill_tags: [agent, evaluation, replay, regression, observability]
+    direction_tags: [internet_tech]
+    role_tags: [ai_agent]
+    rubric:
+      must_cover: [评估数据集, replay 流程, 质量指标, 退化阻断]
+      minimum_bar: 能说明 Agent 升级（模型/Prompt/工具）后用离线 replay 评估质量回归。
+      stretch: 能建立金标集合、自动评分与发布门槛形成闭环。
+    priority: 24
+    status: active
+    source: manual_yaml
+    scope: global
+    language: zh-CN
+    variants:
+      - id: problem_solving.ai_agent_offline_replay_eval.replay_pipeline
+        version: 1
+        intent: opening
+        difficulty: standard
+        scenario_brief: Agent 团队每周升级一次 prompt 或换模型版本，多次出现"小升级大退化"。
+        question_stem: 你会如何设计 Agent 的离线 replay 评估流程来防止小升级带来大退化？
+        prompt_template: 结合候选人的 Agent / 评估经验，生成一道问题解决题，要求说明 replay 流程与质量指标。
+        scenario_skill_tags: [agent, replay, evaluation, regression]
+        resume_anchor_hints: [agent, evaluation, replay, regression, golden set]
+        failure_categories: [missing_metrics, missing_action, missing_observability]
+        rubric_additions: [说明金标集合构建, 说明 replay 复用真实工具或 mock, 说明退化阻断机制]
+        expected_signals: [能选取代表性 case 做金标, 能用对比指标识别退化, 能把 replay 接入发布门槛]
+        anti_patterns: [只看 sample 例子, 不做对比基线, 没有发布门槛]
+        good_answer_hints: [先建金标, 再 replay 对比, 最后接发布门槛]
+        priority: 15
+        status: active
+      - id: problem_solving.ai_agent_offline_replay_eval.evaluator_drift
+        version: 1
+        intent: deep_probe
+        difficulty: deep_probe
+        scenario_brief: 自动评估打分模型本身也可能漂移，导致 replay 通过但真实用户体验下降。
+        question_stem: 当离线评分器本身可能漂移时，你会如何设计校准与人工抽检确保评估可信？
+        prompt_template: 生成一道 Agent 评估器漂移深挖题，要求候选人说明评分校准与人工抽检。
+        scenario_skill_tags: [agent, evaluator drift, calibration, manual review]
+        resume_anchor_hints: [agent, evaluation, drift, calibration, manual review]
+        failure_categories: [missing_metrics, shallow_debugging, missing_action]
+        rubric_additions: [说明评分校准方式, 说明人工抽检比例, 说明信任度衰减]
+        expected_signals: [能用对比固定 case 监控评分稳定性, 能保留固定比例人工抽检, 能动态调整自动评分置信度]
+        anti_patterns: [完全信任自动评分, 不做人工抽检, 不监控评分一致性]
+        good_answer_hints: [先做评分基线监控, 再做人工抽检, 最后动态调整置信度]
+        priority: 13
+        status: active
+
+  - id: problem_solving.ai_fullstack_hallucination_diagnosis
+    version: 1
+    title: LLM 回答事实错误的快速排查与归因
+    dimension: problem_solving
+    job_levels: [junior, mid, senior]
+    skill_tags: [ai fullstack, llm, hallucination, debugging, rag]
+    direction_tags: [internet_tech]
+    role_tags: [ai_fullstack]
+    rubric:
+      must_cover: [现象分类, 数据/模型/Prompt 三层归因, 修复方案, 监控告警]
+      minimum_bar: 能在 LLM 出现事实错误时系统化排查根因。
+      stretch: 能从数据、模型、Prompt 三层定位并形成长期回归。
+    priority: 23
+    status: active
+    source: manual_yaml
+    scope: global
+    language: zh-CN
+    variants:
+      - id: problem_solving.ai_fullstack_hallucination_diagnosis.root_cause
+        version: 1
+        intent: opening
+        difficulty: standard
+        scenario_brief: 用户反馈 AI 助手把一个不存在的接口名讲得"信誓旦旦"，影响开发对接。
+        question_stem: 你会如何系统化排查 LLM 回答事实错误的根因并修复？
+        prompt_template: 结合候选人的 AI 全栈 / LLM 经验，生成一道问题解决题，要求说明分层归因。
+        scenario_skill_tags: [llm, hallucination, debugging, rag, evaluation]
+        resume_anchor_hints: [llm, hallucination, debugging, rag, evaluation]
+        failure_categories: [shallow_debugging, missing_metrics, missing_action]
+        rubric_additions: [说明现象分类, 说明分层归因, 说明修复与监控]
+        expected_signals: [能区分检索缺失 / 检索不准 / 模型自由发挥, 能定位到具体根因层, 能补回归测试与监控]
+        anti_patterns: [只改 Prompt 不查数据, 只换模型不查 RAG, 不补回归测试]
+        good_answer_hints: [先分类现象, 再分层归因, 最后补监控]
+        priority: 13
+        status: active
+      - id: problem_solving.ai_fullstack_hallucination_diagnosis.rag_recall
+        version: 1
+        intent: deep_probe
+        difficulty: deep_probe
+        scenario_brief: 排查发现根因是 RAG 召回质量下降：相同 query 的 top-k 结果质量随时间变差。
+        question_stem: 如果 RAG 召回质量随时间下降，你会如何诊断 embedding 漂移 / chunk 失配 / query 长尾？
+        prompt_template: 生成一道 RAG 召回质量下降深挖题，要求候选人说明分层诊断与监控。
+        scenario_skill_tags: [rag, recall, embedding drift, chunk strategy, query]
+        resume_anchor_hints: [rag, recall, embedding, chunk, query]
+        failure_categories: [shallow_debugging, missing_metrics, missing_observability]
+        rubric_additions: [说明 embedding 版本管理, 说明 chunk 策略检查, 说明 query 长尾发现]
+        expected_signals: [能用召回质量监控感知变化, 能从 embedding / chunk / query 三层定位, 能用 query 分桶发现长尾问题]
+        anti_patterns: [只换 embedding 模型, 只调 chunk size, 不监控召回质量]
+        good_answer_hints: [先监控召回, 再分层定位, 最后修复并回归]
+        priority: 11
+        status: active
+
+  - id: problem_solving.ai_algorithm_online_offline_gap
+    version: 1
+    title: 在线 A/B 与离线评估指标不一致的归因
+    dimension: problem_solving
+    job_levels: [junior, mid, senior]
+    skill_tags: [ai algorithm, ab test, offline evaluation, attribution, drift]
+    direction_tags: [internet_tech]
+    role_tags: [ai_algorithm]
+    rubric:
+      must_cover: [指标定义, 数据偏差, 业务侧因素, 归因方法]
+      minimum_bar: 能定位"离线提升、在线不涨"的常见原因。
+      stretch: 能用对照实验、特征分布、链路差异系统化归因。
+    priority: 24
+    status: active
+    source: manual_yaml
+    scope: global
+    language: zh-CN
+    variants:
+      - id: problem_solving.ai_algorithm_online_offline_gap.attribution
+        version: 1
+        intent: opening
+        difficulty: standard
+        scenario_brief: 新模型离线 AUC 涨了 3 点，但在线 A/B 没看到任何业务指标提升。
+        question_stem: 你会如何归因"离线涨在线不涨"并设计验证路径？
+        prompt_template: 结合候选人的 AI 算法 / A/B 经验，生成一道问题解决题，要求说明系统化归因。
+        scenario_skill_tags: [ab test, offline evaluation, attribution, distribution]
+        resume_anchor_hints: [ab test, offline, online, attribution, evaluation]
+        failure_categories: [shallow_debugging, missing_metrics, missing_action]
+        rubric_additions: [说明指标定义检查, 说明数据偏差, 说明链路对齐]
+        expected_signals: [能区分指标定义差异, 能查训练/线上特征分布偏差, 能查推荐/曝光链路差异]
+        anti_patterns: [只看离线指标, 不查数据偏差, 不查链路]
+        good_answer_hints: [先对齐指标, 再查数据偏差, 最后查链路]
+        priority: 13
+        status: active
+      - id: problem_solving.ai_algorithm_online_offline_gap.experiment_design
+        version: 1
+        intent: deep_probe
+        difficulty: deep_probe
+        scenario_brief: 归因发现是曝光位置导致样本偏差。
+        question_stem: 如果离线评估存在曝光偏差，你会如何重新设计实验或修正离线评估？
+        prompt_template: 生成一道曝光偏差修正深挖题，要求候选人说明因果推断与样本权重。
+        scenario_skill_tags: [ab test, exposure bias, causal inference, sample weight]
+        resume_anchor_hints: [ab test, bias, causal, sample weight, evaluation]
+        failure_categories: [missing_metrics, missing_action, shallow_debugging]
+        rubric_additions: [说明曝光偏差识别, 说明 IPS / DR 等修正方法, 说明实验对照设计]
+        expected_signals: [能识别曝光偏差, 能用 IPS / DR 等方法修正, 能设计对照实验验证]
+        anti_patterns: [继续用有偏数据训练, 没有修正方法, 不做对照]
+        good_answer_hints: [先识别偏差, 再选修正方法, 最后对照验证]
+        priority: 11
+        status: active
+
+  - id: problem_solving.ai_algorithm_distribution_drift
+    version: 1
+    title: 数据分布漂移的检测与应对
+    dimension: problem_solving
+    job_levels: [junior, mid, senior]
+    skill_tags: [ai algorithm, distribution drift, monitoring, retraining]
+    direction_tags: [internet_tech]
+    role_tags: [ai_algorithm]
+    rubric:
+      must_cover: [漂移类型, 检测指标, 触发动作, 重训节奏]
+      minimum_bar: 能识别 label / feature / concept drift 并采取动作。
+      stretch: 能建立监控 + 自动触发 + 重训闭环。
+    priority: 22
+    status: active
+    source: manual_yaml
+    scope: global
+    language: zh-CN
+    variants:
+      - id: problem_solving.ai_algorithm_distribution_drift.detection
+        version: 1
+        intent: opening
+        difficulty: standard
+        scenario_brief: 一个上线半年的模型最近效果指标缓慢下滑，怀疑是数据漂移。
+        question_stem: 你会如何检测并区分 label drift / feature drift / concept drift？
+        prompt_template: 结合候选人的 AI 算法经验，生成一道问题解决题，要求说明漂移检测方法。
+        scenario_skill_tags: [distribution drift, monitoring, ks test, label drift]
+        resume_anchor_hints: [drift, monitoring, ks test, label, feature]
+        failure_categories: [missing_metrics, shallow_debugging, missing_observability]
+        rubric_additions: [说明三种漂移定义, 说明检测指标, 说明区分方法]
+        expected_signals: [能用 KS / PSI 检测分布漂移, 能区分 label / feature / concept drift, 能定监控告警]
+        anti_patterns: [只看效果指标下降, 不分类型, 没监控]
+        good_answer_hints: [先定指标, 再分类型, 最后建监控]
+        priority: 12
+        status: active
+      - id: problem_solving.ai_algorithm_distribution_drift.response
+        version: 1
+        intent: deep_probe
+        difficulty: deep_probe
+        scenario_brief: 检测发现是 concept drift（用户偏好变了），重训也无法完全跟上节奏。
+        question_stem: 如果是 concept drift 且变化频繁，你会如何在工程上设计应对节奏？
+        prompt_template: 生成一道 concept drift 工程化深挖题，要求候选人说明在线学习与时间窗口。
+        scenario_skill_tags: [concept drift, online learning, time window]
+        resume_anchor_hints: [drift, online learning, retraining, window]
+        failure_categories: [missing_action, missing_tradeoff, missing_metrics]
+        rubric_additions: [说明在线学习取舍, 说明时间窗口策略, 说明回滚机制]
+        expected_signals: [能选在线学习或滚动重训, 能定数据窗口和遗忘策略, 能定回滚机制]
+        anti_patterns: [完全离线重训等不及, 全在线学习不可控, 没回滚]
+        good_answer_hints: [先选学习模式, 再定窗口, 最后定回滚]
+        priority: 10
+        status: active
+
+  - id: problem_solving.ai_algorithm_model_regression
+    version: 1
+    title: 模型上线后"突然变笨"的排障路径
+    dimension: problem_solving
+    job_levels: [junior, mid, senior]
+    skill_tags: [ai algorithm, regression, debugging, monitoring]
+    direction_tags: [internet_tech]
+    role_tags: [ai_algorithm]
+    rubric:
+      must_cover: [紧急止血, 分层定位, 修复方案, 复盘机制]
+      minimum_bar: 能在模型效果突变时快速止血并系统化定位。
+      stretch: 能建立"模型变笨"应急 SOP 与预防机制。
+    priority: 21
+    status: active
+    source: manual_yaml
+    scope: global
+    language: zh-CN
+    variants:
+      - id: problem_solving.ai_algorithm_model_regression.firefighting
+        version: 1
+        intent: opening
+        difficulty: standard
+        scenario_brief: 一个推荐模型半夜突然 CTR 暴跌 30%，业务方紧急要求处理。
+        question_stem: 你会如何在模型效果突变时快速止血并系统化定位根因？
+        prompt_template: 结合候选人的 AI 算法 / 线上经验，生成一道问题解决题，要求说明应急 + 归因。
+        scenario_skill_tags: [model regression, debugging, firefighting]
+        resume_anchor_hints: [model, regression, debugging, monitoring, alarm]
+        failure_categories: [shallow_debugging, missing_action, missing_observability]
+        rubric_additions: [说明应急动作, 说明分层定位, 说明长期修复]
+        expected_signals: [能立即回滚或切流量止血, 能从数据/模型/链路分层定位, 能给出长期修复方案]
+        anti_patterns: [先查模型不止血, 没回滚预案, 只甩锅给上游]
+        good_answer_hints: [先止血, 再分层定位, 最后长期修复]
+        priority: 11
+        status: active
+      - id: problem_solving.ai_algorithm_model_regression.sop
+        version: 1
+        intent: deep_probe
+        difficulty: deep_probe
+        scenario_brief: 类似突变在过去半年已经发生过 3 次，业务方希望有应急 SOP。
+        question_stem: 你会如何把"模型突然变笨"事件沉淀为应急 SOP 与预防机制？
+        prompt_template: 生成一道模型应急 SOP 深挖题，要求候选人说明流程沉淀与预防。
+        scenario_skill_tags: [model regression, sop, prevention, monitoring]
+        resume_anchor_hints: [model, regression, sop, prevention, monitoring]
+        failure_categories: [missing_action, missing_observability, missing_metrics]
+        rubric_additions: [说明 SOP 关键步骤, 说明监控告警, 说明预防机制]
+        expected_signals: [能定义 SOP 步骤与角色, 能补足监控告警覆盖, 能给出预防机制（影子模型/灰度等）]
+        anti_patterns: [SOP 仅停留文档, 没监控告警, 没预防]
+        good_answer_hints: [先定 SOP, 再补监控, 最后做预防]
+        priority: 9
+        status: active
+
+  - id: problem_solving.ai_fullstack_rag_recall_drift
+    version: 1
+    title: RAG 召回质量持续下降的根因诊断
+    dimension: problem_solving
+    job_levels: [junior, mid, senior]
+    skill_tags: [ai fullstack, rag, recall drift, debugging, evaluation]
+    direction_tags: [internet_tech]
+    role_tags: [ai_fullstack]
+    rubric:
+      must_cover: [召回质量监控, 分层归因, 索引/查询/数据三维, 修复闭环]
+      minimum_bar: 能在 RAG 召回质量下降时系统化定位根因。
+      stretch: 能从 embedding / chunk / query 三层定位并接监控告警。
+    priority: 22
+    status: active
+    source: manual_yaml
+    scope: global
+    language: zh-CN
+    variants:
+      - id: problem_solving.ai_fullstack_rag_recall_drift.layered_diagnosis
+        version: 1
+        intent: opening
+        difficulty: standard
+        scenario_brief: 团队 RAG 服务上线 3 个月，最近 2 周用户反馈"召回越来越不准"。
+        question_stem: 你会如何系统化诊断 RAG 召回质量下降的根因？
+        prompt_template: 结合候选人的 AI 全栈 / RAG 经验，生成一道问题解决题，要求说明分层诊断。
+        scenario_skill_tags: [rag, recall drift, debugging, layered diagnosis]
+        resume_anchor_hints: [rag, recall, drift, debugging, evaluation]
+        failure_categories: [shallow_debugging, missing_metrics, missing_observability]
+        rubric_additions: [说明召回质量监控, 说明三层归因, 说明修复路径]
+        expected_signals: [能用召回质量指标感知下降, 能从 embedding/chunk/query 三层定位, 能给出修复闭环]
+        anti_patterns: [盲目换模型, 不监控召回, 不分层]
+        good_answer_hints: [先看监控, 再分层定位, 最后修复闭环]
+        priority: 12
+        status: active
+      - id: problem_solving.ai_fullstack_rag_recall_drift.query_longtail
+        version: 1
+        intent: deep_probe
+        difficulty: deep_probe
+        scenario_brief: 进一步诊断发现是查询长尾导致：新出现的业务术语没在 embedding 训练集中。
+        question_stem: 如果根因是查询长尾，你会如何在工程上动态适配新业务术语？
+        prompt_template: 生成一道 RAG 查询长尾深挖题，要求候选人说明动态适配方案与评估。
+        scenario_skill_tags: [rag, query longtail, dynamic adaptation, evaluation]
+        resume_anchor_hints: [rag, query, longtail, adaptation, evaluation]
+        failure_categories: [missing_action, missing_metrics, missing_observability]
+        rubric_additions: [说明长尾识别, 说明动态适配方案, 说明效果评估]
+        expected_signals: [能用 query 分桶发现长尾, 能用 alias / synonym / 增量 embedding 适配, 能用评估集验证]
+        anti_patterns: [全量重训 embedding, 不识别长尾, 不验证效果]
+        good_answer_hints: [先识别长尾, 再适配, 最后验证]
+        priority: 10
+        status: active

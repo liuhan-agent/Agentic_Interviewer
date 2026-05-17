@@ -554,3 +554,411 @@ seeds:
         good_answer_hints: [先量化热点, 再比较隔离方案, 最后规划灰度迁移]
         priority: 15
         status: active
+
+  - id: technical_depth.ai_agent_tool_schema_validation
+    version: 1
+    title: Agent 工具 schema 校验与失败处理
+    dimension: technical_depth
+    job_levels: [junior, mid, senior]
+    skill_tags: [agent, tool calling, schema, validation, llm]
+    direction_tags: [internet_tech]
+    role_tags: [ai_agent]
+    rubric:
+      must_cover: [schema 校验, 参数纠错, 失败分类, 重试边界]
+      minimum_bar: 能说明 Agent 工具调用的输入校验、错误码分类和重试策略。
+      stretch: 能结合幂等、人工兜底、安全审计形成完整失败处理闭环。
+    priority: 27
+    status: active
+    source: manual_yaml
+    scope: global
+    language: zh-CN
+    variants:
+      - id: technical_depth.ai_agent_tool_schema_validation.input_validation
+        version: 1
+        intent: opening
+        difficulty: standard
+        scenario_brief: Agent 调用退款工具时模型偶尔生成错误的金额或币种，工具直接拒绝后用户体验差。
+        question_stem: 你会如何设计 Agent 工具调用的输入 schema 校验、参数纠错和失败处理流程？
+        prompt_template: 结合候选人的 Agent 或后端集成经验，生成一道技术深度题，要求说明 schema 校验、参数纠错和失败分类。
+        scenario_skill_tags: [agent, tool calling, schema, validation, retry]
+        resume_anchor_hints: [agent, tool calling, schema, function calling, llm]
+        failure_categories: [missing_edge_case, shallow_debugging, missing_action]
+        rubric_additions: [说明 schema 校验位置, 说明模型纠错与拒绝边界, 说明失败分类与重试策略]
+        expected_signals: [能区分 schema 层与业务层校验, 能让模型在校验失败时自我纠正, 能定义可重试与不可重试错误]
+        anti_patterns: [只信任模型输出, 所有错误都重试, 校验失败直接抛给用户]
+        good_answer_hints: [先定义工具契约, 再做分层校验, 最后定失败分类与回退]
+        priority: 18
+        status: active
+      - id: technical_depth.ai_agent_tool_schema_validation.error_recovery
+        version: 1
+        intent: deep_probe
+        difficulty: deep_probe
+        scenario_brief: 退款工具偶尔返回 5xx 或部分成功，Agent 无法判断是否需要重试或人工介入。
+        question_stem: 如果工具返回模糊错误码或部分成功，你会如何在 Agent 链路里设计恢复与人工 hand-off？
+        prompt_template: 生成一道 Agent 工具失败恢复深挖题，要求候选人说明错误码语义、幂等键、补偿和人工 hand-off。
+        scenario_skill_tags: [agent, tool calling, idempotency, compensation, hand-off]
+        resume_anchor_hints: [agent, idempotency, compensation, retry, hand-off]
+        failure_categories: [missing_edge_case, missing_action, missing_observability]
+        rubric_additions: [说明错误码语义梳理, 说明幂等与补偿设计, 说明何时升级为人工]
+        expected_signals: [能定义可重试与可补偿错误, 能用幂等键避免重复执行, 能给出人工 hand-off 触发条件]
+        anti_patterns: [所有 5xx 都重试, 不记录失败现场, 无升级人工的路径]
+        good_answer_hints: [先建错误分级, 再做幂等与补偿, 最后定义 hand-off]
+        priority: 16
+        status: active
+
+  - id: technical_depth.ai_agent_context_compression
+    version: 1
+    title: Agent 上下文压缩与裁剪
+    dimension: technical_depth
+    job_levels: [junior, mid, senior]
+    skill_tags: [agent, context, compression, summary, llm]
+    direction_tags: [internet_tech]
+    role_tags: [ai_agent]
+    rubric:
+      must_cover: [token 预算, 摘要策略, 检索召回, 关键信息保留]
+      minimum_bar: 能说明 Agent 上下文增长时如何在 token 预算与信息完整之间取舍。
+      stretch: 能结合分层摘要、向量检索、缓存与评估闭环形成长会话稳定方案。
+    priority: 26
+    status: active
+    source: manual_yaml
+    scope: global
+    language: zh-CN
+    variants:
+      - id: technical_depth.ai_agent_context_compression.token_budget
+        version: 1
+        intent: opening
+        difficulty: standard
+        scenario_brief: 一个多轮规划 Agent 在第 8 轮后上下文逼近模型上限，开始遗漏早期约束。
+        question_stem: 你会如何设计长会话 Agent 的上下文压缩、摘要和检索策略以稳住 token 预算？
+        prompt_template: 结合候选人的 Agent 或 LLM 工程经验，生成一道技术深度题，要求说明 token 预算、摘要和检索取舍。
+        scenario_skill_tags: [agent, context window, summarization, retrieval]
+        resume_anchor_hints: [agent, context, summary, rag, llm]
+        failure_categories: [missing_tradeoff, missing_edge_case, missing_action]
+        rubric_additions: [说明 token 预算分配, 说明分层摘要与检索, 说明关键信息保留]
+        expected_signals: [能给出 token 预算拆分方式, 能区分摘要丢弃与检索召回, 能识别哪些信息必须长期保留]
+        anti_patterns: [简单截断早期消息, 全量喂入模型, 不评估摘要质量]
+        good_answer_hints: [先量化 token 预算, 再分层摘要与检索, 最后做关键信息保护]
+        priority: 17
+        status: active
+      - id: technical_depth.ai_agent_context_compression.summary_quality
+        version: 1
+        intent: deep_probe
+        difficulty: deep_probe
+        scenario_brief: 自动摘要后 Agent 偶尔丢失约束（例如用户禁用某个工具），导致后续动作越界。
+        question_stem: 如果摘要会丢失关键约束，你会如何评估摘要质量并防止 Agent 动作越界？
+        prompt_template: 生成一道 Agent 摘要质量深挖题，要求候选人说明评估指标、约束保留与回归测试。
+        scenario_skill_tags: [agent, summarization, evaluation, constraint preservation]
+        resume_anchor_hints: [agent, summary, evaluation, constraint, regression]
+        failure_categories: [missing_metrics, missing_edge_case, missing_observability]
+        rubric_additions: [说明摘要质量指标, 说明硬约束单独存储, 说明回归测试与告警]
+        expected_signals: [能定义关键约束保留率, 能把硬约束放到结构化存储, 能用回放测试检验越界]
+        anti_patterns: [只看摘要长度, 不分离硬约束, 不做摘要回归测试]
+        good_answer_hints: [先定义约束保留指标, 再分离硬约束存储, 最后做摘要回归]
+        priority: 15
+        status: active
+
+  - id: technical_depth.ai_agent_memory_layers
+    version: 1
+    title: Agent 记忆层设计：短期 / 长期 / 工作记忆
+    dimension: technical_depth
+    job_levels: [junior, mid, senior]
+    skill_tags: [agent, memory, working memory, vector store, llm]
+    direction_tags: [internet_tech]
+    role_tags: [ai_agent]
+    rubric:
+      must_cover: [记忆分层, 写入准入, 刷新策略, 冲突处理]
+      minimum_bar: 能说明 Agent 短期上下文、工作记忆与长期记忆的职责边界。
+      stretch: 能设计写入准入、过期、冲突合并与隐私边界。
+    priority: 25
+    status: active
+    source: manual_yaml
+    scope: global
+    language: zh-CN
+    variants:
+      - id: technical_depth.ai_agent_memory_layers.write_gating
+        version: 1
+        intent: opening
+        difficulty: standard
+        scenario_brief: 一个助手 Agent 把每轮对话都写入长期记忆，几周后召回噪音过大、影响回答质量。
+        question_stem: 你会如何分层 Agent 的记忆，并设计长期记忆的写入准入与刷新策略？
+        prompt_template: 结合候选人的 Agent / RAG 经验，生成一道技术深度题，要求说明记忆分层与写入准入。
+        scenario_skill_tags: [agent, memory, vector store, write gating]
+        resume_anchor_hints: [agent, memory, rag, embedding, retrieval]
+        failure_categories: [missing_tradeoff, missing_edge_case, missing_action]
+        rubric_additions: [说明记忆层职责, 说明写入准入规则, 说明刷新与过期策略]
+        expected_signals: [能区分会话/工作/长期记忆, 能定义高价值写入条件, 能设置 TTL 与归档]
+        anti_patterns: [全量对话写入, 不设过期, 不去重]
+        good_answer_hints: [先分层定义职责, 再定写入门槛, 最后设刷新过期]
+        priority: 16
+        status: active
+      - id: technical_depth.ai_agent_memory_layers.conflict_resolution
+        version: 1
+        intent: deep_probe
+        difficulty: deep_probe
+        scenario_brief: 用户修改了一个长期偏好（例如不喜欢晨间提醒），但旧记忆仍然召回旧偏好。
+        question_stem: 当 Agent 长期记忆出现新旧冲突时，你会如何设计合并、覆盖与用户可控编辑？
+        prompt_template: 生成一道 Agent 记忆冲突深挖题，要求候选人说明合并策略、覆盖证据与用户可见性。
+        scenario_skill_tags: [agent, memory conflict, merge, user editing]
+        resume_anchor_hints: [agent, memory, conflict, merge, user]
+        failure_categories: [missing_edge_case, missing_action, shallow_debugging]
+        rubric_additions: [说明冲突识别方式, 说明新旧覆盖策略, 说明用户可见与可控]
+        expected_signals: [能用时间戳/置信度合并冲突, 能让新事实覆盖旧偏好, 能提供查看与删除入口]
+        anti_patterns: [简单追加导致回答漂移, 静默覆盖不留痕迹, 不提供用户删除入口]
+        good_answer_hints: [先做冲突识别, 再定合并规则, 最后给用户可见与可控]
+        priority: 14
+        status: active
+
+  - id: technical_depth.ai_fullstack_rag_indexing_strategy
+    version: 1
+    title: RAG 索引刷新策略：实时 / 批量 / 增量
+    dimension: technical_depth
+    job_levels: [junior, mid, senior]
+    skill_tags: [ai fullstack, rag, indexing, freshness, cost]
+    direction_tags: [internet_tech]
+    role_tags: [ai_fullstack]
+    rubric:
+      must_cover: [新鲜度需求, 索引方式, 成本权衡, 一致性边界]
+      minimum_bar: 能说明 RAG 索引在新鲜度与成本之间的取舍。
+      stretch: 能结合增量更新、删除补偿、向量重建与监控形成闭环。
+    priority: 26
+    status: active
+    source: manual_yaml
+    scope: global
+    language: zh-CN
+    variants:
+      - id: technical_depth.ai_fullstack_rag_indexing_strategy.fresh_vs_cost
+        version: 1
+        intent: opening
+        difficulty: standard
+        scenario_brief: 内部知识库每天有数千次内容更新，RAG 检索需在 5 分钟内反映改动但成本受限。
+        question_stem: 你会如何在新鲜度需求与索引成本之间取舍，设计 RAG 索引刷新策略？
+        prompt_template: 结合候选人的 AI 全栈 / RAG 经验，生成一道技术深度题，要求说明实时/批量/增量取舍。
+        scenario_skill_tags: [rag, indexing, freshness, cost, vector store]
+        resume_anchor_hints: [rag, indexing, embedding, vector store, fullstack]
+        failure_categories: [missing_tradeoff, missing_metrics, missing_edge_case]
+        rubric_additions: [说明新鲜度 SLO, 说明三种刷新方式成本, 说明删除与失效处理]
+        expected_signals: [能定义新鲜度 SLO 和测量, 能给出实时/批量/增量取舍, 能处理删除/失效]
+        anti_patterns: [全量重建作为唯一方案, 只考虑写入不考虑删除, 不评估成本]
+        good_answer_hints: [先定 SLO, 再设计混合刷新, 最后做删除补偿]
+        priority: 17
+        status: active
+      - id: technical_depth.ai_fullstack_rag_indexing_strategy.delete_propagation
+        version: 1
+        intent: deep_probe
+        difficulty: deep_probe
+        scenario_brief: 文档被删除后向量库仍有旧 embedding，导致 RAG 召回已不存在的内容。
+        question_stem: 如果源数据频繁删除，你会如何在向量库与缓存层保证检索一致性？
+        prompt_template: 生成一道 RAG 删除传播深挖题，要求候选人说明 tombstone、缓存失效与离线验证。
+        scenario_skill_tags: [rag, deletion, tombstone, cache invalidation]
+        resume_anchor_hints: [rag, vector store, cache, deletion, consistency]
+        failure_categories: [missing_consistency_boundary, missing_edge_case, missing_observability]
+        rubric_additions: [说明 tombstone 机制, 说明缓存失效路径, 说明离线一致性校验]
+        expected_signals: [能用 tombstone 或 soft delete 防召回旧内容, 能传播失效到中间缓存, 能定期跑一致性巡检]
+        anti_patterns: [只删源不删向量, 不管缓存, 不做一致性巡检]
+        good_answer_hints: [先做 tombstone, 再传播失效, 最后定期巡检]
+        priority: 15
+        status: active
+
+  - id: technical_depth.ai_fullstack_llm_streaming_degradation
+    version: 1
+    title: LLM API 流式响应、超时与降级
+    dimension: technical_depth
+    job_levels: [junior, mid, senior]
+    skill_tags: [ai fullstack, llm, streaming, timeout, fallback]
+    direction_tags: [internet_tech]
+    role_tags: [ai_fullstack]
+    rubric:
+      must_cover: [流式协议, 超时分级, 降级路径, 用户体验]
+      minimum_bar: 能说明 LLM API 流式调用的超时分级与失败降级。
+      stretch: 能结合首 token 时延、断流恢复、备用模型与缓存形成完整体验。
+    priority: 24
+    status: active
+    source: manual_yaml
+    scope: global
+    language: zh-CN
+    variants:
+      - id: technical_depth.ai_fullstack_llm_streaming_degradation.timeout_levels
+        version: 1
+        intent: opening
+        difficulty: standard
+        scenario_brief: 一个 AI 写作助手在网络抖动时会出现长时间无响应，用户不知道是否要刷新页面。
+        question_stem: 你会如何设计 LLM API 流式调用的超时分级与失败降级？
+        prompt_template: 结合候选人的 AI 全栈 / 前后端经验，生成一道技术深度题，要求说明流式与降级。
+        scenario_skill_tags: [llm, streaming, timeout, ux fallback]
+        resume_anchor_hints: [llm, streaming, sse, timeout, frontend]
+        failure_categories: [missing_action, missing_edge_case, missing_observability]
+        rubric_additions: [说明首 token / 完成 token 不同超时, 说明断流恢复, 说明降级备用]
+        expected_signals: [能区分首 token 与完成超时, 能在断流时提示并续传, 能切换备用模型或缓存]
+        anti_patterns: [一个超时值打天下, 断流后直接报错, 没有备用模型]
+        good_answer_hints: [先分超时层级, 再做断流恢复, 最后定降级备用]
+        priority: 15
+        status: active
+      - id: technical_depth.ai_fullstack_llm_streaming_degradation.partial_output
+        version: 1
+        intent: deep_probe
+        difficulty: deep_probe
+        scenario_brief: 模型流式输出到 70% 时被切断，已经渲染的内容不能直接丢，但也不能保留错误结尾。
+        question_stem: 如果流式输出被中断只剩部分内容，你会如何在 UX 与数据层处理 partial output？
+        prompt_template: 生成一道 LLM 部分输出处理深挖题，要求候选人说明 partial 内容标记、续写与日志。
+        scenario_skill_tags: [llm, streaming, partial output, ux, logging]
+        resume_anchor_hints: [llm, partial output, streaming, ux, frontend]
+        failure_categories: [missing_edge_case, missing_action, missing_observability]
+        rubric_additions: [说明 partial 状态标记, 说明续写或重试 UX, 说明日志与归因]
+        expected_signals: [能标记 partial 状态不污染最终结果, 能提供续写或重试入口, 能记录中断点用于归因]
+        anti_patterns: [partial 内容当成最终输出, 直接丢弃强制重来, 不留中断 trace]
+        good_answer_hints: [先标 partial, 再提供续写, 最后留 trace]
+        priority: 13
+        status: active
+
+  - id: technical_depth.ai_fullstack_typed_contract_chain
+    version: 1
+    title: AI 应用前后端类型契约的全链路
+    dimension: technical_depth
+    job_levels: [junior, mid, senior]
+    skill_tags: [ai fullstack, typescript, schema, sdk, contract]
+    direction_tags: [internet_tech]
+    role_tags: [ai_fullstack]
+    rubric:
+      must_cover: [契约定义, 自动生成, 版本演进, 测试验证]
+      minimum_bar: 能说明 AI 应用前后端类型契约如何在 schema → SDK → 组件之间一致。
+      stretch: 能结合 OpenAPI / 自动生成 / 端到端测试形成完整契约链路。
+    priority: 23
+    status: active
+    source: manual_yaml
+    scope: global
+    language: zh-CN
+    variants:
+      - id: technical_depth.ai_fullstack_typed_contract_chain.schema_sdk
+        version: 1
+        intent: opening
+        difficulty: standard
+        scenario_brief: AI 助手 API 频繁迭代，前端组件经常因后端字段改名而崩。
+        question_stem: 你会如何用类型契约从 schema → SDK → 前端组件保证全链路类型一致？
+        prompt_template: 结合候选人的 AI 全栈 / TypeScript 经验，生成一道技术深度题，要求说明类型契约链路。
+        scenario_skill_tags: [typescript, schema, sdk, contract, fullstack]
+        resume_anchor_hints: [typescript, schema, sdk, openapi, fullstack]
+        failure_categories: [missing_action, missing_consistency_boundary, shallow_debugging]
+        rubric_additions: [说明 schema 来源, 说明自动生成路径, 说明编译期检查]
+        expected_signals: [能定义单一权威 schema, 能自动生成 SDK 与类型, 能在编译期阻断不兼容改动]
+        anti_patterns: [前后端各自维护类型, 手写 SDK, 不做编译期检查]
+        good_answer_hints: [先定 schema, 再自动生成, 最后编译期阻断]
+        priority: 14
+        status: active
+      - id: technical_depth.ai_fullstack_typed_contract_chain.version_evolution
+        version: 1
+        intent: deep_probe
+        difficulty: deep_probe
+        scenario_brief: 新版 API 想去掉一个字段，但旧版前端还在使用，必须无痛迁移。
+        question_stem: 如果 AI 应用 API 字段要演进且不能中断旧前端，你会如何设计契约版本与迁移？
+        prompt_template: 生成一道 AI 全栈契约演进深挖题，要求候选人说明版本策略、向后兼容与下线。
+        scenario_skill_tags: [contract, versioning, backward compatibility, migration]
+        resume_anchor_hints: [contract, version, migration, backward compatible, sdk]
+        failure_categories: [missing_tradeoff, missing_action, missing_observability]
+        rubric_additions: [说明版本策略, 说明向后兼容期, 说明下线监控]
+        expected_signals: [能在 schema 中加 deprecation, 能保留过渡期, 能用监控判断下线时机]
+        anti_patterns: [字段直接删除, 没有迁移期, 不监控旧调用]
+        good_answer_hints: [先 deprecation, 再过渡期, 最后看监控下线]
+        priority: 12
+        status: active
+
+  - id: technical_depth.ai_algorithm_finetune_vs_rag_vs_prompt
+    version: 1
+    title: 大模型微调 vs RAG vs Prompt 工程的选型与边界
+    dimension: technical_depth
+    job_levels: [junior, mid, senior]
+    skill_tags: [ai algorithm, finetune, rag, prompt, selection]
+    direction_tags: [internet_tech]
+    role_tags: [ai_algorithm]
+    rubric:
+      must_cover: [问题特征, 三种方案边界, 成本与维护, 数据准备]
+      minimum_bar: 能说明在什么场景选微调 / RAG / Prompt 工程。
+      stretch: 能从数据规模、迭代速度、知识新鲜度、合规等多维度评估并给出混合方案。
+    priority: 25
+    status: active
+    source: manual_yaml
+    scope: global
+    language: zh-CN
+    variants:
+      - id: technical_depth.ai_algorithm_finetune_vs_rag_vs_prompt.selection
+        version: 1
+        intent: opening
+        difficulty: standard
+        scenario_brief: 业务方想做一个内部知识问答助手，知识每周更新且数据较少。
+        question_stem: 你会如何评估并选择微调 / RAG / Prompt 工程的方案组合？
+        prompt_template: 结合候选人的 AI 算法 / LLM 经验，生成一道技术深度题，要求说明选型决策。
+        scenario_skill_tags: [llm, finetune, rag, prompt, selection]
+        resume_anchor_hints: [llm, finetune, rag, prompt, algorithm]
+        failure_categories: [missing_tradeoff, missing_action, missing_metrics]
+        rubric_additions: [说明问题特征评估, 说明三种方案边界, 说明成本与维护]
+        expected_signals: [能从数据规模/新鲜度/合规等维度评估, 能给出主从混合方案, 能说明长期维护成本]
+        anti_patterns: [一切都微调, 一切都 RAG, 只看效果不看成本]
+        good_answer_hints: [先看问题特征, 再比方案边界, 最后做组合]
+        priority: 14
+        status: active
+      - id: technical_depth.ai_algorithm_finetune_vs_rag_vs_prompt.hybrid_design
+        version: 1
+        intent: deep_probe
+        difficulty: deep_probe
+        scenario_brief: 业务后期希望"既要 RAG 实时新鲜，又要微调风格统一"。
+        question_stem: 如果要在同一系统里组合微调 + RAG + Prompt 工程，你会如何设计协作边界？
+        prompt_template: 生成一道大模型组合方案深挖题，要求候选人说明协作分工与评估。
+        scenario_skill_tags: [llm, hybrid, finetune, rag, prompt]
+        resume_anchor_hints: [llm, hybrid, finetune, rag, prompt]
+        failure_categories: [missing_tradeoff, missing_action, missing_metrics]
+        rubric_additions: [说明分工边界, 说明评估指标, 说明迭代节奏]
+        expected_signals: [能让微调负责风格/RAG 负责知识/Prompt 负责动态指令, 能定义协作评估, 能定迭代节奏]
+        anti_patterns: [三者无明确分工, 不定评估, 不分迭代节奏]
+        good_answer_hints: [先分工, 再评估, 最后定节奏]
+        priority: 12
+        status: active
+
+  - id: technical_depth.ai_algorithm_feature_vs_representation
+    version: 1
+    title: 特征工程 vs 表示学习的选型
+    dimension: technical_depth
+    job_levels: [junior, mid, senior]
+    skill_tags: [ai algorithm, feature engineering, representation learning, modeling]
+    direction_tags: [internet_tech]
+    role_tags: [ai_algorithm]
+    rubric:
+      must_cover: [数据特征, 模型容量, 解释性, 迭代成本]
+      minimum_bar: 能说明特征工程与表示学习在什么场景更合适。
+      stretch: 能从数据量、解释性、迭代速度等给出明确取舍。
+    priority: 23
+    status: active
+    source: manual_yaml
+    scope: global
+    language: zh-CN
+    variants:
+      - id: technical_depth.ai_algorithm_feature_vs_representation.selection
+        version: 1
+        intent: opening
+        difficulty: standard
+        scenario_brief: 一个推荐场景数据量中等，业务方要求"模型可解释"。
+        question_stem: 你会如何在特征工程与表示学习之间做选型？
+        prompt_template: 结合候选人的 AI 算法经验，生成一道技术深度题，要求说明选型决策。
+        scenario_skill_tags: [feature engineering, representation learning, modeling]
+        resume_anchor_hints: [feature, representation, model, algorithm]
+        failure_categories: [missing_tradeoff, missing_action, missing_metrics]
+        rubric_additions: [说明数据特征评估, 说明模型容量评估, 说明解释性需求]
+        expected_signals: [能根据数据量决定模型容量, 能根据解释性需求选方向, 能给出迭代成本估算]
+        anti_patterns: [无脑用深度模型, 不评估解释性, 不算迭代成本]
+        good_answer_hints: [先评估数据, 再评估解释性, 最后估迭代成本]
+        priority: 13
+        status: active
+      - id: technical_depth.ai_algorithm_feature_vs_representation.hybrid
+        version: 1
+        intent: deep_probe
+        difficulty: deep_probe
+        scenario_brief: 现有线性模型效果到达瓶颈，团队想引入深度网络但担心黑盒化。
+        question_stem: 如果要把表示学习增量接入到现有特征工程模型，你会如何设计与评估？
+        prompt_template: 生成一道特征/表示混合模型深挖题，要求候选人说明逐步接入与对照评估。
+        scenario_skill_tags: [feature engineering, representation learning, hybrid model]
+        resume_anchor_hints: [feature, representation, hybrid, model, evaluation]
+        failure_categories: [missing_metrics, missing_action, missing_tradeoff]
+        rubric_additions: [说明逐步接入路径, 说明对照评估, 说明可解释保留]
+        expected_signals: [能让表示学习作为补充特征逐步接入, 能用 A/B 对照评估增量, 能保留可解释性入口]
+        anti_patterns: [一次性全换深度模型, 不做对照, 牺牲所有解释性]
+        good_answer_hints: [先增量接入, 再对照评估, 最后保留可解释]
+        priority: 11
+        status: active
