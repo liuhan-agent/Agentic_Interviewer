@@ -204,7 +204,7 @@ def select_question_candidates(
         )
 
     candidates = _apply_role_pack_filter(candidates, role_tag_set)
-    ranked = sorted(
+    ranked_candidates = sorted(
         candidates,
         key=lambda item: (
             -item.match_score,
@@ -212,9 +212,37 @@ def select_question_candidates(
             item.seed_id,
             item.variant_id,
         ),
-    )[: max(0, int(top_k))]
+    )
+    ranked = _select_seed_diverse_top_k(ranked_candidates, max(0, int(top_k)))
     ranked = [replace(candidate, rank=idx + 1) for idx, candidate in enumerate(ranked)]
     return QuestionSelectionResult(candidates=ranked)
+
+
+def _select_seed_diverse_top_k(
+    candidates: Sequence[QuestionCandidate],
+    top_k: int,
+) -> list[QuestionCandidate]:
+    if top_k <= 0:
+        return []
+
+    selected: list[QuestionCandidate] = []
+    duplicate_seed_candidates: list[QuestionCandidate] = []
+    selected_seed_ids: set[str] = set()
+
+    for candidate in candidates:
+        if candidate.seed_id in selected_seed_ids:
+            duplicate_seed_candidates.append(candidate)
+            continue
+        selected.append(candidate)
+        selected_seed_ids.add(candidate.seed_id)
+        if len(selected) >= top_k:
+            return selected
+
+    for candidate in duplicate_seed_candidates:
+        selected.append(candidate)
+        if len(selected) >= top_k:
+            break
+    return selected
 
 
 def format_question_seed_block(candidate: QuestionCandidate | None) -> str:
