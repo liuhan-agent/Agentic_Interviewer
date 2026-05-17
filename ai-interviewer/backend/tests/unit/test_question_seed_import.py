@@ -653,6 +653,62 @@ def test_import_question_seed_dir_imports_bundled_business1_roles_and_dimensions
     assert all(seed.scope == "global" for seed in business_seeds)
     assert all(seed.language == "zh-CN" for seed in business_seeds)
     assert all(seed.direction_tags == ["business"] for seed in business_seeds)
+    assert all(
+        {"junior", "mid", "senior"} <= set(seed.job_levels or [])
+        for seed in business_seeds
+    )
+
+
+def test_import_question_seed_dir_aligns_business_roles_to_mainline_catalogs() -> None:
+    seed_dir = Path(__file__).resolve().parents[2] / "knowledge" / "question_seeds"
+    role_dimensions = {
+        "product_manager": {
+            "user_insight",
+            "requirement_analysis",
+            "prioritization",
+            "metrics_thinking",
+            "stakeholder_management",
+        },
+        "operations": {
+            "user_growth",
+            "content_operations",
+            "data_analysis",
+            "campaign_execution",
+            "process_optimization",
+        },
+        "sales_business": {
+            "customer_discovery",
+            "solution_matching",
+            "objection_handling",
+            "negotiation",
+            "pipeline_management",
+        },
+        "marketing_brand": {
+            "market_insight",
+            "brand_strategy",
+            "campaign_planning",
+            "channel_growth",
+            "content_creativity",
+        },
+    }
+
+    session_local = _session_factory()
+    with session_local() as sess:
+        import_question_seed_dir(seed_dir, session=sess)
+        seeds = list(sess.scalars(select(QuestionSeed).order_by(QuestionSeed.id)))
+
+    for role, expected_dimensions in role_dimensions.items():
+        role_seeds = [
+            seed
+            for seed in seeds
+            if seed.status == "active" and role in set(seed.role_tags or [])
+        ]
+        assert {seed.dimension for seed in role_seeds} == expected_dimensions
+        assert all(seed.direction_tags == ["business"] for seed in role_seeds)
+        assert all(
+            {"junior", "mid", "senior"} <= set(seed.job_levels or [])
+            for seed in role_seeds
+        )
 
 
 def test_import_question_seed_dir_rejects_dimension_outside_tech_catalog(

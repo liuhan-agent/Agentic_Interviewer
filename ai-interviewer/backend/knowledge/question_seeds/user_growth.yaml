@@ -4,7 +4,7 @@ seeds:
     version: 1
     title: 用户增长激活与留存诊断
     dimension: user_growth
-    job_levels: [mid, senior]
+    job_levels: [junior, mid, senior]
     skill_tags: [operations, user_growth, activation, retention, conversion]
     direction_tags: [business]
     role_tags: [operations]

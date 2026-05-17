@@ -4,7 +4,7 @@ seeds:
     version: 1
     title: 活动执行与上线复盘
     dimension: campaign_execution
-    job_levels: [mid, senior]
+    job_levels: [junior, mid, senior]
     skill_tags: [operations, campaign, campaign_execution, launch, review]
     direction_tags: [business]
     role_tags: [operations]

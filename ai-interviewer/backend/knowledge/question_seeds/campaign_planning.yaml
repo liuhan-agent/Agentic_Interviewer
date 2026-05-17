@@ -4,7 +4,7 @@ seeds:
     version: 1
     title: 整合营销 Campaign 策划与落地
     dimension: campaign_planning
-    job_levels: [mid, senior]
+    job_levels: [junior, mid, senior]
     skill_tags: [marketing_brand, campaign_planning, message, creative_brief, launch]
     direction_tags: [business]
     role_tags: [marketing_brand]

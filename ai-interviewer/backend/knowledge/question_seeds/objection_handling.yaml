@@ -4,7 +4,7 @@ seeds:
     version: 1
     title: 价格、竞品与预算异议处理
     dimension: objection_handling
-    job_levels: [mid, senior]
+    job_levels: [junior, mid, senior]
     skill_tags: [sales_business, objection_handling, price, competitor, budget]
     direction_tags: [business]
     role_tags: [sales_business]

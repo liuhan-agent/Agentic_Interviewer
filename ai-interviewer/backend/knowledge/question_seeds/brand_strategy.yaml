@@ -4,7 +4,7 @@ seeds:
     version: 1
     title: 品牌定位与传播主张设计
     dimension: brand_strategy
-    job_levels: [mid, senior]
+    job_levels: [junior, mid, senior]
     skill_tags: [marketing_brand, brand_strategy, positioning, message, consistency]
     direction_tags: [business]
     role_tags: [marketing_brand]

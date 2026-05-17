@@ -4,7 +4,7 @@ seeds:
     version: 1
     title: 销售漏斗健康度与预测风险
     dimension: pipeline_management
-    job_levels: [mid, senior]
+    job_levels: [junior, mid, senior]
     skill_tags: [sales_business, pipeline, crm, forecast, sales_management]
     direction_tags: [business]
     role_tags: [sales_business]

@@ -116,6 +116,7 @@ BUSINESS1_ROLE_REQUIREMENTS = {
             "metrics_thinking",
             "stakeholder_management",
         },
+        "required_job_levels": {"junior", "mid", "senior"},
     },
     "operations": {
         "min_seeds": 5,
@@ -126,6 +127,7 @@ BUSINESS1_ROLE_REQUIREMENTS = {
             "campaign_execution",
             "process_optimization",
         },
+        "required_job_levels": {"junior", "mid", "senior"},
     },
     "sales_business": {
         "min_seeds": 5,
@@ -136,6 +138,7 @@ BUSINESS1_ROLE_REQUIREMENTS = {
             "negotiation",
             "pipeline_management",
         },
+        "required_job_levels": {"junior", "mid", "senior"},
     },
     "marketing_brand": {
         "min_seeds": 5,
@@ -146,6 +149,7 @@ BUSINESS1_ROLE_REQUIREMENTS = {
             "channel_growth",
             "content_creativity",
         },
+        "required_job_levels": {"junior", "mid", "senior"},
     },
 }
 

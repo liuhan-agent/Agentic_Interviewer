@@ -4,7 +4,7 @@ seeds:
     version: 1
     title: 渠道增长 ROI 与线索质量优化
     dimension: channel_growth
-    job_levels: [mid, senior]
+    job_levels: [junior, mid, senior]
     skill_tags: [marketing_brand, channel_growth, roi, lead, paid_media]
     direction_tags: [business]
     role_tags: [marketing_brand]
