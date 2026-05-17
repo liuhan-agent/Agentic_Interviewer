@@ -41,6 +41,21 @@ SUPPORTED_DIMENSIONS = {
     "campaign_planning",
     "channel_growth",
     "content_creativity",
+    "talent_acquisition",
+    "employee_relations",
+    "organization_development",
+    "policy_compliance",
+    "service_orientation",
+    "customer_empathy",
+    "issue_diagnosis",
+    "solution_delivery",
+    "escalation_management",
+    "retention_growth",
+    "goal_setting",
+    "team_leadership",
+    "decision_making",
+    "execution_management",
+    "cross_functional_alignment",
 }
 VALID_STATUSES = {"draft", "active", "disabled", "archived"}
 VALID_SCOPES = {"global", "org", "job_template"}
@@ -63,6 +78,9 @@ VALID_ROLE_TAGS = {
     "operations",
     "sales_business",
     "marketing_brand",
+    "hr_function",
+    "customer_success",
+    "general_management",
 }
 
 SEED_REQUIRED = {

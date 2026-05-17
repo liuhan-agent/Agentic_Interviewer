@@ -21,6 +21,12 @@ NON_RAG_JSON_SOURCES = {
     "interview_waiting_tips.json",
     "job_templates.json",
 }
+NON_RAG_SOURCE_PREFIXES = (
+    "tech_questions/",
+    "business_questions/",
+    "behavioral_questions/",
+    "sample_resumes/",
+)
 
 
 def _split(text: str) -> list[str]:
@@ -53,7 +59,7 @@ def _iter_documents(root: Path) -> list[tuple[str, dict]]:
             log.warning("Skipping %s: %s", path, e)
             continue
         rel = path.relative_to(root).as_posix()
-        if rel in NON_RAG_JSON_SOURCES:
+        if rel in NON_RAG_JSON_SOURCES or rel.startswith(NON_RAG_SOURCE_PREFIXES):
             continue
         source_type = rel.split("/", 1)[0] if "/" in rel else "misc"
         for idx, chunk in enumerate(_split(text)):

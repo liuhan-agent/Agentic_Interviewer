@@ -125,13 +125,33 @@ def test_non_rag_runtime_catalogs_are_not_ingested(tmp_path: Path):
     assert "interview_directions.json" in sources
 
 
+def test_legacy_question_and_sample_resume_dirs_are_not_ingested(tmp_path: Path):
+    excluded_files = [
+        tmp_path / "tech_questions" / "backend.md",
+        tmp_path / "business_questions" / "product.md",
+        tmp_path / "behavioral_questions" / "communication.md",
+        tmp_path / "sample_resumes" / "alex.md",
+    ]
+    for path in excluded_files:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text("legacy question or sample resume content", encoding="utf-8")
+    support = tmp_path / "rag_support" / "backend_reliability.md"
+    support.parent.mkdir(parents=True, exist_ok=True)
+    support.write_text("supporting knowledge about backend reliability", encoding="utf-8")
+
+    sources = {meta["source"] for _, meta in _iter_documents(tmp_path)}
+
+    assert sources == {"rag_support/backend_reliability.md"}
+
+
 def test_seeded_default_senior_backend_query_retrieves_relevant_knowledge(monkeypatch):
     _install_fake_chroma(monkeypatch)
     knowledge_root = Path(__file__).resolve().parents[2] / "knowledge"
+    support_root = knowledge_root / "strategy"
 
     seed_process_store = vectorstore.ChromaVectorStore()
     monkeypatch.setattr(vectorstore, "get_vectorstore", lambda: seed_process_store)
-    assert ingest_folder(knowledge_root) > 0
+    assert ingest_folder(support_root) > 0
 
     uvicorn_process_store = vectorstore.ChromaVectorStore()
     monkeypatch.setattr(retriever, "get_vectorstore", lambda: uvicorn_process_store)
@@ -147,8 +167,6 @@ def test_seeded_default_senior_backend_query_retrieves_relevant_knowledge(monkey
 
     sources = {doc.metadata["source"] for doc in result.docs}
     assert result.docs
-    assert sources & {
-        "tech_questions/backend_systems.md",
-        "sample_resumes/alex_chen_backend.md",
-        "tech_questions/system_design.md",
-    }
+    assert sources
+    assert not any(source.startswith("tech_questions/") for source in sources)
+    assert not any(source.startswith("sample_resumes/") for source in sources)

@@ -1,0 +1,52 @@
+dimension: service_orientation
+seeds:
+  - id: service_orientation.hr_internal_service_triage
+    version: 1
+    title: HR internal service triage
+    dimension: service_orientation
+    job_levels: [junior, mid, senior]
+    skill_tags: [hr_function, service_orientation, internal_customer, triage]
+    direction_tags: [business]
+    role_tags: [hr_function]
+    rubric:
+      must_cover: [service_priority, response_sla, expectation_management, continuous_improvement]
+      minimum_bar: Explain how to handle internal HR service requests with priority, clarity, and follow through.
+      stretch: Turn repeated requests into process improvement instead of only case by case handling.
+    priority: 23
+    status: active
+    source: manual_yaml
+    scope: global
+    language: zh-CN
+    variants:
+      - id: service_orientation.hr_internal_service_triage.multiple_urgent_requests
+        version: 1
+        intent: opening
+        difficulty: standard
+        scenario_brief: Several departments ask HR for urgent support at the same time near a payroll and onboarding deadline.
+        question_stem: How would you triage the requests, set expectations, and make sure important HR service work does not drop?
+        prompt_template: Generate an HR service orientation question about triage, SLA, and expectation management.
+        scenario_skill_tags: [hr_function, service_orientation, triage, internal_customer]
+        resume_anchor_hints: [hr_service, onboarding, payroll, internal_customer, process]
+        failure_categories: [weak_prioritization, vague_process, poor_communication]
+        rubric_additions: [Define urgency criteria, communicate response rhythm, track closure]
+        expected_signals: [Prioritizes by risk and impact, gives clear timeline, uses simple tracking]
+        anti_patterns: [Handles whoever shouts loudest, gives no timeline, ignores repeated pattern]
+        good_answer_hints: [Classify by risk, commit response windows, review repeated causes]
+        priority: 16
+        status: active
+      - id: service_orientation.hr_internal_service_triage.repeated_policy_questions
+        version: 1
+        intent: deep_probe
+        difficulty: deep_probe
+        scenario_brief: Managers repeatedly ask the same policy questions, creating slow HR response and inconsistent answers.
+        question_stem: How would you improve the HR service process so repeated policy questions become easier and more consistent?
+        prompt_template: Generate a deep probe about internal HR service process improvement.
+        scenario_skill_tags: [hr_function, service_orientation, process_optimization, policy_support]
+        resume_anchor_hints: [policy, internal_service, process, knowledge_base, manager]
+        failure_categories: [shallow_analysis, missing_metrics, weak_follow_up]
+        rubric_additions: [Identify repeated demand, standardize response, measure service improvement]
+        expected_signals: [Builds FAQ or workflow, clarifies ownership, tracks response time and satisfaction]
+        anti_patterns: [Only asks managers to be patient, creates complex process, does not measure effect]
+        good_answer_hints: [Find repeat cases, standardize first answer, monitor cycle time]
+        priority: 14
+        status: active

@@ -11,6 +11,24 @@ from app.memory.skill_store import SkillEntry
 from app.memory.strategy_store import StrategyEntry
 from app.services.question_selector import QuestionCandidate, QuestionSelectionResult
 
+_COVERED_PRIMARY_ROLE_TAGS = [
+    "java_backend",
+    "frontend_web",
+    "sre",
+    "ai_fullstack",
+    "ai_agent",
+    "mobile",
+    "ai_algorithm",
+    "architect",
+    "product_manager",
+    "operations",
+    "sales_business",
+    "marketing_brand",
+    "hr_function",
+    "customer_success",
+    "general_management",
+]
+
 
 def test_ask_question_records_selection_artifacts(monkeypatch) -> None:
     retrieval = RetrievalContext(
@@ -255,6 +273,7 @@ def _install_default_patches(
     enable_generator_avoid_patterns: bool = True,
     enable_question_fit_profile: bool = True,
     enable_question_reranker_shadow: bool = False,
+    question_primary_role_tags: list[str] | None = None,
 ) -> dict[str, Any]:
     monkeypatch.setattr(ask_mod, "retrieve_for_question", lambda **_kw: retrieval)
     monkeypatch.setattr(ask_mod, "retrieve_strategies", lambda **_kw: list(strategies))
@@ -289,6 +308,8 @@ def _install_default_patches(
             enable_question_fit_profile=enable_question_fit_profile,
             enable_question_reranker_shadow=enable_question_reranker_shadow,
             question_reranker_timeout_ms=4000,
+            question_primary_role_tags=question_primary_role_tags
+            or list(_COVERED_PRIMARY_ROLE_TAGS),
         ),
     )
 
@@ -850,7 +871,7 @@ def test_question_selector_structured_primary_injects_top_seed_and_shadows_rag(
     assert [candidate.injected for candidate in recorded["candidates"]] == [True]
 
 
-def test_question_selector_structured_primary_unmature_role_stays_shadow(
+def test_question_selector_structured_primary_covered_tech_role_injects_seed(
     monkeypatch,
 ) -> None:
     generated_kwargs: dict[str, Any] = {}
@@ -904,14 +925,14 @@ def test_question_selector_structured_primary_unmature_role_stays_shadow(
 
     artifacts = out["current_question"]["selection_artifacts"]
     assert artifacts["question_items"][0]["role_tags"] == ["frontend_web"]
-    assert artifacts["question_items"][0]["injected"] is False
-    assert generated_kwargs["retrieval_block"] == "[1] retrieved prompt block"
-    assert generated_kwargs.get("question_seed_block", "") == ""
-    assert generated_kwargs.get("candidate_anchor_block", "") == ""
-    assert [candidate.injected for candidate in recorded["candidates"]] == [False]
+    assert artifacts["question_items"][0]["injected"] is True
+    assert generated_kwargs["retrieval_block"] == ""
+    assert "Frontend performance" in generated_kwargs["question_seed_block"]
+    assert generated_kwargs.get("candidate_anchor_block", "")
+    assert [candidate.injected for candidate in recorded["candidates"]] == [True]
 
 
-def test_question_selector_structured_primary_business_role_stays_shadow(
+def test_question_selector_structured_primary_covered_business_role_injects_seed(
     monkeypatch,
 ) -> None:
     generated_kwargs: dict[str, Any] = {}
@@ -970,6 +991,144 @@ def test_question_selector_structured_primary_business_role_stays_shadow(
     artifacts = out["current_question"]["selection_artifacts"]
     assert artifacts["question_items"][0]["direction_tags"] == ["business"]
     assert artifacts["question_items"][0]["role_tags"] == ["product_manager"]
+    assert artifacts["question_items"][0]["injected"] is True
+    assert generated_kwargs["retrieval_block"] == ""
+    assert "User journey pain point" in generated_kwargs["question_seed_block"]
+    assert generated_kwargs.get("candidate_anchor_block", "")
+    assert [candidate.injected for candidate in recorded["candidates"]] == [True]
+
+
+def test_question_selector_structured_primary_service_role_injects_seed(
+    monkeypatch,
+) -> None:
+    generated_kwargs: dict[str, Any] = {}
+    recorded: dict[str, Any] = {}
+    customer_success_candidate = QuestionCandidate(
+        **{
+            **_question_candidate().__dict__,
+            "seed_id": "customer_success.renewal_risk",
+            "variant_id": "customer_success.renewal_risk.opening",
+            "title": "Renewal risk",
+            "dimension": "customer_empathy",
+            "direction_tags": ["business"],
+            "role_tags": ["customer_success"],
+            "skill_tags": ["renewal", "risk"],
+            "scenario_skill_tags": ["renewal", "stakeholder_alignment"],
+        }
+    )
+
+    def fake_generate_question(**kwargs):
+        generated_kwargs.update(kwargs)
+        return _fake_generate_question(**kwargs)
+
+    def fake_record(**kwargs):
+        recorded.update(kwargs)
+
+    _install_default_patches(
+        monkeypatch,
+        retrieval=_make_retrieval(),
+        strategies=[_make_strategy()],
+        skills=[_make_skill()],
+    )
+    monkeypatch.setattr(ask_mod, "generate_question", fake_generate_question)
+    monkeypatch.setattr(
+        ask_mod,
+        "select_question_candidates",
+        lambda **_kwargs: QuestionSelectionResult(
+            candidates=[customer_success_candidate]
+        ),
+    )
+    monkeypatch.setattr(ask_mod, "record_question_usages", fake_record)
+
+    out = ask_mod.ask_question_node(
+        _base_state(
+            job_spec={
+                "title": "Customer Success Manager",
+                "level": "mid",
+                "required_skills": ["renewal", "risk"],
+                "interview_direction": "customer_success",
+            },
+            runtime_config={
+                "rag_mode": "hybrid",
+                "rag_top_k": 2,
+                "question_selector_mode": "structured_primary",
+            },
+            current_dimension="customer_empathy",
+            dimensions=["customer_empathy"],
+            dimension_status={"customer_empathy": "active"},
+        )
+    )  # type: ignore[arg-type]
+
+    artifacts = out["current_question"]["selection_artifacts"]
+    assert artifacts["question_items"][0]["role_tags"] == ["customer_success"]
+    assert artifacts["question_items"][0]["injected"] is True
+    assert generated_kwargs["retrieval_block"] == ""
+    assert "Renewal risk" in generated_kwargs["question_seed_block"]
+    assert generated_kwargs.get("candidate_anchor_block", "")
+    assert [candidate.injected for candidate in recorded["candidates"]] == [True]
+
+
+def test_question_selector_structured_primary_uncovered_role_stays_shadow(
+    monkeypatch,
+) -> None:
+    generated_kwargs: dict[str, Any] = {}
+    recorded: dict[str, Any] = {}
+    finance_candidate = QuestionCandidate(
+        **{
+            **_question_candidate().__dict__,
+            "seed_id": "finance.cashflow_forecast",
+            "variant_id": "finance.cashflow_forecast.opening",
+            "title": "Cashflow forecast",
+            "dimension": "cashflow_management",
+            "direction_tags": ["business"],
+            "role_tags": ["finance"],
+            "skill_tags": ["finance", "cashflow"],
+            "scenario_skill_tags": ["forecast", "cashflow"],
+        }
+    )
+
+    def fake_generate_question(**kwargs):
+        generated_kwargs.update(kwargs)
+        return _fake_generate_question(**kwargs)
+
+    def fake_record(**kwargs):
+        recorded.update(kwargs)
+
+    _install_default_patches(
+        monkeypatch,
+        retrieval=_make_retrieval(),
+        strategies=[_make_strategy()],
+        skills=[_make_skill()],
+    )
+    monkeypatch.setattr(ask_mod, "generate_question", fake_generate_question)
+    monkeypatch.setattr(
+        ask_mod,
+        "select_question_candidates",
+        lambda **_kwargs: QuestionSelectionResult(candidates=[finance_candidate]),
+    )
+    monkeypatch.setattr(ask_mod, "record_question_usages", fake_record)
+
+    out = ask_mod.ask_question_node(
+        _base_state(
+            job_spec={
+                "title": "Finance Manager",
+                "level": "mid",
+                "required_skills": ["forecast", "cashflow"],
+                "interview_direction": "finance",
+            },
+            runtime_config={
+                "rag_mode": "hybrid",
+                "rag_top_k": 2,
+                "question_selector_mode": "structured_primary",
+            },
+            current_dimension="cashflow_management",
+            dimensions=["cashflow_management"],
+            dimension_status={"cashflow_management": "active"},
+        )
+    )  # type: ignore[arg-type]
+
+    artifacts = out["current_question"]["selection_artifacts"]
+    assert artifacts["question_items"][0]["role_tags"] == ["finance"]
     assert artifacts["question_items"][0]["injected"] is False
     assert generated_kwargs["retrieval_block"] == "[1] retrieved prompt block"
     assert generated_kwargs.get("question_seed_block", "") == ""

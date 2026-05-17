@@ -248,6 +248,33 @@ def test_fit_profile_resolves_business1_role_tags_from_direction_and_title() -> 
         assert profile.role_tags == [expected_role]
 
 
+def test_fit_profile_resolves_service_management_role_tags_from_direction() -> None:
+    cases = [
+        ("hr_function", "hr_function", "talent acquisition"),
+        ("customer_success", "customer_success", "renewal risk"),
+        ("general_management", "general_management", "team execution"),
+    ]
+
+    for direction, expected_role, skill in cases:
+        profile = build_question_fit_profile(
+            candidate={"resume_parsed": {}},
+            self_intro_profile={},
+            job_spec={
+                "interview_direction": direction,
+                "title": direction.replace("_", " "),
+                "required_skills": [skill],
+            },
+            target_skills=[],
+            resume_anchor=None,
+            pending_contract_hints=None,
+            dimension="service_orientation",
+            probe_intent="opening",
+        )
+
+        assert profile.direction_tags == ["business"]
+        assert profile.role_tags == [expected_role]
+
+
 def test_fit_profile_runtime_business_tags_take_precedence() -> None:
     profile = build_question_fit_profile(
         candidate={"resume_parsed": {}},
