@@ -4,7 +4,7 @@ seeds:
     version: 1
     title: Roadmap 优先级与取舍判断
     dimension: prioritization
-    job_levels: [mid, senior]
+    job_levels: [junior, mid, senior]
     skill_tags: [product_manager, prioritization, roadmap, tradeoff, resource]
     direction_tags: [business]
     role_tags: [product_manager]

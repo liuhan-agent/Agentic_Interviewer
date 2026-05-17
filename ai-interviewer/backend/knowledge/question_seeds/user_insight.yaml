@@ -4,7 +4,7 @@ seeds:
     version: 1
     title: 用户旅程与真实痛点识别
     dimension: user_insight
-    job_levels: [mid, senior]
+    job_levels: [junior, mid, senior]
     skill_tags: [product_manager, user_insight, user_research, journey_mapping, pain_point]
     direction_tags: [business]
     role_tags: [product_manager]

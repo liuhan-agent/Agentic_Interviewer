@@ -5,9 +5,14 @@ from pathlib import Path
 from app.services.question_seed_lint import lint_question_seed_dir
 
 
-def _write_seed_file(seed_dir: Path, body: str) -> None:
+def _write_seed_file(
+    seed_dir: Path,
+    body: str,
+    *,
+    file_name: str = "system_design.yaml",
+) -> None:
     seed_dir.mkdir(parents=True, exist_ok=True)
-    (seed_dir / "system_design.yaml").write_text(body.lstrip(), encoding="utf-8")
+    (seed_dir / file_name).write_text(body.lstrip(), encoding="utf-8")
 
 
 def _valid_yaml() -> str:
@@ -337,3 +342,45 @@ def test_question_seed_quality_lint_flags_business_role_stem_mismatch(
 
     assert result.passed is True
     assert any(issue.code == "role_stem_mismatch" for issue in result.issues)
+
+
+def test_question_seed_quality_lint_requires_junior_for_business_roles(
+    tmp_path: Path,
+) -> None:
+    seed_dir = tmp_path / "question_seeds"
+    business = _valid_yaml().replace(
+        "dimension: system_design",
+        "dimension: user_insight",
+    ).replace(
+        "  - id: system_design.cache_consistency",
+        "  - id: user_insight.user_journey_pain_point",
+    ).replace(
+        "job_levels: [junior, mid, senior]",
+        "job_levels: [mid, senior]",
+    ).replace(
+        "    dimension: system_design",
+        "    dimension: user_insight",
+    ).replace(
+        "      - id: system_design.cache_consistency.opening",
+        "      - id: user_insight.user_journey_pain_point.opening",
+    ).replace(
+        "      - id: system_design.cache_consistency.failover",
+        "      - id: user_insight.user_journey_pain_point.followup",
+    ).replace(
+        "    direction_tags: [internet_tech]",
+        "    direction_tags: [business]",
+    ).replace(
+        "    role_tags: [java_backend]",
+        "    role_tags: [product_manager]",
+    )
+    _write_seed_file(seed_dir, business, file_name="user_insight.yaml")
+
+    result = lint_question_seed_dir(seed_dir, strict=False)
+    messages = "\n".join(issue.message for issue in result.issues)
+
+    assert result.passed is True
+    assert (
+        "product_manager: seed user_insight.user_journey_pain_point missing job_levels"
+        in messages
+    )
+    assert "junior" in messages

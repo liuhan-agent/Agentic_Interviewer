@@ -664,3 +664,61 @@ def test_bundled_non_java_tech_roles_return_junior_mainline_candidates() -> None
         assert all(role in candidate.role_tags for candidate in result.candidates)
         assert f"role_tag:{role}" in result.candidates[0].match_reasons
         assert "direction_tag:internet_tech" in result.candidates[0].match_reasons
+
+
+def test_bundled_business_roles_return_junior_mainline_candidates() -> None:
+    seed_dir = Path(__file__).resolve().parents[2] / "knowledge" / "question_seeds"
+    role_dimensions = {
+        "product_manager": [
+            "user_insight",
+            "requirement_analysis",
+            "prioritization",
+            "metrics_thinking",
+            "stakeholder_management",
+        ],
+        "operations": [
+            "user_growth",
+            "content_operations",
+            "data_analysis",
+            "campaign_execution",
+            "process_optimization",
+        ],
+        "sales_business": [
+            "customer_discovery",
+            "solution_matching",
+            "objection_handling",
+            "negotiation",
+            "pipeline_management",
+        ],
+        "marketing_brand": [
+            "market_insight",
+            "brand_strategy",
+            "campaign_planning",
+            "channel_growth",
+            "content_creativity",
+        ],
+    }
+
+    session_local = _session_factory()
+    with session_local() as sess:
+        import_question_seed_dir(seed_dir, session=sess)
+        results = {
+            (role, dimension): select_question_candidates(
+                sess,
+                dimension=dimension,
+                job_level="junior",
+                direction_tags=["business"],
+                role_tags=[role],
+                probe_intent="followup",
+                top_k=3,
+            )
+            for role, dimensions in role_dimensions.items()
+            for dimension in dimensions
+        }
+
+    for (role, dimension), result in results.items():
+        assert result.candidates, f"{role}:{dimension}"
+        assert all(candidate.dimension == dimension for candidate in result.candidates)
+        assert all(role in candidate.role_tags for candidate in result.candidates)
+        assert f"role_tag:{role}" in result.candidates[0].match_reasons
+        assert "direction_tag:business" in result.candidates[0].match_reasons
