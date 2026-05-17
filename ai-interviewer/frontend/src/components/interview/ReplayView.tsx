@@ -28,20 +28,11 @@ import { TrainingPlanSourceBadge } from "@/components/interview/TrainingPlanSour
 import { ApiError } from "@/lib/api/client";
 import { getReplay } from "@/lib/api/interview";
 import type { ReplayResponse, ReplayTurn, TrainingPlanStep } from "@/lib/api/types";
+import {
+  DIMENSION_LABELS,
+  formatDimensionName,
+} from "@/lib/constants/interview";
 import { upsertEntry } from "@/lib/storage/interviewHistory";
-
-const DIMENSION_LABELS: Record<string, string> = {
-  technical_depth: "技术深度",
-  problem_solving: "问题解决",
-  communication: "沟通表达",
-  system_design: "系统设计",
-  coding_quality: "代码质量",
-  project_experience: "项目经验",
-  product_thinking: "产品思维",
-  architecture: "架构能力",
-  behavioral: "行为面试",
-  leadership: "技术领导力",
-};
 
 type ContextBasisTone = "selfIntro" | "resume" | "job";
 
@@ -806,7 +797,7 @@ function ListBlock({
 }
 
 function formatDimension(id: string): string {
-  return DIMENSION_LABELS[id] ?? id.replaceAll("_", " ");
+  return formatDimensionName(id);
 }
 
 function friendlyReplayError(err: unknown): string {
