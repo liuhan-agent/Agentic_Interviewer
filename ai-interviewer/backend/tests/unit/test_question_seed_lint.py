@@ -18,7 +18,7 @@ seeds:
     version: 1
     title: Cache consistency
     dimension: system_design
-    job_levels: [senior]
+    job_levels: [junior, mid, senior]
     skill_tags: [redis, cache]
     direction_tags: [internet_tech]
     role_tags: [java_backend]
@@ -157,13 +157,124 @@ def test_question_seed_quality_lint_flags_missing_batch2_role_coverage(
     tmp_path: Path,
 ) -> None:
     seed_dir = tmp_path / "question_seeds"
-    _write_seed_file(seed_dir, _valid_yaml())
+    _write_seed_file(
+        seed_dir,
+        _valid_yaml().replace(
+            "job_levels: [junior, mid, senior]",
+            "job_levels: [senior]",
+        ),
+    )
 
     result = lint_question_seed_dir(seed_dir, strict=False)
 
     assert result.passed is True
     assert any(issue.code == "role_coverage" for issue in result.issues)
     assert any("ai_agent" in issue.message for issue in result.issues)
+
+
+def test_question_seed_quality_lint_flags_java_backend_alignment_gaps(
+    tmp_path: Path,
+) -> None:
+    seed_dir = tmp_path / "question_seeds"
+    _write_seed_file(
+        seed_dir,
+        _valid_yaml().replace(
+            "job_levels: [junior, mid, senior]",
+            "job_levels: [senior]",
+        ),
+    )
+
+    result = lint_question_seed_dir(seed_dir, strict=False)
+    messages = "\n".join(issue.message for issue in result.issues)
+
+    assert result.passed is True
+    assert any(issue.code == "role_coverage" for issue in result.issues)
+    assert "java_backend: missing dimensions" in messages
+    assert "technical_depth" in messages
+    assert "coding_quality" in messages
+    assert "project_experience" in messages
+    assert "java_backend: seed system_design.cache_consistency missing job_levels" in messages
+    assert "junior" in messages
+
+
+def test_question_seed_quality_lint_rejects_backend_systems_as_java_dimension(
+    tmp_path: Path,
+) -> None:
+    seed_dir = tmp_path / "question_seeds"
+    seed_dir.mkdir(parents=True, exist_ok=True)
+    (seed_dir / "backend_systems.yaml").write_text(
+        _valid_yaml()
+        .replace("dimension: system_design", "dimension: backend_systems")
+        .replace("system_design.cache_consistency", "backend_systems.cache_consistency"),
+        encoding="utf-8",
+    )
+
+    result = lint_question_seed_dir(seed_dir, strict=True)
+    messages = "\n".join(issue.message for issue in result.issues)
+
+    assert result.passed is False
+    assert "unsupported question seed file" in messages
+    assert "invalid dimension: backend_systems" in messages
+
+
+def test_question_seed_quality_lint_rejects_tech_role_extra_dimensions(
+    tmp_path: Path,
+) -> None:
+    seed_dir = tmp_path / "question_seeds"
+    _write_seed_file(
+        seed_dir,
+        _valid_yaml()
+        .replace("    role_tags: [java_backend]", "    role_tags: [frontend_web]")
+        .replace("redis, cache", "frontend, rendering, react"),
+    )
+
+    result = lint_question_seed_dir(seed_dir, strict=True)
+    messages = "\n".join(issue.message for issue in result.issues)
+
+    assert result.passed is False
+    assert "frontend_web: seed system_design.cache_consistency uses unsupported dimension system_design" in messages
+
+
+def test_question_seed_quality_lint_requires_junior_for_non_architect_tech_roles(
+    tmp_path: Path,
+) -> None:
+    seed_dir = tmp_path / "question_seeds"
+    seed_dir.mkdir(parents=True, exist_ok=True)
+    (seed_dir / "technical_depth.yaml").write_text(
+        _valid_yaml()
+        .replace("dimension: system_design", "dimension: technical_depth")
+        .replace("system_design.cache_consistency", "technical_depth.frontend_runtime")
+        .replace("job_levels: [junior, mid, senior]", "job_levels: [senior]")
+        .replace("    role_tags: [java_backend]", "    role_tags: [frontend_web]")
+        .replace("redis, cache", "frontend, rendering, react"),
+        encoding="utf-8",
+    )
+
+    result = lint_question_seed_dir(seed_dir, strict=True)
+    messages = "\n".join(issue.message for issue in result.issues)
+
+    assert result.passed is False
+    assert "frontend_web: seed technical_depth.frontend_runtime missing job_levels" in messages
+    assert "junior" in messages
+
+
+def test_question_seed_quality_lint_does_not_require_junior_for_architect(
+    tmp_path: Path,
+) -> None:
+    seed_dir = tmp_path / "question_seeds"
+    _write_seed_file(
+        seed_dir,
+        _valid_yaml()
+        .replace("job_levels: [junior, mid, senior]", "job_levels: [senior, staff]")
+        .replace("    role_tags: [java_backend]", "    role_tags: [architect]")
+        .replace("redis, cache", "architect, architecture, distributed"),
+    )
+
+    result = lint_question_seed_dir(seed_dir, strict=False)
+    messages = "\n".join(issue.message for issue in result.issues)
+
+    assert result.passed is True
+    assert "architect: seed system_design.cache_consistency missing job_levels" not in messages
 
 
 def test_question_seed_quality_lint_flags_role_stem_mismatch(tmp_path: Path) -> None:

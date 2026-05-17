@@ -1,10 +1,214 @@
 dimension: problem_solving
 seeds:
+  - id: problem_solving.ai_fullstack_contract_regression
+    version: 1
+    title: AI 全栈契约回归与异常定位
+    dimension: problem_solving
+    job_levels: [junior, mid, senior]
+    skill_tags: [ai_fullstack, llm, api_contract, schema, regression]
+    direction_tags: [internet_tech]
+    role_tags: [ai_fullstack]
+    rubric:
+      must_cover: [异常现象, 契约边界, 回归定位, 修复验证]
+      minimum_bar: 能定位 AI 应用前端、后端和模型输出之间的契约回归问题。
+      stretch: 能把 schema 校验、样例回归、灰度回滚和观测指标串成质量闭环。
+    priority: 25
+    status: active
+    source: manual_yaml
+    scope: global
+    language: zh-CN
+    variants:
+      - id: problem_solving.ai_fullstack_contract_regression.model_response_schema
+        version: 1
+        intent: opening
+        difficulty: standard
+        scenario_brief: 前端依赖模型返回结构化 JSON，但线上偶发字段缺失导致页面异常。
+        question_stem: 当 AI 应用模型返回结构变化导致前端异常时，你会如何定位并修复？
+        prompt_template: 结合候选人的 AI 全栈经验，生成一道问题解决题，要求说明模型输出校验、接口契约、前端容错、回归样例和上线验证。
+        scenario_skill_tags: [ai_fullstack, schema, validation, regression, frontend]
+        resume_anchor_hints: [llm, schema, api, frontend, regression]
+        failure_categories: [missing_edge_case, missing_action, shallow_debugging]
+        rubric_additions: [说明模型输出不可信, 说明契约校验和容错, 说明回归样例和监控]
+        expected_signals: [能区分模型输出、后端解析和前端展示责任, 能补运行时校验, 能沉淀异常样例]
+        anti_patterns: [前端直接相信模型字段, 只改 prompt 不加校验, 没有回归测试]
+        good_answer_hints: [先复现字段缺失路径, 再固定契约和校验, 最后补样例回归]
+        priority: 16
+        status: active
+      - id: problem_solving.ai_fullstack_contract_regression.prompt_versioning
+        version: 1
+        intent: deep_probe
+        difficulty: deep_probe
+        scenario_brief: prompt 和解析逻辑频繁变化，旧任务结果无法兼容新页面展示。
+        question_stem: 当 prompt、解析逻辑和前端展示耦合导致历史任务不兼容时，你会如何治理？
+        prompt_template: 生成一道 AI 全栈契约回归深挖题，要求候选人说明版本管理、兼容解析、迁移策略、灰度和回滚。
+        scenario_skill_tags: [ai_fullstack, prompt_versioning, compatibility, regression]
+        resume_anchor_hints: [prompt, llm, versioning, fullstack, compatibility]
+        failure_categories: [missing_tradeoff, missing_edge_case, missing_action]
+        rubric_additions: [说明 prompt 和输出契约版本, 说明历史数据兼容, 说明灰度和回滚]
+        expected_signals: [能给输出契约加版本, 能兼容历史任务, 能用样例集验证升级]
+        anti_patterns: [直接覆盖 prompt, 不记录版本, 历史数据无法展示]
+        good_answer_hints: [先拆 prompt 与契约版本, 再做兼容解析, 最后补回归样例]
+        priority: 14
+        status: active
+
+  - id: problem_solving.java_async_retry_incident
+    version: 1
+    title: Java 异步任务重试与异常闭环
+    dimension: problem_solving
+    job_levels: [junior, mid, senior]
+    skill_tags: [java, backend_systems, async_job, retry, queue, idempotency]
+    direction_tags: [internet_tech]
+    role_tags: [java_backend]
+    rubric:
+      must_cover: [任务状态, 重试策略, 幂等处理, 死信告警]
+      minimum_bar: 能在至少一次执行语义下设计可靠的异步任务处理流程。
+      stretch: 能处理延迟任务、退避、死信回放、人工兜底和任务可观测性。
+    priority: 29
+    status: active
+    source: manual_yaml
+    scope: global
+    language: zh-CN
+    variants:
+      - id: problem_solving.java_async_retry_incident.delayed_task_retry
+        version: 1
+        intent: opening
+        difficulty: standard
+        scenario_brief: 支付后发送凭证和积分到账依赖异步任务，第三方服务偶发超时导致任务反复失败。
+        question_stem: 你会如何设计支付后异步任务的重试、幂等、死信和人工处理流程？
+        prompt_template: 结合候选人的 Java 后端经验，生成一道问题解决题，要求说明任务状态机、重试节奏、幂等键、死信告警和恢复动作。
+        scenario_skill_tags: [java, async job, retry, dead letter, idempotency]
+        resume_anchor_hints: [java, mq, async, retry, payment]
+        failure_categories: [missing_idempotency, shallow_failure_mode, missing_observability]
+        rubric_additions: [说明任务唯一键和状态流转, 说明指数退避和最大次数, 说明死信处理和告警]
+        expected_signals: [能接受至少一次执行语义, 能避免重复副作用, 能区分可重试与不可重试失败]
+        anti_patterns: [无限重试, 没有任务状态, 同步阻塞主交易链路]
+        good_answer_hints: [先定义任务状态和幂等键, 再设计重试节奏与死信, 最后补人工审核入口]
+        priority: 18
+        status: active
+      - id: problem_solving.java_async_retry_incident.mq_duplicate_delivery
+        version: 1
+        intent: deep_probe
+        difficulty: deep_probe
+        scenario_brief: MQ 消费者在网络抖动后收到重复消息，部分订单的积分出现重复发放风险。
+        question_stem: 如果 MQ 出现重复投递并影响积分发放，你会如何止血、定位和修复？
+        prompt_template: 生成一道 Java 后端消息消费事故题，要求候选人按影响面判断、幂等补救、数据修复和复盘改进回答。
+        scenario_skill_tags: [java, message queue, duplicate delivery, idempotency, data repair]
+        resume_anchor_hints: [mq, kafka, rabbitmq, java, idempotency]
+        failure_categories: [missing_action, missing_idempotency, missing_observability]
+        rubric_additions: [说明止血和暂停消费策略, 说明幂等缺口定位, 说明数据修复与回归验证]
+        expected_signals: [能先保护用户权益和数据一致性, 能从消息 key 和消费日志定位重复, 能补充幂等表或唯一约束]
+        anti_patterns: [只重启消费者, 直接批量改库无审计, 修复后不补监控]
+        good_answer_hints: [先冻结风险写入并圈定影响, 再查幂等缺口, 最后小批量修复和补测试]
+        priority: 16
+        status: active
+
+  - id: problem_solving.java_production_incident_response
+    version: 1
+    title: Java 线上故障定位与应急响应
+    dimension: problem_solving
+    job_levels: [junior, mid, senior]
+    skill_tags: [java, backend_systems, incident_response, debugging, observability, rollback]
+    direction_tags: [internet_tech]
+    role_tags: [java_backend]
+    rubric:
+      must_cover: [影响面判断, 证据收集, 止血方案, 复盘改进]
+      minimum_bar: 能有条理地定位线上异常，并给出先止血后根因的处理路径。
+      stretch: 能把告警、发布、回滚、数据修复和复盘改进串成闭环。
+    priority: 27
+    status: active
+    source: manual_yaml
+    scope: global
+    language: zh-CN
+    variants:
+      - id: problem_solving.java_production_incident_response.latency_spike
+        version: 1
+        intent: recovery
+        difficulty: standard
+        scenario_brief: Java 核心接口刚发布后 P95 延迟翻倍，错误率轻微上升，业务投诉开始出现。
+        question_stem: 你会如何定位并处理这次 Java 接口线上延迟升高问题？
+        prompt_template: 生成一道 Java 线上排障题，要求候选人按影响判断、证据收集、止血动作、根因验证和复盘改进展开。
+        scenario_skill_tags: [java, metrics, tracing, rollback, incident]
+        resume_anchor_hints: [java, incident, rollback, tracing, production]
+        failure_categories: [shallow_debugging, missing_observability, missing_action]
+        rubric_additions: [说明先止血再根因, 说明发布前后指标对比, 说明复盘改进动作]
+        expected_signals: [能判断影响面和优先级, 能用日志指标链路追踪定位, 能选择回滚降级或限流]
+        anti_patterns: [长时间只读代码不止血, 没有时间线, 不做复盘]
+        good_answer_hints: [先建立事故时间线, 再对比发布变更和核心指标, 最后恢复服务并沉淀预防措施]
+        priority: 17
+        status: active
+      - id: problem_solving.java_production_incident_response.data_corruption
+        version: 1
+        intent: deep_probe
+        difficulty: deep_probe
+        scenario_brief: 发布后少量订单状态被错误写入，影响范围不大但涉及用户权益和数据修复。
+        question_stem: 如果线上发现少量订单状态被错误写入，你会如何止血、圈定影响、修复数据并预防复发？
+        prompt_template: 生成一道 Java 线上数据事故深挖题，要求候选人说明止血、备份、影响圈定、修复脚本、审计和回归验证。
+        scenario_skill_tags: [java, incident, data repair, audit, rollback]
+        resume_anchor_hints: [java, order, data repair, incident, audit]
+        failure_categories: [missing_action, missing_observability, missing_edge_case]
+        rubric_additions: [说明冻结或降级写入, 说明影响面圈定, 说明修复脚本审计和回滚]
+        expected_signals: [能保护用户权益, 能用日志和快照圈定影响, 能设计小批量修复和验证]
+        anti_patterns: [直接手工改库无审计, 不通知相关方, 修复后不验证]
+        good_answer_hints: [先止血和备份, 再圈定影响并小批量修复, 最后补测试监控和复盘]
+        priority: 15
+        status: active
+
+  - id: problem_solving.java_cache_message_consistency
+    version: 1
+    title: Java 缓存消息一致性问题排查
+    dimension: problem_solving
+    job_levels: [junior, mid, senior]
+    skill_tags: [java, redis, message_queue, consistency, troubleshooting]
+    direction_tags: [internet_tech]
+    role_tags: [java_backend]
+    rubric:
+      must_cover: [现象复现, 链路证据, 一致性边界, 修复验证]
+      minimum_bar: 能拆解缓存、数据库和消息链路中的不一致来源，并给出恢复方案。
+      stretch: 能设计长期防护，包括幂等、补偿任务、监控告警和压测验证。
+    priority: 25
+    status: active
+    source: manual_yaml
+    scope: global
+    language: zh-CN
+    variants:
+      - id: problem_solving.java_cache_message_consistency.redis_deduct_db_missing
+        version: 1
+        intent: opening
+        difficulty: standard
+        scenario_brief: 秒杀扣减先写 Redis 后异步落库，少量订单成功但数据库库存未同步。
+        question_stem: 你会如何排查并修复 Redis 扣减成功但数据库未同步的库存不一致问题？
+        prompt_template: 结合候选人的 Java 和 Redis 经验，生成一道问题解决题，要求说明复现、消息链路、补偿任务和一致性监控。
+        scenario_skill_tags: [java, redis, inventory, mq, consistency]
+        resume_anchor_hints: [redis, java, inventory, mq, cache]
+        failure_categories: [missing_consistency_boundary, missing_observability, missing_action]
+        rubric_additions: [说明缓存和数据库的写入顺序, 说明消息丢失或消费失败证据, 说明补偿和对账机制]
+        expected_signals: [能定位 Redis Lua 与消息发送边界, 能检查消费位点和失败日志, 能设计库存对账任务]
+        anti_patterns: [只清缓存, 不查消息链路, 不区分超卖和少卖]
+        good_answer_hints: [先确认业务不变量和影响面, 再追踪 Redis 到 MQ 到 DB, 最后补偿和监控]
+        priority: 16
+        status: active
+      - id: problem_solving.java_cache_message_consistency.consumer_lag_repair
+        version: 1
+        intent: followup
+        difficulty: standard
+        scenario_brief: 活动高峰期 MQ 消费积压，缓存展示与数据库状态短时间不一致。
+        question_stem: 如果消息消费积压导致缓存和数据库状态不一致，你会如何处理用户体验和数据恢复？
+        prompt_template: 生成一道 Java 后端一致性追问题，要求候选人说明积压判断、降级展示、消费恢复、补偿校验和告警阈值。
+        scenario_skill_tags: [java, mq lag, cache consistency, degradation]
+        resume_anchor_hints: [mq, redis, java, lag, consistency]
+        failure_categories: [missing_tradeoff, missing_metrics, missing_observability]
+        rubric_additions: [说明积压指标和消费速率, 说明用户侧降级或提示, 说明追平后的校验]
+        expected_signals: [能平衡体验与一致性, 能用 lag 和消费耗时判断风险, 能说明恢复后的对账]
+        anti_patterns: [盲目扩容消费者不看下游压力, 不提示用户状态延迟, 没有追平验证]
+        good_answer_hints: [先量化积压和影响, 再决定降级与扩容, 最后追平校验]
+        priority: 14
+        status: active
+
   - id: problem_solving.frontend_online_issue
     version: 1
     title: 前端线上问题定位与恢复
     dimension: problem_solving
-    job_levels: [mid, senior, staff]
+    job_levels: [junior, mid, senior, staff]
     skill_tags: [frontend, debugging, observability, rollback]
     direction_tags: [internet_tech]
     role_tags: [frontend_web]
@@ -55,7 +259,7 @@ seeds:
     version: 1
     title: SRE 故障响应与恢复决策
     dimension: problem_solving
-    job_levels: [mid, senior, staff]
+    job_levels: [junior, mid, senior, staff]
     skill_tags: [sre, incident response, troubleshooting, recovery]
     direction_tags: [internet_tech]
     role_tags: [sre]
@@ -105,7 +309,7 @@ seeds:
     version: 1
     title: Agent 失败定位与评估
     dimension: problem_solving
-    job_levels: [mid, senior, staff]
+    job_levels: [junior, mid, senior, staff]
     skill_tags: [agent, evaluation, debugging, llm, reliability]
     direction_tags: [internet_tech]
     role_tags: [ai_agent]
@@ -155,7 +359,7 @@ seeds:
     version: 1
     title: 移动端崩溃与性能排查
     dimension: problem_solving
-    job_levels: [mid, senior]
+    job_levels: [junior, mid, senior]
     skill_tags: [mobile, crash, performance, android, ios]
     direction_tags: [internet_tech]
     role_tags: [mobile]
@@ -205,7 +409,7 @@ seeds:
     version: 1
     title: 移动端网络与缓存问题处理
     dimension: problem_solving
-    job_levels: [mid, senior]
+    job_levels: [junior, mid, senior]
     skill_tags: [mobile, network, cache, offline, reliability]
     direction_tags: [internet_tech]
     role_tags: [mobile]
@@ -255,7 +459,7 @@ seeds:
     version: 1
     title: 算法实验归因与问题定位
     dimension: problem_solving
-    job_levels: [mid, senior]
+    job_levels: [junior, mid, senior]
     skill_tags: [ai algorithm, experiment, attribution, metric, model]
     direction_tags: [internet_tech]
     role_tags: [ai_algorithm]

@@ -1,10 +1,163 @@
 dimension: coding_quality
 seeds:
+  - id: coding_quality.java_api_contract_idempotency
+    version: 1
+    title: Java API 契约与幂等设计
+    dimension: coding_quality
+    job_levels: [junior, mid, senior]
+    skill_tags: [java, backend_systems, api_design, idempotency, contract, compatibility]
+    direction_tags: [internet_tech]
+    role_tags: [java_backend]
+    rubric:
+      must_cover: [请求响应契约, 幂等键, 错误语义, 向后兼容]
+      minimum_bar: 能定义清晰 API 契约，并解释重复请求和客户端重试的服务端行为。
+      stretch: 能覆盖版本演进、状态查询、审计追踪和兼容迁移。
+    priority: 29
+    status: active
+    source: manual_yaml
+    scope: global
+    language: zh-CN
+    variants:
+      - id: coding_quality.java_api_contract_idempotency.payment_create_retry
+        version: 1
+        intent: opening
+        difficulty: standard
+        scenario_brief: 客户端创建支付单时可能因网络超时重复提交，服务端需要避免重复扣款和重复建单。
+        question_stem: 你会如何设计创建支付单 API 的契约、幂等策略和错误返回？
+        prompt_template: 结合候选人的 Java API 设计经验，生成一道代码质量题，要求说明请求字段、幂等键、状态码、错误码和兼容性。
+        scenario_skill_tags: [java, rest api, idempotency key, error handling]
+        resume_anchor_hints: [java, api, payment, idempotency, rest]
+        failure_categories: [missing_idempotency, vague_contract, missing_edge_case]
+        rubric_additions: [说明幂等键作用域, 说明处理中和已成功响应, 说明错误码和状态码]
+        expected_signals: [能区分创建成功和处理中, 能处理客户端重试, 能避免破坏旧客户端]
+        anti_patterns: [只靠前端禁用按钮, 每次请求都新建资源, 错误语义含糊]
+        good_answer_hints: [先定义请求与状态流转, 再讨论重复提交和兼容演进]
+        priority: 18
+        status: active
+      - id: coding_quality.java_api_contract_idempotency.client_retry_status
+        version: 1
+        intent: followup
+        difficulty: standard
+        scenario_brief: 客户端创建支付单超时后会查询状态并重试，服务端要让调用方安全判断请求是否生效。
+        question_stem: 面对客户端超时后的查询和重试，你会如何设计 API 状态码、错误码和幂等返回？
+        prompt_template: 生成一道 Java API 契约追问题，要求候选人说明可预期响应、状态查询、重试语义和字段兼容。
+        scenario_skill_tags: [java, api contract, retry, status code, compatibility]
+        resume_anchor_hints: [java, api, idempotency, retry, status code]
+        failure_categories: [vague_contract, missing_idempotency, missing_edge_case]
+        rubric_additions: [说明处理中和最终成功的响应, 说明幂等键缓存或业务唯一约束, 说明兼容演进]
+        expected_signals: [能定义稳定错误语义, 能处理重复提交的同结果返回, 能保留向后兼容字段]
+        anti_patterns: [超时后只返回 500, 重试创建新支付单, 随意变更响应字段]
+        good_answer_hints: [先列客户端决策需要的信息, 再设计状态和错误语义]
+        priority: 15
+        status: active
+
+  - id: coding_quality.java_agent_extension_boundaries
+    version: 1
+    title: Java 策略扩展边界与防腐设计
+    dimension: coding_quality
+    job_levels: [junior, mid, senior]
+    skill_tags: [java, strategy_pattern, extension, interface_design, maintainability]
+    direction_tags: [internet_tech]
+    role_tags: [java_backend]
+    rubric:
+      must_cover: [接口边界, 策略注册, 输入校验, 回归测试]
+      minimum_bar: 能说明如何让业务策略可扩展，同时避免核心服务被分支逻辑污染。
+      stretch: 能结合灰度、配置、版本兼容、审计和异常兜底设计可治理扩展点。
+    priority: 24
+    status: active
+    source: manual_yaml
+    scope: global
+    language: zh-CN
+    variants:
+      - id: coding_quality.java_agent_extension_boundaries.ai_strategy_hot_swap
+        version: 1
+        intent: opening
+        difficulty: standard
+        scenario_brief: 业务需要为不同场景切换推荐策略和风控策略，旧代码中大量 if else 已难以维护。
+        question_stem: 你会如何重构 Java 服务中的多策略分支，让策略扩展更清晰、更可测试？
+        prompt_template: 结合候选人的 Java 工程经验，生成一道代码质量题，要求说明策略接口、注册发现、输入输出契约和回归测试。
+        scenario_skill_tags: [java, strategy pattern, interface, testing]
+        resume_anchor_hints: [java, strategy, refactor, interface, testing]
+        failure_categories: [vague_contract, missing_test_strategy, missing_tradeoff]
+        rubric_additions: [说明策略接口和上下文对象, 说明注册和选择规则, 说明测试覆盖和灰度发布]
+        expected_signals: [能抽出稳定接口, 能避免业务分支散落, 能设计单元测试和集成测试]
+        anti_patterns: [只把 if else 搬到另一个类, 没有契约校验, 没有回归样例]
+        good_answer_hints: [先识别变化点和不变量, 再设计策略接口, 最后补测试和灰度]
+        priority: 15
+        status: active
+      - id: coding_quality.java_agent_extension_boundaries.llm_output_guard
+        version: 1
+        intent: deep_probe
+        difficulty: deep_probe
+        scenario_brief: Java 服务接入 LLM 后需要把模型输出转换为业务动作，但模型字段偶发缺失或越界。
+        question_stem: Java 服务接入 LLM 输出时，你会如何设计 schema 校验、防腐层和异常兜底？
+        prompt_template: 生成一道 Java 后端扩展边界深挖题，要求候选人说明模型输出校验、业务动作边界、错误处理和测试样例。
+        scenario_skill_tags: [java, llm integration, schema validation, anti corruption layer]
+        resume_anchor_hints: [java, llm, schema, validation, api]
+        failure_categories: [missing_edge_case, vague_contract, missing_test_strategy]
+        rubric_additions: [说明模型输出不可信, 说明防腐转换层, 说明异常兜底和回归样例]
+        expected_signals: [能用运行时 schema 校验, 能隔离模型字段和业务领域对象, 能处理缺失或越界输出]
+        anti_patterns: [业务代码直接信任模型输出, 只靠 prompt 约束, 缺少异常样例测试]
+        good_answer_hints: [先固定业务动作契约, 再做模型输出转换和校验, 最后覆盖异常测试]
+        priority: 13
+        status: active
+
+  - id: coding_quality.java_service_testability
+    version: 1
+    title: Java 服务可测试性与质量防线
+    dimension: coding_quality
+    job_levels: [junior, mid, senior]
+    skill_tags: [java, testing, maintainability, service_design, refactoring]
+    direction_tags: [internet_tech]
+    role_tags: [java_backend]
+    rubric:
+      must_cover: [分层边界, 依赖隔离, 测试金字塔, 回归样例]
+      minimum_bar: 能说明如何让核心业务逻辑脱离外部依赖并可被稳定测试。
+      stretch: 能结合契约测试、测试数据、流水线门禁和线上回归形成质量闭环。
+    priority: 23
+    status: active
+    source: manual_yaml
+    scope: global
+    language: zh-CN
+    variants:
+      - id: coding_quality.java_service_testability.transaction_service_boundary
+        version: 1
+        intent: opening
+        difficulty: standard
+        scenario_brief: 订单服务逻辑同时包含参数校验、库存扣减、事务写库和消息发送，单测很难覆盖。
+        question_stem: 你会如何拆分 Java 订单服务的职责，让核心逻辑更容易测试和回归？
+        prompt_template: 结合候选人的 Java 服务开发经验，生成一道代码质量题，要求说明分层边界、依赖注入、mock 策略和集成测试。
+        scenario_skill_tags: [java, service design, unit testing, transaction]
+        resume_anchor_hints: [java, spring, unit test, service, transaction]
+        failure_categories: [missing_test_strategy, vague_contract, missing_tradeoff]
+        rubric_additions: [说明领域逻辑和基础设施依赖分离, 说明 mock 与真实集成测试边界, 说明关键回归样例]
+        expected_signals: [能把外部依赖封装到端口, 能覆盖异常和边界条件, 能区分单测和集成测试价值]
+        anti_patterns: [所有逻辑塞在一个 service 方法, 单测只覆盖 happy path, 测试依赖真实外部服务]
+        good_answer_hints: [先拆职责和依赖方向, 再设计测试夹具, 最后补关键路径回归]
+        priority: 15
+        status: active
+      - id: coding_quality.java_service_testability.async_job_test
+        version: 1
+        intent: followup
+        difficulty: standard
+        scenario_brief: 异步任务有重试、幂等和状态迁移，历史 bug 多发生在异常分支。
+        question_stem: 对于有重试和状态迁移的 Java 异步任务，你会如何设计测试用例？
+        prompt_template: 生成一道 Java 可测试性追问题，要求候选人说明状态机测试、幂等测试、失败注入和回归数据。
+        scenario_skill_tags: [java, async job, state machine, testing, idempotency]
+        resume_anchor_hints: [java, async, retry, testing, idempotency]
+        failure_categories: [missing_test_strategy, missing_edge_case, missing_observability]
+        rubric_additions: [说明状态迁移覆盖, 说明失败注入和重复执行测试, 说明测试数据可维护]
+        expected_signals: [能覆盖可重试与不可重试失败, 能验证重复执行无副作用, 能把关键 bug 固化成回归用例]
+        anti_patterns: [只测成功路径, 不模拟重复消息, 不断言最终状态]
+        good_answer_hints: [先画状态机, 再列失败场景, 最后把历史问题做成固定用例]
+        priority: 13
+        status: active
+
   - id: coding_quality.frontend_component_maintainability
     version: 1
     title: 前端组件可维护性与工程质量
     dimension: coding_quality
-    job_levels: [mid, senior, staff]
+    job_levels: [junior, mid, senior, staff]
     skill_tags: [frontend, component design, testing, maintainability]
     direction_tags: [internet_tech]
     role_tags: [frontend_web]
@@ -51,111 +204,11 @@ seeds:
         priority: 13
         status: active
 
-  - id: coding_quality.sre_automation_safety
-    version: 1
-    title: SRE 自动化脚本质量与安全边界
-    dimension: coding_quality
-    job_levels: [mid, senior, staff]
-    skill_tags: [sre, automation, runbook, safety, testing]
-    direction_tags: [internet_tech]
-    role_tags: [sre]
-    rubric:
-      must_cover: [幂等性, 权限边界, dry run, 回滚验证]
-      minimum_bar: 能说明自动化操作如何避免扩大故障和误伤生产。
-      stretch: 能把脚本、审批、审计、演练和 runbook 维护纳入治理闭环。
-    priority: 22
-    status: active
-    source: manual_yaml
-    scope: global
-    language: zh-CN
-    variants:
-      - id: coding_quality.sre_automation_safety.restart_runbook
-        version: 1
-        intent: opening
-        difficulty: standard
-        scenario_brief: 值班同学需要一键重启部分实例，但误选实例可能扩大影响面。
-        question_stem: 请说明你会如何设计一个生产重启自动化脚本的安全边界、幂等性和验证流程。
-        prompt_template: 结合候选人的运维自动化经验，生成一道代码质量题，要求说明 dry run、权限、幂等和回滚验证。
-        scenario_skill_tags: [automation, dry run, idempotency, rollback]
-        resume_anchor_hints: [automation, runbook, sre, script, rollback]
-        failure_categories: [missing_action, missing_edge_case, missing_observability]
-        rubric_additions: [说明目标选择校验, 说明 dry run 和审批, 说明执行后验证]
-        expected_signals: [能设计幂等脚本, 能限制权限和影响范围, 能保留审计和回滚路径]
-        anti_patterns: [直接批量执行, 没有 dry run, 失败后不知道执行到哪一步]
-        good_answer_hints: [先限制影响范围, 再做 dry run 和幂等, 最后加审计和验证]
-        priority: 15
-        status: active
-      - id: coding_quality.sre_automation_safety.config_change
-        version: 1
-        intent: deep_probe
-        difficulty: deep_probe
-        scenario_brief: 需要批量修改告警阈值和服务配置，错误配置可能导致告警风暴或服务不可用。
-        question_stem: 批量配置变更自动化时，你会如何设计校验、灰度、回滚和审计？
-        prompt_template: 生成一道 SRE 自动化深挖题，要求候选人说明配置校验、灰度发布、回滚和审计质量。
-        scenario_skill_tags: [configuration, automation, canary, audit]
-        resume_anchor_hints: [config, canary, automation, alerting, sre]
-        failure_categories: [missing_edge_case, missing_action, missing_observability]
-        rubric_additions: [说明配置 schema 校验, 说明分批灰度和回滚, 说明审计和告警验证]
-        expected_signals: [能阻断非法配置, 能分批控制风险, 能追踪每次变更结果]
-        anti_patterns: [全量直接改, 无法回滚, 没有配置校验]
-        good_answer_hints: [先做配置校验, 再灰度执行, 最后验证告警和服务指标]
-        priority: 13
-        status: active
-  - id: coding_quality.ai_fullstack_contract_quality
-    version: 1
-    title: AI 全栈接口契约与代码质量
-    dimension: coding_quality
-    job_levels: [mid, senior]
-    skill_tags: [ai fullstack, api contract, testing, schema, maintainability]
-    direction_tags: [internet_tech]
-    role_tags: [ai_fullstack]
-    rubric:
-      must_cover: [接口契约, 类型边界, 测试策略, 可维护性]
-      minimum_bar: 能说明 AI 应用前后端和模型服务之间的契约如何保持稳定。
-      stretch: 能把 schema 校验、mock、回归测试和模型返回不确定性纳入质量体系。
-    priority: 25
-    status: active
-    source: manual_yaml
-    scope: global
-    language: zh-CN
-    variants:
-      - id: coding_quality.ai_fullstack_contract_quality.model_response_schema
-        version: 1
-        intent: opening
-        difficulty: standard
-        scenario_brief: 前端依赖模型返回的结构化 JSON，但线上偶尔字段缺失导致页面异常。
-        question_stem: 你会如何设计 AI 应用的模型返回 schema、校验和前端容错？
-        prompt_template: 结合候选人的全栈代码质量经验，生成一道接口契约题，要求说明 schema、校验和测试。
-        scenario_skill_tags: [ai fullstack, schema, validation, testing]
-        resume_anchor_hints: [schema, api, fullstack, llm, testing]
-        failure_categories: [missing_edge_case, missing_action, shallow_debugging]
-        rubric_additions: [说明结构化输出 schema, 说明运行时校验和降级, 说明契约测试]
-        expected_signals: [能定义严格 schema, 能处理模型输出缺失, 能建立前后端契约测试]
-        anti_patterns: [前端直接相信模型字段, 只靠 TypeScript 类型, 没有异常兜底]
-        good_answer_hints: [先定义输出契约, 再做运行时校验, 最后补测试和降级]
-        priority: 16
-        status: active
-      - id: coding_quality.ai_fullstack_contract_quality.prompt_versioning
-        version: 1
-        intent: deep_probe
-        difficulty: deep_probe
-        scenario_brief: prompt 和后端解析逻辑频繁变化，导致旧任务结果无法兼容新页面。
-        question_stem: AI 全栈应用中 prompt、解析逻辑和前端展示耦合时，你会如何治理版本兼容？
-        prompt_template: 生成一道 AI 全栈可维护性深挖题，要求候选人说明版本、兼容、测试和回滚。
-        scenario_skill_tags: [ai fullstack, prompt versioning, compatibility, testing]
-        resume_anchor_hints: [prompt, versioning, fullstack, testing, compatibility]
-        failure_categories: [missing_tradeoff, missing_edge_case, missing_action]
-        rubric_additions: [说明 prompt 和 schema 版本, 说明兼容解析, 说明回归测试和回滚]
-        expected_signals: [能给 prompt 输出加版本, 能兼容历史任务, 能做样例回归测试]
-        anti_patterns: [直接覆盖 prompt, 不记录版本, 历史数据无法展示]
-        good_answer_hints: [先分离 prompt 和 schema, 再做版本兼容, 最后建立回归样例]
-        priority: 14
-        status: active
   - id: coding_quality.mobile_modular_quality
     version: 1
     title: 移动端模块化与工程质量
     dimension: coding_quality
-    job_levels: [mid, senior]
+    job_levels: [junior, mid, senior]
     skill_tags: [mobile, modularization, testing, maintainability, app]
     direction_tags: [internet_tech]
     role_tags: [mobile]

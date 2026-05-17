@@ -10,7 +10,45 @@ from app.services.question_seed_import import (
     parse_question_seed_dir,
 )
 
+JAVA_BACKEND_ROLE_REQUIREMENTS = {
+    "java_backend": {
+        "min_seeds": 19,
+        "dimensions": {
+            "technical_depth",
+            "system_design",
+            "problem_solving",
+            "coding_quality",
+            "project_experience",
+            "communication",
+        },
+        "required_job_levels": {"junior", "mid", "senior"},
+    },
+}
+
 BATCH2_ROLE_REQUIREMENTS = {
+    "frontend_web": {
+        "min_seeds": 6,
+        "dimensions": {
+            "technical_depth",
+            "coding_quality",
+            "problem_solving",
+            "project_experience",
+            "product_thinking",
+            "communication",
+        },
+        "required_job_levels": {"junior", "mid", "senior"},
+    },
+    "sre": {
+        "min_seeds": 5,
+        "dimensions": {
+            "technical_depth",
+            "system_design",
+            "problem_solving",
+            "project_experience",
+            "communication",
+        },
+        "required_job_levels": {"junior", "mid", "senior"},
+    },
     "ai_agent": {
         "min_seeds": 5,
         "dimensions": {
@@ -18,17 +56,21 @@ BATCH2_ROLE_REQUIREMENTS = {
             "system_design",
             "problem_solving",
             "product_thinking",
+            "communication",
         },
+        "required_job_levels": {"junior", "mid", "senior"},
     },
     "ai_fullstack": {
         "min_seeds": 6,
         "dimensions": {
             "technical_depth",
             "system_design",
-            "coding_quality",
             "product_thinking",
             "project_experience",
+            "problem_solving",
+            "communication",
         },
+        "required_job_levels": {"junior", "mid", "senior"},
     },
     "mobile": {
         "min_seeds": 5,
@@ -37,7 +79,9 @@ BATCH2_ROLE_REQUIREMENTS = {
             "problem_solving",
             "coding_quality",
             "project_experience",
+            "communication",
         },
+        "required_job_levels": {"junior", "mid", "senior"},
     },
     "ai_algorithm": {
         "min_seeds": 5,
@@ -46,7 +90,9 @@ BATCH2_ROLE_REQUIREMENTS = {
             "problem_solving",
             "product_thinking",
             "project_experience",
+            "communication",
         },
+        "required_job_levels": {"junior", "mid", "senior"},
     },
     "architect": {
         "min_seeds": 6,
@@ -104,6 +150,7 @@ BUSINESS1_ROLE_REQUIREMENTS = {
 }
 
 ROLE_COVERAGE_REQUIREMENTS = {
+    **JAVA_BACKEND_ROLE_REQUIREMENTS,
     **BATCH2_ROLE_REQUIREMENTS,
     **BUSINESS1_ROLE_REQUIREMENTS,
 }
@@ -355,6 +402,38 @@ def lint_question_seed_dir(
             )
         if seed.get("status") == "active":
             for role in role_tags - {"general"}:
+                requirement = ROLE_COVERAGE_REQUIREMENTS.get(role)
+                if requirement is not None:
+                    allowed_dimensions = set(requirement.get("dimensions") or set())
+                    dimension = str(seed.get("dimension") or "")
+                    if allowed_dimensions and dimension not in allowed_dimensions:
+                        issues.append(
+                            _issue(
+                                strict,
+                                "role_dimension_mismatch",
+                                seed_id,
+                                None,
+                                (
+                                    f"{role}: seed {seed_id} uses unsupported "
+                                    f"dimension {dimension}"
+                                ),
+                            )
+                        )
+                    required_levels = set(requirement.get("required_job_levels") or set())
+                    missing_levels = required_levels - set(seed.get("job_levels") or [])
+                    if missing_levels:
+                        issues.append(
+                            _issue(
+                                strict,
+                                "role_level_coverage",
+                                seed_id,
+                                None,
+                                (
+                                    f"{role}: seed {seed_id} missing job_levels "
+                                    f"{sorted(missing_levels)}"
+                                ),
+                            )
+                        )
                 role_seed_ids.setdefault(role, set()).add(seed_id)
                 role_dimensions.setdefault(role, set()).add(str(seed.get("dimension") or ""))
         if _has_role_stem_mismatch(seed, seed_variants):

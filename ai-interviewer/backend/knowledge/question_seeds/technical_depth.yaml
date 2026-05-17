@@ -1,10 +1,163 @@
 dimension: technical_depth
 seeds:
+  - id: technical_depth.java_transaction_consistency
+    version: 1
+    title: Java 事务一致性与补偿边界
+    dimension: technical_depth
+    job_levels: [junior, mid, senior]
+    skill_tags: [java, backend_systems, spring, transaction, consistency, mysql, compensation]
+    direction_tags: [internet_tech]
+    role_tags: [java_backend]
+    rubric:
+      must_cover: [事务边界, 幂等控制, 异步补偿, 对账修复]
+      minimum_bar: 能说清哪些步骤必须在本地事务内完成，哪些副作用需要异步补偿和审计。
+      stretch: 能处理重试、乱序、重复消息、人工修复和资金类不变量。
+    priority: 31
+    status: active
+    source: manual_yaml
+    scope: global
+    language: zh-CN
+    variants:
+      - id: technical_depth.java_transaction_consistency.order_payment_boundary
+        version: 1
+        intent: opening
+        difficulty: standard
+        scenario_brief: 订单支付链路包含扣款、订单状态、流水和通知，任一步失败都可能造成不一致。
+        question_stem: 你会如何划分订单支付链路的事务边界，并设计失败补偿与对账机制？
+        prompt_template: 结合候选人的 Java 后端项目经验，生成一道技术深度题，要求说明 Spring 事务边界、幂等键、异步补偿和对账闭环。
+        scenario_skill_tags: [java, spring transaction, mysql, idempotency, compensation]
+        resume_anchor_hints: [java, spring, transaction, payment, order, mysql]
+        failure_categories: [missing_consistency_boundary, missing_idempotency, missing_edge_case]
+        rubric_additions: [说明核心不变量, 说明事务内外副作用边界, 说明重复请求和补偿修复]
+        expected_signals: [能定义本地事务内必须原子完成的写入, 能设计业务幂等键和唯一约束, 能说明对账和人工修复入口]
+        anti_patterns: [把所有下游调用放进同一个事务, 只依赖前端防重, 失败后没有可追踪记录]
+        good_answer_hints: [先固定订单和资金不变量, 再拆同步事务与异步副作用, 最后补审计对账]
+        priority: 20
+        status: active
+      - id: technical_depth.java_transaction_consistency.outbox_compensation
+        version: 1
+        intent: deep_probe
+        difficulty: deep_probe
+        scenario_brief: 主交易成功后需要发送积分、通知和账单事件，多个副作用可能部分失败。
+        question_stem: 如果主事务已成功但多个异步副作用可能失败，你会如何设计 outbox、重放和补偿流程？
+        prompt_template: 生成一道 Java 后端事务一致性深挖题，要求候选人说明 outbox 写入、消息投递、幂等消费、监控告警和人工兜底。
+        scenario_skill_tags: [java, outbox, message queue, idempotency, audit]
+        resume_anchor_hints: [outbox, mq, transaction, compensation, java]
+        failure_categories: [missing_consistency_boundary, missing_idempotency, missing_observability]
+        rubric_additions: [说明 outbox 与主事务的原子关系, 说明消费者幂等和重放, 说明失败可观测与人工修复]
+        expected_signals: [能区分主不变量和副作用, 能说明至少一次投递下的幂等消费, 能给出对账和补偿任务]
+        anti_patterns: [同步调用所有下游, 副作用失败无记录, 重放导致重复入账]
+        good_answer_hints: [先说明 outbox 记录与业务写入同事务, 再说明投递重试和消费幂等, 最后说明补偿闭环]
+        priority: 17
+        status: active
+
+  - id: technical_depth.java_database_query_performance
+    version: 1
+    title: Java 数据库查询性能与索引治理
+    dimension: technical_depth
+    job_levels: [junior, mid, senior]
+    skill_tags: [java, backend_systems, mysql, indexing, query_optimization, pagination]
+    direction_tags: [internet_tech]
+    role_tags: [java_backend]
+    rubric:
+      must_cover: [查询模式, 执行计划, 索引设计, 分页治理]
+      minimum_bar: 能基于查询条件和数据量解释索引选择、慢查询定位和分页性能问题。
+      stretch: 能结合归档、读写分离、缓存和数据增长趋势给出长期治理路径。
+    priority: 28
+    status: active
+    source: manual_yaml
+    scope: global
+    language: zh-CN
+    variants:
+      - id: technical_depth.java_database_query_performance.join_pagination
+        version: 1
+        intent: opening
+        difficulty: standard
+        scenario_brief: 后台订单搜索支持多条件筛选、关联用户信息和深分页，数据增长后 P95 延迟明显上升。
+        question_stem: 你会如何诊断并优化一个 Java 订单搜索接口的 MySQL 查询性能？
+        prompt_template: 结合候选人的 Java 和数据库经验，生成一道技术深度题，要求说明执行计划、复合索引、分页方案和回归验证。
+        scenario_skill_tags: [java, mysql, explain, indexing, cursor pagination]
+        resume_anchor_hints: [mysql, java, order, index, slow query]
+        failure_categories: [shallow_debugging, missing_metrics, missing_tradeoff]
+        rubric_additions: [说明 explain 关键字段, 说明复合索引顺序, 说明深分页替代方案]
+        expected_signals: [能用执行计划定位全表扫描或回表问题, 能设计覆盖索引或游标分页, 能评估写入成本和回归风险]
+        anti_patterns: [盲目加索引, 只说加缓存, 不看数据基数和查询条件]
+        good_answer_hints: [先确认查询模式和数据分布, 再设计索引和分页, 最后做压测与慢查询监控]
+        priority: 17
+        status: active
+      - id: technical_depth.java_database_query_performance.hot_partition
+        version: 1
+        intent: deep_probe
+        difficulty: deep_probe
+        scenario_brief: 某些租户订单量远高于平均值，按 tenant_id 的查询和写入都集中到少数热点范围。
+        question_stem: 如果 MySQL 出现租户热点导致查询和写入都变慢，你会如何定位并治理？
+        prompt_template: 生成一道 Java 后端数据库性能深挖题，要求候选人说明热点证据、索引与分片取舍、归档策略和迁移风险。
+        scenario_skill_tags: [java, mysql, hot partition, sharding, archive]
+        resume_anchor_hints: [tenant, mysql, sharding, indexing, java]
+        failure_categories: [shallow_debugging, missing_metrics, missing_tradeoff]
+        rubric_additions: [说明热点指标和数据分布, 说明分片或归档的取舍, 说明迁移兼容和回滚]
+        expected_signals: [能用慢查询和数据库指标定位热点, 能评估分片带来的查询复杂度, 能设计灰度迁移方案]
+        anti_patterns: [只加缓存不解决写热点, 忽略历史数据归档, 不考虑跨分片查询]
+        good_answer_hints: [先量化热点租户和表增长, 再比较索引归档分片方案, 最后规划迁移验证]
+        priority: 15
+        status: active
+
+  - id: technical_depth.java_concurrency_runtime
+    version: 1
+    title: Java 并发运行时与线程池治理
+    dimension: technical_depth
+    job_levels: [junior, mid, senior]
+    skill_tags: [java, jvm, juc, thread_pool, concurrency, backpressure]
+    direction_tags: [internet_tech]
+    role_tags: [java_backend]
+    rubric:
+      must_cover: [线程池参数, 队列背压, 锁竞争, JVM 观测]
+      minimum_bar: 能解释线程池、锁和异步执行对接口稳定性与资源隔离的影响。
+      stretch: 能结合压测、线程栈、指标和降级策略形成运行时治理闭环。
+    priority: 26
+    status: active
+    source: manual_yaml
+    scope: global
+    language: zh-CN
+    variants:
+      - id: technical_depth.java_concurrency_runtime.thread_pool_backpressure
+        version: 1
+        intent: opening
+        difficulty: standard
+        scenario_brief: 一个 Java 服务把外部调用放进线程池并行处理，流量升高后队列堆积、超时和拒绝同时出现。
+        question_stem: 你会如何分析并治理 Java 线程池队列堆积导致的接口超时问题？
+        prompt_template: 结合候选人的 Java 后端经验，生成一道并发运行时题，要求说明线程池参数、队列、拒绝策略、背压和监控。
+        scenario_skill_tags: [java, thread pool, queue, timeout, backpressure]
+        resume_anchor_hints: [java, thread pool, async, timeout, juc]
+        failure_categories: [missing_metrics, shallow_debugging, missing_tradeoff]
+        rubric_additions: [说明线程池参数含义, 说明队列水位和拒绝策略, 说明背压或降级边界]
+        expected_signals: [能分析吞吐和耗时关系, 能设置隔离线程池和队列上限, 能给出监控和告警指标]
+        anti_patterns: [无限扩大线程数, 使用无界队列, 忽略下游超时预算]
+        good_answer_hints: [先量化处理能力和排队时间, 再调参数与隔离, 最后增加背压和降级]
+        priority: 16
+        status: active
+      - id: technical_depth.java_concurrency_runtime.jvm_lock_contention
+        version: 1
+        intent: deep_probe
+        difficulty: deep_probe
+        scenario_brief: 高峰期接口 CPU 不高但响应很慢，线程栈显示大量线程等待同一把锁。
+        question_stem: 面对 Java 服务中的锁竞争和吞吐下降，你会如何定位、验证并改造？
+        prompt_template: 生成一道 Java 并发深挖题，要求候选人说明线程 dump、锁粒度、并发容器、数据一致性和回归验证。
+        scenario_skill_tags: [java, lock contention, jvm, juc, concurrency]
+        resume_anchor_hints: [java, jvm, lock, concurrency, thread dump]
+        failure_categories: [shallow_debugging, missing_metrics, missing_edge_case]
+        rubric_additions: [说明线程栈和锁等待证据, 说明锁粒度或并发结构改造, 说明一致性和压测验证]
+        expected_signals: [能用 jstack 或 profiler 定位阻塞, 能比较锁拆分与无锁结构, 能验证正确性和性能收益]
+        anti_patterns: [只凭感觉改 synchronized, 不验证并发正确性, 忽略异常路径释放资源]
+        good_answer_hints: [先拿线程栈证据, 再缩小锁范围或重构状态, 最后做并发测试和压测]
+        priority: 14
+        status: active
+
   - id: technical_depth.frontend_runtime_mechanics
     version: 1
     title: 前端运行时机制与性能取舍
     dimension: technical_depth
-    job_levels: [mid, senior, staff]
+    job_levels: [junior, mid, senior, staff]
     skill_tags: [frontend, javascript, browser, performance, rendering]
     direction_tags: [internet_tech]
     role_tags: [frontend_web]
@@ -55,7 +208,7 @@ seeds:
     version: 1
     title: SRE Linux 与 Kubernetes 基础深度
     dimension: technical_depth
-    job_levels: [mid, senior, staff]
+    job_levels: [junior, mid, senior, staff]
     skill_tags: [sre, linux, kubernetes, networking, observability]
     direction_tags: [internet_tech]
     role_tags: [sre]
@@ -105,7 +258,7 @@ seeds:
     version: 1
     title: Agent LLM 与工具边界
     dimension: technical_depth
-    job_levels: [mid, senior, staff]
+    job_levels: [junior, mid, senior, staff]
     skill_tags: [llm, agent, tool calling, rag, prompt]
     direction_tags: [internet_tech]
     role_tags: [ai_agent]
@@ -155,7 +308,7 @@ seeds:
     version: 1
     title: AI 全栈应用集成基础
     dimension: technical_depth
-    job_levels: [mid, senior]
+    job_levels: [junior, mid, senior]
     skill_tags: [ai fullstack, llm, react, python, api]
     direction_tags: [internet_tech]
     role_tags: [ai_fullstack]
@@ -205,7 +358,7 @@ seeds:
     version: 1
     title: 移动端运行时与生命周期
     dimension: technical_depth
-    job_levels: [mid, senior]
+    job_levels: [junior, mid, senior]
     skill_tags: [mobile, android, ios, flutter, lifecycle]
     direction_tags: [internet_tech]
     role_tags: [mobile]
@@ -255,7 +408,7 @@ seeds:
     version: 1
     title: 算法模型基础与工程实现
     dimension: technical_depth
-    job_levels: [mid, senior]
+    job_levels: [junior, mid, senior]
     skill_tags: [ai algorithm, model, pytorch, tensorflow, training]
     direction_tags: [internet_tech]
     role_tags: [ai_algorithm]
@@ -305,7 +458,7 @@ seeds:
     version: 1
     title: 算法评估指标与实验设计基础
     dimension: technical_depth
-    job_levels: [mid, senior]
+    job_levels: [junior, mid, senior]
     skill_tags: [ai algorithm, evaluation, metric, experiment, dataset]
     direction_tags: [internet_tech]
     role_tags: [ai_algorithm]

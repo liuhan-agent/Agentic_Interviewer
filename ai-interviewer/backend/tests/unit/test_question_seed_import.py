@@ -77,7 +77,7 @@ seeds:
     return path
 
 
-def test_import_question_seed_dir_imports_both_dimensions_and_normalizes_tags(
+def test_import_question_seed_dir_imports_supported_dimensions_and_normalizes_tags(
     tmp_path: Path,
 ) -> None:
     seed_dir = tmp_path / "question_seeds"
@@ -85,9 +85,9 @@ def test_import_question_seed_dir_imports_both_dimensions_and_normalizes_tags(
     _seed_file(seed_dir, "system_design")
     _seed_file(
         seed_dir,
-        "backend_systems",
-        seed_id="backend_systems.idempotent_api",
-        variant_id="backend_systems.idempotent_api.payment_retry",
+        "technical_depth",
+        seed_id="technical_depth.java_cache_internals",
+        variant_id="technical_depth.java_cache_internals.redis_consistency",
     )
 
     session_local = _session_factory()
@@ -101,7 +101,7 @@ def test_import_question_seed_dir_imports_both_dimensions_and_normalizes_tags(
     assert result.imported_variants == 2
     assert result.updated_seeds == 0
     assert result.updated_variants == 0
-    assert [seed.dimension for seed in seeds] == ["backend_systems", "system_design"]
+    assert [seed.dimension for seed in seeds] == ["system_design", "technical_depth"]
     assert seeds[1].skill_tags == ["redis_cache", "consistency"]
     assert seeds[1].direction_tags == ["internet_tech"]
     assert seeds[1].role_tags == ["java_backend"]
@@ -118,15 +118,15 @@ def test_import_question_seed_dir_fails_atomically_with_full_error_list(
     seed_dir.mkdir()
     _seed_file(seed_dir, "system_design")
 
-    duplicate_file = seed_dir / "backend_systems.yaml"
+    duplicate_file = seed_dir / "technical_depth.yaml"
     duplicate_file.write_text(
         """
-dimension: backend_systems
+dimension: technical_depth
 seeds:
   - id: system_design.cache_consistency
     version: 1
     title: 重复题
-    dimension: backend_systems
+    dimension: technical_depth
     job_levels: [senior]
     skill_tags: [api]
     direction_tags: [internet_tech]
@@ -177,7 +177,7 @@ def test_import_question_seed_dir_rejects_file_dimension_mismatch(
 ) -> None:
     seed_dir = tmp_path / "question_seeds"
     seed_dir.mkdir()
-    _seed_file(seed_dir, "system_design", file_name="backend_systems.yaml")
+    _seed_file(seed_dir, "system_design", file_name="technical_depth.yaml")
 
     session_local = _session_factory()
     with session_local() as sess:
@@ -200,6 +200,23 @@ def test_import_question_seed_dir_rejects_unsupported_yaml_file_name(
             import_question_seed_dir(seed_dir, session=sess)
 
     assert "unsupported question seed file" in "\n".join(exc.value.errors)
+
+
+def test_import_question_seed_dir_rejects_backend_systems_dimension(
+    tmp_path: Path,
+) -> None:
+    seed_dir = tmp_path / "question_seeds"
+    seed_dir.mkdir()
+    _seed_file(seed_dir, "backend_systems", file_name="backend_systems.yaml")
+
+    session_local = _session_factory()
+    with session_local() as sess:
+        with pytest.raises(QuestionSeedImportError) as exc:
+            import_question_seed_dir(seed_dir, session=sess)
+
+    message = "\n".join(exc.value.errors)
+    assert "unsupported question seed file" in message
+    assert "invalid dimension: backend_systems" in message
 
 
 def test_import_question_seed_dir_rejects_non_global_scope_in_p0(
@@ -353,21 +370,21 @@ def test_import_question_seed_dir_archive_missing_marks_absent_rows_archived(
     _seed_file(seed_dir, "system_design")
     _seed_file(
         seed_dir,
-        "backend_systems",
-        seed_id="backend_systems.idempotent_api",
-        variant_id="backend_systems.idempotent_api.payment_retry",
+        "technical_depth",
+        seed_id="technical_depth.java_idempotent_api",
+        variant_id="technical_depth.java_idempotent_api.payment_retry",
     )
 
     session_local = _session_factory()
     with session_local() as sess:
         import_question_seed_dir(seed_dir, session=sess)
-        (seed_dir / "backend_systems.yaml").unlink()
+        (seed_dir / "technical_depth.yaml").unlink()
 
         result = import_question_seed_dir(seed_dir, session=sess, archive_missing=True)
-        archived_seed = sess.get(QuestionSeed, "backend_systems.idempotent_api")
+        archived_seed = sess.get(QuestionSeed, "technical_depth.java_idempotent_api")
         archived_variant = sess.get(
             QuestionVariant,
-            "backend_systems.idempotent_api.payment_retry",
+            "technical_depth.java_idempotent_api.payment_retry",
         )
 
     assert result.archived_seeds == 1
@@ -436,7 +453,8 @@ def test_import_question_seed_dir_imports_bundled_p0_yaml() -> None:
 
     assert result.imported_seeds >= 10
     assert result.imported_variants >= 20
-    assert {"backend_systems", "system_design"}.issubset(
+    assert "backend_systems" not in {seed.dimension for seed in seeds}
+    assert {"system_design", "technical_depth", "problem_solving"}.issubset(
         {seed.dimension for seed in seeds}
     )
     assert all(seed.scope == "global" for seed in seeds)
@@ -446,6 +464,17 @@ def test_import_question_seed_dir_imports_bundled_p0_yaml() -> None:
     assert {"java_backend", "frontend_web", "sre"}.issubset(
         {role for seed in seeds for role in seed.role_tags}
     )
+    java_seeds = [seed for seed in seeds if "java_backend" in set(seed.role_tags or [])]
+    java_dimensions = {seed.dimension for seed in java_seeds}
+    assert {
+        "technical_depth",
+        "system_design",
+        "problem_solving",
+        "coding_quality",
+        "project_experience",
+        "communication",
+    }.issubset(java_dimensions)
+    assert all("junior" in set(seed.job_levels or []) for seed in java_seeds)
     assert all(variant.seed_id in {seed.id for seed in seeds} for variant in variants)
     active_counts = {
         seed.id: sum(
@@ -494,6 +523,81 @@ def test_import_question_seed_dir_imports_bundled_batch2_roles_and_dimensions() 
         for seed in seeds
     }
     assert all(count >= 2 for count in active_counts.values())
+
+
+def test_import_question_seed_dir_aligns_internet_tech_roles_to_mainline_catalogs() -> None:
+    seed_dir = Path(__file__).resolve().parents[2] / "knowledge" / "question_seeds"
+    role_catalogs = {
+        "frontend_web": {
+            "technical_depth",
+            "coding_quality",
+            "problem_solving",
+            "project_experience",
+            "product_thinking",
+            "communication",
+        },
+        "sre": {
+            "technical_depth",
+            "system_design",
+            "problem_solving",
+            "project_experience",
+            "communication",
+        },
+        "ai_fullstack": {
+            "technical_depth",
+            "system_design",
+            "product_thinking",
+            "project_experience",
+            "problem_solving",
+            "communication",
+        },
+        "ai_agent": {
+            "technical_depth",
+            "system_design",
+            "problem_solving",
+            "product_thinking",
+            "communication",
+        },
+        "mobile": {
+            "technical_depth",
+            "problem_solving",
+            "coding_quality",
+            "project_experience",
+            "communication",
+        },
+        "ai_algorithm": {
+            "technical_depth",
+            "problem_solving",
+            "project_experience",
+            "product_thinking",
+            "communication",
+        },
+        "architect": {
+            "system_design",
+            "technical_depth",
+            "leadership",
+            "problem_solving",
+            "communication",
+        },
+    }
+    non_architect_roles = set(role_catalogs) - {"architect"}
+
+    session_local = _session_factory()
+    with session_local() as sess:
+        import_question_seed_dir(seed_dir, session=sess)
+        seeds = list(sess.scalars(select(QuestionSeed).order_by(QuestionSeed.id)))
+
+    for role, catalog in role_catalogs.items():
+        role_seeds = [seed for seed in seeds if role in set(seed.role_tags or [])]
+        role_dimensions = {seed.dimension for seed in role_seeds if seed.status == "active"}
+        assert catalog <= role_dimensions, role
+        assert not (role_dimensions - catalog), role
+        if role in non_architect_roles:
+            assert all(
+                {"junior", "mid", "senior"} <= set(seed.job_levels or [])
+                for seed in role_seeds
+                if seed.status == "active"
+            ), role
 
 
 def test_import_question_seed_dir_imports_bundled_business1_roles_and_dimensions() -> None:
