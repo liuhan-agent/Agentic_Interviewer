@@ -254,3 +254,258 @@ seeds:
         good_answer_hints: [先定义复用层级, 再列平台差异, 最后做自动化和灰度]
         priority: 13
         status: active
+
+  - id: coding_quality.frontend_web_form_composition
+    version: 1
+    title: 复杂表单的组件抽象与状态隔离
+    dimension: coding_quality
+    job_levels: [junior, mid, senior]
+    skill_tags: [frontend, form, component, state isolation, validation]
+    direction_tags: [internet_tech]
+    role_tags: [frontend_web]
+    rubric:
+      must_cover: [组件抽象, 状态隔离, 校验链路, 可测试性]
+      minimum_bar: 能说明复杂表单的组件分解与校验设计。
+      stretch: 能结合 react-hook-form / formik / 自研方案做对比与可维护性优化。
+    priority: 24
+    status: active
+    source: manual_yaml
+    scope: global
+    language: zh-CN
+    variants:
+      - id: coding_quality.frontend_web_form_composition.layered_design
+        version: 1
+        intent: opening
+        difficulty: standard
+        scenario_brief: 后台一个采购申请表单含 80 个字段、跨多个 tab、有联动逻辑。
+        question_stem: 你会如何抽象组件、隔离状态并保证表单可维护？
+        prompt_template: 结合候选人的前端 / 组件设计经验，生成一道代码质量题，要求说明表单架构。
+        scenario_skill_tags: [frontend, form, composition, validation]
+        resume_anchor_hints: [frontend, form, react, validation, composition]
+        failure_categories: [missing_action, missing_edge_case, missing_tradeoff]
+        rubric_additions: [说明组件分层, 说明状态隔离, 说明校验链路]
+        expected_signals: [能抽出字段级/区块级/表单级组件, 能让局部状态不污染全局, 能定义校验执行时机]
+        anti_patterns: [大表单一个组件, 全状态放最外层, 校验全在提交时]
+        good_answer_hints: [先分层, 再隔离, 最后校验]
+        priority: 13
+        status: active
+      - id: coding_quality.frontend_web_form_composition.dynamic_field
+        version: 1
+        intent: deep_probe
+        difficulty: deep_probe
+        scenario_brief: 业务方需要按条件动态展示 / 隐藏 / 启用字段，且每次改动都要保留已填数据。
+        question_stem: 如果表单字段需要动态变化且不能丢失用户已填数据，你会如何设计组件契约？
+        prompt_template: 生成一道动态表单深挖题，要求候选人说明字段状态保留、依赖图与校验。
+        scenario_skill_tags: [frontend, dynamic form, field dependency, validation]
+        resume_anchor_hints: [frontend, dynamic form, field dependency, react]
+        failure_categories: [missing_edge_case, missing_consistency_boundary, shallow_debugging]
+        rubric_additions: [说明字段依赖图, 说明状态保留策略, 说明动态校验]
+        expected_signals: [能维护字段依赖图, 能隔离卸载字段的值, 能动态启用校验规则]
+        anti_patterns: [字段卸载丢值, 全表单刷新, 校验规则硬编码]
+        good_answer_hints: [先建依赖图, 再保留状态, 最后动态校验]
+        priority: 11
+        status: active
+
+  - id: coding_quality.frontend_web_type_contract
+    version: 1
+    title: TypeScript 组件契约与前端代码可维护性
+    dimension: coding_quality
+    job_levels: [junior, mid, senior]
+    skill_tags: [frontend, typescript, component contract, maintainability]
+    direction_tags: [internet_tech]
+    role_tags: [frontend_web]
+    rubric:
+      must_cover: [类型契约, 公共/私有边界, 文档与示例, 演进策略]
+      minimum_bar: 能用 TypeScript 表达清晰的组件契约。
+      stretch: 能用 utility types、模板字面量类型与 contract test 做长期维护。
+    priority: 22
+    status: active
+    source: manual_yaml
+    scope: global
+    language: zh-CN
+    variants:
+      - id: coding_quality.frontend_web_type_contract.public_api
+        version: 1
+        intent: opening
+        difficulty: standard
+        scenario_brief: 公司前端组件库被 20+ 业务团队使用，反馈 props 太乱、文档跟不上。
+        question_stem: 你会如何用 TypeScript 设计清晰的组件契约提升可维护性？
+        prompt_template: 结合候选人的前端 / TypeScript 经验，生成一道代码质量题，要求说明契约与维护。
+        scenario_skill_tags: [frontend, typescript, component, contract]
+        resume_anchor_hints: [frontend, typescript, component, library, contract]
+        failure_categories: [missing_action, missing_tradeoff, shallow_debugging]
+        rubric_additions: [说明 props 分组, 说明默认值与必传, 说明文档生成]
+        expected_signals: [能分组 props（外观/行为/数据）, 能用 discriminated union 表达变体, 能自动生成文档]
+        anti_patterns: [所有 props 全 optional, 没分组, 手工维护文档]
+        good_answer_hints: [先分组 props, 再定必传, 最后自动文档]
+        priority: 11
+        status: active
+      - id: coding_quality.frontend_web_type_contract.evolution
+        version: 1
+        intent: deep_probe
+        difficulty: deep_probe
+        scenario_brief: 旧组件 API 想去掉某些 props，但下游团队大量在用。
+        question_stem: 如果要演进组件 API 又不能破坏下游，你会如何用类型系统辅助迁移？
+        prompt_template: 生成一道组件 API 演进深挖题，要求候选人说明 deprecation、过渡期与回归。
+        scenario_skill_tags: [frontend, typescript, api evolution, deprecation]
+        resume_anchor_hints: [frontend, typescript, deprecation, migration, library]
+        failure_categories: [missing_action, missing_observability, missing_tradeoff]
+        rubric_additions: [说明 deprecation 类型, 说明编译期警告, 说明使用度监控]
+        expected_signals: [能在类型上加 @deprecated, 能用编译期警告引导迁移, 能监控旧 API 使用度]
+        anti_patterns: [直接删 props, 没迁移期, 不监控使用度]
+        good_answer_hints: [先标 deprecation, 再过渡期, 最后看监控下线]
+        priority: 10
+        status: active
+
+  - id: coding_quality.frontend_web_testing_strategy
+    version: 1
+    title: 前端测试金字塔：单测 / 集成 / E2E 边界
+    dimension: coding_quality
+    job_levels: [junior, mid, senior]
+    skill_tags: [frontend, testing, unit test, integration test, e2e]
+    direction_tags: [internet_tech]
+    role_tags: [frontend_web]
+    rubric:
+      must_cover: [测试金字塔, 工具选择, mock 策略, CI 集成]
+      minimum_bar: 能区分前端单测 / 集成 / E2E 的职责。
+      stretch: 能结合 visual regression / contract test / coverage 形成完整策略。
+    priority: 21
+    status: active
+    source: manual_yaml
+    scope: global
+    language: zh-CN
+    variants:
+      - id: coding_quality.frontend_web_testing_strategy.pyramid
+        version: 1
+        intent: opening
+        difficulty: standard
+        scenario_brief: 团队前端代码无测试，常出现 regression，业务方抱怨"小修小补总有连锁问题"。
+        question_stem: 你会如何为前端项目搭建测试金字塔并提升回归保护？
+        prompt_template: 结合候选人的前端测试经验，生成一道代码质量题，要求说明测试策略。
+        scenario_skill_tags: [frontend, testing, pyramid, ci]
+        resume_anchor_hints: [frontend, testing, jest, vitest, playwright]
+        failure_categories: [missing_action, missing_metrics, missing_tradeoff]
+        rubric_additions: [说明三层分工, 说明工具选择, 说明 CI 集成]
+        expected_signals: [能区分单测/集成/E2E 适用范围, 能合理选工具, 能用 coverage / 回归监控]
+        anti_patterns: [全 E2E 跑慢, 全单测覆盖不足, 没 CI 集成]
+        good_answer_hints: [先分层, 再选工具, 最后接 CI]
+        priority: 10
+        status: active
+      - id: coding_quality.frontend_web_testing_strategy.flaky_test
+        version: 1
+        intent: deep_probe
+        difficulty: deep_probe
+        scenario_brief: E2E 测试 30% 概率 flaky，团队怀疑要不要保留。
+        question_stem: 如果 E2E flaky 严重，你会如何在工程上判断保留 / 修复 / 替换？
+        prompt_template: 生成一道 E2E flaky 治理深挖题，要求候选人说明根因分类与替代方案。
+        scenario_skill_tags: [frontend, e2e, flaky test, ci, root cause]
+        resume_anchor_hints: [frontend, e2e, flaky, ci, test]
+        failure_categories: [shallow_debugging, missing_action, missing_metrics]
+        rubric_additions: [说明 flaky 根因分类, 说明保留/修复/替换决策, 说明 quarantine 机制]
+        expected_signals: [能区分环境/时序/数据三类 flaky 根因, 能用 quarantine 隔离, 能用对照实验决定保留]
+        anti_patterns: [全部禁用 E2E, 一直跑红失去 CI 意义, 不分类根因]
+        good_answer_hints: [先分类根因, 再 quarantine, 最后决定]
+        priority: 9
+        status: active
+
+  - id: coding_quality.mobile_modularization
+    version: 1
+    title: 移动端模块化与组件复用设计
+    dimension: coding_quality
+    job_levels: [junior, mid, senior]
+    skill_tags: [mobile, modularization, component, reuse, architecture]
+    direction_tags: [internet_tech]
+    role_tags: [mobile]
+    rubric:
+      must_cover: [模块边界, 通信机制, 依赖管理, 演进策略]
+      minimum_bar: 能给移动端项目设计模块化结构。
+      stretch: 能用 monorepo / 二进制依赖 / contract test 保证长期可维护。
+    priority: 21
+    status: active
+    source: manual_yaml
+    scope: global
+    language: zh-CN
+    variants:
+      - id: coding_quality.mobile_modularization.boundary
+        version: 1
+        intent: opening
+        difficulty: standard
+        scenario_brief: 一个移动应用代码已经 30 万行，团队想做模块化但担心改动巨大。
+        question_stem: 你会如何系统化推进移动端模块化与组件复用？
+        prompt_template: 结合候选人的移动端 / 架构经验，生成一道代码质量题，要求说明模块化。
+        scenario_skill_tags: [mobile, modularization, architecture, refactor]
+        resume_anchor_hints: [mobile, modularization, architecture, refactor]
+        failure_categories: [missing_action, missing_tradeoff, missing_consistency_boundary]
+        rubric_additions: [说明模块边界, 说明通信机制, 说明演进策略]
+        expected_signals: [能按业务/能力划模块, 能用路由/事件通信, 能给渐进迁移路径]
+        anti_patterns: [一次大重构, 模块互相强耦合, 没演进规划]
+        good_answer_hints: [先分边界, 再定通信, 最后渐进迁移]
+        priority: 9
+        status: active
+      - id: coding_quality.mobile_modularization.binary_dep
+        version: 1
+        intent: deep_probe
+        difficulty: deep_probe
+        scenario_brief: 编译时间长达 15 分钟，团队想用二进制依赖优化构建。
+        question_stem: 如果用二进制依赖管理模块，你会如何在工程上保证一致性？
+        prompt_template: 生成一道模块二进制依赖深挖题，要求候选人说明版本管理与一致性。
+        scenario_skill_tags: [mobile, binary dep, versioning, build]
+        resume_anchor_hints: [mobile, binary, version, build]
+        failure_categories: [missing_action, missing_consistency_boundary, missing_observability]
+        rubric_additions: [说明版本策略, 说明 ABI 兼容, 说明回滚机制]
+        expected_signals: [能定语义化版本, 能用 ABI 检查兼容, 能给回滚]
+        anti_patterns: [无版本管理, 不查 ABI, 没回滚]
+        good_answer_hints: [先版本, 再兼容, 最后回滚]
+        priority: 7
+        status: active
+
+  - id: coding_quality.mobile_testing_strategy
+    version: 1
+    title: 移动端单元测试与 UI 测试的边界
+    dimension: coding_quality
+    job_levels: [junior, mid, senior]
+    skill_tags: [mobile, testing, unit test, ui test, espresso]
+    direction_tags: [internet_tech]
+    role_tags: [mobile]
+    rubric:
+      must_cover: [测试金字塔, 工具选择, mock 策略, CI 集成]
+      minimum_bar: 能为移动端项目搭建测试金字塔。
+      stretch: 能结合契约测试 / 真机测试 / 截图测试形成完整保护。
+    priority: 19
+    status: active
+    source: manual_yaml
+    scope: global
+    language: zh-CN
+    variants:
+      - id: coding_quality.mobile_testing_strategy.pyramid
+        version: 1
+        intent: opening
+        difficulty: standard
+        scenario_brief: 团队移动端项目几乎无测试，常出现 regression。
+        question_stem: 你会如何为移动端项目搭建测试金字塔？
+        prompt_template: 结合候选人的移动端测试经验，生成一道代码质量题，要求说明测试策略。
+        scenario_skill_tags: [mobile, testing, pyramid, ci]
+        resume_anchor_hints: [mobile, testing, junit, xctest, espresso]
+        failure_categories: [missing_action, missing_metrics, missing_tradeoff]
+        rubric_additions: [说明三层分工, 说明工具选择, 说明 CI 集成]
+        expected_signals: [能区分单测/UI/E2E 适用范围, 能合理选工具, 能用 coverage / 回归监控]
+        anti_patterns: [全 UI 测试跑慢, 全单测覆盖不足, 没 CI 集成]
+        good_answer_hints: [先分层, 再选工具, 最后接 CI]
+        priority: 8
+        status: active
+      - id: coding_quality.mobile_testing_strategy.flaky_ui
+        version: 1
+        intent: deep_probe
+        difficulty: deep_probe
+        scenario_brief: UI 测试在 CI 上 flaky 严重，团队怀疑要不要保留。
+        question_stem: 如果移动端 UI 测试 flaky 严重，你会如何治理？
+        prompt_template: 生成一道 UI 测试 flaky 治理深挖题，要求候选人说明根因与替代。
+        scenario_skill_tags: [mobile, ui test, flaky, debugging]
+        resume_anchor_hints: [mobile, ui test, flaky, ci]
+        failure_categories: [shallow_debugging, missing_action, missing_metrics]
+        rubric_additions: [说明根因分类, 说明 quarantine 机制, 说明替代方案]
+        expected_signals: [能区分环境/时序/数据三类 flaky 根因, 能用 quarantine 隔离, 能给截图/快照测试替代]
+        anti_patterns: [全禁用 UI 测试, 不分根因, 不替代]
+        good_answer_hints: [先分类根因, 再 quarantine, 最后替代]
+        priority: 6
+        status: active

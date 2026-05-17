@@ -912,3 +912,309 @@ seeds:
         good_answer_hints: [先识别长尾, 再适配, 最后验证]
         priority: 10
         status: active
+
+  - id: problem_solving.frontend_web_white_screen
+    version: 1
+    title: 线上白屏与内存泄漏的快速定位
+    dimension: problem_solving
+    job_levels: [junior, mid, senior]
+    skill_tags: [frontend, white screen, memory leak, debugging, monitoring]
+    direction_tags: [internet_tech]
+    role_tags: [frontend_web]
+    rubric:
+      must_cover: [现象观察, 根因分类, 止血动作, 长期修复]
+      minimum_bar: 能在线上白屏 / 内存泄漏时快速止血与定位。
+      stretch: 能结合 sentry / 性能监控 / 真实用户分析形成长期闭环。
+    priority: 22
+    status: active
+    source: manual_yaml
+    scope: global
+    language: zh-CN
+    variants:
+      - id: problem_solving.frontend_web_white_screen.triage
+        version: 1
+        intent: opening
+        difficulty: standard
+        scenario_brief: 用户反馈某活动页加载后白屏，监控显示 JS 异常率突增。
+        question_stem: 你会如何系统化定位 / 止血 / 修复线上白屏问题？
+        prompt_template: 结合候选人的前端 / 监控经验，生成一道问题解决题，要求说明三段处理。
+        scenario_skill_tags: [frontend, white screen, debugging, monitoring]
+        resume_anchor_hints: [frontend, white screen, sentry, monitoring]
+        failure_categories: [shallow_debugging, missing_action, missing_observability]
+        rubric_additions: [说明现场观察, 说明根因分类, 说明长期修复]
+        expected_signals: [能用 sentry / 资源监控定位, 能用 fallback / 灰度回滚止血, 能补回归用例]
+        anti_patterns: [直接刷新缓存, 不分类根因, 没回归]
+        good_answer_hints: [先看监控, 再快速止血, 最后回归]
+        priority: 11
+        status: active
+      - id: problem_solving.frontend_web_white_screen.memory_leak
+        version: 1
+        intent: deep_probe
+        difficulty: deep_probe
+        scenario_brief: 一个长时间不刷新的管理页面在使用 2 小时后出现明显卡顿，浏览器内存涨到 1.5GB。
+        question_stem: 如果怀疑前端内存泄漏，你会如何用工具定位并系统化修复？
+        prompt_template: 生成一道前端内存泄漏深挖题，要求候选人说明 Chrome devtools 用法与修复。
+        scenario_skill_tags: [frontend, memory leak, devtools, profiling]
+        resume_anchor_hints: [frontend, memory, devtools, profiling]
+        failure_categories: [shallow_debugging, missing_metrics, missing_action]
+        rubric_additions: [说明工具使用, 说明常见泄漏来源, 说明回归验证]
+        expected_signals: [能用 heap snapshot 比对找泄漏, 能识别闭包/事件/定时器泄漏, 能用回归脚本验证]
+        anti_patterns: [只升级浏览器, 不用工具, 不做回归]
+        good_answer_hints: [先工具定位, 再修常见泄漏, 最后回归]
+        priority: 9
+        status: active
+
+  - id: problem_solving.frontend_web_cross_browser
+    version: 1
+    title: 跨浏览器 / 跨设备兼容性问题的系统化诊断
+    dimension: problem_solving
+    job_levels: [junior, mid, senior]
+    skill_tags: [frontend, cross browser, compatibility, devtools, testing]
+    direction_tags: [internet_tech]
+    role_tags: [frontend_web]
+    rubric:
+      must_cover: [问题分类, 现场复现, 修复策略, 长期保护]
+      minimum_bar: 能识别跨浏览器兼容性问题的常见类型并系统定位。
+      stretch: 能建立兼容性测试矩阵与 polyfill 策略。
+    priority: 20
+    status: active
+    source: manual_yaml
+    scope: global
+    language: zh-CN
+    variants:
+      - id: problem_solving.frontend_web_cross_browser.diagnosis
+        version: 1
+        intent: opening
+        difficulty: standard
+        scenario_brief: 用户反馈某低端 Android 浏览器上无法登录，但 Chrome 桌面端一切正常。
+        question_stem: 你会如何系统化诊断跨浏览器 / 跨设备兼容性问题？
+        prompt_template: 结合候选人的前端 / 兼容经验，生成一道问题解决题，要求说明诊断与修复。
+        scenario_skill_tags: [frontend, cross browser, compatibility, debugging]
+        resume_anchor_hints: [frontend, cross browser, h5, mobile, compatibility]
+        failure_categories: [shallow_debugging, missing_action, missing_edge_case]
+        rubric_additions: [说明问题分类, 说明现场复现, 说明修复策略]
+        expected_signals: [能区分 API / 样式 / 网络兼容差异, 能用远程调试复现, 能选 polyfill / 渐进增强]
+        anti_patterns: [只在桌面 Chrome 测, 不复现, 全 polyfill]
+        good_answer_hints: [先分类, 再复现, 最后选修复]
+        priority: 10
+        status: active
+      - id: problem_solving.frontend_web_cross_browser.test_matrix
+        version: 1
+        intent: deep_probe
+        difficulty: deep_probe
+        scenario_brief: 团队希望长期防止"上线后某老设备出问题才发现"的情况。
+        question_stem: 如果要建立长期兼容性保护，你会如何设计测试矩阵和持续监控？
+        prompt_template: 生成一道前端兼容性长期保护深挖题，要求候选人说明矩阵与监控。
+        scenario_skill_tags: [frontend, cross browser, test matrix, monitoring]
+        resume_anchor_hints: [frontend, test matrix, browserstack, monitoring]
+        failure_categories: [missing_action, missing_metrics, missing_observability]
+        rubric_additions: [说明矩阵覆盖, 说明真机/云测组合, 说明监控告警]
+        expected_signals: [能定义重点设备/浏览器矩阵, 能结合真机与云测, 能用真实用户监控发现新问题]
+        anti_patterns: [全靠 manual QA, 只测主流, 不监控真实用户]
+        good_answer_hints: [先定矩阵, 再选工具, 最后接监控]
+        priority: 8
+        status: active
+
+  - id: problem_solving.sre_5xx_surge
+    version: 1
+    title: 线上 5xx 暴涨的应急定位与止血
+    dimension: problem_solving
+    job_levels: [junior, mid, senior]
+    skill_tags: [sre, incident, 5xx, debugging, firefighting]
+    direction_tags: [internet_tech]
+    role_tags: [sre]
+    rubric:
+      must_cover: [应急流程, 现场观察, 止血动作, 复盘]
+      minimum_bar: 能在 5xx 暴涨时快速止血并归因。
+      stretch: 能建立完整应急 SOP 与改进闭环。
+    priority: 22
+    status: active
+    source: manual_yaml
+    scope: global
+    language: zh-CN
+    variants:
+      - id: problem_solving.sre_5xx_surge.firefighting
+        version: 1
+        intent: opening
+        difficulty: standard
+        scenario_brief: 凌晨 3 点收到告警：核心订单服务 5xx 比例从 0.1% 飙到 12%。
+        question_stem: 你会如何快速定位与止血这次 5xx 暴涨？
+        prompt_template: 结合候选人的 SRE / 应急经验，生成一道问题解决题，要求说明应急流程。
+        scenario_skill_tags: [sre, incident, 5xx, firefighting]
+        resume_anchor_hints: [sre, incident, 5xx, firefighting, sop]
+        failure_categories: [shallow_debugging, missing_action, missing_observability]
+        rubric_additions: [说明应急流程, 说明现场观察, 说明止血动作]
+        expected_signals: [能立即降级或限流止血, 能用 trace/log 定位, 能在事后做复盘]
+        anti_patterns: [先查代码不止血, 不通知 stakeholders, 没复盘]
+        good_answer_hints: [先止血, 再定位, 最后复盘]
+        priority: 11
+        status: active
+      - id: problem_solving.sre_5xx_surge.cascading
+        version: 1
+        intent: deep_probe
+        difficulty: deep_probe
+        scenario_brief: 止血后复盘发现根因是上游一个非核心服务超时引发雪崩。
+        question_stem: 如果根因是雪崩式失败，你会如何在系统层面预防？
+        prompt_template: 生成一道雪崩预防深挖题，要求候选人说明熔断 / 限流 / 隔离设计。
+        scenario_skill_tags: [sre, cascading failure, circuit breaker, rate limit]
+        resume_anchor_hints: [sre, cascading, circuit breaker, rate limit, bulkhead]
+        failure_categories: [missing_action, missing_failure_mode, missing_observability]
+        rubric_additions: [说明熔断设计, 说明限流策略, 说明依赖隔离]
+        expected_signals: [能设计熔断阈值与恢复, 能用限流防雪崩, 能用 bulkhead 隔离依赖]
+        anti_patterns: [只重启服务, 无熔断, 不做隔离]
+        good_answer_hints: [先熔断, 再限流, 最后隔离]
+        priority: 9
+        status: active
+
+  - id: problem_solving.sre_tail_latency
+    version: 1
+    title: 长尾延迟（P99）异常的分层归因
+    dimension: problem_solving
+    job_levels: [junior, mid, senior]
+    skill_tags: [sre, tail latency, p99, debugging, tracing]
+    direction_tags: [internet_tech]
+    role_tags: [sre]
+    rubric:
+      must_cover: [指标识别, 链路追踪, 根因分类, 优化方向]
+      minimum_bar: 能在 P99 延迟上升时系统化归因。
+      stretch: 能从应用 / 中间件 / 网络 / 基础设施四层定位。
+    priority: 20
+    status: active
+    source: manual_yaml
+    scope: global
+    language: zh-CN
+    variants:
+      - id: problem_solving.sre_tail_latency.diagnosis
+        version: 1
+        intent: opening
+        difficulty: standard
+        scenario_brief: 用户反馈某接口偶尔出现 3 秒以上响应，P50 正常但 P99 异常。
+        question_stem: 你会如何系统化归因 P99 长尾延迟？
+        prompt_template: 结合候选人的 SRE / 性能经验，生成一道问题解决题，要求说明分层归因。
+        scenario_skill_tags: [sre, tail latency, p99, tracing]
+        resume_anchor_hints: [sre, tail latency, p99, tracing, debugging]
+        failure_categories: [shallow_debugging, missing_metrics, missing_action]
+        rubric_additions: [说明指标识别, 说明链路追踪, 说明根因分类]
+        expected_signals: [能区分 P50/P99 含义, 能用 trace 定位慢段, 能分应用/中间件/网络四层]
+        anti_patterns: [只看 P50, 没 trace, 不分层]
+        good_answer_hints: [先看指标, 再 trace, 最后分层]
+        priority: 9
+        status: active
+      - id: problem_solving.sre_tail_latency.gc_jitter
+        version: 1
+        intent: deep_probe
+        difficulty: deep_probe
+        scenario_brief: 进一步定位发现是 GC pause 偶发 200ms 引起。
+        question_stem: 如果长尾源自 GC pause / JIT / 调度抖动等运行时因素，你会如何优化？
+        prompt_template: 生成一道运行时长尾深挖题，要求候选人说明运行时调优。
+        scenario_skill_tags: [sre, gc, runtime, latency tuning]
+        resume_anchor_hints: [sre, gc, runtime, latency, jvm]
+        failure_categories: [missing_action, missing_tradeoff, missing_metrics]
+        rubric_additions: [说明运行时分类, 说明调优手段, 说明回归监控]
+        expected_signals: [能区分 GC/JIT/调度抖动, 能选合适 GC / 调度策略, 能用回归监控验证]
+        anti_patterns: [换硬件, 不调 GC, 不监控]
+        good_answer_hints: [先分类, 再调运行时, 最后监控]
+        priority: 7
+        status: active
+
+  - id: problem_solving.mobile_crash_attribution
+    version: 1
+    title: 移动端崩溃栈的分类与归因
+    dimension: problem_solving
+    job_levels: [junior, mid, senior]
+    skill_tags: [mobile, crash, attribution, debugging, monitoring]
+    direction_tags: [internet_tech]
+    role_tags: [mobile]
+    rubric:
+      must_cover: [崩溃类型, 归因路径, 修复优先级, 长期保护]
+      minimum_bar: 能对移动端崩溃做系统化分类归因。
+      stretch: 能结合 Crashlytics / Bugly / 自研监控形成完整闭环。
+    priority: 22
+    status: active
+    source: manual_yaml
+    scope: global
+    language: zh-CN
+    variants:
+      - id: problem_solving.mobile_crash_attribution.triage
+        version: 1
+        intent: opening
+        difficulty: standard
+        scenario_brief: 监控显示 v3.4.0 上线后崩溃率从 0.3% 飙到 2.1%。
+        question_stem: 你会如何快速对崩溃做分类、归因、优先级排序？
+        prompt_template: 结合候选人的移动端 / 监控经验，生成一道问题解决题，要求说明崩溃归因。
+        scenario_skill_tags: [mobile, crash, attribution, debugging]
+        resume_anchor_hints: [mobile, crash, bugly, crashlytics]
+        failure_categories: [shallow_debugging, missing_action, missing_metrics]
+        rubric_additions: [说明崩溃类型, 说明归因路径, 说明优先级排序]
+        expected_signals: [能区分 native / JVM / OOM / ANR 等类型, 能用堆栈聚类归因, 能按用户影响排序优先级]
+        anti_patterns: [一律重启, 不聚类, 没优先级]
+        good_answer_hints: [先分类, 再归因, 最后排优先级]
+        priority: 10
+        status: active
+      - id: problem_solving.mobile_crash_attribution.silent_anr
+        version: 1
+        intent: deep_probe
+        difficulty: deep_probe
+        scenario_brief: 部分崩溃没有有效堆栈，只能看到 ANR 时间点。
+        question_stem: 如果崩溃缺少完整堆栈或是 ANR，你会如何系统化定位？
+        prompt_template: 生成一道 ANR / 静默崩溃深挖题，要求候选人说明高级定位方法。
+        scenario_skill_tags: [mobile, anr, native crash, profiling, advanced]
+        resume_anchor_hints: [mobile, anr, native crash, profiling]
+        failure_categories: [shallow_debugging, missing_action, missing_observability]
+        rubric_additions: [说明 ANR 类型, 说明额外采集, 说明回归保护]
+        expected_signals: [能区分 input/service/broadcast ANR, 能用 systrace/perfetto 等深度采集, 能加守护代码避免复发]
+        anti_patterns: [只看 logcat, 不深度采集, 不补保护]
+        good_answer_hints: [先分类 ANR, 再深度采集, 最后补保护]
+        priority: 8
+        status: active
+
+  - id: problem_solving.mobile_jank_optimization
+    version: 1
+    title: 主线程卡顿 / 帧率掉档的优化路径
+    dimension: problem_solving
+    job_levels: [junior, mid, senior]
+    skill_tags: [mobile, jank, fps, main thread, profiling]
+    direction_tags: [internet_tech]
+    role_tags: [mobile]
+    rubric:
+      must_cover: [指标识别, 工具使用, 根因分类, 优化策略]
+      minimum_bar: 能在主线程卡顿 / 帧率掉档时系统化优化。
+      stretch: 能从布局 / 异步 / 内存等多维度系统优化。
+    priority: 20
+    status: active
+    source: manual_yaml
+    scope: global
+    language: zh-CN
+    variants:
+      - id: problem_solving.mobile_jank_optimization.fps_diagnosis
+        version: 1
+        intent: opening
+        difficulty: standard
+        scenario_brief: 一个长列表滑动时帧率从 60 掉到 25，用户体验明显卡顿。
+        question_stem: 你会如何系统化定位与优化主线程卡顿？
+        prompt_template: 结合候选人的移动端 / 性能经验，生成一道问题解决题，要求说明卡顿优化。
+        scenario_skill_tags: [mobile, jank, fps, profiling]
+        resume_anchor_hints: [mobile, jank, fps, profiling]
+        failure_categories: [shallow_debugging, missing_metrics, missing_action]
+        rubric_additions: [说明指标识别, 说明工具使用, 说明优化方向]
+        expected_signals: [能用 systrace/instruments 定位, 能区分布局/异步/IO 三类卡顿, 能给可量化优化]
+        anti_patterns: [只升级硬件, 没工具, 不分根因]
+        good_answer_hints: [先识别指标, 再工具定位, 最后优化]
+        priority: 9
+        status: active
+      - id: problem_solving.mobile_jank_optimization.long_term
+        version: 1
+        intent: deep_probe
+        difficulty: deep_probe
+        scenario_brief: 团队希望长期监控并防止卡顿回归。
+        question_stem: 如果要长期防止卡顿回归，你会如何在工程上守护？
+        prompt_template: 生成一道卡顿长期治理深挖题，要求候选人说明 CI 守护与监控。
+        scenario_skill_tags: [mobile, jank, regression, ci, monitoring]
+        resume_anchor_hints: [mobile, jank, regression, monitoring]
+        failure_categories: [missing_action, missing_metrics, missing_observability]
+        rubric_additions: [说明性能预算, 说明 CI 守护, 说明真实用户监控]
+        expected_signals: [能定性能预算, 能用 CI benchmark 守护, 能用真机/真实用户监控发现回归]
+        anti_patterns: [只看本地数据, 无 CI 守护, 无真实监控]
+        good_answer_hints: [先定预算, 再 CI 守护, 最后监控]
+        priority: 7
+        status: active

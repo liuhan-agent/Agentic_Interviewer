@@ -611,3 +611,156 @@ seeds:
         good_answer_hints: [先讲边界, 再给保障, 最后建信任]
         priority: 7
         status: active
+
+  - id: communication.frontend_web_cross_role_alignment_round2
+    version: 1
+    title: 与后端 / 设计 / 产品对齐前端方案
+    dimension: communication
+    job_levels: [junior, mid, senior]
+    skill_tags: [frontend, communication, alignment, design, backend]
+    direction_tags: [internet_tech]
+    role_tags: [frontend_web]
+    rubric:
+      must_cover: [对齐场景, 多方关注, 共识机制, 落地动作]
+      minimum_bar: 能与后端 / 设计 / 产品对齐前端方案。
+      stretch: 能用 prototype / 对照演示降低分歧。
+    priority: 18
+    status: active
+    source: manual_yaml
+    scope: global
+    language: zh-CN
+    variants:
+      - id: communication.frontend_web_cross_role_alignment_round2.shared_consensus
+        version: 1
+        intent: opening
+        difficulty: standard
+        scenario_brief: 一个新页面后端 / 设计 / 产品三方对实现方式有分歧。
+        question_stem: 你会如何对齐三方并推动前端方案落地？
+        prompt_template: 结合候选人的前端 / 跨团队经验，生成一道沟通题，要求说明对齐路径。
+        scenario_skill_tags: [frontend, communication, alignment, cross-team]
+        resume_anchor_hints: [frontend, communication, alignment, cross-team]
+        failure_categories: [missing_action, shallow_debugging, missing_tradeoff]
+        rubric_additions: [说明各方关注, 说明共识机制, 说明落地动作]
+        expected_signals: [能识别三方核心关注, 能用 prototype / 对照降低分歧, 能给落地动作]
+        anti_patterns: [自己定方案不沟通, 全靠会议拉扯, 没落地动作]
+        good_answer_hints: [先识别关注, 再用 demo 对齐, 最后定动作]
+        priority: 9
+        status: active
+      - id: communication.frontend_web_cross_role_alignment_round2.timeline_risk
+        version: 1
+        intent: recovery
+        difficulty: standard
+        scenario_brief: 项目接近 deadline 时，前端发现某个设计稿无法在期限内还原。
+        question_stem: 如果前端方案落地有时间风险，你会如何与设计 / 产品沟通调整？
+        prompt_template: 生成一道前端时间风险沟通深挖题，要求候选人说明替代方案与共识。
+        scenario_skill_tags: [frontend, communication, risk, alternative]
+        resume_anchor_hints: [frontend, communication, risk, alternative]
+        failure_categories: [missing_action, missing_tradeoff, missing_edge_case]
+        rubric_additions: [说明风险识别, 说明替代方案, 说明对齐沟通]
+        expected_signals: [能提前识别风险, 能给至少 2 个替代方案, 能与对方共识取舍]
+        anti_patterns: [硬扛上线, 偷偷阉割, 不沟通]
+        good_answer_hints: [先识别风险, 再列替代, 最后共识]
+        priority: 7
+        status: active
+
+  - id: communication.sre_stability_governance
+    version: 1
+    title: 跨研发 / 业务团队推动稳定性治理
+    dimension: communication
+    job_levels: [junior, mid, senior]
+    skill_tags: [sre, communication, governance, stability, alignment]
+    direction_tags: [internet_tech]
+    role_tags: [sre]
+    rubric:
+      must_cover: [对齐场景, 推动机制, 价值翻译, 落地动作]
+      minimum_bar: 能跨研发 / 业务推动稳定性治理。
+      stretch: 能用数据 / EB / SLO 等机制推动跨团队投入。
+    priority: 18
+    status: active
+    source: manual_yaml
+    scope: global
+    language: zh-CN
+    variants:
+      - id: communication.sre_stability_governance.alignment
+        version: 1
+        intent: opening
+        difficulty: standard
+        scenario_brief: 业务团队不愿意在稳定性投入资源，认为"出问题再说"。
+        question_stem: 你会如何跨研发 / 业务团队推动稳定性治理投入？
+        prompt_template: 结合候选人的 SRE / 跨团队经验，生成一道沟通题，要求说明推动路径。
+        scenario_skill_tags: [sre, communication, governance, alignment]
+        resume_anchor_hints: [sre, communication, governance, alignment]
+        failure_categories: [missing_action, shallow_debugging, missing_tradeoff]
+        rubric_additions: [说明对齐场景, 说明推动机制, 说明价值翻译]
+        expected_signals: [能用业务损失/成本数据说话, 能用 SLO / EB 推动决策, 能落地具体动作]
+        anti_patterns: [只用技术语言, 没数据, 没动作]
+        good_answer_hints: [先用数据, 再用机制, 最后落动作]
+        priority: 8
+        status: active
+      - id: communication.sre_stability_governance.escalation
+        version: 1
+        intent: recovery
+        difficulty: standard
+        scenario_brief: 一次重大故障后业务方要求"以后不能再出"，但研发资源有限。
+        question_stem: 如果业务期望与研发资源冲突，你会如何升级 / 共识？
+        prompt_template: 生成一道稳定性资源冲突深挖题，要求候选人说明升级路径。
+        scenario_skill_tags: [sre, communication, conflict, escalation]
+        resume_anchor_hints: [sre, communication, conflict, escalation]
+        failure_categories: [missing_action, missing_tradeoff, missing_edge_case]
+        rubric_additions: [说明升级路径, 说明数据驱动, 说明可接受妥协]
+        expected_signals: [能给升级渠道, 能用数据降低分歧, 能给出可接受方案]
+        anti_patterns: [硬扛, 完全妥协, 不升级]
+        good_answer_hints: [先升级, 再用数据, 最后共识]
+        priority: 6
+        status: active
+
+  - id: communication.mobile_cross_role_coordination
+    version: 1
+    title: 与后端 / 设计 / 测试协作完成移动端复杂功能
+    dimension: communication
+    job_levels: [junior, mid, senior]
+    skill_tags: [mobile, communication, cross-team, coordination]
+    direction_tags: [internet_tech]
+    role_tags: [mobile]
+    rubric:
+      must_cover: [对齐机制, 关注差异, 共识路径, 落地动作]
+      minimum_bar: 能与后端 / 设计 / 测试协作完成复杂移动功能。
+      stretch: 能用 demo / 接口契约 / 灰度方案降低分歧。
+    priority: 17
+    status: active
+    source: manual_yaml
+    scope: global
+    language: zh-CN
+    variants:
+      - id: communication.mobile_cross_role_coordination.shared_consensus
+        version: 1
+        intent: opening
+        difficulty: standard
+        scenario_brief: 一个复杂功能需要后端 / 设计 / 测试 / 移动多方协作。
+        question_stem: 你会如何主导多方协作并推动落地？
+        prompt_template: 结合候选人的移动端 / 跨团队经验，生成一道沟通题，要求说明协作机制。
+        scenario_skill_tags: [mobile, communication, cross-team, coordination]
+        resume_anchor_hints: [mobile, communication, cross-team]
+        failure_categories: [missing_action, shallow_debugging, missing_tradeoff]
+        rubric_additions: [说明对齐机制, 说明关注差异, 说明落地动作]
+        expected_signals: [能识别各方关注点, 能用 demo / 契约降低分歧, 能落地具体动作]
+        anti_patterns: [自己定方案, 没契约, 没动作]
+        good_answer_hints: [先识别关注, 再用 demo 对齐, 最后定动作]
+        priority: 8
+        status: active
+      - id: communication.mobile_cross_role_coordination.deadline
+        version: 1
+        intent: recovery
+        difficulty: standard
+        scenario_brief: 项目接近 deadline 时，移动端发现某个功能无法在期限内交付。
+        question_stem: 如果移动端落地有时间风险，你会如何与后端 / 设计 / 产品沟通调整？
+        prompt_template: 生成一道移动端时间风险沟通深挖题，要求候选人说明替代方案。
+        scenario_skill_tags: [mobile, communication, risk, alternative]
+        resume_anchor_hints: [mobile, communication, risk, alternative]
+        failure_categories: [missing_action, missing_tradeoff, missing_edge_case]
+        rubric_additions: [说明风险识别, 说明替代方案, 说明对齐沟通]
+        expected_signals: [能提前识别风险, 能给至少 2 个替代方案, 能与对方共识取舍]
+        anti_patterns: [硬扛上线, 偷偷阉割, 不沟通]
+        good_answer_hints: [先识别, 再列替代, 最后共识]
+        priority: 6
+        status: active

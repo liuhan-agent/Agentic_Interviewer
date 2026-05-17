@@ -27,7 +27,7 @@ JAVA_BACKEND_ROLE_REQUIREMENTS = {
 
 BATCH2_ROLE_REQUIREMENTS = {
     "frontend_web": {
-        "min_seeds": 6,
+        "min_seeds": 19,
         "dimensions": {
             "technical_depth",
             "coding_quality",
@@ -39,7 +39,7 @@ BATCH2_ROLE_REQUIREMENTS = {
         "required_job_levels": {"junior", "mid", "senior"},
     },
     "sre": {
-        "min_seeds": 5,
+        "min_seeds": 16,
         "dimensions": {
             "technical_depth",
             "system_design",
@@ -73,7 +73,7 @@ BATCH2_ROLE_REQUIREMENTS = {
         "required_job_levels": {"junior", "mid", "senior"},
     },
     "mobile": {
-        "min_seeds": 5,
+        "min_seeds": 16,
         "dimensions": {
             "technical_depth",
             "problem_solving",

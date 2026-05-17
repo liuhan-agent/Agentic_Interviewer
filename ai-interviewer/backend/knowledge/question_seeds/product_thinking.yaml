@@ -507,3 +507,105 @@ seeds:
         good_answer_hints: [先建兜底, 再定触发, 最后划责任]
         priority: 8
         status: active
+
+  - id: product_thinking.frontend_web_micro_interaction
+    version: 1
+    title: 交互细节（loading / error / empty 状态）的产品体验
+    dimension: product_thinking
+    job_levels: [junior, mid, senior]
+    skill_tags: [frontend, ux, micro interaction, loading, error]
+    direction_tags: [internet_tech]
+    role_tags: [frontend_web]
+    rubric:
+      must_cover: [关键状态枚举, 体验差异, 实现成本, 业务结果]
+      minimum_bar: 能说明 loading / error / empty 等关键状态对用户体验的影响。
+      stretch: 能给出系统化的状态体验设计与组件复用。
+    priority: 20
+    status: active
+    source: manual_yaml
+    scope: global
+    language: zh-CN
+    variants:
+      - id: product_thinking.frontend_web_micro_interaction.state_design
+        version: 1
+        intent: opening
+        difficulty: standard
+        scenario_brief: 一个数据页面在慢网下加载几秒空白，用户以为卡死频繁刷新。
+        question_stem: 你会如何系统化设计 loading / error / empty 状态的体验？
+        prompt_template: 结合候选人的前端 / 产品经验，生成一道产品思维题，要求说明状态体验。
+        scenario_skill_tags: [frontend, ux, loading, error, empty]
+        resume_anchor_hints: [frontend, ux, loading, error, empty]
+        failure_categories: [missing_action, missing_edge_case, missing_observability]
+        rubric_additions: [说明状态枚举, 说明体验差异, 说明实现成本]
+        expected_signals: [能给出至少 5 种状态, 能给体验差异化设计, 能算实现成本]
+        anti_patterns: [全部 loading 转圈, 没 empty 提示, error 不可恢复]
+        good_answer_hints: [先枚举状态, 再设计体验, 最后算成本]
+        priority: 10
+        status: active
+      - id: product_thinking.frontend_web_micro_interaction.long_polling
+        version: 1
+        intent: deep_probe
+        difficulty: deep_probe
+        scenario_brief: 一个 AI 生成场景需要等 30 秒以上才出结果。
+        question_stem: 当后端响应很慢时，你会如何在前端体验上让用户"等得不焦虑"？
+        prompt_template: 生成一道长时等待 UX 深挖题，要求候选人说明渐进展示与情绪管理。
+        scenario_skill_tags: [frontend, ux, long wait, progressive, ai]
+        resume_anchor_hints: [frontend, ux, long wait, progressive, ai]
+        failure_categories: [missing_action, missing_edge_case, missing_metrics]
+        rubric_additions: [说明分阶段反馈, 说明可取消, 说明情绪管理]
+        expected_signals: [能用进度提示分阶段, 能让用户可取消, 能用流式展示降低焦虑]
+        anti_patterns: [一直转圈, 不可取消, 无任何反馈]
+        good_answer_hints: [先分阶段, 再可取消, 最后管情绪]
+        priority: 8
+        status: active
+
+  - id: product_thinking.frontend_web_ab_test
+    version: 1
+    title: A/B 实验前端实施与数据采集
+    dimension: product_thinking
+    job_levels: [junior, mid, senior]
+    skill_tags: [frontend, ab test, analytics, experimentation, data]
+    direction_tags: [internet_tech]
+    role_tags: [frontend_web]
+    rubric:
+      must_cover: [实验分流, 数据采集, 一致性保障, 复盘机制]
+      minimum_bar: 能说明 A/B 实验在前端实施的关键环节。
+      stretch: 能保证数据可信度与跨设备一致性。
+    priority: 18
+    status: active
+    source: manual_yaml
+    scope: global
+    language: zh-CN
+    variants:
+      - id: product_thinking.frontend_web_ab_test.frontend_impl
+        version: 1
+        intent: opening
+        difficulty: standard
+        scenario_brief: 业务方要做一个落地页 A/B 实验，需要前端实施分流与数据上报。
+        question_stem: 你会如何实施前端 A/B 实验并保证数据可信？
+        prompt_template: 结合候选人的前端 / 实验经验，生成一道产品思维题，要求说明实验实施。
+        scenario_skill_tags: [frontend, ab test, analytics, experimentation]
+        resume_anchor_hints: [frontend, ab test, analytics, experimentation]
+        failure_categories: [missing_action, missing_metrics, missing_observability]
+        rubric_additions: [说明分流策略, 说明数据采集, 说明一致性]
+        expected_signals: [能用稳定分流不抖动, 能埋点关键事件, 能保证跨设备一致]
+        anti_patterns: [随机分流跨刷新抖动, 埋点缺失, 不做一致性校验]
+        good_answer_hints: [先稳定分流, 再埋点, 最后校验一致]
+        priority: 9
+        status: active
+      - id: product_thinking.frontend_web_ab_test.data_trust
+        version: 1
+        intent: deep_probe
+        difficulty: deep_probe
+        scenario_brief: 实验跑完后数据团队怀疑前端埋点丢失率偏高。
+        question_stem: 如果怀疑前端数据可信度，你会如何排查并恢复实验可信？
+        prompt_template: 生成一道前端实验数据可信度深挖题，要求候选人说明排查与恢复。
+        scenario_skill_tags: [frontend, data trust, analytics, debugging]
+        resume_anchor_hints: [frontend, data, debugging, analytics]
+        failure_categories: [shallow_debugging, missing_metrics, missing_observability]
+        rubric_additions: [说明丢失场景识别, 说明对照实验, 说明恢复方案]
+        expected_signals: [能识别离线/批量/网络阻塞导致丢失, 能用对照实验验证, 能给出可信恢复路径]
+        anti_patterns: [只重跑实验, 不查根因, 不验证修复]
+        good_answer_hints: [先识别根因, 再对照验证, 最后恢复]
+        priority: 7
+        status: active

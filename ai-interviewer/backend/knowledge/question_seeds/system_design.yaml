@@ -808,3 +808,156 @@ seeds:
         good_answer_hints: [先打标, 再多维聚合, 最后异常告警]
         priority: 12
         status: active
+
+  - id: system_design.sre_slo_error_budget
+    version: 1
+    title: SLO / SLA / Error Budget 体系设计
+    dimension: system_design
+    job_levels: [junior, mid, senior]
+    skill_tags: [sre, slo, sla, error budget, governance]
+    direction_tags: [internet_tech]
+    role_tags: [sre]
+    rubric:
+      must_cover: [SLI 定义, SLO 设定, error budget, 决策机制]
+      minimum_bar: 能说明 SLO / error budget 的设计原则与决策用途。
+      stretch: 能在跨团队治理中用 error budget 推动稳定性投入。
+    priority: 25
+    status: active
+    source: manual_yaml
+    scope: global
+    language: zh-CN
+    variants:
+      - id: system_design.sre_slo_error_budget.basic_design
+        version: 1
+        intent: opening
+        difficulty: standard
+        scenario_brief: 一个核心交易服务有月度 SLA 99.95%，但团队对内部 SLO 没明确。
+        question_stem: 你会如何为这个服务设计 SLO / error budget 体系？
+        prompt_template: 结合候选人的 SRE / 治理经验，生成一道系统设计题，要求说明 SLO / EB 设计。
+        scenario_skill_tags: [sre, slo, sla, error budget]
+        resume_anchor_hints: [sre, slo, sla, error budget, governance]
+        failure_categories: [missing_action, missing_metrics, missing_tradeoff]
+        rubric_additions: [说明 SLI 选择, 说明 SLO 阈值, 说明 EB 用途]
+        expected_signals: [能选合适 SLI（如可用性/延迟）, 能定 SLO 阈值与统计口径, 能用 EB 决策发布节奏]
+        anti_patterns: [SLO = SLA, 没 EB, 不与发布挂钩]
+        good_answer_hints: [先选 SLI, 再定 SLO, 最后用 EB 决策]
+        priority: 13
+        status: active
+      - id: system_design.sre_slo_error_budget.cross_team
+        version: 1
+        intent: deep_probe
+        difficulty: deep_probe
+        scenario_brief: 一个共享服务被多个业务团队使用，各自对稳定性诉求不同。
+        question_stem: 如果共享服务要面向多业务团队提供 SLO，你会如何分层并治理？
+        prompt_template: 生成一道多租户 SLO 深挖题，要求候选人说明分层与治理。
+        scenario_skill_tags: [sre, multi tenant, slo, governance]
+        resume_anchor_hints: [sre, multi tenant, slo, governance]
+        failure_categories: [missing_action, missing_tradeoff, missing_observability]
+        rubric_additions: [说明业务分层, 说明 SLO 分级, 说明 EB 共享与隔离]
+        expected_signals: [能分租户层级 SLO, 能定优先级与共享 budget 规则, 能在 EB 透支时触发治理]
+        anti_patterns: [一刀切 SLO, 不分层, 不与治理挂钩]
+        good_answer_hints: [先分层, 再分级 SLO, 最后定治理]
+        priority: 11
+        status: active
+
+  - id: system_design.sre_ha_architecture
+    version: 1
+    title: 高可用架构：多活 / 容灾 / 灰度发布
+    dimension: system_design
+    job_levels: [junior, mid, senior]
+    skill_tags: [sre, ha, multi active, dr, canary]
+    direction_tags: [internet_tech]
+    role_tags: [sre]
+    rubric:
+      must_cover: [冗余设计, 容灾方案, 灰度发布, 数据一致]
+      minimum_bar: 能说明高可用架构的基本要素。
+      stretch: 能权衡多活 / 主备 / 灰度成本与业务需求。
+    priority: 23
+    status: active
+    source: manual_yaml
+    scope: global
+    language: zh-CN
+    variants:
+      - id: system_design.sre_ha_architecture.multi_active
+        version: 1
+        intent: opening
+        difficulty: standard
+        scenario_brief: 一个核心服务希望从单中心升级为多活架构。
+        question_stem: 你会如何设计多活 / 容灾 / 灰度发布的高可用架构？
+        prompt_template: 结合候选人的 SRE / 架构经验，生成一道系统设计题，要求说明高可用架构。
+        scenario_skill_tags: [sre, ha, multi active, dr]
+        resume_anchor_hints: [sre, ha, multi active, dr, architecture]
+        failure_categories: [missing_action, missing_tradeoff, missing_consistency_boundary]
+        rubric_additions: [说明冗余设计, 说明容灾切换, 说明数据一致]
+        expected_signals: [能区分异地多活/主备/单元化, 能给容灾切换流程, 能讲数据同步与一致性]
+        anti_patterns: [只讲机房冗余, 不讲数据一致, 没演练]
+        good_answer_hints: [先选模式, 再做容灾, 最后讲数据]
+        priority: 11
+        status: active
+      - id: system_design.sre_ha_architecture.gradual_release
+        version: 1
+        intent: deep_probe
+        difficulty: deep_probe
+        scenario_brief: 之前一次全量发布导致全国用户宕机 20 分钟，业务要求灰度机制。
+        question_stem: 你会如何设计灰度发布体系防止重大事件？
+        prompt_template: 生成一道灰度发布深挖题，要求候选人说明灰度策略与回滚。
+        scenario_skill_tags: [sre, canary, gradual release, rollback]
+        resume_anchor_hints: [sre, canary, release, rollback]
+        failure_categories: [missing_action, missing_failure_mode, missing_observability]
+        rubric_additions: [说明灰度维度, 说明触发回滚, 说明流量切换]
+        expected_signals: [能多维度灰度（按用户/区域/比例）, 能定回滚触发, 能用监控自动判断]
+        anti_patterns: [一次全量, 无回滚, 无监控]
+        good_answer_hints: [先灰度, 再监控, 最后回滚]
+        priority: 9
+        status: active
+
+  - id: system_design.sre_capacity_planning
+    version: 1
+    title: 容量规划：压测 / 扩容触发 / 资源预算
+    dimension: system_design
+    job_levels: [junior, mid, senior]
+    skill_tags: [sre, capacity, load test, scaling, budgeting]
+    direction_tags: [internet_tech]
+    role_tags: [sre]
+    rubric:
+      must_cover: [容量模型, 压测方法, 扩容触发, 预算管理]
+      minimum_bar: 能给一个核心服务做容量规划。
+      stretch: 能结合峰值预测 / 历史增长 / 成本约束做长期规划。
+    priority: 21
+    status: active
+    source: manual_yaml
+    scope: global
+    language: zh-CN
+    variants:
+      - id: system_design.sre_capacity_planning.peak_planning
+        version: 1
+        intent: opening
+        difficulty: standard
+        scenario_brief: 一个核心服务过去半年流量增长 200%，下次大促预计再翻倍。
+        question_stem: 你会如何做容量规划支持下次大促？
+        prompt_template: 结合候选人的 SRE 经验，生成一道系统设计题，要求说明容量规划。
+        scenario_skill_tags: [sre, capacity, load test, scaling]
+        resume_anchor_hints: [sre, capacity, load test, scaling]
+        failure_categories: [missing_metrics, missing_action, missing_tradeoff]
+        rubric_additions: [说明容量模型, 说明压测方法, 说明扩容预案]
+        expected_signals: [能定义容量模型与瓶颈, 能用压测验证, 能给扩容/降级预案]
+        anti_patterns: [只加机器, 不压测, 没预案]
+        good_answer_hints: [先建模型, 再压测, 最后做预案]
+        priority: 10
+        status: active
+      - id: system_design.sre_capacity_planning.budget_constraint
+        version: 1
+        intent: deep_probe
+        difficulty: deep_probe
+        scenario_brief: 财务要求把云成本降 20%，但不能影响稳定性。
+        question_stem: 如果有成本压力，你会如何在容量规划与稳定性之间取舍？
+        prompt_template: 生成一道容量与成本权衡深挖题，要求候选人说明优化路径。
+        scenario_skill_tags: [sre, finops, capacity, cost]
+        resume_anchor_hints: [sre, finops, capacity, cost]
+        failure_categories: [missing_tradeoff, missing_action, missing_metrics]
+        rubric_additions: [说明成本来源, 说明优化路径, 说明稳定性保护]
+        expected_signals: [能拆分实例/存储/网络成本, 能选 spot/预留实例/自动缩容, 能用 EB 保护稳定性]
+        anti_patterns: [只砍机器影响稳定, 不分类成本, 没保护机制]
+        good_answer_hints: [先拆成本, 再做优化, 最后保稳定]
+        priority: 8
+        status: active
