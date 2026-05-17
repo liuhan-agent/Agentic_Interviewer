@@ -697,6 +697,27 @@ def test_bundled_business_roles_return_junior_mainline_candidates() -> None:
             "channel_growth",
             "content_creativity",
         ],
+        "hr_function": [
+            "talent_acquisition",
+            "employee_relations",
+            "organization_development",
+            "policy_compliance",
+            "service_orientation",
+        ],
+        "customer_success": [
+            "customer_empathy",
+            "issue_diagnosis",
+            "solution_delivery",
+            "escalation_management",
+            "retention_growth",
+        ],
+        "general_management": [
+            "goal_setting",
+            "team_leadership",
+            "decision_making",
+            "execution_management",
+            "cross_functional_alignment",
+        ],
     }
 
     session_local = _session_factory()

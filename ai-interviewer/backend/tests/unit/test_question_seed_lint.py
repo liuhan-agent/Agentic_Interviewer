@@ -2,7 +2,10 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from app.services.question_seed_lint import lint_question_seed_dir
+from app.services.question_seed_lint import (
+    ROLE_COVERAGE_REQUIREMENTS,
+    lint_question_seed_dir,
+)
 
 
 def _write_seed_file(
@@ -308,8 +311,19 @@ def test_question_seed_quality_lint_passes_bundled_business1_coverage() -> None:
         "operations",
         "sales_business",
         "marketing_brand",
+        "hr_function",
+        "customer_success",
+        "general_management",
     ):
         assert role not in messages
+
+
+def test_question_seed_quality_lint_tracks_service_management_coverage() -> None:
+    assert {
+        "hr_function",
+        "customer_success",
+        "general_management",
+    } <= set(ROLE_COVERAGE_REQUIREMENTS)
 
 
 def test_question_seed_quality_lint_flags_missing_business1_role_coverage(

@@ -271,6 +271,9 @@ def _direction_tags_from_job(job: dict[str, Any]) -> list[str]:
         "operations",
         "sales_business",
         "marketing_brand",
+        "hr_function",
+        "customer_success",
+        "general_management",
     }:
         return ["business"]
     if any(
@@ -290,6 +293,19 @@ def _direction_tags_from_job(job: dict[str, Any]) -> list[str]:
             "brand",
             "market",
             "channel",
+            "hr",
+            "human resources",
+            "recruiting",
+            "employee relations",
+            "customer success",
+            "customer support",
+            "renewal",
+            "retention",
+            "general management",
+            "team management",
+            "leadership",
+            "goal setting",
+            "execution management",
             "\u4ea7\u54c1",
             "\u9700\u6c42",
             "\u7528\u6237\u6d1e\u5bdf",
@@ -362,6 +378,9 @@ def _role_tags_from_job(job: dict[str, Any]) -> list[str]:
         "operations",
         "sales_business",
         "marketing_brand",
+        "hr_function",
+        "customer_success",
+        "general_management",
     }:
         return [direction]
     if direction == "frontend":
@@ -457,6 +476,48 @@ def _role_tags_from_job(job: dict[str, Any]) -> list[str]:
         )
     ):
         return ["marketing_brand"]
+    if any(
+        token in lowered
+        for token in (
+            "hr",
+            "human resources",
+            "recruiting",
+            "talent acquisition",
+            "employee relations",
+            "organization development",
+            "policy compliance",
+        )
+    ):
+        return ["hr_function"]
+    if any(
+        token in lowered
+        for token in (
+            "customer success",
+            "customer support",
+            "support specialist",
+            "issue diagnosis",
+            "escalation",
+            "renewal",
+            "retention",
+            "sla",
+        )
+    ):
+        return ["customer_success"]
+    if any(
+        token in lowered
+        for token in (
+            "general management",
+            "team management",
+            "people manager",
+            "goal setting",
+            "team leadership",
+            "decision making",
+            "execution management",
+            "cross functional",
+            "cross-functional",
+        )
+    ):
+        return ["general_management"]
     if any(
         token in lowered
         for token in (

@@ -600,7 +600,7 @@ def test_import_question_seed_dir_aligns_internet_tech_roles_to_mainline_catalog
             ), role
 
 
-def test_import_question_seed_dir_imports_bundled_business1_roles_and_dimensions() -> None:
+def test_import_question_seed_dir_imports_bundled_business_roles_and_dimensions() -> None:
     seed_dir = Path(__file__).resolve().parents[2] / "knowledge" / "question_seeds"
 
     session_local = _session_factory()
@@ -616,6 +616,9 @@ def test_import_question_seed_dir_imports_bundled_business1_roles_and_dimensions
         "operations",
         "sales_business",
         "marketing_brand",
+        "hr_function",
+        "customer_success",
+        "general_management",
     }.issubset(roles)
     assert {
         "user_insight",
@@ -638,6 +641,21 @@ def test_import_question_seed_dir_imports_bundled_business1_roles_and_dimensions
         "campaign_planning",
         "channel_growth",
         "content_creativity",
+        "talent_acquisition",
+        "employee_relations",
+        "organization_development",
+        "policy_compliance",
+        "service_orientation",
+        "customer_empathy",
+        "issue_diagnosis",
+        "solution_delivery",
+        "escalation_management",
+        "retention_growth",
+        "goal_setting",
+        "team_leadership",
+        "decision_making",
+        "execution_management",
+        "cross_functional_alignment",
     }.issubset(dimensions)
 
     business_seeds = [
@@ -648,8 +666,8 @@ def test_import_question_seed_dir_imports_bundled_business1_roles_and_dimensions
         for variant in variants
         if any(seed.id == variant.seed_id for seed in business_seeds)
     ]
-    assert len(business_seeds) == 20
-    assert len(business_variants) == 40
+    assert len(business_seeds) == 35
+    assert len(business_variants) == 70
     assert all(seed.scope == "global" for seed in business_seeds)
     assert all(seed.language == "zh-CN" for seed in business_seeds)
     assert all(seed.direction_tags == ["business"] for seed in business_seeds)
@@ -689,6 +707,27 @@ def test_import_question_seed_dir_aligns_business_roles_to_mainline_catalogs() -
             "campaign_planning",
             "channel_growth",
             "content_creativity",
+        },
+        "hr_function": {
+            "talent_acquisition",
+            "employee_relations",
+            "organization_development",
+            "policy_compliance",
+            "service_orientation",
+        },
+        "customer_success": {
+            "customer_empathy",
+            "issue_diagnosis",
+            "solution_delivery",
+            "escalation_management",
+            "retention_growth",
+        },
+        "general_management": {
+            "goal_setting",
+            "team_leadership",
+            "decision_making",
+            "execution_management",
+            "cross_functional_alignment",
         },
     }
 

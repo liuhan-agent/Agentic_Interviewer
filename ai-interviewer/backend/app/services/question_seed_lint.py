@@ -153,10 +153,47 @@ BUSINESS1_ROLE_REQUIREMENTS = {
     },
 }
 
+SERVICE_MANAGEMENT_ROLE_REQUIREMENTS = {
+    "hr_function": {
+        "min_seeds": 5,
+        "dimensions": {
+            "talent_acquisition",
+            "employee_relations",
+            "organization_development",
+            "policy_compliance",
+            "service_orientation",
+        },
+        "required_job_levels": {"junior", "mid", "senior"},
+    },
+    "customer_success": {
+        "min_seeds": 5,
+        "dimensions": {
+            "customer_empathy",
+            "issue_diagnosis",
+            "solution_delivery",
+            "escalation_management",
+            "retention_growth",
+        },
+        "required_job_levels": {"junior", "mid", "senior"},
+    },
+    "general_management": {
+        "min_seeds": 5,
+        "dimensions": {
+            "goal_setting",
+            "team_leadership",
+            "decision_making",
+            "execution_management",
+            "cross_functional_alignment",
+        },
+        "required_job_levels": {"junior", "mid", "senior"},
+    },
+}
+
 ROLE_COVERAGE_REQUIREMENTS = {
     **JAVA_BACKEND_ROLE_REQUIREMENTS,
     **BATCH2_ROLE_REQUIREMENTS,
     **BUSINESS1_ROLE_REQUIREMENTS,
+    **SERVICE_MANAGEMENT_ROLE_REQUIREMENTS,
 }
 
 ROLE_KEYWORDS = {
@@ -298,6 +335,43 @@ ROLE_KEYWORDS = {
         "creativity",
         "roi",
         "media",
+    },
+    "hr_function": {
+        "hr",
+        "recruiting",
+        "talent",
+        "candidate",
+        "employee",
+        "organization",
+        "policy",
+        "compliance",
+        "performance",
+        "service",
+    },
+    "customer_success": {
+        "customer",
+        "support",
+        "success",
+        "empathy",
+        "issue",
+        "diagnosis",
+        "solution",
+        "escalation",
+        "renewal",
+        "retention",
+        "sla",
+    },
+    "general_management": {
+        "management",
+        "manager",
+        "goal",
+        "team",
+        "leadership",
+        "decision",
+        "execution",
+        "cross_functional",
+        "alignment",
+        "conflict",
     },
 }
 

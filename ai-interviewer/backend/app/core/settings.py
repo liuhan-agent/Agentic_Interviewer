@@ -546,12 +546,28 @@ class Settings(BaseSettings):
         "vector",
         "structured_shadow",
         "structured_primary",
-    ] = "structured_shadow"
+    ] = "structured_primary"
     enable_question_fit_profile: bool = True
     enable_question_reranker_shadow: bool = False
     question_reranker_timeout_ms: int = 4000
     question_primary_role_tags: list[str] = Field(
-        default_factory=lambda: ["java_backend"],
+        default_factory=lambda: [
+            "java_backend",
+            "frontend_web",
+            "sre",
+            "ai_fullstack",
+            "ai_agent",
+            "mobile",
+            "ai_algorithm",
+            "architect",
+            "product_manager",
+            "operations",
+            "sales_business",
+            "marketing_brand",
+            "hr_function",
+            "customer_success",
+            "general_management",
+        ],
     )
 
     # ------------------------------------------------------------------
