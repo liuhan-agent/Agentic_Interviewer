@@ -458,3 +458,156 @@ seeds:
         good_answer_hints: [先拆目标和约束, 再定义决策标准, 最后用试点和记录推进]
         priority: 13
         status: active
+
+  - id: communication.ai_agent_failure_alignment
+    version: 1
+    title: 跨团队对齐"Agent 失败"的定义
+    dimension: communication
+    job_levels: [junior, mid, senior]
+    skill_tags: [agent, communication, alignment, failure definition, stakeholder]
+    direction_tags: [internet_tech]
+    role_tags: [ai_agent]
+    rubric:
+      must_cover: [业务视角失败, 技术视角失败, 共识口径, 复盘机制]
+      minimum_bar: 能说明业务方与 Agent 团队对"失败"定义的差异并给出对齐路径。
+      stretch: 能建立共同口径 + 共同度量 + 共同复盘流程闭环。
+    priority: 22
+    status: active
+    source: manual_yaml
+    scope: global
+    language: zh-CN
+    variants:
+      - id: communication.ai_agent_failure_alignment.metric_consensus
+        version: 1
+        intent: opening
+        difficulty: standard
+        scenario_brief: 业务方反馈"Agent 经常出错"，但技术指标显示成功率 96%，双方各执一词。
+        question_stem: 你会如何与业务方对齐"Agent 失败"的定义并建立共同度量？
+        prompt_template: 结合候选人的 Agent / 跨团队协作经验，生成一道沟通题，要求说明对齐路径。
+        scenario_skill_tags: [agent, alignment, metric, communication]
+        resume_anchor_hints: [agent, communication, stakeholder, metric, alignment]
+        failure_categories: [missing_action, shallow_debugging, missing_tradeoff]
+        rubric_additions: [说明对齐流程, 说明共同度量设计, 说明双方话语翻译]
+        expected_signals: [能用业务 case 翻成技术指标, 能与业务方共同定义"算失败", 能定期同步双方度量]
+        anti_patterns: [只用技术成功率应付, 单方面定义指标, 不做定期对齐]
+        good_answer_hints: [先用 case 对齐, 再共同定指标, 最后定期同步]
+        priority: 12
+        status: active
+      - id: communication.ai_agent_failure_alignment.post_incident
+        version: 1
+        intent: recovery
+        difficulty: standard
+        scenario_brief: 一次 Agent 给出错误退款额度，业务方要求"立刻关闭功能"，技术认为是低概率边界 case。
+        question_stem: 如果出现 Agent 重大失败事件且双方判断不一致，你会如何主持复盘与共识？
+        prompt_template: 生成一道 Agent 故障后复盘沟通题，要求候选人说明复盘流程、共识路径与下一步决策。
+        scenario_skill_tags: [agent, post-incident, alignment, decision]
+        resume_anchor_hints: [agent, incident, postmortem, decision, alignment]
+        failure_categories: [missing_action, shallow_debugging, missing_tradeoff]
+        rubric_additions: [说明复盘流程, 说明数据驱动共识, 说明下一步决策]
+        expected_signals: [能用事实/数据降低分歧, 能区分立刻止血与长期修复, 能给出可落地的下一步]
+        anti_patterns: [带情绪辩论, 不查事实, 没下一步]
+        good_answer_hints: [先用事实降温, 再分止血与修复, 最后定下一步]
+        priority: 10
+        status: active
+
+  - id: communication.ai_fullstack_failure_explanation
+    version: 1
+    title: 跨产品 / 算法 / 业务讲清"模型为什么这次会出错"
+    dimension: communication
+    job_levels: [junior, mid, senior]
+    skill_tags: [ai fullstack, communication, failure explanation, cross-team]
+    direction_tags: [internet_tech]
+    role_tags: [ai_fullstack]
+    rubric:
+      must_cover: [失败现象抽象, 多方语言适配, 下一步动作, 期望管理]
+      minimum_bar: 能跨产品 / 算法 / 业务三方讲清失败原因和下一步。
+      stretch: 能用对方语言精准描述并落地动作。
+    priority: 21
+    status: active
+    source: manual_yaml
+    scope: global
+    language: zh-CN
+    variants:
+      - id: communication.ai_fullstack_failure_explanation.cross_role_briefing
+        version: 1
+        intent: opening
+        difficulty: standard
+        scenario_brief: 一次模型失败影响数十个用户，产品 / 算法 / 业务三方都想知道"到底怎么回事"。
+        question_stem: 你会如何向产品 / 算法 / 业务三方分别讲清"模型为什么这次会出错"？
+        prompt_template: 结合候选人的 AI 全栈 / 跨团队经验，生成一道沟通题，要求说明多方表达适配。
+        scenario_skill_tags: [ai fullstack, communication, cross-team, failure]
+        resume_anchor_hints: [ai fullstack, communication, cross-team, failure, briefing]
+        failure_categories: [missing_action, shallow_debugging, missing_tradeoff]
+        rubric_additions: [说明三方关注点差异, 说明对应语言, 说明下一步动作]
+        expected_signals: [能区分三方核心关注点, 能用对方语言不同侧重表达, 能给出明确下一步]
+        anti_patterns: [一份说明给所有人, 全用技术语言, 没下一步]
+        good_answer_hints: [先识别关注差异, 再按语言适配, 最后落动作]
+        priority: 11
+        status: active
+      - id: communication.ai_fullstack_failure_explanation.expectation_reset
+        version: 1
+        intent: recovery
+        difficulty: standard
+        scenario_brief: 失败之后业务方期望"以后再也不要出错"，但模型本质上无法 100% 保证。
+        question_stem: 如果业务方期望"AI 永远不出错"，你会如何重置预期并维护信任？
+        prompt_template: 生成一道 AI 应用期望管理深挖题，要求候选人说明边界沟通与信任维护。
+        scenario_skill_tags: [ai fullstack, expectation management, trust, communication]
+        resume_anchor_hints: [ai fullstack, expectation, trust, communication]
+        failure_categories: [missing_action, missing_tradeoff, missing_edge_case]
+        rubric_additions: [说明能力边界, 说明可控保障, 说明信任修复]
+        expected_signals: [能讲明 AI 必然边界, 能给出可量化保障, 能用机制重建信任]
+        anti_patterns: [硬承诺, 完全推卸, 不给保障措施]
+        good_answer_hints: [先讲边界, 再给保障, 最后修信任]
+        priority: 9
+        status: active
+
+  - id: communication.ai_algorithm_dumb_explanation
+    version: 1
+    title: 给业务方解释"AI 看起来变笨"的真实原因
+    dimension: communication
+    job_levels: [junior, mid, senior]
+    skill_tags: [ai algorithm, communication, expectation, drift, explanation]
+    direction_tags: [internet_tech]
+    role_tags: [ai_algorithm]
+    rubric:
+      must_cover: [现象与体感, 真实归因, 下一步动作, 期望管理]
+      minimum_bar: 能向业务方解释"AI 变笨"现象的真实归因。
+      stretch: 能用业务方语言讲数据漂移 / 链路变化 / 体验偏差。
+    priority: 19
+    status: active
+    source: manual_yaml
+    scope: global
+    language: zh-CN
+    variants:
+      - id: communication.ai_algorithm_dumb_explanation.attribution
+        version: 1
+        intent: opening
+        difficulty: standard
+        scenario_brief: 业务方反馈"AI 最近变笨了"，但技术指标其实没大变化。
+        question_stem: 你会如何向业务方解释"AI 变笨"现象的真实归因？
+        prompt_template: 结合候选人的算法 / 跨团队经验，生成一道沟通题，要求说明归因解释。
+        scenario_skill_tags: [ai algorithm, communication, expectation, drift]
+        resume_anchor_hints: [ai algorithm, communication, expectation, drift]
+        failure_categories: [missing_action, shallow_debugging, missing_tradeoff]
+        rubric_additions: [说明现象 vs 体感差异, 说明真实归因, 说明业务方语言]
+        expected_signals: [能区分指标变化与体感变化, 能解释数据漂移/链路变化/体验偏差, 能用业务方语言]
+        anti_patterns: [硬怼"指标没变", 不解释体感, 全用技术术语]
+        good_answer_hints: [先承认体感, 再分类归因, 最后用业务话术]
+        priority: 9
+        status: active
+      - id: communication.ai_algorithm_dumb_explanation.expectation_reset
+        version: 1
+        intent: recovery
+        difficulty: standard
+        scenario_brief: 解释完后业务方期望"以后让它别变笨"，但这本质上做不到。
+        question_stem: 如果业务方期望"算法不能再变笨"，你会如何重置预期并维护信任？
+        prompt_template: 生成一道算法期望管理深挖题，要求候选人说明边界沟通与信任维护。
+        scenario_skill_tags: [ai algorithm, expectation management, trust]
+        resume_anchor_hints: [ai algorithm, expectation, trust, communication]
+        failure_categories: [missing_action, missing_tradeoff, missing_edge_case]
+        rubric_additions: [说明能力边界, 说明可控保障, 说明信任建设]
+        expected_signals: [能讲明算法迭代的本质规律, 能给出可量化保障, 能用机制重建信任]
+        anti_patterns: [硬承诺, 完全推卸, 不给保障]
+        good_answer_hints: [先讲边界, 再给保障, 最后建信任]
+        priority: 7
+        status: active

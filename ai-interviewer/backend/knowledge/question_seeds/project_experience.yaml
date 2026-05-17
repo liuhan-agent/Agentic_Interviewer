@@ -405,3 +405,207 @@ seeds:
         good_answer_hints: [先对齐目标和口径, 再拆协作依赖, 最后建立反馈节奏]
         priority: 14
         status: active
+
+  - id: project_experience.ai_fullstack_poc_to_production
+    version: 1
+    title: AI 应用从 POC 推到生产的全过程
+    dimension: project_experience
+    job_levels: [junior, mid, senior]
+    skill_tags: [ai fullstack, poc, production, llm, monitoring]
+    direction_tags: [internet_tech]
+    role_tags: [ai_fullstack]
+    rubric:
+      must_cover: [POC 边界, 生产化清单, 监控完备, 业务结果]
+      minimum_bar: 能完整复述一次从 POC 到生产的迭代经历。
+      stretch: 能说明每一步的取舍、踩坑和量化结果。
+    priority: 24
+    status: active
+    source: manual_yaml
+    scope: global
+    language: zh-CN
+    variants:
+      - id: project_experience.ai_fullstack_poc_to_production.iteration_record
+        version: 1
+        intent: opening
+        difficulty: standard
+        scenario_brief: 候选人参与过一个内部 AI 工具，从 POC demo 走到内部所有员工日常使用。
+        question_stem: 请讲一次你把 AI 工具从 POC 推到生产的完整迭代记录，包括关键决策与结果。
+        prompt_template: 结合候选人简历中的 AI 项目经验，生成一道项目经验题，要求叙述 POC → 生产闭环。
+        scenario_skill_tags: [ai fullstack, poc, production, llm]
+        resume_anchor_hints: [ai fullstack, poc, production, llm, project]
+        failure_categories: [missing_metrics, missing_action, missing_tradeoff]
+        rubric_additions: [说明 POC 与生产差异, 说明生产化清单, 说明量化业务结果]
+        expected_signals: [能列出 POC 与生产差距, 能定义 SLO / 监控 / 安全的生产化清单, 能给出业务量化指标]
+        anti_patterns: [只讲 demo, 不区分生产/POC, 没有结果指标]
+        good_answer_hints: [先讲 POC 差距, 再讲生产化清单, 最后讲结果]
+        priority: 14
+        status: active
+      - id: project_experience.ai_fullstack_poc_to_production.tradeoff_review
+        version: 1
+        intent: deep_probe
+        difficulty: deep_probe
+        scenario_brief: 这个项目在上线前后做过多次架构和模型权衡。
+        question_stem: 在你的这个项目里，哪个权衡决策是最艰难的？事后看你会怎么改？
+        prompt_template: 生成一道 AI 项目权衡复盘深挖题，要求候选人说明决策依据与反思。
+        scenario_skill_tags: [ai fullstack, tradeoff, retrospective]
+        resume_anchor_hints: [ai fullstack, tradeoff, retrospective, project]
+        failure_categories: [missing_tradeoff, shallow_debugging, missing_metrics]
+        rubric_additions: [说明权衡选项, 说明决策依据, 说明反思与改进]
+        expected_signals: [能描述至少 2 个候选方案, 能讲出当时数据/约束, 能给出今天会怎么改]
+        anti_patterns: [只夸自己决定对, 不讲替代方案, 没反思]
+        good_answer_hints: [先列方案, 再讲决策依据, 最后反思]
+        priority: 12
+        status: active
+
+  - id: project_experience.ai_fullstack_canary_rollback
+    version: 1
+    title: AI 项目灰度发布与回滚机制
+    dimension: project_experience
+    job_levels: [junior, mid, senior]
+    skill_tags: [ai fullstack, canary, rollback, release, monitoring]
+    direction_tags: [internet_tech]
+    role_tags: [ai_fullstack]
+    rubric:
+      must_cover: [灰度策略, 监控指标, 回滚触发, 复盘流程]
+      minimum_bar: 能说明 AI 模型 / Prompt / 应用变更的灰度与回滚机制。
+      stretch: 能给出"小流量 → 全量 → 失败回滚"的完整闭环及量化指标。
+    priority: 22
+    status: active
+    source: manual_yaml
+    scope: global
+    language: zh-CN
+    variants:
+      - id: project_experience.ai_fullstack_canary_rollback.gradient_release
+        version: 1
+        intent: opening
+        difficulty: standard
+        scenario_brief: 候选人的 AI 项目要更换底层模型版本，担心新模型在某些场景退化。
+        question_stem: 请讲一次你为 AI 项目设计灰度发布与回滚的完整经历，包括监控与决策。
+        prompt_template: 结合候选人的 AI 项目经验，生成一道项目经验题，要求叙述灰度回滚机制。
+        scenario_skill_tags: [ai fullstack, canary, rollback, monitoring]
+        resume_anchor_hints: [ai fullstack, canary, rollback, release, monitoring]
+        failure_categories: [missing_action, missing_metrics, missing_observability]
+        rubric_additions: [说明灰度策略, 说明监控指标, 说明回滚触发]
+        expected_signals: [能定义灰度比例与升级节奏, 能用质量/成本/SLA 指标监控, 能定明确回滚触发条件]
+        anti_patterns: [一次性切流量, 只看成功率不看质量, 没回滚机制]
+        good_answer_hints: [先设灰度节奏, 再定监控指标, 最后明确回滚]
+        priority: 12
+        status: active
+      - id: project_experience.ai_fullstack_canary_rollback.postmortem
+        version: 1
+        intent: deep_probe
+        difficulty: deep_probe
+        scenario_brief: 上一次灰度中你触发过一次回滚，团队做了一次正式复盘。
+        question_stem: 请讲一次灰度后回滚的复盘：根因是什么、决策依据、修复路径与下次预防。
+        prompt_template: 生成一道 AI 项目回滚复盘深挖题，要求候选人说明根因、修复与预防。
+        scenario_skill_tags: [ai fullstack, postmortem, rollback, prevention]
+        resume_anchor_hints: [ai fullstack, postmortem, rollback, project]
+        failure_categories: [shallow_debugging, missing_action, missing_observability]
+        rubric_additions: [说明根因分析, 说明修复路径, 说明下次预防]
+        expected_signals: [能给出多层根因, 能区分立刻修复与长期改进, 能落地预防机制]
+        anti_patterns: [只甩锅, 没修复路径, 没预防]
+        good_answer_hints: [先分层根因, 再讲修复, 最后讲预防]
+        priority: 10
+        status: active
+
+  - id: project_experience.ai_algorithm_baseline_to_online
+    version: 1
+    title: 算法项目从基线到上线的完整迭代
+    dimension: project_experience
+    job_levels: [junior, mid, senior]
+    skill_tags: [ai algorithm, baseline, online, iteration, evaluation]
+    direction_tags: [internet_tech]
+    role_tags: [ai_algorithm]
+    rubric:
+      must_cover: [基线选择, 迭代节奏, 验证方法, 业务结果]
+      minimum_bar: 能完整复述一个算法项目从基线到上线的迭代过程。
+      stretch: 能说明每一步的决策依据、踩坑和量化结果。
+    priority: 22
+    status: active
+    source: manual_yaml
+    scope: global
+    language: zh-CN
+    variants:
+      - id: project_experience.ai_algorithm_baseline_to_online.full_iteration
+        version: 1
+        intent: opening
+        difficulty: standard
+        scenario_brief: 候选人主导过一个算法项目从基线建模到上线，并多轮迭代。
+        question_stem: 请讲一次你算法项目从基线到上线的完整迭代记录，包括关键决策与结果。
+        prompt_template: 结合候选人简历中的算法项目经验，生成一道项目经验题，要求叙述迭代闭环。
+        scenario_skill_tags: [ai algorithm, baseline, iteration, online, evaluation]
+        resume_anchor_hints: [ai algorithm, baseline, iteration, online, project]
+        failure_categories: [missing_metrics, missing_action, missing_tradeoff]
+        rubric_additions: [说明基线选择, 说明迭代节奏, 说明业务量化结果]
+        expected_signals: [能选择对比基线, 能给出有节奏的迭代记录, 能给出业务量化结果]
+        anti_patterns: [无基线对比, 一次性大改, 没结果指标]
+        good_answer_hints: [先讲基线, 再讲迭代, 最后讲结果]
+        priority: 11
+        status: active
+      - id: project_experience.ai_algorithm_baseline_to_online.tradeoff
+        version: 1
+        intent: deep_probe
+        difficulty: deep_probe
+        scenario_brief: 项目里有过为线上稳定性放弃部分效果的取舍。
+        question_stem: 你的算法项目里最难的一次取舍是什么？事后看你会怎么改？
+        prompt_template: 生成一道算法项目取舍复盘深挖题，要求候选人说明决策依据与反思。
+        scenario_skill_tags: [ai algorithm, tradeoff, retrospective]
+        resume_anchor_hints: [ai algorithm, tradeoff, retrospective, project]
+        failure_categories: [missing_tradeoff, shallow_debugging, missing_metrics]
+        rubric_additions: [说明取舍候选, 说明决策依据, 说明反思与改进]
+        expected_signals: [能描述至少 2 个候选方案, 能讲出当时数据/约束, 能给出今天会怎么改]
+        anti_patterns: [只夸自己决定对, 不讲替代, 没反思]
+        good_answer_hints: [先列候选, 再讲依据, 最后反思]
+        priority: 9
+        status: active
+
+  - id: project_experience.ai_algorithm_badcase_loop
+    version: 1
+    title: 长尾 badcase 收集与重训闭环
+    dimension: project_experience
+    job_levels: [junior, mid, senior]
+    skill_tags: [ai algorithm, badcase, labeling, retraining, evaluation]
+    direction_tags: [internet_tech]
+    role_tags: [ai_algorithm]
+    rubric:
+      must_cover: [badcase 收集, 标注流程, 重训触发, 验收回归]
+      minimum_bar: 能复述一次完整 badcase → 标注 → 重训 → 验收闭环经历。
+      stretch: 能说明 badcase 优先级、标注质量与回归测试设计。
+    priority: 20
+    status: active
+    source: manual_yaml
+    scope: global
+    language: zh-CN
+    variants:
+      - id: project_experience.ai_algorithm_badcase_loop.collection
+        version: 1
+        intent: opening
+        difficulty: standard
+        scenario_brief: 模型上线后业务方持续反馈一些"明显错误"的 badcase。
+        question_stem: 请讲一次你建立 badcase → 标注 → 重训 → 验收闭环的项目经历。
+        prompt_template: 结合候选人的算法项目经验，生成一道项目经验题，要求叙述长尾闭环。
+        scenario_skill_tags: [ai algorithm, badcase, labeling, retraining]
+        resume_anchor_hints: [ai algorithm, badcase, labeling, retraining, project]
+        failure_categories: [missing_action, missing_metrics, missing_observability]
+        rubric_additions: [说明收集来源, 说明标注流程, 说明重训触发]
+        expected_signals: [能定义多渠道 badcase 收集, 能定标注质量门槛, 能定重训触发条件]
+        anti_patterns: [只信用户反馈, 不做标注质量, 没回归测试]
+        good_answer_hints: [先建收集, 再做标注, 最后定重训]
+        priority: 10
+        status: active
+      - id: project_experience.ai_algorithm_badcase_loop.acceptance
+        version: 1
+        intent: deep_probe
+        difficulty: deep_probe
+        scenario_brief: 重训后业务方担心"修了 A 但又坏 B"。
+        question_stem: 如果担心 badcase 重训引入新退化，你会如何设计验收回归？
+        prompt_template: 生成一道 badcase 重训验收深挖题，要求候选人说明回归测试与对照实验。
+        scenario_skill_tags: [ai algorithm, regression test, ab test, acceptance]
+        resume_anchor_hints: [ai algorithm, regression, ab test, acceptance]
+        failure_categories: [missing_metrics, missing_action, missing_observability]
+        rubric_additions: [说明回归测试集, 说明对照实验, 说明上线门槛]
+        expected_signals: [能维护历史 badcase 回归集, 能用对照实验确认无退化, 能定上线门槛]
+        anti_patterns: [无回归测试, 不做对照, 直接全量发布]
+        good_answer_hints: [先回归集, 再做对照, 最后定门槛]
+        priority: 8
+        status: active

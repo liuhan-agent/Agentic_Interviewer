@@ -201,3 +201,309 @@ seeds:
         good_answer_hints: [先定义收益和成本, 再设计阈值策略, 最后补复核和反馈]
         priority: 14
         status: active
+
+  - id: product_thinking.ai_agent_negative_scope
+    version: 1
+    title: Agent 任务的"不要做什么"边界设定
+    dimension: product_thinking
+    job_levels: [junior, mid, senior]
+    skill_tags: [agent, product, negative scope, safety, user trust]
+    direction_tags: [internet_tech]
+    role_tags: [ai_agent]
+    rubric:
+      must_cover: [产品定位, 不可做清单, 用户预期管理, 风险沟通]
+      minimum_bar: 能说明 Agent 产品定义"不要做什么"对用户信任的重要性。
+      stretch: 能用 negative scope、UI 提示和拒答模板形成完整边界。
+    priority: 25
+    status: active
+    source: manual_yaml
+    scope: global
+    language: zh-CN
+    variants:
+      - id: product_thinking.ai_agent_negative_scope.refusal_design
+        version: 1
+        intent: opening
+        difficulty: standard
+        scenario_brief: 一个内部研发助手 Agent 经常被用户问到法律 / 财务 / 医疗等超出能力范围的问题。
+        question_stem: 你会如何为 Agent 产品定义"不要做什么"的边界并在体验上落地？
+        prompt_template: 结合候选人的 Agent / 产品经验，生成一道产品思维题，要求说明不可做清单与拒答体验。
+        scenario_skill_tags: [agent, product, negative scope, refusal, user trust]
+        resume_anchor_hints: [agent, product, scope, refusal, user]
+        failure_categories: [missing_action, missing_edge_case, missing_tradeoff]
+        rubric_additions: [说明不可做清单维度, 说明拒答体验设计, 说明用户预期教育]
+        expected_signals: [能列出 3-5 个明确不做的场景, 能设计清晰拒答 + 替代方案模板, 能在新手 onboarding 教育预期]
+        anti_patterns: [拒答模糊或道歉式, 不给替代方案, 用户教育缺失]
+        good_answer_hints: [先列不可做, 再做拒答体验, 最后做用户教育]
+        priority: 15
+        status: active
+      - id: product_thinking.ai_agent_negative_scope.boundary_evolution
+        version: 1
+        intent: deep_probe
+        difficulty: deep_probe
+        scenario_brief: 随着模型能力提升，曾经"不做"的领域（如简单合同审查）可能逐步可以做。
+        question_stem: 当 Agent 能力扩展时，你会如何安全地放开"不要做"边界而不伤害用户信任？
+        prompt_template: 生成一道 Agent 边界演进深挖题，要求候选人说明灰度、用户预期管理和回滚。
+        scenario_skill_tags: [agent, scope evolution, gradual rollout, trust]
+        resume_anchor_hints: [agent, scope, evolution, rollout, trust]
+        failure_categories: [missing_tradeoff, missing_action, missing_observability]
+        rubric_additions: [说明灰度试点选择, 说明用户预期更新, 说明回滚信号]
+        expected_signals: [能选择低风险用户群灰度, 能在体验里更新能力清单, 能定义回滚指标]
+        anti_patterns: [一次性大改边界, 不预告新能力, 出问题没回滚机制]
+        good_answer_hints: [先选灰度群, 再更新预期, 最后定回滚]
+        priority: 13
+        status: active
+
+  - id: product_thinking.ai_agent_trace_transparency
+    version: 1
+    title: Agent 决策路径的可解释与 trace 可读化
+    dimension: product_thinking
+    job_levels: [junior, mid, senior]
+    skill_tags: [agent, product, trace, explainability, audit]
+    direction_tags: [internet_tech]
+    role_tags: [ai_agent]
+    rubric:
+      must_cover: [可解释信息层级, trace 可读化, 用户视角, 审计支持]
+      minimum_bar: 能说明 Agent 决策过程需要哪些可解释信息以建立用户信任。
+      stretch: 能分层给出"对用户/对运营/对审计"三种 trace 视图。
+    priority: 23
+    status: active
+    source: manual_yaml
+    scope: global
+    language: zh-CN
+    variants:
+      - id: product_thinking.ai_agent_trace_transparency.user_view
+        version: 1
+        intent: opening
+        difficulty: standard
+        scenario_brief: 用户用 Agent 完成跨系统任务后，希望看到"它到底用了什么数据、做了什么动作"。
+        question_stem: 你会如何为 Agent 设计面向用户的决策路径可解释展示？
+        prompt_template: 结合候选人的 Agent / 产品经验，生成一道产品思维题，要求说明用户视角的 trace 表达。
+        scenario_skill_tags: [agent, product, trace, explainability]
+        resume_anchor_hints: [agent, trace, transparency, audit, user]
+        failure_categories: [missing_action, missing_edge_case, missing_observability]
+        rubric_additions: [说明信息层级, 说明视觉表达方式, 说明可读语言]
+        expected_signals: [能抽出关键动作与依据, 能用时间线/摘要表达, 能用用户语言而非内部术语]
+        anti_patterns: [直接展示原始日志, 全展示无重点, 用技术术语吓退用户]
+        good_answer_hints: [先抽取关键动作, 再做层级表达, 最后转用户语言]
+        priority: 14
+        status: active
+      - id: product_thinking.ai_agent_trace_transparency.audit_view
+        version: 1
+        intent: deep_probe
+        difficulty: deep_probe
+        scenario_brief: 客户的合规团队希望审计 Agent 在某次错误决策中的具体路径与依据。
+        question_stem: 如果审计需要还原 Agent 完整决策路径，你会如何设计 trace 留存与可追溯方案？
+        prompt_template: 生成一道 Agent 审计 trace 深挖题，要求候选人说明留存策略与可追溯。
+        scenario_skill_tags: [agent, audit, trace, compliance, retention]
+        resume_anchor_hints: [agent, audit, trace, compliance, retention]
+        failure_categories: [missing_action, missing_observability, missing_tradeoff]
+        rubric_additions: [说明留存范围, 说明哈希/签名保证不可改, 说明合规保留期]
+        expected_signals: [能区分用户可见与审计专用 trace, 能用签名/哈希保完整性, 能按合规要求设置保留期]
+        anti_patterns: [全展示给所有人, trace 可被改写, 不区分保留期]
+        good_answer_hints: [先分层留存, 再做完整性保护, 最后管保留期]
+        priority: 12
+        status: active
+
+  - id: product_thinking.ai_fullstack_explainable_ux
+    version: 1
+    title: 给非 AI 业务方设计"可解释/可回退"的 AI 入口
+    dimension: product_thinking
+    job_levels: [junior, mid, senior]
+    skill_tags: [ai fullstack, product, explainability, fallback, ux]
+    direction_tags: [internet_tech]
+    role_tags: [ai_fullstack]
+    rubric:
+      must_cover: [可解释信息, 可回退路径, 信任门槛, 业务方教育]
+      minimum_bar: 能说明 AI 入口在非 AI 业务方上落地需要的可解释与可回退。
+      stretch: 能结合预设话术、可信度展示与人工兜底形成完整体验。
+    priority: 24
+    status: active
+    source: manual_yaml
+    scope: global
+    language: zh-CN
+    variants:
+      - id: product_thinking.ai_fullstack_explainable_ux.first_use
+        version: 1
+        intent: opening
+        difficulty: standard
+        scenario_brief: 给销售团队接入 AI 客户总结助手，销售对"AI 写错就丢单"很担忧。
+        question_stem: 你会如何设计 AI 入口的可解释与可回退体验，让非 AI 业务方愿意用？
+        prompt_template: 结合候选人的 AI 全栈 / 产品经验，生成一道产品思维题，要求说明信任建立。
+        scenario_skill_tags: [ai product, explainability, fallback, ux]
+        resume_anchor_hints: [ai product, ux, explainability, fallback, trust]
+        failure_categories: [missing_action, missing_edge_case, missing_tradeoff]
+        rubric_additions: [说明可解释信息, 说明可回退路径, 说明业务方培训]
+        expected_signals: [能展示 AI 决策依据, 能给一键回退到人工写法, 能在新人入门教育]
+        anti_patterns: [只给最终输出, 不能回退, 不教育业务方]
+        good_answer_hints: [先展示依据, 再给回退, 最后做教育]
+        priority: 13
+        status: active
+      - id: product_thinking.ai_fullstack_explainable_ux.failure_recovery
+        version: 1
+        intent: recovery
+        difficulty: standard
+        scenario_brief: 销售团队反馈 AI 总结偶尔会"瞎编"客户痛点，开始失去信任。
+        question_stem: 当业务方对 AI 出现"失信"事件时，你会如何在产品体验上修复信任？
+        prompt_template: 生成一道 AI 应用信任修复深挖题，要求候选人说明体验侧 / 数据侧的恢复动作。
+        scenario_skill_tags: [ai product, trust recovery, ux, communication]
+        resume_anchor_hints: [ai product, trust, ux, recovery, communication]
+        failure_categories: [missing_action, shallow_debugging, missing_tradeoff]
+        rubric_additions: [说明失信定位, 说明体验侧修复, 说明业务方沟通]
+        expected_signals: [能精确定位失信 case, 能在体验上加可信度信号, 能与业务方透明沟通]
+        anti_patterns: [模糊道歉, 不改变体验, 不透明根因]
+        good_answer_hints: [先定位失信, 再加可信信号, 最后透明沟通]
+        priority: 11
+        status: active
+
+  - id: product_thinking.ai_fullstack_scope_judgement
+    version: 1
+    title: 场景用 AI 与不用 AI 的产品判断框架
+    dimension: product_thinking
+    job_levels: [junior, mid, senior]
+    skill_tags: [ai fullstack, product, scope, value, risk]
+    direction_tags: [internet_tech]
+    role_tags: [ai_fullstack]
+    rubric:
+      must_cover: [价值评估, 风险评估, 替代方案, 决策框架]
+      minimum_bar: 能说明判断"是否用 AI"需要看哪些维度。
+      stretch: 能给出一套可复用的产品 AI 选型决策框架。
+    priority: 22
+    status: active
+    source: manual_yaml
+    scope: global
+    language: zh-CN
+    variants:
+      - id: product_thinking.ai_fullstack_scope_judgement.decision_framework
+        version: 1
+        intent: opening
+        difficulty: standard
+        scenario_brief: 公司 PRD 里业务方动辄写"AI 自动生成"，但很多场景规则即可解决。
+        question_stem: 你会如何建立"是否用 AI"的产品判断框架？
+        prompt_template: 结合候选人的 AI 全栈 / 产品经验，生成一道产品思维题，要求说明 AI 选型决策。
+        scenario_skill_tags: [ai product, decision framework, scope]
+        resume_anchor_hints: [ai product, decision, scope, value, risk]
+        failure_categories: [missing_action, missing_tradeoff, missing_metrics]
+        rubric_additions: [说明价值维度, 说明风险维度, 说明替代方案对比]
+        expected_signals: [能列出何时 AI 比规则有明显优势, 能识别风险/成本超出价值的场景, 能给出"先用规则后接 AI"路径]
+        anti_patterns: [所有场景都强推 AI, 不做替代方案对比, 只看技术兴趣不看价值]
+        good_answer_hints: [先评估价值, 再评估风险, 最后比较替代方案]
+        priority: 12
+        status: active
+      - id: product_thinking.ai_fullstack_scope_judgement.business_alignment
+        version: 1
+        intent: deep_probe
+        difficulty: deep_probe
+        scenario_brief: 业务方坚持"必须上 AI"，但你认为该场景规则方案更稳更便宜。
+        question_stem: 当与业务方对"是否上 AI"判断不一致时，你会如何对齐与说服？
+        prompt_template: 生成一道 AI 选型对齐深挖题，要求候选人说明事实驱动的说服方法。
+        scenario_skill_tags: [ai product, alignment, persuasion, decision]
+        resume_anchor_hints: [ai product, alignment, persuasion, stakeholder]
+        failure_categories: [missing_action, shallow_debugging, missing_tradeoff]
+        rubric_additions: [说明对齐流程, 说明小规模实验, 说明结果驱动]
+        expected_signals: [能提议小规模实验拉数据, 能用结果而非立场对齐, 能保留试错空间]
+        anti_patterns: [硬扛, 完全妥协, 不做小实验]
+        good_answer_hints: [先提小实验, 再用数据对齐, 最后留试错空间]
+        priority: 10
+        status: active
+
+  - id: product_thinking.ai_algorithm_metric_to_outcome
+    version: 1
+    title: 把模型指标翻译为业务可验收目标
+    dimension: product_thinking
+    job_levels: [junior, mid, senior]
+    skill_tags: [ai algorithm, product, metric, outcome, alignment]
+    direction_tags: [internet_tech]
+    role_tags: [ai_algorithm]
+    rubric:
+      must_cover: [模型指标, 业务指标, 翻译规则, 对齐机制]
+      minimum_bar: 能把 AUC / precision / recall 等翻译成业务可验收目标。
+      stretch: 能在迭代中持续校准两侧指标。
+    priority: 22
+    status: active
+    source: manual_yaml
+    scope: global
+    language: zh-CN
+    variants:
+      - id: product_thinking.ai_algorithm_metric_to_outcome.translation
+        version: 1
+        intent: opening
+        difficulty: standard
+        scenario_brief: 业务方不懂"AUC 涨了 2 个点"，只关心是不是真能多收钱。
+        question_stem: 你会如何把模型技术指标翻译成业务可验收的结果目标？
+        prompt_template: 结合候选人的算法 / 产品经验，生成一道产品思维题，要求说明指标翻译。
+        scenario_skill_tags: [ai algorithm, metric translation, outcome, alignment]
+        resume_anchor_hints: [ai algorithm, metric, outcome, alignment, product]
+        failure_categories: [missing_action, missing_metrics, missing_tradeoff]
+        rubric_additions: [说明指标桥接, 说明业务可验收, 说明对齐机制]
+        expected_signals: [能用业务流程图把模型指标接到收入/留存等, 能定可验收门槛, 能定期同步指标]
+        anti_patterns: [只讲技术指标, 不讲业务桥接, 不定期同步]
+        good_answer_hints: [先桥接指标, 再定可验收, 最后做同步]
+        priority: 10
+        status: active
+      - id: product_thinking.ai_algorithm_metric_to_outcome.calibration
+        version: 1
+        intent: deep_probe
+        difficulty: deep_probe
+        scenario_brief: 上一次模型升级 AUC 涨了但业务结果没涨，业务方开始怀疑模型团队。
+        question_stem: 当模型指标与业务结果脱钩时，你会如何重新对齐两侧目标？
+        prompt_template: 生成一道指标对齐深挖题，要求候选人说明对齐路径与改进。
+        scenario_skill_tags: [ai algorithm, metric alignment, recalibration]
+        resume_anchor_hints: [ai algorithm, alignment, recalibration, outcome]
+        failure_categories: [missing_action, missing_metrics, missing_tradeoff]
+        rubric_additions: [说明脱钩原因分析, 说明指标重新对齐, 说明长期沟通]
+        expected_signals: [能分析脱钩原因, 能定义新对齐指标, 能定长期沟通节奏]
+        anti_patterns: [只看模型指标继续优化, 不分析脱钩, 不定沟通]
+        good_answer_hints: [先分析脱钩, 再重对齐, 最后定沟通]
+        priority: 9
+        status: active
+
+  - id: product_thinking.ai_algorithm_commitment_boundary
+    version: 1
+    title: 算法效果"承诺什么、不承诺什么"的产品沟通
+    dimension: product_thinking
+    job_levels: [junior, mid, senior]
+    skill_tags: [ai algorithm, product, commitment, expectation, boundary]
+    direction_tags: [internet_tech]
+    role_tags: [ai_algorithm]
+    rubric:
+      must_cover: [可承诺范围, 不可承诺范围, 沟通方式, 风险预案]
+      minimum_bar: 能向业务方说明算法可承诺与不可承诺的范围。
+      stretch: 能用可量化方式表达承诺边界。
+    priority: 20
+    status: active
+    source: manual_yaml
+    scope: global
+    language: zh-CN
+    variants:
+      - id: product_thinking.ai_algorithm_commitment_boundary.scope
+        version: 1
+        intent: opening
+        difficulty: standard
+        scenario_brief: 业务方希望算法"100% 准确"，但你知道这不现实。
+        question_stem: 你会如何与业务方沟通"承诺什么、不承诺什么"的算法边界？
+        prompt_template: 结合候选人的算法 / 产品经验，生成一道产品思维题，要求说明承诺边界。
+        scenario_skill_tags: [ai algorithm, commitment, boundary, communication]
+        resume_anchor_hints: [ai algorithm, commitment, boundary, expectation, communication]
+        failure_categories: [missing_action, missing_tradeoff, missing_edge_case]
+        rubric_additions: [说明可承诺范围, 说明不可承诺范围, 说明可量化方式]
+        expected_signals: [能用置信区间表达承诺, 能列明不可承诺场景, 能与业务方达成共识]
+        anti_patterns: [硬承诺 100%, 模糊回避, 不可量化]
+        good_answer_hints: [先可量化承诺, 再列例外, 最后达共识]
+        priority: 9
+        status: active
+      - id: product_thinking.ai_algorithm_commitment_boundary.risk_plan
+        version: 1
+        intent: deep_probe
+        difficulty: deep_probe
+        scenario_brief: 业务方接受了边界但要求"出问题时谁兜底"。
+        question_stem: 当算法效果不达预期时，你会如何设计兜底机制和责任边界？
+        prompt_template: 生成一道算法兜底机制深挖题，要求候选人说明兜底方案与责任划分。
+        scenario_skill_tags: [ai algorithm, fallback, responsibility, sla]
+        resume_anchor_hints: [ai algorithm, fallback, responsibility, sla]
+        failure_categories: [missing_action, missing_tradeoff, missing_observability]
+        rubric_additions: [说明兜底方案, 说明触发条件, 说明责任划分]
+        expected_signals: [能给出规则兜底/人工兜底, 能定触发条件, 能明确责任划分]
+        anti_patterns: [无兜底机制, 无触发条件, 不分责任]
+        good_answer_hints: [先建兜底, 再定触发, 最后划责任]
+        priority: 8
+        status: active

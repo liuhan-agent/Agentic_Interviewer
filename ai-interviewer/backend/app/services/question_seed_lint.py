@@ -50,7 +50,7 @@ BATCH2_ROLE_REQUIREMENTS = {
         "required_job_levels": {"junior", "mid", "senior"},
     },
     "ai_agent": {
-        "min_seeds": 5,
+        "min_seeds": 16,
         "dimensions": {
             "technical_depth",
             "system_design",
@@ -61,7 +61,7 @@ BATCH2_ROLE_REQUIREMENTS = {
         "required_job_levels": {"junior", "mid", "senior"},
     },
     "ai_fullstack": {
-        "min_seeds": 6,
+        "min_seeds": 19,
         "dimensions": {
             "technical_depth",
             "system_design",
@@ -84,7 +84,7 @@ BATCH2_ROLE_REQUIREMENTS = {
         "required_job_levels": {"junior", "mid", "senior"},
     },
     "ai_algorithm": {
-        "min_seeds": 5,
+        "min_seeds": 16,
         "dimensions": {
             "technical_depth",
             "problem_solving",
