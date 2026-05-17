@@ -108,7 +108,7 @@ def test_selector_hard_filters_status_scope_dimension_and_job_level() -> None:
     assert result.candidates[0].rank == 1
 
 
-def test_selector_breaks_ties_deterministically_by_seed_and_variant_id() -> None:
+def test_selector_breaks_ties_deterministically_after_seed_diversity() -> None:
     session_local = _session_factory()
     with session_local() as sess:
         _add_seed(
@@ -162,8 +162,81 @@ def test_selector_breaks_ties_deterministically_by_seed_and_variant_id() -> None
 
     assert [candidate.variant_id for candidate in result.candidates] == [
         "system_design.alpha.alt_opening",
-        "system_design.alpha.opening",
         "system_design.beta.opening",
+        "system_design.alpha.opening",
+    ]
+    assert [candidate.rank for candidate in result.candidates] == [1, 2, 3]
+
+
+def test_selector_prefers_distinct_seed_ids_in_top_k_when_available() -> None:
+    session_local = _session_factory()
+    with session_local() as sess:
+        _add_seed(
+            sess,
+            "system_design.alpha",
+            skill_tags=["redis"],
+            seed_priority=10,
+            variant_priority=10,
+            variant_id="system_design.alpha.opening",
+        )
+        sess.add(
+            QuestionVariant(
+                id="system_design.alpha.alt_opening",
+                seed_id="system_design.alpha",
+                version=1,
+                intent="opening",
+                difficulty="standard",
+                scenario_brief="alternate alpha scenario",
+                question_stem="alternate alpha question",
+                prompt_template="alternate alpha prompt",
+                scenario_skill_tags=["redis"],
+                resume_anchor_hints=[],
+                failure_categories=[],
+                rubric_additions=["addition"],
+                expected_signals=["signal"],
+                anti_patterns=["anti"],
+                good_answer_hints=["hint"],
+                role_tags=["java_backend"],
+                priority=10,
+                status="active",
+            )
+        )
+        _add_seed(
+            sess,
+            "system_design.beta",
+            skill_tags=["redis"],
+            seed_priority=10,
+            variant_priority=10,
+            variant_id="system_design.beta.opening",
+        )
+        _add_seed(
+            sess,
+            "system_design.gamma",
+            skill_tags=["redis"],
+            seed_priority=10,
+            variant_priority=10,
+            variant_id="system_design.gamma.opening",
+        )
+        sess.commit()
+
+        result = select_question_candidates(
+            sess,
+            dimension="system_design",
+            job_level="senior",
+            target_skills=["redis"],
+            probe_intent="opening",
+            top_k=3,
+        )
+
+    assert [candidate.seed_id for candidate in result.candidates] == [
+        "system_design.alpha",
+        "system_design.beta",
+        "system_design.gamma",
+    ]
+    assert [candidate.variant_id for candidate in result.candidates] == [
+        "system_design.alpha.alt_opening",
+        "system_design.beta.opening",
+        "system_design.gamma.opening",
     ]
     assert [candidate.rank for candidate in result.candidates] == [1, 2, 3]
 
