@@ -13,9 +13,20 @@ from .llm_client import ChatMessage, call_chat, parse_json_response
 log = get_logger(__name__)
 
 _SYSTEM = (
-    "You turn a candidate's interview self-introduction into concise "
-    "structured context for an interview question generator. Respond only JSON."
+    "You turn a candidate's interview self-introduction into structured "
+    "context for an interview question generator. Respond only JSON with "
+    "keys: summary, emphasized_projects, emphasized_skills, preferred_focus, "
+    "clarification_targets, communication_signal, anchor_cards."
 )
+
+ALLOWED_SELF_INTRO_CARD_KINDS = {
+    "project",
+    "responsibility",
+    "tech",
+    "difficulty",
+    "result",
+    "claim",
+}
 
 
 def _has_self_intro_llm_override_key() -> bool:
@@ -59,12 +70,16 @@ def _as_text_list(value: Any, *, limit: int = 6) -> list[str]:
 def _resume_projects(candidate: dict[str, Any]) -> list[dict[str, Any]]:
     parsed = candidate.get("resume_parsed") or {}
     projects = parsed.get("projects") if isinstance(parsed, dict) else []
+    if not isinstance(projects, list):
+        return []
     return [p for p in projects if isinstance(p, dict)]
 
 
 def _resume_focus_areas(candidate: dict[str, Any]) -> list[dict[str, Any]]:
     parsed = candidate.get("resume_parsed") or {}
     areas = parsed.get("focus_areas") if isinstance(parsed, dict) else []
+    if not isinstance(areas, list):
+        return []
     return [f for f in areas if isinstance(f, dict)]
 
 
@@ -133,8 +148,49 @@ def _heuristic_profile(
             "structure": structure,
             "notes": [],
         },
+        "anchor_cards": [
+            {
+                "kind": "claim",
+                "title": "Opening self-introduction",
+                "text": text[:240] or "candidate completed the opening self-introduction.",
+                "tech_keywords": _as_text_list(skills, limit=10),
+            }
+        ],
         "parse_status": "heuristic" if text else "fallback",
     }
+
+
+def _clean_anchor_cards(raw: Any, fallback: dict[str, Any]) -> list[dict[str, Any]]:
+    cards: list[dict[str, Any]] = []
+    seen: set[str] = set()
+    items = raw if isinstance(raw, list) else []
+    for item in items:
+        if not isinstance(item, dict):
+            continue
+        kind = str(item.get("kind") or "").strip()
+        text = re.sub(r"\s+", " ", str(item.get("text") or "").strip())
+        if kind not in ALLOWED_SELF_INTRO_CARD_KINDS or not text:
+            continue
+        key = text.lower()
+        if key in seen:
+            continue
+        seen.add(key)
+        cards.append(
+            {
+                "kind": kind,
+                "title": str(item.get("title") or kind).strip()[:80],
+                "text": text[
+                    : int(get_settings().session_anchor_self_intro_card_max_chars or 500)
+                ],
+                "tech_keywords": _as_text_list(item.get("tech_keywords"), limit=10),
+            }
+        )
+        if len(cards) >= int(get_settings().session_anchor_self_intro_max_cards or 8):
+            break
+    if cards:
+        return cards
+    fallback_cards = fallback.get("anchor_cards")
+    return fallback_cards if isinstance(fallback_cards, list) else []
 
 
 def _clean_profile(raw: dict[str, Any], fallback: dict[str, Any]) -> dict[str, Any]:
@@ -170,6 +226,7 @@ def _clean_profile(raw: dict[str, Any], fallback: dict[str, Any]) -> dict[str, A
             "structure": structure,
             "notes": _as_text_list(signal.get("notes"), limit=4),
         },
+        "anchor_cards": _clean_anchor_cards(raw.get("anchor_cards"), fallback),
         "parse_status": "llm",
     }
     if not cleaned["summary"]:
@@ -206,7 +263,10 @@ def parse_self_intro_profile(
     prompt = (
         "Extract an interview self-introduction profile.\n"
         "Return JSON with keys: summary, emphasized_projects, emphasized_skills, "
-        "preferred_focus, clarification_targets, communication_signal.\n"
+        "preferred_focus, clarification_targets, communication_signal, anchor_cards.\n"
+        "anchor_cards must be an array of concise evidence cards with kind in "
+        "project, responsibility, tech, difficulty, result, claim; each card has "
+        "title, text, and tech_keywords.\n"
         "Only use facts supported by the self-introduction. Use resume/JD only "
         "to normalize project and skill names.\n\n"
         f"JOB_SPEC={json.dumps(job_spec or {}, ensure_ascii=False)}\n"

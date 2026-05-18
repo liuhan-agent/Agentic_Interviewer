@@ -707,9 +707,11 @@ Storing artifacts in Postgres (instead of a process-local dict) makes the contra
 - Modify: `ai-interviewer/backend/app/engine/workflow/nodes/self_intro.py`
 - Modify: `ai-interviewer/backend/app/engine/workflow/state.py`
 - Modify: `ai-interviewer/backend/app/models/__init__.py`
+- Modify: `ai-interviewer/backend/app/models/base.py`
+- Modify: `ai-interviewer/backend/app/models/session_anchor.py`
 - Modify: `ai-interviewer/frontend/src/lib/api/types.ts`
 - Modify: `ai-interviewer/frontend/src/components/interview/SetupForm.tsx`
-- Modify: `ai-interviewer/frontend/src/lib/storage/setupDrafts.ts`
+- Modify: `ai-interviewer/frontend/src/lib/resume-upload.ts`
 - Create: `ai-interviewer/backend/tests/unit/test_resume_parse_artifacts.py`
 - Create: `ai-interviewer/backend/tests/unit/test_session_anchor_vectorize.py`
 - Create: `ai-interviewer/backend/tests/unit/test_self_intro_anchor_cards.py`
@@ -723,7 +725,7 @@ Storing artifacts in Postgres (instead of a process-local dict) makes the contra
 
 The artifact bridges setup-time resume parsing and node-scoped vectorization. Two HTTP requests and (in production) two different FastAPI workers may sit between `POST /resume/parse` and the first `resume_parse_node` invocation, so a process-local dict is not safe. The artifact stores **redacted text only**.
 
-- [ ] Add the ORM model in `app/models/resume_parse_artifact.py`:
+- [x] Add the ORM model in `app/models/resume_parse_artifact.py`:
 
 ```python
 class ResumeParseArtifact(Base):
@@ -747,7 +749,7 @@ class ResumeParseArtifact(Base):
 
 Register the model in `app/models/__init__.py` so `init_db()` picks it up.
 
-- [ ] Implement the service `resume_parse_artifacts.py`. Public API:
+- [x] Implement the service `resume_parse_artifacts.py`. Public API:
 
 ```python
 @dataclass(frozen=True)
@@ -799,7 +801,7 @@ def cleanup_expired_resume_parse_artifacts(
     """Delete rows where ``expires_at < now()``. Returns count deleted."""
 ```
 
-- [ ] Implementation rules:
+- [x] Implementation rules:
 
   - All public functions accept an optional `db_session`; production callers pass `None` to use the default session, tests pass an isolated session.
   - `create_resume_parse_artifact`: run `redact_pii` on the raw text, generate `artifact_id = secrets.token_urlsafe(24)`, set `expires_at = now() + max(60, settings.resume_rag_parse_artifact_ttl_seconds)`, set `consumed_at = None`, INSERT one row.
@@ -808,7 +810,7 @@ def cleanup_expired_resume_parse_artifacts(
   - `redact_pii` runs before storage so the database never holds raw phone numbers / emails / ID cards even on disk.
   - All writes happen inside a single transaction; never raise to HTTP callers — log a WARNING and return `None` so callers fall back to rule anchor.
 
-- [ ] Tests:
+- [x] Tests:
 
 ```python
 def test_create_resume_parse_artifact_redacts_pii(db_session):
@@ -930,7 +932,7 @@ def vectorize_self_intro_anchor_cards(
     """
 ```
 
-- [ ] Implementation rules:
+- [x] Implementation rules:
 
   - Always run inside a single transaction.
   - Resume Mode D returns `status="skipped", skipped_reason="mode_d_minimal_resume"`. No DB writes.
@@ -945,7 +947,7 @@ def vectorize_self_intro_anchor_cards(
 
 ### Task 4c: Parse endpoints return artifact ids, not vectors
 
-- [ ] In `POST /resume/parse`, after `payload = result.payload`, create an artifact and return its id:
+- [x] In `POST /resume/parse`, after `payload = result.payload`, create an artifact and return its id:
 
 ```python
 artifact = create_resume_parse_artifact(
@@ -957,14 +959,14 @@ payload["resume_source_id"] = artifact.artifact_id
 payload["resume_source_expires_at"] = artifact.expires_at.isoformat()
 ```
 
-- [ ] In `ResumeParseJobManager._run_job`, do the same after `payload = resume_parse_payload(parsed, text)`.
-- [ ] Do **not** call `vectorize_resume` from `ResumeParseJobManager._run_job`. A completed parse job means "setup artifact is ready", not "session RAG is queryable".
+- [x] In `ResumeParseJobManager._run_job`, do the same after `payload = resume_parse_payload(parsed, text)`.
+- [x] Do **not** call `vectorize_resume` from `ResumeParseJobManager._run_job`. A completed parse job means "setup artifact is ready", not "session RAG is queryable".
 
 ### Task 4d: Stamp `resume_source_id` during `POST /sessions` (no vectorization)
 
 `POST /sessions` must stay on the synchronous HTTP path with no extra LLM / embedding latency. The artifact is only **validated** here, not consumed; the workflow node consumes it later. If validation fails (missing or expired artifact), the session still succeeds and falls back to the rule-based `select_resume_anchor`.
 
-- [ ] Add `resume_source_id` to `StartSessionRequest` as a top-level optional field.
+- [x] Add `resume_source_id` to `StartSessionRequest` as a top-level optional field.
 
 ```python
 class StartSessionRequest(BaseModel):
@@ -976,7 +978,7 @@ class StartSessionRequest(BaseModel):
     mode: str = "mixed"
 ```
 
-- [ ] In `start_session`, after `translate_request(req.model_dump(exclude_none=False))` returns `session_id` and before `manager.start`, stamp the artifact id and a pending vector status into the initial workflow state. **Do not call `vectorize_resume` here.**
+- [x] In `start_session`, after `translate_request(req.model_dump(exclude_none=False))` returns `session_id` and before `manager.start`, stamp the artifact id and a pending vector status into the initial workflow state. **Do not call `vectorize_resume` here.**
 
 ```python
 def _stamp_resume_source_for_session(
@@ -1006,7 +1008,7 @@ def _stamp_resume_source_for_session(
     }
 ```
 
-- [ ] Store the stamped status on the workflow state and setup snapshot:
+- [x] Store the stamped status on the workflow state and setup snapshot:
 
 ```python
 vector_status = _stamp_resume_source_for_session(
@@ -1019,7 +1021,7 @@ if vector_status.get("status") == "pending_node":
 setup_snapshot["resume_vector_status"] = vector_status
 ```
 
-- [ ] `POST /sessions` always succeeds regardless of artifact state. Failure modes:
+- [x] `POST /sessions` always succeeds regardless of artifact state. Failure modes:
   - No `resume_source_id` provided → `skipped/no_parse_artifact`; node skips vectorize.
   - `resume_source_id` invalid or expired → `skipped/parse_artifact_missing_or_expired`; node skips vectorize. Interview proceeds with rule anchor only.
   - Artifact valid → `pending_node`; `resume_parse_node` will consume + vectorize.
@@ -1028,7 +1030,7 @@ setup_snapshot["resume_vector_status"] = vector_status
 
 `resume_parse_node` already runs first in the LangGraph topology before any user-facing prompt. It now also owns resume vectorization. The 300-600 ms cost hides behind the immediately following 60-120 s self-intro speaking window, so no consuming step (ask_question) sees a not-ready resume in practice.
 
-- [ ] Modify `app/engine/workflow/nodes/resume_parse.py`:
+- [x] Modify `app/engine/workflow/nodes/resume_parse.py`:
 
 ```python
 def resume_parse_node(state: InterviewState) -> dict[str, Any]:
@@ -1101,7 +1103,7 @@ def _vectorize_resume_for_node(
     )
 ```
 
-- [ ] Implementation rules:
+- [x] Implementation rules:
 
   - `resume_parse_node` must continue to return its existing keys (`dimensions / rubric / dimension_status / scores_per_dim`). Vectorize side effects do not change those values; they only add `resume_vector_status` under `candidate`.
   - `_vectorize_resume_for_node` must never raise. Any unexpected exception is caught and returned as `{"status": "failed", "error": str(exc), "resume_source_id": source_id, "resume_revision_id": None}` so downstream nodes can fall back to rule anchor without dropping the whole graph.
@@ -1109,7 +1111,7 @@ def _vectorize_resume_for_node(
   - The artifact row is not deleted by consume; cleanup remains responsibility of `cleanup_expired_resume_parse_artifacts` (Task 6c).
   - Raw resume text never enters `state`. After `vectorize_resume` returns, `artifact.redacted_text` falls out of scope; only the structured `resume_vector_status` (containing `resume_revision_id`, chunk counts, mode, error metadata) is written back into `state["candidate"]`.
 
-- [ ] Tests in `test_resume_parse_node_vectorize.py`:
+- [x] Tests in `test_resume_parse_node_vectorize.py`:
 
 ```python
 def test_resume_parse_node_vectorizes_when_source_id_present(monkeypatch, db_session):
@@ -1200,13 +1202,13 @@ def test_resume_parse_node_keeps_rubric_outputs_intact(db_session):
 
 ### Task 4e: Frontend carries artifact id through setup
 
-- [ ] Extend `ParseResumeResponse` with `resume_source_id` and `resume_source_expires_at`.
-- [ ] Preserve those fields in `SetupForm` upload state and setup drafts.
-- [ ] Include `resume_source_id` in the `startSession(payload)` request. If the user manually edits parsed fields, keep the same artifact id; the vectorizer uses raw text for chunking and the edited `candidate.resume_parsed` only as auxiliary metadata.
+- [x] Extend `ParseResumeResponse` with `resume_source_id` and `resume_source_expires_at`.
+- [x] Preserve those fields in `SetupForm` upload state and setup drafts.
+- [x] Include `resume_source_id` in the `startSession(payload)` request. If the user manually edits parsed fields, keep the same artifact id; the vectorizer uses raw text for chunking and the edited `candidate.resume_parsed` only as auxiliary metadata.
 
 ### Task 4f: Opening self-intro anchor cards
 
-- [ ] Extend `app/engine/agents/self_intro.py` without adding another LLM call. The existing `_SYSTEM` and user prompt must ask for the current fields plus `anchor_cards`.
+- [x] Extend `app/engine/agents/self_intro.py` without adding another LLM call. The existing `_SYSTEM` and user prompt must ask for the current fields plus `anchor_cards`.
 
 ```python
 _SYSTEM = (
@@ -1217,7 +1219,7 @@ _SYSTEM = (
 )
 ```
 
-- [ ] Add a cleaner for `anchor_cards`:
+- [x] Add a cleaner for `anchor_cards`:
 
 ```python
 ALLOWED_SELF_INTRO_CARD_KINDS = {
@@ -1256,8 +1258,8 @@ def _clean_anchor_cards(raw: Any, fallback: dict[str, Any]) -> list[dict[str, An
     return cards
 ```
 
-- [ ] Include `anchor_cards` in `_clean_profile(data, fallback)`. Prompt-injection-like content remains plain card text only; it must not alter `kind`, limits, or control fields.
-- [ ] Add deterministic fallback card construction in `session_anchor_vectorize.py`, not another LLM call:
+- [x] Include `anchor_cards` in `_clean_profile(data, fallback)`. Prompt-injection-like content remains plain card text only; it must not alter `kind`, limits, or control fields.
+- [x] Add deterministic fallback card construction in `session_anchor_vectorize.py`, not another LLM call:
 
 ```python
 def build_self_intro_fallback_cards(profile: dict[str, Any], sanitized_answer: str) -> list[dict[str, Any]]:
@@ -1277,7 +1279,7 @@ def build_self_intro_fallback_cards(profile: dict[str, Any], sanitized_answer: s
     return cards[: get_settings().session_anchor_self_intro_max_cards]
 ```
 
-- [ ] Modify `self_intro_parse_node` to vectorize after parsing and before returning the state update. Use the sanitized answer for length gating and fallback text, not raw transcript.
+- [x] Modify `self_intro_parse_node` to vectorize after parsing and before returning the state update. Use the sanitized answer for length gating and fallback text, not raw transcript.
 
 ```python
 self_intro_revision_id = secrets.token_urlsafe(18)
@@ -1290,9 +1292,9 @@ self_intro_vector_status = vectorize_self_intro_anchor_cards(
 )
 ```
 
-- [ ] Return `self_intro_vector_status` in the state update. If vectorization fails, the interview continues; `ask_question` will still use `self_intro_profile` as a non-vector signal.
+- [x] Return `self_intro_vector_status` in the state update. If vectorization fails, the interview continues; `ask_question` will still use `self_intro_profile` as a non-vector signal.
 
-- [ ] Tests with a mocked embedding service and an in-memory pgvector-enabled Postgres (or stub vectorstore).
+- [x] Tests with a mocked embedding service and an in-memory pgvector-enabled Postgres (or stub vectorstore).
 
 ```python
 def test_vectorize_resume_writes_chunks_and_returns_ready(monkeypatch, db_session):
@@ -1407,7 +1409,7 @@ def test_vectorize_self_intro_writes_anchor_cards(monkeypatch, db_session):
     assert rows[0].tier == "anchor_card"
 ```
 
-- [ ] Add session-binding tests:
+- [x] Add session-binding tests:
 
 ```python
 def test_start_session_binds_parse_artifact_and_vectorizes(monkeypatch, client):
@@ -1449,7 +1451,7 @@ def test_start_session_without_artifact_falls_back_to_rule_anchor(client):
     assert response.status_code == 200
 ```
 
-- [ ] Run the artifact/vectorize/session-binding tests.
+- [x] Run the artifact/vectorize/session-binding tests.
 
 ```bash
 python -m pytest \
@@ -1464,10 +1466,10 @@ python -m pytest \
 
 Expected: parse endpoints return source artifacts, `POST /sessions` stamps `pending_node` and does not vectorize, `resume_parse_node` consumes the artifact and vectorizes (success/failed/skipped paths all covered), long self-intro anchor cards vectorize, missing/expired/already-consumed artifacts degrade to rule anchor, self-intro failures degrade to profile-only, Mode D and short self-intro skip cleanly.
 
-- [ ] Commit.
+- [x] Commit.
 
 ```bash
-git add ai-interviewer/backend/app/models/resume_parse_artifact.py ai-interviewer/backend/app/models/__init__.py ai-interviewer/backend/app/services/resume_parse_artifacts.py ai-interviewer/backend/app/services/session_anchor_vectorize.py ai-interviewer/backend/app/api/v1/interview.py ai-interviewer/backend/app/services/resume_parse_jobs.py ai-interviewer/backend/app/engine/agents/self_intro.py ai-interviewer/backend/app/engine/workflow/nodes/resume_parse.py ai-interviewer/backend/app/engine/workflow/nodes/self_intro.py ai-interviewer/backend/app/engine/workflow/state.py ai-interviewer/backend/tests/unit/test_resume_parse_artifacts.py ai-interviewer/backend/tests/unit/test_session_anchor_vectorize.py ai-interviewer/backend/tests/unit/test_self_intro_anchor_cards.py ai-interviewer/backend/tests/unit/test_resume_rag_session_binding.py ai-interviewer/backend/tests/unit/test_resume_parse_node_vectorize.py ai-interviewer/backend/tests/unit/test_interview_setup_api_contract.py ai-interviewer/frontend/src/lib/api/types.ts ai-interviewer/frontend/src/components/interview/SetupForm.tsx ai-interviewer/frontend/src/lib/storage/setupDrafts.ts ai-interviewer/frontend/tests/resumeUpload.test.js
+git add ai-interviewer/backend/app/models/resume_parse_artifact.py ai-interviewer/backend/app/models/__init__.py ai-interviewer/backend/app/models/base.py ai-interviewer/backend/app/models/session_anchor.py ai-interviewer/backend/app/services/resume_parse_artifacts.py ai-interviewer/backend/app/services/session_anchor_vectorize.py ai-interviewer/backend/app/api/v1/interview.py ai-interviewer/backend/app/services/resume_parse_jobs.py ai-interviewer/backend/app/engine/agents/self_intro.py ai-interviewer/backend/app/engine/workflow/nodes/resume_parse.py ai-interviewer/backend/app/engine/workflow/nodes/self_intro.py ai-interviewer/backend/app/engine/workflow/state.py ai-interviewer/backend/tests/unit/test_resume_parse_artifacts.py ai-interviewer/backend/tests/unit/test_session_anchor_vectorize.py ai-interviewer/backend/tests/unit/test_self_intro_anchor_cards.py ai-interviewer/backend/tests/unit/test_resume_parse_jobs.py ai-interviewer/backend/tests/unit/test_resume_rag_session_binding.py ai-interviewer/backend/tests/unit/test_resume_parse_node_vectorize.py ai-interviewer/backend/tests/unit/test_interview_setup_api_contract.py ai-interviewer/frontend/src/lib/api/types.ts ai-interviewer/frontend/src/components/interview/SetupForm.tsx ai-interviewer/frontend/src/lib/resume-upload.ts ai-interviewer/frontend/tests/resumeUpload.test.js
 git commit -m "feat: bind session anchors for resume and self intro"
 ```
 
