@@ -39,6 +39,10 @@ dimension, level, probe intent, and failure category.
 - [Frontend Performance and Render Probe](tech_frontend_perf_render_probe.md)
 - [Mobile Platform Probe](tech_mobile_platform_probe.md)
 - [SRE SLO and Capacity Probe](tech_sre_slo_capacity_probe.md)
+- [QA Test Strategy Probe](tech_qa_test_strategy_probe.md)
+- [AI Algorithm Training Probe](tech_ai_algorithm_training_probe.md)
+- [Security Compliance Probe](tech_security_compliance_probe.md)
+- [Senior Backend Distributed State Probe](senior_backend_distributed_state_probe.md)
 
 ### Business direction
 
@@ -48,3 +52,6 @@ dimension, level, probe intent, and failure category.
 - [Service Escalation Probe](service_escalation_probe.md)
 - [Business Executive Strategy Probe](business_executive_strategy_probe.md)
 - [Data Analyst Insight Probe](business_data_analyst_insight_probe.md)
+- [UX Research and Design Decision Probe](design_ux_research_probe.md)
+- [HR Talent Lifecycle Probe](business_hr_talent_lifecycle_probe.md)
+- [Pricing and Packaging Probe](business_pricing_packaging_probe.md)
