@@ -38,6 +38,7 @@ dimension, level, probe intent, and failure category.
 - [Data Engineering Pipeline Probe](tech_data_engineering_pipeline_probe.md)
 - [Frontend Performance and Render Probe](tech_frontend_perf_render_probe.md)
 - [Mobile Platform Probe](tech_mobile_platform_probe.md)
+- [SRE SLO and Capacity Probe](tech_sre_slo_capacity_probe.md)
 
 ### Business direction
 

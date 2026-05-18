@@ -144,6 +144,48 @@ def test_parse_bundled_skill_playbooks_is_strict_clean() -> None:
     assert any(card.values["evaluator_rubric_hints"] for card in cards)
 
 
+def test_parse_bundled_skill_playbooks_covers_p1_expansion_cards() -> None:
+    """P1 expansion (2026-05) — pin each newly added card as it lands.
+
+    P1 is rolled out one card at a time. Each new card is appended to
+    the ``p1_expansion`` dict below so the catalog stops a regression
+    that quietly drops the card from the markdown source of truth.
+    """
+    skill_dir = Path(__file__).resolve().parents[2] / "knowledge" / "skills"
+
+    cards, _skipped = parse_skill_playbook_dir(skill_dir)
+    by_id = {card.values["id"]: card.values for card in cards}
+
+    p1_expansion = {
+        "tech_sre_slo_capacity_probe": {
+            "direction_tags": {"internet_tech"},
+            "role_tags": {"sre", "architect"},
+            "job_levels": {"senior", "staff", "principal"},
+        },
+    }
+
+    missing = sorted(p1_expansion.keys() - by_id.keys())
+    assert not missing, f"P1 expansion cards missing from catalog: {missing}"
+
+    for card_id, expected in p1_expansion.items():
+        values = by_id[card_id]
+        assert values["status"] == "active", f"{card_id}: must be active"
+        assert int(values["priority"]) >= 6, (
+            f"{card_id}: P1 cards should land with priority >= 6"
+        )
+        assert values["generator_moves"], f"{card_id}: generator_moves required"
+        assert values["watch_for"], f"{card_id}: watch_for required"
+        assert values["avoid"], f"{card_id}: avoid required"
+        assert values["evaluator_rubric_hints"], (
+            f"{card_id}: evaluator_rubric_hints required"
+        )
+        for field, expected_subset in expected.items():
+            actual = set(values.get(field, []))
+            assert expected_subset <= actual, (
+                f"{card_id}: {field} missing values {expected_subset - actual}"
+            )
+
+
 def test_parse_bundled_skill_playbooks_covers_p0_expansion_cards() -> None:
     """P0 expansion (2026-05) — five new cards must all pass strict import.
 
