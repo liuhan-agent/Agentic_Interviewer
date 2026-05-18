@@ -33,6 +33,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Separator } from "@/components/ui/separator";
 import { Skeleton } from "@/components/ui/skeleton";
+import { CandidateAnchorRagCard } from "@/components/admin/CandidateAnchorRagCard";
 import { RagEvalPanel } from "@/components/admin/RagEvalPanel";
 import {
   FALLBACK_KIND_DESCRIPTIONS,
@@ -3708,5 +3709,18 @@ function formatMaybeNumber(value: number | null | undefined): string {
 // ---------------------------------------------------------------------------
 
 function RagEvalSection() {
-  return <RagEvalPanel />;
+  return (
+    <section className="space-y-3">
+      <div>
+        <h2 className="text-sm font-semibold">RAG 观察</h2>
+        <p className="mt-1 text-xs text-muted-foreground">
+          知识库 Chroma 与候选人锚点 PgVector 分开观测，避免把两类检索质量混成一个指标。
+        </p>
+      </div>
+      <div className="grid gap-6 xl:grid-cols-2">
+        <RagEvalPanel />
+        <CandidateAnchorRagCard />
+      </div>
+    </section>
+  );
 }

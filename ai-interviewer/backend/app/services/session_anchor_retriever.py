@@ -28,6 +28,7 @@ class CandidateAnchorHit:
     source_revision_id: str
     chunk_index: int
     tier: str
+    chunker_mode: str
     heading: str
     project_name: str
     text: str
@@ -44,6 +45,7 @@ class CandidateAnchorHit:
             "source_revision_id": self.source_revision_id,
             "chunk_index": self.chunk_index,
             "tier": self.tier,
+            "chunker_mode": self.chunker_mode,
             "heading": self.heading,
             "project_name": self.project_name,
             "score": round(self.adjusted_score, 6),
@@ -262,6 +264,7 @@ def _hit_from_row(
         source_revision_id=str(row.source_revision_id or ""),
         chunk_index=int(row.chunk_index or 0),
         tier=str(row.tier or ""),
+        chunker_mode=str(row.chunker_mode or ""),
         heading=str(row.heading or ""),
         project_name=project,
         text=str(row.text or ""),
