@@ -36,6 +36,8 @@ def _full_payload(**overrides: Any) -> dict[str, Any]:
         "retrieval": "RETRIEVAL",
         "question_seed": "",
         "candidate_anchor": "",
+        "resume_rag": "",
+        "self_intro_rag": "",
         "strategy": "STRATEGY",
         "skills": "(no relevant interview skills)",
         "avoid_patterns": "(no historical shallow patterns on this dimension)",

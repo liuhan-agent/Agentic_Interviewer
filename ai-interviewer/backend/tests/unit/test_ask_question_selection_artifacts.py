@@ -18,6 +18,7 @@ from app.memory.strategy_store import StrategyEntry
 from app.models.base import Base
 from app.models.skill_playbook import SkillPlaybookCard
 from app.services.question_selector import QuestionCandidate, QuestionSelectionResult
+from app.services.session_anchor_retriever import CandidateAnchorRagResult
 
 _COVERED_PRIMARY_ROLE_TAGS = [
     "java_backend",
@@ -1461,6 +1462,8 @@ def test_generator_context_slot_order_baseline(monkeypatch) -> None:
             "retrieval_block": "knowledge slot",
             "question_seed_block": "seed slot",
             "candidate_anchor_block": "rule anchor slot",
+            "resume_rag_block": "resume semantic slot",
+            "self_intro_rag_block": "self intro semantic slot",
             "strategy_block": "strategy slot",
             "skill_block": "skill slot",
             "avoid_patterns": "avoid slot",
@@ -1478,6 +1481,8 @@ def test_generator_context_slot_order_baseline(monkeypatch) -> None:
         "retrieval_block",
         "question_seed_block",
         "candidate_anchor_block",
+        "resume_rag_block",
+        "self_intro_rag_block",
         "strategy_block",
         "skill_block",
         "avoid_patterns_block",
@@ -1495,6 +1500,113 @@ def test_retrieval_block_for_prompt_returns_empty_on_seed_hit() -> None:
 def test_retrieval_block_for_prompt_returns_block_without_seed_hit() -> None:
     ctx = {"structured_primary_seed_hit": False, "retrieval_block": "knowledge body"}
     assert ask_mod._retrieval_block_for_prompt(ctx) == "knowledge body"
+
+
+def test_candidate_anchor_rag_shadow_writes_artifact_but_not_blocks(monkeypatch) -> None:
+    monkeypatch.setattr(
+        ask_mod,
+        "get_settings",
+        lambda: SimpleNamespace(resume_rag_mode="shadow"),
+    )
+    monkeypatch.setattr(
+        ask_mod,
+        "retrieve_candidate_anchors",
+        lambda **_kwargs: CandidateAnchorRagResult(
+            resume_block="[resume] Redis Lua coupon guard",
+            self_intro_block="[self_intro] 50w QPS Lua atomic",
+            hits=[],
+            latency_ms=12,
+            fallback_reason=None,
+            skipped=False,
+        ),
+    )
+    ctx = {
+        "dimension": "system_design",
+        "question_items": [{"scenario_brief": "Redis consistency"}],
+        "resume_anchor": {"project_name": "Coupon Guard"},
+        "target_skills": ["Redis"],
+    }
+
+    ask_mod._step_retrieve_candidate_anchors(
+        _base_state(
+            candidate={
+                "resume_parsed": {},
+                "resume_vector_status": {
+                    "status": "ready",
+                    "resume_revision_id": "rev_1",
+                },
+            },
+            self_intro_vector_status={
+                "status": "ready",
+                "self_intro_revision_id": "intro_rev_1",
+            },
+            self_intro_profile={"emphasized_projects": ["Coupon Guard"]},
+        ),
+        ctx,
+    )
+
+    assert ctx["resume_rag_block"] == ""
+    assert ctx["self_intro_rag_block"] == ""
+    assert ctx["candidate_anchor_rag_artifact"]["status"] == "shadow"
+
+
+def test_anchor_rag_blocks_survive_structured_primary_seed_hit(monkeypatch) -> None:
+    monkeypatch.setattr(
+        ask_mod,
+        "get_settings",
+        lambda: SimpleNamespace(resume_rag_mode="primary"),
+    )
+    monkeypatch.setattr(
+        ask_mod,
+        "retrieve_candidate_anchors",
+        lambda **_kwargs: CandidateAnchorRagResult(
+            resume_block="[resume] Redis Lua coupon guard",
+            self_intro_block="[self_intro] 50w QPS Lua atomic",
+            hits=[],
+            latency_ms=12,
+            fallback_reason=None,
+            skipped=False,
+        ),
+    )
+    state = _base_state(
+        candidate={
+            "resume_parsed": {},
+            "resume_vector_status": {
+                "status": "ready",
+                "resume_revision_id": "rev_1",
+            },
+        },
+        self_intro_vector_status={
+            "status": "ready",
+            "self_intro_revision_id": "intro_rev_1",
+        },
+    )
+    ctx = {
+        "dimension": "system_design",
+        "question_items": [{"scenario_brief": "Redis consistency"}],
+        "resume_anchor": {"project_name": "Coupon Guard"},
+        "target_skills": ["Redis"],
+        "structured_primary_seed_hit": True,
+    }
+
+    ask_mod._step_retrieve_candidate_anchors(state, ctx)
+
+    assert ctx["resume_rag_block"] == "[resume] Redis Lua coupon guard"
+    assert ctx["self_intro_rag_block"] == "[self_intro] 50w QPS Lua atomic"
+    assert ctx["candidate_anchor_rag_artifact"]["status"] == "primary"
+
+
+def test_challenge_with_reference_prefers_resume_then_self_intro_then_legacy() -> None:
+    ctx = {
+        "question_payload": {},
+        "resume_rag_block": "",
+        "self_intro_rag_block": "[self_intro] Redis Lua coupon guard",
+        "retrieval_block": "(legacy stuff)",
+    }
+
+    ask_mod._step_challenge_with_reference(_base_state(), ctx)
+
+    assert "Redis Lua coupon guard" in ctx["question_payload"]["challenge_context"]
 
 
 def test_step_select_structured_question_uses_rule_anchor_only(monkeypatch) -> None:
@@ -1585,6 +1697,7 @@ def test_selection_artifacts_baseline_keys_superset_after_rag() -> None:
             },
             "question_items": [],
             "contract_hints": {},
+            "candidate_anchor_rag_artifact": {"status": "primary"},
         }
     )
     expected_baseline = {
@@ -1594,5 +1707,7 @@ def test_selection_artifacts_baseline_keys_superset_after_rag() -> None:
         "avoid_patterns",
         "question_items",
         "failure_categories",
+        "candidate_anchor_rag",
     }
     assert expected_baseline.issubset(set(artifacts.keys()))
+    assert artifacts["candidate_anchor_rag"]["status"] == "primary"

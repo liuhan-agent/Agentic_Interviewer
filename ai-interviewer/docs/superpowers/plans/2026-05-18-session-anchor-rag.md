@@ -1480,14 +1480,21 @@ git commit -m "feat: bind session anchors for resume and self intro"
 - Create: `ai-interviewer/backend/app/services/session_anchor_retriever.py`
 - Modify: `ai-interviewer/backend/app/engine/workflow/nodes/ask_question.py`
 - Modify: `ai-interviewer/backend/app/engine/workflow/plans/ask_plans.py`
+- Modify: `ai-interviewer/backend/app/engine/workflow/state.py`
 - Modify: `ai-interviewer/backend/app/engine/agents/generator.py`
+- Modify: `ai-interviewer/backend/app/engine/context/builder.py`
+- Modify: `ai-interviewer/backend/app/engine/context/renderer.py`
 - Modify: `ai-interviewer/backend/app/engine/agents/prompts/generator_task.md`
 - Create: `ai-interviewer/backend/tests/unit/test_session_anchor_retriever.py`
 - Modify: `ai-interviewer/backend/tests/unit/test_ask_question_selection_artifacts.py`
+- Modify: `ai-interviewer/backend/tests/unit/test_resume_anchor_baseline.py`
+- Modify: `ai-interviewer/backend/tests/unit/test_context_builder.py`
+- Modify: `ai-interviewer/backend/tests/unit/test_context_renderer.py`
+- Modify: `ai-interviewer/backend/tests/unit/test_prompt_loader.py`
 
 ### Task 5a: Retriever and step function
 
-- [ ] Implement `session_anchor_retriever.py`.
+- [x] Implement `session_anchor_retriever.py`.
 
 ```python
 @dataclass
@@ -1515,7 +1522,7 @@ def retrieve_candidate_anchors(
     raise NotImplementedError
 ```
 
-- [ ] Implementation rules:
+- [x] Implementation rules:
 
   - Build the query string from `seed.scenario_brief OR seed.title OR seed.intent`, `dimension`, `target_skills`, `rule_anchor.project_name`, and self-intro terms from `self_intro_profile.{emphasized_projects, emphasized_skills, preferred_focus}`.
   - Cache key for `embed_query`: `f"{dimension}|{seed_id}|{','.join(target_skills)}|{self_intro_terms_sha}"`. Query embedding may be reused across sessions because the filter is applied at SQL level.
@@ -1546,7 +1553,7 @@ LIMIT :fetch_limit;
   - Render `resume_block` capped at `resume_rag_block_max_chars`; render `self_intro_block` capped at `min(500, resume_rag_block_max_chars)`.
   - Artifacts must include `query_terms`, `source_type`, `source_revision_id`, hit ids, scores, dedupe flags, and short redacted excerpts only.
 
-- [ ] Implement `_step_retrieve_candidate_anchors` in `ask_question.py`.
+- [x] Implement `_step_retrieve_candidate_anchors` in `ask_question.py`.
 
 ```python
 def _step_retrieve_candidate_anchors(state: InterviewState, ctx: dict[str, Any]) -> None:
@@ -1591,7 +1598,7 @@ def _step_retrieve_candidate_anchors(state: InterviewState, ctx: dict[str, Any])
   - In Primary mode, sets blocks only for kept hits.
   - The anchor blocks coexist with `structured_primary_seed_hit` (C3). Do not pass them through `_retrieval_block_for_prompt`; that helper is for the legacy `retrieval_block` only.
 
-- [ ] Register the dispatch entry.
+- [x] Register the dispatch entry.
 
 ```python
 _STEP_DISPATCH = {
@@ -1607,7 +1614,7 @@ _STEP_DISPATCH = {
 
 ### Task 5b: Add the new step to plan templates
 
-- [ ] Add `retrieve_candidate_anchors` to `_SIMPLE_STEPS`, `_QUICK_REVIEW_STEPS`, `_ADAPTIVE_STEPS`, `_DEEP_PROBE_STEPS`, slotted after `retrieve_strategy` (where present) or right before `draft_question`. Mark `optional=True`.
+- [x] Add `retrieve_candidate_anchors` to `_SIMPLE_STEPS`, `_QUICK_REVIEW_STEPS`, `_ADAPTIVE_STEPS`, `_DEEP_PROBE_STEPS`, slotted after `retrieve_strategy` (where present) or right before `draft_question`. Mark `optional=True`.
 
 ```python
 _step(
@@ -1621,11 +1628,11 @@ _step(
 )
 ```
 
-- [ ] Update the plan-template baseline test created in Task 0 so it reflects the new step kind in each template.
+- [x] Update the plan-template baseline test created in Task 0 so it reflects the new step kind in each template.
 
 ### Task 5c: challenge_with_reference rewires to source-labelled anchor blocks
 
-- [ ] Modify `_step_challenge_with_reference`:
+- [x] Modify `_step_challenge_with_reference`:
 
 ```python
 def _step_challenge_with_reference(state, ctx):
@@ -1643,15 +1650,15 @@ def _step_challenge_with_reference(state, ctx):
 
 Two complementary dedup passes happen inside `retrieve_candidate_anchors` after raw hits are split by `source_type`:
 
-- [ ] **Within-resume dedup by `(project_name, heading)` double key**: in Mode A every project produces multiple highlight chunks (`tier="highlight"`). The same project + heading combination being recalled twice (e.g. the same "智学 / 高并发优惠券超发防护" highlight chunked twice) bloats the prompt without adding signal. After raw resume hits are gathered, group by `(project_name or "", heading or "")` and keep only the single hit with the highest score per group. Cross-project hits with identical heading text (rare) are left alone — `project_name` differs so the key differs.
-- [ ] **Rule-anchor overlap dedup**: in the surviving resume hits, when a hit's `project_name == rule_anchor.project_name`, set `hit.deduped = True` and render only the text body without the project-label header so the prompt does not say the same project name twice.
-- [ ] Do not dedupe self-intro hits against resume hits by merging text. Keep source blocks separate; the Generator must be able to distinguish "your resume says" from "you just mentioned".
+- [x] **Within-resume dedup by `(project_name, heading)` double key**: in Mode A every project produces multiple highlight chunks (`tier="highlight"`). The same project + heading combination being recalled twice (e.g. the same "智学 / 高并发优惠券超发防护" highlight chunked twice) bloats the prompt without adding signal. After raw resume hits are gathered, group by `(project_name or "", heading or "")` and keep only the single hit with the highest score per group. Cross-project hits with identical heading text (rare) are left alone — `project_name` differs so the key differs.
+- [x] **Rule-anchor overlap dedup**: in the surviving resume hits, when a hit's `project_name == rule_anchor.project_name`, set `hit.deduped = True` and render only the text body without the project-label header so the prompt does not say the same project name twice.
+- [x] Do not dedupe self-intro hits against resume hits by merging text. Keep source blocks separate; the Generator must be able to distinguish "your resume says" from "you just mentioned".
 
 ### Task 5e: Generator prompt slots
 
-- [ ] Modify `app/engine/agents/generator.py` to accept and splice `resume_rag_block` and `self_intro_rag_block`.
+- [x] Modify `app/engine/agents/generator.py` to accept and splice `resume_rag_block` and `self_intro_rag_block`.
 
-- [ ] Modify `prompts/generator_task.md` to add source-labelled sections, placed AFTER `resume_anchor` / existing `SELF_INTRO_PROFILE` context and BEFORE `strategy_block`:
+- [x] Modify `prompts/generator_task.md` to add source-labelled sections, placed AFTER `resume_anchor` / existing `SELF_INTRO_PROFILE` context and BEFORE `strategy_block`:
 
 ```jinja
 ## Candidate resume semantic fragments (RAG recall)
@@ -1667,7 +1674,7 @@ The following fragments come from the candidate's opening self-introduction, not
 {% endif %}
 ```
 
-- [ ] Add the new artifact key to `selection_artifacts`:
+- [x] Add the new artifact key to `selection_artifacts`:
 
 ```python
 ctx_artifacts["candidate_anchor_rag"] = ctx.get("candidate_anchor_rag_artifact", {"status": "off"})
@@ -1675,7 +1682,7 @@ ctx_artifacts["candidate_anchor_rag"] = ctx.get("candidate_anchor_rag_artifact",
 
 ### Tests for Task 5
 
-- [ ] Write end-to-end retriever tests.
+- [x] Write end-to-end retriever tests.
 
 ```python
 def test_retrieve_candidate_anchors_returns_resume_and_self_intro_quotas(monkeypatch, db_session):
@@ -1768,7 +1775,7 @@ def test_anchor_rag_blocks_survive_structured_primary_seed_hit(monkeypatch, db_s
     assert ctx["candidate_anchor_rag_artifact"]["status"] == "primary"
 ```
 
-- [ ] Run Task 5 tests + selection-artifact test.
+- [x] Run Task 5 tests + selection-artifact test.
 
 ```bash
 python -m pytest \
@@ -1779,10 +1786,10 @@ python -m pytest \
 
 Expected: all pass; selection artifact baseline updated to include the new `candidate_anchor_rag` key.
 
-- [ ] Commit.
+- [x] Commit.
 
 ```bash
-git add ai-interviewer/backend/app/services/session_anchor_retriever.py ai-interviewer/backend/app/engine/workflow/nodes/ask_question.py ai-interviewer/backend/app/engine/workflow/plans/ask_plans.py ai-interviewer/backend/app/engine/agents/generator.py ai-interviewer/backend/app/engine/agents/prompts/generator_task.md ai-interviewer/backend/tests/unit/test_session_anchor_retriever.py ai-interviewer/backend/tests/unit/test_ask_question_selection_artifacts.py
+git add ai-interviewer/backend/app/services/session_anchor_retriever.py ai-interviewer/backend/app/engine/workflow/nodes/ask_question.py ai-interviewer/backend/app/engine/workflow/plans/ask_plans.py ai-interviewer/backend/app/engine/workflow/state.py ai-interviewer/backend/app/engine/agents/generator.py ai-interviewer/backend/app/engine/context/builder.py ai-interviewer/backend/app/engine/context/renderer.py ai-interviewer/backend/app/engine/agents/prompts/generator_task.md ai-interviewer/backend/tests/unit/test_session_anchor_retriever.py ai-interviewer/backend/tests/unit/test_ask_question_selection_artifacts.py ai-interviewer/backend/tests/unit/test_resume_anchor_baseline.py ai-interviewer/backend/tests/unit/test_context_builder.py ai-interviewer/backend/tests/unit/test_context_renderer.py ai-interviewer/backend/tests/unit/test_prompt_loader.py ai-interviewer/docs/superpowers/plans/2026-05-18-session-anchor-rag.md
 git commit -m "feat: integrate session anchor RAG into ask plans"
 ```
 

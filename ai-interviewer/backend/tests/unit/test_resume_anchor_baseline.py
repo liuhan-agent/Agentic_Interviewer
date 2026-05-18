@@ -104,17 +104,20 @@ def test_rule_anchor_prefers_self_intro_matching_focus(
 def test_plan_templates_step_kinds_baseline() -> None:
     assert [s["kind"] for s in PLAN_TEMPLATES["simple"]["steps"]] == [
         "retrieve_rag",
+        "retrieve_candidate_anchors",
         "draft_question",
         "guardrail_check",
     ]
     assert [s["kind"] for s in PLAN_TEMPLATES["quick_review"]["steps"]] == [
         "retrieve_rag",
+        "retrieve_candidate_anchors",
         "draft_question",
         "guardrail_check",
     ]
     assert [s["kind"] for s in PLAN_TEMPLATES["adaptive"]["steps"]] == [
         "retrieve_rag",
         "retrieve_strategy",
+        "retrieve_candidate_anchors",
         "draft_question",
         "negotiate_contract",
         "guardrail_check",
@@ -122,6 +125,7 @@ def test_plan_templates_step_kinds_baseline() -> None:
     assert [s["kind"] for s in PLAN_TEMPLATES["deep_probe"]["steps"]] == [
         "retrieve_rag",
         "retrieve_strategy",
+        "retrieve_candidate_anchors",
         "draft_question",
         "negotiate_contract",
         "challenge_with_reference",

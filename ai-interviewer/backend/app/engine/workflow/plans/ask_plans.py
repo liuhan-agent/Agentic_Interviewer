@@ -64,19 +64,32 @@ _SIMPLE_STEPS: list[AskPlanStep] = [
     ),
     _step(
         2,
+        "retrieve_candidate_anchors",
+        goal="Pull semantically related resume and self-intro anchors to ground follow-up questions.",
+        success_criteria="candidate_anchor_rag_artifact is set (status may be off/shadow/empty).",
+        produced_keys=[
+            "resume_rag_block",
+            "self_intro_rag_block",
+            "candidate_anchor_rag_artifact",
+        ],
+        dependencies=[1],
+        optional=True,
+    ),
+    _step(
+        3,
         "draft_question",
         goal="Author a clear, open-ended question plus a draft contract proposal.",
         success_criteria="question non-empty AND proposed_contract has >=1 must_cover item.",
         produced_keys=["question_payload", "proposed_contract"],
-        dependencies=[1],
+        dependencies=[1, 2],
     ),
     _step(
-        3,
+        4,
         "guardrail_check",
         goal="Scan the question against the compliance rule set.",
         success_criteria="verdict.allowed OR fallback applied.",
         produced_keys=["question_payload"],
-        dependencies=[2],
+        dependencies=[3],
     ),
 ]
 
@@ -90,6 +103,19 @@ _QUICK_REVIEW_STEPS: list[AskPlanStep] = [
     ),
     _step(
         2,
+        "retrieve_candidate_anchors",
+        goal="Pull semantically related resume and self-intro anchors to ground follow-up questions.",
+        success_criteria="candidate_anchor_rag_artifact is set (status may be off/shadow/empty).",
+        produced_keys=[
+            "resume_rag_block",
+            "self_intro_rag_block",
+            "candidate_anchor_rag_artifact",
+        ],
+        dependencies=[1],
+        optional=True,
+    ),
+    _step(
+        3,
         "draft_question",
         goal=(
             "Author one concise recap-style question that checks the current "
@@ -97,15 +123,15 @@ _QUICK_REVIEW_STEPS: list[AskPlanStep] = [
         ),
         success_criteria="question non-empty AND proposed_contract has >=1 must_cover item.",
         produced_keys=["question_payload", "proposed_contract"],
-        dependencies=[1],
+        dependencies=[1, 2],
     ),
     _step(
-        3,
+        4,
         "guardrail_check",
         goal="Scan the compact question against the compliance rule set.",
         success_criteria="verdict.allowed OR fallback applied.",
         produced_keys=["question_payload"],
-        dependencies=[2],
+        dependencies=[3],
     ),
 ]
 
@@ -126,27 +152,40 @@ _ADAPTIVE_STEPS: list[AskPlanStep] = [
     ),
     _step(
         3,
+        "retrieve_candidate_anchors",
+        goal="Pull semantically related resume and self-intro anchors to ground follow-up questions.",
+        success_criteria="candidate_anchor_rag_artifact is set (status may be off/shadow/empty).",
+        produced_keys=[
+            "resume_rag_block",
+            "self_intro_rag_block",
+            "candidate_anchor_rag_artifact",
+        ],
+        dependencies=[1, 2],
+        optional=True,
+    ),
+    _step(
+        4,
         "draft_question",
         goal="Author a clear question plus a draft contract proposal.",
         success_criteria="question non-empty AND proposed_contract has >=2 must_cover items.",
         produced_keys=["question_payload", "proposed_contract"],
-        dependencies=[1, 2],
+        dependencies=[1, 2, 3],
     ),
     _step(
-        4,
+        5,
         "negotiate_contract",
         goal="Have the evaluator confirm/amend the contract BEFORE the question is emitted.",
         success_criteria="contract.signed_by contains 'evaluator'.",
         produced_keys=["contract"],
-        dependencies=[3],
+        dependencies=[4],
     ),
     _step(
-        5,
+        6,
         "guardrail_check",
         goal="Scan the final question against the compliance rule set.",
         success_criteria="verdict.allowed OR fallback applied.",
         produced_keys=["question_payload"],
-        dependencies=[4],
+        dependencies=[5],
     ),
 ]
 
@@ -167,6 +206,19 @@ _DEEP_PROBE_STEPS: list[AskPlanStep] = [
     ),
     _step(
         3,
+        "retrieve_candidate_anchors",
+        goal="Pull semantically related resume and self-intro anchors to ground follow-up questions.",
+        success_criteria="candidate_anchor_rag_artifact is set (status may be off/shadow/empty).",
+        produced_keys=[
+            "resume_rag_block",
+            "self_intro_rag_block",
+            "candidate_anchor_rag_artifact",
+        ],
+        dependencies=[1, 2],
+        optional=True,
+    ),
+    _step(
+        4,
         "draft_question",
         goal="Author a follow-up question that directly probes the prior weaknesses.",
         success_criteria=(
@@ -174,10 +226,10 @@ _DEEP_PROBE_STEPS: list[AskPlanStep] = [
             "AND >=3 acceptance_checks."
         ),
         produced_keys=["question_payload", "proposed_contract"],
-        dependencies=[1, 2],
+        dependencies=[1, 2, 3],
     ),
     _step(
-        4,
+        5,
         "negotiate_contract",
         goal=(
             "Evaluator signs a stricter contract: more acceptance_checks, "
@@ -185,10 +237,10 @@ _DEEP_PROBE_STEPS: list[AskPlanStep] = [
         ),
         success_criteria="contract.signed_by contains 'evaluator' AND bar_level=='deep_probe'.",
         produced_keys=["contract"],
-        dependencies=[3],
+        dependencies=[4],
     ),
     _step(
-        5,
+        6,
         "challenge_with_reference",
         goal=(
             "Optionally annotate the question with a concrete reference scenario "
@@ -196,16 +248,16 @@ _DEEP_PROBE_STEPS: list[AskPlanStep] = [
         ),
         success_criteria="question_payload.challenge_context populated OR step marked optional-skip.",
         produced_keys=["question_payload"],
-        dependencies=[4],
+        dependencies=[5],
         optional=True,
     ),
     _step(
-        6,
+        7,
         "guardrail_check",
         goal="Scan the final question against the compliance rule set.",
         success_criteria="verdict.allowed OR fallback applied.",
         produced_keys=["question_payload"],
-        dependencies=[5],
+        dependencies=[6],
     ),
 ]
 

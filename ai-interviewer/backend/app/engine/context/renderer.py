@@ -43,6 +43,8 @@ _GENERATOR_PAYLOAD_KEYS = (
     "retrieval",
     "question_seed",
     "candidate_anchor",
+    "resume_rag",
+    "self_intro_rag",
     "strategy",
     "skills",
     "avoid_patterns",
