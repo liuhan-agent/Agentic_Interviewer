@@ -4,7 +4,7 @@
 
 **Goal:** Re-activate the dormant RAG module by giving it one real, high-value job: semantic retrieval of session-scoped candidate anchors from the resume and long opening self-introduction, so the Generator can ask follow-up questions grounded in the candidate's actual experience instead of generic templates.
 
-**Architecture:** Build a session-scoped candidate-anchor vector store on PgVector (same Postgres instance as the existing tables). Treat resume upload parsing as a pre-session parse artifact, bind that artifact to `session_id` inside `POST /sessions`, and vectorize resume anchors before the workflow starts. Parse the opening self-introduction in the existing `self_intro_parser` LLM call; if it is long enough, extract bounded `anchor_cards` and vectorize them after `self_intro_parse_node`, before the first formal `ask_question`. Add a `_step_retrieve_candidate_anchors` step before `draft_question`; it retrieves resume and self-intro anchors with source-aware revision filters, source quotas, and separate prompt slots. Ship through `off -> shadow -> primary` rollout. Keep the existing rule-based `select_resume_anchor` intact and complementary.
+**Architecture:** Build a session-scoped candidate-anchor vector store on PgVector (same Postgres instance as the existing tables). Treat resume upload parsing as a pre-session parse artifact; `POST /sessions` only validates the artifact and stamps `candidate.resume_vector_status.status == "pending_node"`, while `resume_parse_node` consumes the artifact and vectorizes resume anchors before the first formal `ask_question`. Parse the opening self-introduction in the existing `self_intro_parser` LLM call; if it is long enough, extract bounded `anchor_cards` and vectorize them after `self_intro_parse_node`, also before the first formal `ask_question`. Add a `_step_retrieve_candidate_anchors` step before `draft_question`; it retrieves resume and self-intro anchors with source-aware revision filters, source quotas, and separate prompt slots. Ship through `off -> shadow -> primary` rollout. Keep the existing rule-based `select_resume_anchor` intact and complementary.
 
 **Tech Stack:** FastAPI, SQLAlchemy ORM, PostgreSQL + pgvector extension, Pydantic settings, pytest, OpenAI-compatible embedding API, frontend TypeScript source tests.
 
@@ -1791,6 +1791,7 @@ git commit -m "feat: integrate session anchor RAG into ask plans"
 - Modify: `ai-interviewer/backend/app/api/v1/admin.py`
 - Modify: `ai-interviewer/frontend/src/lib/api/admin.ts`
 - Modify: `ai-interviewer/frontend/src/components/admin/AdminPanel.tsx`
+- Modify: `ai-interviewer/frontend/src/components/admin/RagEvalPanel.tsx`
 - Create: `ai-interviewer/frontend/src/components/admin/CandidateAnchorRagCard.tsx`
 - Modify: `ai-interviewer/frontend/src/lib/api/types.ts`
 - Modify: `ai-interviewer/frontend/tests/adminObservabilitySource.test.js`
@@ -1855,6 +1856,7 @@ git commit -m "feat: integrate session anchor RAG into ask plans"
 
 - [ ] Add `CandidateAnchorRagCard.tsx` rendering:
 
+  - Card title: `候选人锚点 RAG`.
   - Current `resume_rag_mode` (off / shadow / primary) prominent.
   - Total chunks + sessions.
   - Source-type and mode-grouped table: chunks, sessions, hit-rate, p50/p99 latency.
@@ -1862,6 +1864,14 @@ git commit -m "feat: integrate session anchor RAG into ask plans"
   - Subject deletion button with explicit confirmation modal.
 
 - [ ] Wire the card into `AdminPanel.tsx`. Keep `AdminPanel.tsx` lean — fetching and layout only, presentation in the new card.
+
+- [ ] Apply frontend layout option F2: group the existing knowledge-RAG panel and the new session-anchor panel together in `AdminPanel.tsx`.
+
+  - Rename only the existing `RagEvalPanel.tsx` visible title from `RAG 检索评测` to `知识 RAG 评测`.
+  - Add `CandidateAnchorRagCard` next to the existing `RagEvalPanel` in the same admin section/tab.
+  - Keep the two panels independent: `RagEvalPanel` continues to call `/admin/rag-eval` and still represents knowledge RAG / Chroma; `CandidateAnchorRagCard` calls `/admin/session-anchors/summary` and `/admin/session-anchors/metrics` and represents session anchor RAG / PgVector.
+  - Use a shared section heading such as `RAG 观察` only if the surrounding `AdminPanel.tsx` section structure already has headings. Do not add a new tab or broad AdminPanel refactor in P0.
+  - Keep `AdminPanel.tsx` lean: fetching and layout only, presentation in the new card.
 
 ### Task 6c: Cleanup job
 
@@ -1876,6 +1886,22 @@ git commit -m "feat: integrate session anchor RAG into ask plans"
 - [ ] Documented intended deployment: APScheduler hook (Task 9) or external cron.
 
 ### Tests
+
+- [ ] Frontend source tests for F2 layout:
+
+```ts
+test("admin rag section labels knowledge and session-anchor panels distinctly", () => {
+  const ragEval = readSource("src/components/admin/RagEvalPanel.tsx");
+  const adminPanel = readSource("src/components/admin/AdminPanel.tsx");
+  const anchorCard = readSource("src/components/admin/CandidateAnchorRagCard.tsx");
+
+  expect(ragEval).toContain("知识 RAG 评测");
+  expect(ragEval).not.toContain("RAG 检索评测");
+  expect(anchorCard).toContain("候选人锚点 RAG");
+  expect(adminPanel).toContain("RagEvalPanel");
+  expect(adminPanel).toContain("CandidateAnchorRagCard");
+});
+```
 
 - [ ] Admin endpoint tests.
 
@@ -1980,7 +2006,7 @@ Expected: admin routes require auth, summary/metrics return correct shape, delet
 - [ ] Commit.
 
 ```bash
-git add ai-interviewer/backend/app/api/v1/admin.py ai-interviewer/backend/tests/unit/test_admin_session_anchor_rag.py ai-interviewer/backend/app/scripts/cleanup_session_anchor_chunks.py ai-interviewer/backend/tests/unit/test_cleanup_session_anchor_chunks.py ai-interviewer/frontend/src/lib/api/admin.ts ai-interviewer/frontend/src/lib/api/types.ts ai-interviewer/frontend/src/components/admin/AdminPanel.tsx ai-interviewer/frontend/src/components/admin/CandidateAnchorRagCard.tsx ai-interviewer/frontend/tests/adminObservabilitySource.test.js
+git add ai-interviewer/backend/app/api/v1/admin.py ai-interviewer/backend/tests/unit/test_admin_session_anchor_rag.py ai-interviewer/backend/app/scripts/cleanup_session_anchor_chunks.py ai-interviewer/backend/tests/unit/test_cleanup_session_anchor_chunks.py ai-interviewer/frontend/src/lib/api/admin.ts ai-interviewer/frontend/src/lib/api/types.ts ai-interviewer/frontend/src/components/admin/AdminPanel.tsx ai-interviewer/frontend/src/components/admin/RagEvalPanel.tsx ai-interviewer/frontend/src/components/admin/CandidateAnchorRagCard.tsx ai-interviewer/frontend/tests/adminObservabilitySource.test.js
 git commit -m "feat: observe session anchor rag in admin and add cleanup job"
 ```
 
@@ -2273,7 +2299,7 @@ This plan is complete only when:
 - `session_anchor_chunks` ORM model round-trips with HNSW index.
 - The chunker correctly classifies all four fixture resumes into modes A/B/C/D.
 - Resume upload/parse creates a short-lived `resume_source_id` artifact and does not require a session id.
-- `POST /sessions` binds `resume_source_id` to `session_id`, runs `vectorize_resume` serially, and writes `candidate.resume_vector_status`.
+- `POST /sessions` validates `resume_source_id`, stamps `candidate.resume_source_id`, and writes `candidate.resume_vector_status.status == "pending_node"` without embedding latency; `resume_parse_node` then consumes the artifact, runs `vectorize_resume`, and writes the final `candidate.resume_vector_status`.
 - `resume_parse` job `completed` means the setup artifact is ready; only `candidate.resume_vector_status.status == "ready"` means resume RAG is queryable.
 - `parse_self_intro_profile` returns cleaned `anchor_cards` in the same existing LLM call; no extra LLM call is introduced.
 - Long self-intros (`>= session_anchor_self_intro_min_chars`) vectorize into `source_type="self_intro"` rows; short self-intros skip with `self_intro_vector_status.skipped_reason == "skipped_short"`.
