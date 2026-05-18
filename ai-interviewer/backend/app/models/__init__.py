@@ -13,6 +13,7 @@ from .question_bank import (
     QuestionUsage,
     QuestionVariant,
 )
+from .skill_playbook import SkillPlaybookCard
 from .strategy_memory import (
     StrategyMemory,
     StrategyMemoryStats,
@@ -42,6 +43,7 @@ __all__ = [
     "QuestionReview",
     "QuestionUsage",
     "QuestionVariant",
+    "SkillPlaybookCard",
     "StrategyMemory",
     "StrategyMemoryStats",
     "StrategyMemoryUsage",

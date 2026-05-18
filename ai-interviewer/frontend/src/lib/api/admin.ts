@@ -195,6 +195,48 @@ export interface Strategies {
   strategies: Strategy[];
 }
 
+export interface SkillPlaybookCard {
+  id: string;
+  name: string;
+  description?: string | null;
+  status: string;
+  priority: number;
+  tags?: Record<string, string[]>;
+  direction_tags: string[];
+  role_tags: string[];
+  dimensions: string[];
+  job_levels: string[];
+  probe_intents: string[];
+  failure_categories: string[];
+  source?: string;
+  version?: number;
+  content_hash?: string | null;
+  created_at?: string | null;
+  updated_at?: string | null;
+  body_preview?: string;
+  body_markdown?: string;
+}
+
+export interface SkillPlaybooks {
+  runtime_backend: string;
+  count: number;
+  active_count: number;
+  status_counts: Record<string, number>;
+  skill_playbooks: SkillPlaybookCard[];
+}
+
+export interface SkillPlaybookDetail {
+  skill_playbook: SkillPlaybookCard;
+}
+
+export interface SkillPlaybookImportResult {
+  imported: number;
+  updated: number;
+  unchanged: number;
+  archived: number;
+  skipped: number;
+}
+
 export interface QuestionSeed {
   id: string;
   version: number;
@@ -723,6 +765,44 @@ export function getQuestionQualityRollUp(
 
 export function getStrategies(signal?: AbortSignal): Promise<Strategies> {
   return adminGet<Strategies>("/admin/strategies", signal);
+}
+
+export function getSkillPlaybooks(
+  signal?: AbortSignal,
+  filters?: {
+    status?: string;
+    directionTag?: string;
+    roleTag?: string;
+    dimension?: string;
+  },
+): Promise<SkillPlaybooks> {
+  const params = new URLSearchParams();
+  if (filters?.status) params.set("status", filters.status);
+  if (filters?.directionTag) params.set("direction_tag", filters.directionTag);
+  if (filters?.roleTag) params.set("role_tag", filters.roleTag);
+  if (filters?.dimension) params.set("dimension", filters.dimension);
+  const suffix = params.toString() ? `?${params.toString()}` : "";
+  return adminGet<SkillPlaybooks>(`/admin/skill-playbooks${suffix}`, signal);
+}
+
+export function getSkillPlaybook(
+  cardId: string,
+  signal?: AbortSignal,
+): Promise<SkillPlaybookDetail> {
+  return adminGet<SkillPlaybookDetail>(
+    `/admin/skill-playbooks/${encodeURIComponent(cardId)}`,
+    signal,
+  );
+}
+
+export function importSkillPlaybooks(
+  archiveMissing = false,
+): Promise<SkillPlaybookImportResult> {
+  const suffix = archiveMissing ? "?archive_missing=true" : "";
+  return adminPost<SkillPlaybookImportResult>(
+    `/admin/skill-playbooks/import${suffix}`,
+    {},
+  );
 }
 
 export function getQuestionSeeds(

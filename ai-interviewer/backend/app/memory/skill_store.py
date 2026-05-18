@@ -17,7 +17,8 @@ independent:
 The registry exposes:
 
 - :func:`list_skills` — enumerate every skill file under
-  ``knowledge/skills/`` (ignoring the ``SKILL.md`` index).
+  ``knowledge/skills/`` (ignoring the ``SKILL.md`` index), or the
+  DB-backed ``skill_playbook_cards`` registry when enabled.
 - :func:`retrieve_skills` — rule-select cards by dimension, level, role,
   probe intent, and failure category.
 - :func:`build_skills_block` — render relevance-matched skills into
@@ -46,13 +47,19 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass, field, replace
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal
+
+from sqlalchemy import select
 
 from app.core.logging import get_logger
 from app.core.settings import get_settings
+from app.models import get_session
+from app.models.skill_playbook import SkillPlaybookCard
 
 log = get_logger(__name__)
 
+SkillPlaybookBackend = Literal["file", "db", "db_with_file_fallback"]
+_VALID_BACKENDS = {"file", "db", "db_with_file_fallback"}
 _FM_PATTERN = re.compile(r"^---\s*\n(.*?)\n---\s*\n", re.DOTALL)
 _FM_FIELD = re.compile(r"^(\w+):\s*(.+)$", re.MULTILINE)
 _FM_LIST = re.compile(r"\[([^\]]*)\]")
@@ -168,8 +175,37 @@ def clear_skill_cache_for_tests() -> None:
     _skill_cache = None
 
 
-def list_skills() -> list[SkillEntry]:
-    """Return every skill card on disk, ignoring the ``SKILL.md`` index.
+def list_skills(
+    *,
+    backend: SkillPlaybookBackend | str | None = None,
+) -> list[SkillEntry]:
+    """Return every skill card from the configured playbook backend."""
+
+    resolved_backend = _resolve_backend(backend)
+    if resolved_backend == "file":
+        return _list_file_skills()
+    if resolved_backend == "db":
+        try:
+            return _list_db_skills()
+        except Exception as exc:
+            log.warning("skill playbook DB backend failed: %s", exc)
+            return []
+
+    try:
+        db_entries = _list_db_skills()
+    except Exception as exc:
+        log.warning(
+            "skill playbook DB backend failed; falling back to files: %s",
+            exc,
+        )
+        return _list_file_skills()
+    if any(entry.status == "active" for entry in db_entries):
+        return db_entries
+    return _list_file_skills()
+
+
+def _list_file_skills() -> list[SkillEntry]:
+    """Return every file-backed skill card, ignoring the ``SKILL.md`` index.
 
     Sorted lexicographically so retrieval is deterministic when two
     skills share the same relevance score.
@@ -217,6 +253,60 @@ def list_skills() -> list[SkillEntry]:
     return list(entries)
 
 
+def _list_db_skills() -> list[SkillEntry]:
+    rows: list[SkillPlaybookCard]
+    with get_session() as session:
+        rows = list(
+            session.scalars(
+                select(SkillPlaybookCard)
+                .where(SkillPlaybookCard.source == "manual_markdown")
+                .order_by(SkillPlaybookCard.id.asc())
+            )
+        )
+    return [_entry_from_db_card(row) for row in rows]
+
+
+def _entry_from_db_card(row: SkillPlaybookCard) -> SkillEntry:
+    card_id = str(row.id or "")
+    return SkillEntry(
+        path=Path(f"{card_id}.md"),
+        id=card_id,
+        name=str(row.name or card_id),
+        description=str(row.description or ""),
+        status=_slugify(row.status or "active") or "active",
+        priority=int(row.priority or 0),
+        direction_tags=_list_value(row.direction_tags),
+        role_tags=_list_value(row.role_tags),
+        dimensions=_list_value(row.dimensions),
+        job_levels=_list_value(row.job_levels),
+        probe_intents=_list_value(row.probe_intents),
+        failure_categories=_list_value(row.failure_categories),
+        body=str(row.body_markdown or ""),
+    )
+
+
+def _list_value(values: Any) -> list[str]:
+    if not isinstance(values, list):
+        return []
+    return [str(value) for value in values if str(value or "").strip()]
+
+
+def _resolve_backend(backend: SkillPlaybookBackend | str | None) -> str:
+    value = backend or getattr(
+        get_settings(),
+        "skill_playbook_backend",
+        "db_with_file_fallback",
+    )
+    resolved = str(value or "db_with_file_fallback")
+    if resolved not in _VALID_BACKENDS:
+        log.warning(
+            "unknown skill_playbook_backend=%s; using db_with_file_fallback",
+            resolved,
+        )
+        return "db_with_file_fallback"
+    return resolved
+
+
 def retrieve_skills(
     *,
     dimension: str,
@@ -228,6 +318,7 @@ def retrieve_skills(
     role_tags: list[str] | None = None,
     probe_intent: str | None = None,
     failure_categories: list[str] | None = None,
+    backend: SkillPlaybookBackend | str | None = None,
 ) -> list[SkillEntry]:
     """Return skill cards relevant to the current ``(dimension, job_level)``.
 
@@ -248,7 +339,7 @@ def retrieve_skills(
     probe_intent_slug = _slugify(probe_intent)
     failure_set = set(_slug_list(failure_categories))
 
-    all_entries = list_skills()
+    all_entries = list_skills(backend=backend)
     scored: list[SkillEntry] = []
     for entry in all_entries:
         ranked = _rank_skill_entry(

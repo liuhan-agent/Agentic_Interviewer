@@ -226,6 +226,13 @@ def _step_retrieve_strategy(state: InterviewState, ctx: dict[str, Any]) -> None:
             dimension=ctx["dimension"],
             job_level=job_level,
             limit=int(getattr(settings, "skill_retrieval_limit", 3)),
+            backend=str(
+                getattr(
+                    settings,
+                    "skill_playbook_backend",
+                    "db_with_file_fallback",
+                )
+            ),
             use_llm_selector=use_llm_selector,
             recent_qa_summary=recent_qa_summary,
             direction_tags=list(direction_tags or []),

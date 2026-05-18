@@ -583,6 +583,11 @@ class Settings(BaseSettings):
     # ------------------------------------------------------------------
     enable_skill_injection: bool = True
     skill_retrieval_limit: int = 3
+    skill_playbook_backend: Literal[
+        "file",
+        "db",
+        "db_with_file_fallback",
+    ] = "db_with_file_fallback"
 
     # ------------------------------------------------------------------
     # LLM memory selector (see docs/PLAN_LLM_MEMORY_SELECTOR.md). When

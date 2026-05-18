@@ -161,6 +161,33 @@ test("admin panel surfaces structured question bank controls", () => {
   assert.match(panel, /archiveQuestionVariant/);
 });
 
+test("admin panel surfaces DB-backed skills playbook observability only", () => {
+  const panel = read("src/components/admin/AdminPanel.tsx");
+  const api = read("src/lib/api/admin.ts");
+
+  assert.match(api, /SkillPlaybookCard/);
+  assert.match(api, /SkillPlaybooks/);
+  assert.match(api, /SkillPlaybookDetail/);
+  assert.match(api, /SkillPlaybookImportResult/);
+  assert.match(api, /getSkillPlaybooks/);
+  assert.match(api, /getSkillPlaybook/);
+  assert.match(api, /importSkillPlaybooks/);
+  assert.ok(api.includes("/admin/skill-playbooks"));
+  assert.ok(api.includes("direction_tag"));
+  assert.ok(api.includes("role_tag"));
+  assert.ok(api.includes("dimension"));
+  assert.ok(api.includes("archive_missing=true"));
+
+  assert.match(panel, /SkillsPlaybookCard/);
+  assert.match(panel, /Skills Playbook/);
+  assert.match(panel, /runtime_backend/);
+  assert.match(panel, /Import \+ archive missing/);
+  assert.match(panel, /body_markdown/);
+  assert.match(panel, /<QuestionBankCard[\s\S]*<SkillsPlaybookCard[\s\S]*<StrategiesCard/);
+  assert.doesNotMatch(panel, /disableSkillPlaybook/);
+  assert.doesNotMatch(panel, /archiveSkillPlaybook/);
+});
+
 test("admin panel summarizes interview main-chain quality", () => {
   const panel = read("src/components/admin/AdminPanel.tsx");
 
