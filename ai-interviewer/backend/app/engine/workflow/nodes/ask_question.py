@@ -22,6 +22,7 @@ so both old and new readers can find it.
 """
 from __future__ import annotations
 
+import hashlib
 import time
 from typing import Any
 
@@ -677,6 +678,15 @@ def _step_retrieve_candidate_anchors(
     if mode == "off":
         ctx["candidate_anchor_rag_artifact"] = {"status": "off"}
         return
+    sample_rate = getattr(settings, "resume_rag_session_sample_rate", 1.0)
+    if not _session_anchor_sampled_in(str(state.get("session_id") or ""), sample_rate):
+        ctx["candidate_anchor_rag_artifact"] = {
+            "status": mode,
+            "skipped": True,
+            "fallback_reason": "sampled_out",
+            "hits": [],
+        }
+        return
 
     resume_status = ((state.get("candidate") or {}).get("resume_vector_status") or {})
     self_intro_status = state.get("self_intro_vector_status") or {}
@@ -698,6 +708,21 @@ def _step_retrieve_candidate_anchors(
         ctx["resume_rag_block"] = result.resume_block
         ctx["self_intro_rag_block"] = result.self_intro_block
     ctx["candidate_anchor_rag_artifact"] = result.as_artifact(mode=mode)
+
+
+def _session_anchor_sampled_in(session_id: str, sample_rate: float) -> bool:
+    try:
+        rate = float(sample_rate)
+    except (TypeError, ValueError):
+        rate = 1.0
+    rate = max(0.0, min(1.0, rate))
+    if rate >= 1.0:
+        return True
+    if rate <= 0.0:
+        return False
+    key = (session_id or "unknown-session").encode("utf-8")
+    bucket = int(hashlib.sha1(key).hexdigest()[:8], 16) / 0xFFFFFFFF
+    return bucket < rate
 
 
 def _ready_revision(status: dict[str, Any], key: str) -> str | None:

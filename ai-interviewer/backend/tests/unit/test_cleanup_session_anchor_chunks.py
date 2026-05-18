@@ -102,3 +102,31 @@ def test_cleanup_session_anchor_chunks_also_deletes_expired_parse_artifacts() ->
 
     assert report["resume_parse_artifacts_deleted"] == 1
     assert report["total_deleted"] == 1
+
+
+def test_privacy_cleanup_scheduler_runs_session_anchor_cleanup(monkeypatch) -> None:
+    calls: list[str] = []
+
+    monkeypatch.setattr(
+        "app.services.privacy_cleanup.cleanup_expired_data",
+        lambda dry_run: {
+            "sessions_deleted": 0,
+            "traces_deleted": 0,
+            "outcomes_deleted": 0,
+        },
+    )
+    monkeypatch.setattr(
+        "app.scripts.cleanup_session_anchor_chunks.run_cleanup",
+        lambda: calls.append("anchors")
+        or {
+            "session_anchor_chunks_deleted": 1,
+            "resume_parse_artifacts_deleted": 1,
+            "total_deleted": 2,
+        },
+    )
+
+    from app.tasks.privacy_cleanup_tasks import _run_cleanup
+
+    _run_cleanup()
+
+    assert calls == ["anchors"]
