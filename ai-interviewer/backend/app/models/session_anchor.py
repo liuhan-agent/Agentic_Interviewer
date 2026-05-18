@@ -32,7 +32,11 @@ class SessionAnchorChunk(Base):
     P0_SOURCE_TYPES = ("resume", "self_intro")
     FUTURE_SOURCE_TYPES = ("adhoc_claim",)
 
-    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    id: Mapped[int] = mapped_column(
+        BigInteger().with_variant(Integer, "sqlite"),
+        primary_key=True,
+        autoincrement=True,
+    )
     session_id: Mapped[str] = mapped_column(String(96), index=True)
     source_type: Mapped[str] = mapped_column(String(32), index=True)
     source_revision_id: Mapped[str] = mapped_column(String(96), index=True)

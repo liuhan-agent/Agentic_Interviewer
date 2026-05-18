@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import io
+from datetime import UTC, datetime, timedelta
 from types import SimpleNamespace
 from typing import Any
 
@@ -71,6 +72,14 @@ def test_resume_parse_upload_response_contract(monkeypatch) -> None:
     monkeypatch.setattr(interview_api, "extract_text_with_timeout", fake_extract_text_with_timeout)
     monkeypatch.setattr(interview_api, "parse_resume", fake_parse_resume)
     monkeypatch.setattr(interview_api, "get_resume_parse_cache", lambda: None)
+    monkeypatch.setattr(
+        interview_api,
+        "create_resume_parse_artifact",
+        lambda **_kwargs: SimpleNamespace(
+            artifact_id="artifact-resume-1",
+            expires_at=datetime.now(UTC) + timedelta(hours=1),
+        ),
+    )
 
     resp = http.post(
         "/api/v1/interview/resume/parse",
@@ -121,7 +130,10 @@ def test_resume_parse_upload_response_contract(monkeypatch) -> None:
             "text_chars": 29,
         },
         "context_flags": [],
+        "resume_source_id": "artifact-resume-1",
+        "resume_source_expires_at": resp.json()["resume_source_expires_at"],
     }
+    assert resp.json()["resume_source_expires_at"]
 
 
 def test_resume_parse_upload_domain_error_contract(monkeypatch) -> None:

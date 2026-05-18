@@ -7,6 +7,8 @@ const {
   parseResumeForSetup,
   resumeParsedForSession,
   resumeReuploadInputValue,
+  resumeSourceIdForSession,
+  resumeSourceRefFromParseResult,
 } = require("../src/lib/resume-upload.ts");
 
 test("passes the current LLM payload to resume parsing", async () => {
@@ -178,4 +180,35 @@ test("uses qwen plus for resume parsing when default config is qwen flash", asyn
 
 test("clears the file input before reupload so selecting the same file fires change", () => {
   assert.equal(resumeReuploadInputValue(), "");
+});
+
+test("keeps resume parse artifact ids separate from parsed resume fields", () => {
+  assert.deepEqual(
+    resumeSourceRefFromParseResult({
+      resume_source_id: "  artifact_123  ",
+      resume_source_expires_at: "2099-01-01T00:00:00Z",
+    }),
+    {
+      id: "artifact_123",
+      expiresAt: "2099-01-01T00:00:00Z",
+    },
+  );
+  assert.equal(resumeSourceRefFromParseResult({}), null);
+});
+
+test("only sends non-expired resume source ids to session creation", () => {
+  assert.equal(
+    resumeSourceIdForSession(
+      { id: "artifact_123", expiresAt: "2099-01-01T00:00:00Z" },
+      Date.parse("2026-05-18T00:00:00Z"),
+    ),
+    "artifact_123",
+  );
+  assert.equal(
+    resumeSourceIdForSession(
+      { id: "artifact_123", expiresAt: "2026-05-17T00:00:00Z" },
+      Date.parse("2026-05-18T00:00:00Z"),
+    ),
+    undefined,
+  );
 });

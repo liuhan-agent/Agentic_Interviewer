@@ -386,6 +386,7 @@ def init_db() -> None:
         interview_session,
         outcome_record,
         question_bank,
+        resume_parse_artifact,
         session_anchor,
         skill_playbook,
         strategy_memory,

@@ -73,6 +73,9 @@ import {
   resumeReuploadInputValue,
   resumeJobAutofillValues,
   resumeParsedForSession,
+  resumeSourceIdForSession,
+  resumeSourceRefFromParseResult,
+  type ResumeSourceRef,
 } from "@/lib/resume-upload";
 import type {
   DimensionOption,
@@ -753,6 +756,7 @@ export function SetupForm() {
   const [resumeConcerns, setResumeConcerns] = useState<string[]>([]);
   const [resumeCandidateProfile, setResumeCandidateProfile] =
     useState<ResumeCandidateProfile>({});
+  const [resumeSource, setResumeSource] = useState<ResumeSourceRef | null>(null);
   const [candidateNameFromResume, setCandidateNameFromResume] = useState(false);
   const [jobTitleFromResume, setJobTitleFromResume] = useState(false);
   const [jobLevelFromResume, setJobLevelFromResume] = useState(false);
@@ -784,6 +788,16 @@ export function SetupForm() {
       if (draft.resumeProjects) setResumeProjects(draft.resumeProjects);
       if (draft.resumeFocusAreas) setResumeFocusAreas(draft.resumeFocusAreas);
       if (draft.resumeCandidateProfile) setResumeCandidateProfile(draft.resumeCandidateProfile);
+      const resumeSourceId =
+        typeof draft.resumeSourceId === "string" ? draft.resumeSourceId.trim() : "";
+      if (resumeSourceId) {
+        setResumeSource({
+          id: resumeSourceId,
+          ...(typeof draft.resumeSourceExpiresAt === "string"
+            ? { expiresAt: draft.resumeSourceExpiresAt }
+            : {}),
+        });
+      }
       setHasDraft(false);
     } catch {}
   }
@@ -957,12 +971,14 @@ export function SetupForm() {
           candidate_highlights: watchedHighlights,
           resumeProjects,
           resumeFocusAreas,
-          resumeCandidateProfile
+          resumeCandidateProfile,
+          resumeSourceId: resumeSource?.id,
+          resumeSourceExpiresAt: resumeSource?.expiresAt,
         }));
       }
     }, 1000);
     return () => clearTimeout(timer);
-  }, [resumeProjects, resumeFocusAreas, resumeCandidateProfile, watchedSummary, watchedSkills, watchedHighlights, hasDraft]);
+  }, [resumeProjects, resumeFocusAreas, resumeCandidateProfile, resumeSource, watchedSummary, watchedSkills, watchedHighlights, hasDraft]);
 
   useEffect(() => {
     function refreshLlmStatus() {
@@ -1158,6 +1174,7 @@ export function SetupForm() {
         setCandidateNameFromResume(false);
       }
       setResumeCandidateProfile(result.candidate_profile ?? {});
+      setResumeSource(resumeSourceRefFromParseResult(result));
       const jobSuggestion = resumeJobAutofillValues({
         profile: result.candidate_profile,
         currentTitle: getValues("job_title"),
@@ -1380,6 +1397,7 @@ export function SetupForm() {
     uploadRequestRef.current += 1;
     setUpload({ kind: "idle" });
     setResumeCandidateProfile({});
+    setResumeSource(null);
     setCandidateNameFromResume(false);
     setJobTitleFromResume(false);
     setJobLevelFromResume(false);
@@ -1567,6 +1585,7 @@ export function SetupForm() {
         resumeConcerns: concerns,
         resumeCandidateProfile: resumeCandidateProfile as Record<string, unknown>,
       };
+      const resumeSourceId = resumeSourceIdForSession(resumeSource);
 
       const payload: StartSessionRequest = {
         candidate: {
@@ -1596,6 +1615,7 @@ export function SetupForm() {
         mode: "mixed",
         enable_video_analysis: enableVideoAnalysis,
         llm_config: buildLLMPayload(),
+        ...(resumeSourceId ? { resume_source_id: resumeSourceId } : {}),
       };
 
       try {

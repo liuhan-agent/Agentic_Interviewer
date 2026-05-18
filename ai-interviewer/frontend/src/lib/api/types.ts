@@ -58,6 +58,12 @@ export interface SelfIntroProfile {
   preferred_focus?: string[];
   clarification_targets?: string[];
   communication_signal?: SelfIntroCommunicationSignal;
+  anchor_cards?: Array<{
+    kind?: "project" | "responsibility" | "tech" | "difficulty" | "result" | "claim" | string;
+    title?: string;
+    text?: string;
+    tech_keywords?: string[];
+  }>;
   parse_status?: "llm" | "heuristic" | "fallback" | string;
 }
 
@@ -135,6 +141,7 @@ export interface LLMConfigPayload {
 export interface StartSessionRequest {
   candidate: Candidate;
   job_spec: JobSpec;
+  resume_source_id?: string;
   max_turns?: number;
   quality_threshold?: number;
   turn_budget?: number;
@@ -598,6 +605,8 @@ export interface ParseResumeResponse {
   concerns?: string[];
   raw_text_preview: string;
   parse_status?: ParseResumeStatus;
+  resume_source_id?: string;
+  resume_source_expires_at?: string;
 }
 
 export interface ParseResumeStatus {
