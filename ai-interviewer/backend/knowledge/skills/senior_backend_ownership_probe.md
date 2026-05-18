@@ -1,5 +1,5 @@
 ---
-id: tech_ownership_rollout_probe
+id: senior_backend_ownership_probe
 name: Senior Backend Ownership Probe
 description: Force ownership and quantified impact in senior backend answers.
 status: active
