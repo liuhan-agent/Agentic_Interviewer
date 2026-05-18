@@ -49,6 +49,16 @@ def _write_skill(
                 "job_levels: [Mid, Senior]",
                 "probe_intents: [Debugging Probe]",
                 "failure_categories: [Root Cause Missing]",
+                "generator_moves:",
+                "  - Ask for detection signal.",
+                "  - Ask for first mitigation.",
+                "watch_for: [Distinguishes mitigation from root cause]",
+                "avoid: [Accepting generic monitoring claims]",
+                "evaluator_rubric_hints: [Credit concrete blast radius evidence]",
+                "positive_signals: [Names metric and owner]",
+                "negative_signals: [Jumps to solution without diagnosis]",
+                "score_bias_rules: [Soft positive for measurable prevention]",
+                "evaluator_visibility: true",
                 extra_frontmatter,
                 "---",
                 "",
@@ -96,6 +106,19 @@ def test_import_skill_playbook_dir_imports_markdown_and_skips_index(
     assert row.job_levels == ["mid", "senior"]
     assert row.probe_intents == ["debugging_probe"]
     assert row.failure_categories == ["root_cause_missing"]
+    assert row.generator_moves == [
+        "Ask for detection signal.",
+        "Ask for first mitigation.",
+    ]
+    assert row.watch_for == ["Distinguishes mitigation from root cause"]
+    assert row.avoid == ["Accepting generic monitoring claims"]
+    assert row.evaluator_rubric_hints == [
+        "Credit concrete blast radius evidence"
+    ]
+    assert row.positive_signals == ["Names metric and owner"]
+    assert row.negative_signals == ["Jumps to solution without diagnosis"]
+    assert row.score_bias_rules == ["Soft positive for measurable prevention"]
+    assert row.evaluator_visibility is True
     assert row.source == "manual_markdown"
     assert row.version == 1
     assert row.content_hash is not None
@@ -108,13 +131,17 @@ def test_parse_bundled_skill_playbooks_is_strict_clean() -> None:
     cards, skipped = parse_skill_playbook_dir(skill_dir)
 
     assert skipped == 1
-    assert len(cards) == 12
+    assert len(cards) >= 18
     assert {card.values["id"] for card in cards} >= {
         "universal_concrete_evidence_probe",
         "tech_production_incident_probe",
         "business_user_metric_probe",
         "service_escalation_probe",
+        "tech_debug_root_cause_probe",
+        "tech_ai_evaluation_probe",
     }
+    assert all(card.values["generator_moves"] for card in cards)
+    assert any(card.values["evaluator_rubric_hints"] for card in cards)
 
 
 def test_import_skill_playbook_dir_fails_atomically_with_full_error_list(
@@ -131,7 +158,9 @@ def test_import_skill_playbook_dir_fails_atomically_with_full_error_list(
         extra_frontmatter=(
             "direction_tags: [unknown_direction]\n"
             "role_tags: [unknown_role]\n"
-            "probe_intents: [debugging_probe, debugging_probe]"
+            "probe_intents: [debugging_probe, debugging_probe]\n"
+            "generator_moves: [ask, ask]\n"
+            "evaluator_visibility: maybe"
         ),
     )
 
@@ -149,6 +178,8 @@ def test_import_skill_playbook_dir_fails_atomically_with_full_error_list(
     assert "invalid direction_tags" in message
     assert "invalid role_tags" in message
     assert "duplicate probe_intents" in message
+    assert "duplicate generator_moves" in message
+    assert "evaluator_visibility must be a boolean" in message
     assert rows == []
 
 

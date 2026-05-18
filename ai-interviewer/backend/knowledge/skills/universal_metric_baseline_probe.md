@@ -7,6 +7,22 @@ priority: 5
 dimensions: [metrics_thinking, data_analysis, product_thinking, problem_solving, project_experience]
 probe_intents: [metric_probe, experiment_probe]
 failure_categories: [missing_evidence, weak_attribution, vague_goal]
+generator_moves:
+  - "Ask for baseline number, target number, and measurement window."
+  - "Probe what else changed and how the candidate separated signal from noise."
+watch_for:
+  - "Defines metric, baseline, attribution risk, and decision use."
+avoid:
+  - "Accepting 'improved a lot' without units, time window, or counterfactual."
+evaluator_rubric_hints:
+  - "Credit measurable baseline and an attribution explanation."
+positive_signals:
+  - "Pairs outcome metric with process, system, user, or revenue metric."
+negative_signals:
+  - "Uses a metric name without definition or source."
+score_bias_rules:
+  - "Soft positive when the answer includes a competing explanation for the metric movement."
+evaluator_visibility: true
 ---
 
 Use when the candidate claims improvement, optimization, growth, quality, or
@@ -19,4 +35,3 @@ efficiency.
   metric.
 - For technical roles, insist on one system or delivery metric and the
   measurement method.
-

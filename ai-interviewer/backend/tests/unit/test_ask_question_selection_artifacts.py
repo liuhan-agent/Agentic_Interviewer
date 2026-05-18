@@ -86,6 +86,14 @@ def test_ask_question_records_selection_artifacts(monkeypatch) -> None:
         job_levels=["senior"],
         probe_intents=["architecture_challenge"],
         failure_categories=["missing_scale_reasoning"],
+        generator_moves=["Ask for one concrete failure mode."],
+        watch_for=["Quantified scale argument."],
+        avoid=["Accepting generic scalability claims."],
+        evaluator_rubric_hints=["Credit concrete failure mode and scale bound."],
+        positive_signals=["Names load, bottleneck, and mitigation."],
+        negative_signals=["No failure mode."],
+        score_bias_rules=["Soft positive for quantified bound."],
+        evaluator_visibility=True,
         body="Ask for load and failure modes.",
         match_score=42.0,
         match_reasons=["dimension:system_design", "role_tag:java_backend"],
@@ -210,6 +218,16 @@ def test_ask_question_records_selection_artifacts(monkeypatch) -> None:
             "job_levels": ["senior"],
             "probe_intents": ["architecture_challenge"],
             "failure_categories": ["missing_scale_reasoning"],
+            "generator_moves": ["Ask for one concrete failure mode."],
+            "watch_for": ["Quantified scale argument."],
+            "avoid": ["Accepting generic scalability claims."],
+            "evaluator_rubric_hints": [
+                "Credit concrete failure mode and scale bound."
+            ],
+            "positive_signals": ["Names load, bottleneck, and mitigation."],
+            "negative_signals": ["No failure mode."],
+            "score_bias_rules": ["Soft positive for quantified bound."],
+            "evaluator_visibility": True,
             "match_score": 42.0,
             "match_reasons": ["dimension:system_design", "role_tag:java_backend"],
         }
@@ -273,6 +291,14 @@ def _make_skill() -> SkillEntry:
         job_levels=["senior"],
         probe_intents=["architecture_challenge"],
         failure_categories=["missing_scale_reasoning"],
+        generator_moves=["Ask for one concrete failure mode."],
+        watch_for=["Quantified scale argument."],
+        avoid=["Accepting generic scalability claims."],
+        evaluator_rubric_hints=["Credit concrete failure mode and scale bound."],
+        positive_signals=["Names load, bottleneck, and mitigation."],
+        negative_signals=["No failure mode."],
+        score_bias_rules=["Soft positive for quantified bound."],
+        evaluator_visibility=True,
         body="Ask for load and failure modes.",
         match_score=42.0,
         match_reasons=[
@@ -437,6 +463,14 @@ def _db_playbook_card() -> SkillPlaybookCard:
         job_levels=["senior"],
         probe_intents=["architecture_challenge"],
         failure_categories=["missing_metrics"],
+        generator_moves=["Ask for rollback blast radius."],
+        watch_for=["Concrete metric and owner."],
+        avoid=["Accepting vague launch safety claims."],
+        evaluator_rubric_hints=["Credit rollback and blast-radius evidence."],
+        positive_signals=["Names rollback trigger."],
+        negative_signals=["No metric."],
+        score_bias_rules=["Soft positive for measurable rollback gate."],
+        evaluator_visibility=True,
         source="manual_markdown",
         content_hash="sha1:db_system_design_probe",
     )
@@ -1095,7 +1129,8 @@ def test_structured_primary_seed_hit_injects_db_playbook_and_keeps_rag_shadow(
     assert generated_kwargs["retrieval_block"] == ""
     assert "Dimension: system_design" in generated_kwargs["question_seed_block"]
     assert "redis" in generated_kwargs["candidate_anchor_block"]
-    assert "DB playbook: ask for rollback blast radius" in generated_kwargs["skill_block"]
+    assert "Generator moves:" in generated_kwargs["skill_block"]
+    assert "Ask for rollback blast radius." in generated_kwargs["skill_block"]
     assert [candidate.injected for candidate in recorded["candidates"]] == [True]
 
 
@@ -1406,4 +1441,5 @@ def test_structured_primary_seed_miss_still_injects_db_playbook_with_rag_fallbac
     assert generated_kwargs["retrieval_block"] == "[1] retrieved prompt block"
     assert generated_kwargs.get("question_seed_block", "") == ""
     assert generated_kwargs.get("candidate_anchor_block", "") == ""
-    assert "DB playbook: ask for rollback blast radius" in generated_kwargs["skill_block"]
+    assert "Generator moves:" in generated_kwargs["skill_block"]
+    assert "Ask for rollback blast radius." in generated_kwargs["skill_block"]

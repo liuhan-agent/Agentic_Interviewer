@@ -49,6 +49,7 @@ from dataclasses import dataclass, field, replace
 from pathlib import Path
 from typing import Any, Literal
 
+import yaml
 from sqlalchemy import select
 
 from app.core.logging import get_logger
@@ -61,8 +62,6 @@ log = get_logger(__name__)
 SkillPlaybookBackend = Literal["file", "db", "db_with_file_fallback"]
 _VALID_BACKENDS = {"file", "db", "db_with_file_fallback"}
 _FM_PATTERN = re.compile(r"^---\s*\n(.*?)\n---\s*\n", re.DOTALL)
-_FM_FIELD = re.compile(r"^(\w+):\s*(.+)$", re.MULTILINE)
-_FM_LIST = re.compile(r"\[([^\]]*)\]")
 _SkillCache = tuple[Path, tuple[tuple[str, int, int], ...], list["SkillEntry"]]
 _skill_cache: _SkillCache | None = None
 
@@ -87,6 +86,14 @@ class SkillEntry:
     job_levels: list[str] = field(default_factory=list)
     probe_intents: list[str] = field(default_factory=list)
     failure_categories: list[str] = field(default_factory=list)
+    generator_moves: list[str] = field(default_factory=list)
+    watch_for: list[str] = field(default_factory=list)
+    avoid: list[str] = field(default_factory=list)
+    evaluator_rubric_hints: list[str] = field(default_factory=list)
+    positive_signals: list[str] = field(default_factory=list)
+    negative_signals: list[str] = field(default_factory=list)
+    score_bias_rules: list[str] = field(default_factory=list)
+    evaluator_visibility: bool = False
     body: str = ""
     match_score: float = 0.0
     match_reasons: list[str] = field(default_factory=list)
@@ -103,20 +110,11 @@ def _parse_frontmatter(text: str) -> dict[str, Any]:
     if not m:
         return {}
     block = m.group(1)
-    result: dict[str, Any] = {}
-    for fm in _FM_FIELD.finditer(block):
-        key, val = fm.group(1), fm.group(2).strip()
-        lm = _FM_LIST.match(val)
-        if lm:
-            items = [
-                i.strip().strip("'\"")
-                for i in lm.group(1).split(",")
-                if i.strip()
-            ]
-            result[key] = items
-        else:
-            result[key] = val
-    return result
+    try:
+        parsed = yaml.safe_load(block) or {}
+    except yaml.YAMLError:
+        return {}
+    return dict(parsed) if isinstance(parsed, dict) else {}
 
 
 def _strip_frontmatter(text: str) -> str:
@@ -142,6 +140,25 @@ def _slug_list(values: Any) -> list[str]:
             out.append(slug)
             seen.add(slug)
     return out
+
+
+def _text_list(values: Any) -> list[str]:
+    if values is None:
+        return []
+    raw = values if isinstance(values, list) else [values]
+    out: list[str] = []
+    seen: set[str] = set()
+    for value in raw:
+        text = str(value or "").strip()
+        key = text.casefold()
+        if text and key not in seen:
+            out.append(text)
+            seen.add(key)
+    return out
+
+
+def _bool_value(value: Any) -> bool:
+    return bool(value) if isinstance(value, bool) else False
 
 
 def _int_value(value: Any) -> int:
@@ -246,6 +263,16 @@ def _list_file_skills() -> list[SkillEntry]:
                 job_levels=_slug_list(fm.get("job_levels")),
                 probe_intents=_slug_list(fm.get("probe_intents")),
                 failure_categories=_slug_list(fm.get("failure_categories")),
+                generator_moves=_text_list(fm.get("generator_moves")),
+                watch_for=_text_list(fm.get("watch_for")),
+                avoid=_text_list(fm.get("avoid")),
+                evaluator_rubric_hints=_text_list(
+                    fm.get("evaluator_rubric_hints")
+                ),
+                positive_signals=_text_list(fm.get("positive_signals")),
+                negative_signals=_text_list(fm.get("negative_signals")),
+                score_bias_rules=_text_list(fm.get("score_bias_rules")),
+                evaluator_visibility=_bool_value(fm.get("evaluator_visibility")),
                 body=_strip_frontmatter(text),
             )
         )
@@ -281,6 +308,14 @@ def _entry_from_db_card(row: SkillPlaybookCard) -> SkillEntry:
         job_levels=_list_value(row.job_levels),
         probe_intents=_list_value(row.probe_intents),
         failure_categories=_list_value(row.failure_categories),
+        generator_moves=_list_value(row.generator_moves),
+        watch_for=_list_value(row.watch_for),
+        avoid=_list_value(row.avoid),
+        evaluator_rubric_hints=_list_value(row.evaluator_rubric_hints),
+        positive_signals=_list_value(row.positive_signals),
+        negative_signals=_list_value(row.negative_signals),
+        score_bias_rules=_list_value(row.score_bias_rules),
+        evaluator_visibility=bool(row.evaluator_visibility),
         body=str(row.body_markdown or ""),
     )
 
@@ -487,7 +522,7 @@ def build_skills_block(
         return "(no relevant interview skills)"
     blocks: list[str] = []
     for i, e in enumerate(entries, 1):
-        body = e.body
+        body = _generator_skill_body(e)
         truncated = ""
         if len(body) > max_body_chars:
             body = body[:max_body_chars]
@@ -502,6 +537,23 @@ def build_skills_block(
             f"  {body}{truncated}"
         )
     return "\n\n".join(blocks)
+
+
+def _generator_skill_body(entry: SkillEntry) -> str:
+    sections: list[str] = []
+    for title, values in (
+        ("Generator moves", entry.generator_moves),
+        ("Watch for", entry.watch_for),
+        ("Avoid", entry.avoid),
+    ):
+        items = _text_list(values)
+        if not items:
+            continue
+        rendered = "\n".join(f"    - {item}" for item in items)
+        sections.append(f"  {title}:\n{rendered}")
+    if sections:
+        return "\n".join(sections)
+    return entry.body
 
 
 def build_skills_index() -> str:

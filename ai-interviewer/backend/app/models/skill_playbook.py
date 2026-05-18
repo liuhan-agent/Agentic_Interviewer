@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from datetime import UTC, datetime
 
-from sqlalchemy import JSON, DateTime, Integer, String, Text
+from sqlalchemy import JSON, Boolean, DateTime, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from .base import Base
@@ -27,6 +27,18 @@ class SkillPlaybookCard(Base):
     job_levels: Mapped[list] = mapped_column(JSON, default=list)
     probe_intents: Mapped[list] = mapped_column(JSON, default=list)
     failure_categories: Mapped[list] = mapped_column(JSON, default=list)
+    generator_moves: Mapped[list] = mapped_column(JSON, default=list)
+    watch_for: Mapped[list] = mapped_column(JSON, default=list)
+    avoid: Mapped[list] = mapped_column(JSON, default=list)
+    evaluator_rubric_hints: Mapped[list] = mapped_column(JSON, default=list)
+    positive_signals: Mapped[list] = mapped_column(JSON, default=list)
+    negative_signals: Mapped[list] = mapped_column(JSON, default=list)
+    score_bias_rules: Mapped[list] = mapped_column(JSON, default=list)
+    evaluator_visibility: Mapped[bool] = mapped_column(
+        Boolean,
+        default=False,
+        nullable=False,
+    )
 
     source: Mapped[str] = mapped_column(
         String(64),

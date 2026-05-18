@@ -7,6 +7,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
+import yaml
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -14,11 +15,9 @@ from app.models.skill_playbook import SkillPlaybookCard
 from app.services.question_seed_import import VALID_DIRECTION_TAGS, VALID_ROLE_TAGS
 
 _FM_PATTERN = re.compile(r"^---\s*\n(.*?)\n---\s*\n?", re.DOTALL)
-_FM_FIELD = re.compile(r"^(\w+):\s*(.*)$", re.MULTILINE)
-_FM_LIST = re.compile(r"^\[([^\]]*)\]$")
 _VALID_STATUSES = {"active", "draft", "archived"}
 _REQUIRED_FIELDS = {"id", "name", "description", "status", "priority"}
-_LIST_FIELDS = {
+_SLUG_LIST_FIELDS = {
     "direction_tags",
     "role_tags",
     "dimensions",
@@ -26,6 +25,16 @@ _LIST_FIELDS = {
     "probe_intents",
     "failure_categories",
 }
+_TEXT_LIST_FIELDS = {
+    "generator_moves",
+    "watch_for",
+    "avoid",
+    "evaluator_rubric_hints",
+    "positive_signals",
+    "negative_signals",
+    "score_bias_rules",
+}
+_LIST_FIELDS = _SLUG_LIST_FIELDS | _TEXT_LIST_FIELDS
 
 
 @dataclass(frozen=True)
@@ -206,6 +215,54 @@ def _parse_skill_file(
             frontmatter.get("failure_categories"),
             errors,
         ),
+        "generator_moves": _text_list(
+            path.name,
+            "generator_moves",
+            frontmatter.get("generator_moves"),
+            errors,
+        ),
+        "watch_for": _text_list(
+            path.name,
+            "watch_for",
+            frontmatter.get("watch_for"),
+            errors,
+        ),
+        "avoid": _text_list(
+            path.name,
+            "avoid",
+            frontmatter.get("avoid"),
+            errors,
+        ),
+        "evaluator_rubric_hints": _text_list(
+            path.name,
+            "evaluator_rubric_hints",
+            frontmatter.get("evaluator_rubric_hints"),
+            errors,
+        ),
+        "positive_signals": _text_list(
+            path.name,
+            "positive_signals",
+            frontmatter.get("positive_signals"),
+            errors,
+        ),
+        "negative_signals": _text_list(
+            path.name,
+            "negative_signals",
+            frontmatter.get("negative_signals"),
+            errors,
+        ),
+        "score_bias_rules": _text_list(
+            path.name,
+            "score_bias_rules",
+            frontmatter.get("score_bias_rules"),
+            errors,
+        ),
+        "evaluator_visibility": _bool_value(
+            path.name,
+            "evaluator_visibility",
+            frontmatter.get("evaluator_visibility"),
+            errors,
+        ),
         "source": "manual_markdown",
         "version": 1,
         "content_hash": _content_hash(text),
@@ -224,19 +281,15 @@ def _parse_frontmatter(
         return None
 
     block = match.group(1)
-    result: dict[str, Any] = {}
-    for field in _FM_FIELD.finditer(block):
-        key, raw = field.group(1), field.group(2).strip()
-        list_match = _FM_LIST.match(raw)
-        if list_match:
-            result[key] = [
-                item.strip().strip("'\"")
-                for item in list_match.group(1).split(",")
-                if item.strip()
-            ]
-        else:
-            result[key] = raw.strip("'\"")
-    return result
+    try:
+        parsed = yaml.safe_load(block) or {}
+    except yaml.YAMLError as exc:
+        errors.append(f"{file_name}: invalid frontmatter yaml: {exc}")
+        return None
+    if not isinstance(parsed, dict):
+        errors.append(f"{file_name}: frontmatter must be a mapping")
+        return None
+    return dict(parsed)
 
 
 def _strip_frontmatter(text: str) -> str:
@@ -295,6 +348,47 @@ def _slug_list(
                 f"(expected one of {sorted(allowed)})"
             )
     return out
+
+
+def _text_list(
+    file_name: str,
+    field: str,
+    value: Any,
+    errors: list[str],
+) -> list[str]:
+    if value is None:
+        return []
+    raw = value if isinstance(value, list) else [value]
+    out: list[str] = []
+    seen: set[str] = set()
+    duplicates: set[str] = set()
+    for item in raw:
+        text = _string(item)
+        if not text:
+            continue
+        key = text.casefold()
+        if key in seen:
+            duplicates.add(text)
+            continue
+        seen.add(key)
+        out.append(text)
+    if duplicates:
+        errors.append(f"{file_name}: duplicate {field}: {sorted(duplicates)}")
+    return out
+
+
+def _bool_value(
+    file_name: str,
+    field: str,
+    value: Any,
+    errors: list[str],
+) -> bool:
+    if value is None:
+        return False
+    if isinstance(value, bool):
+        return value
+    errors.append(f"{file_name}: {field} must be a boolean")
+    return False
 
 
 def _slugify(value: Any) -> str:

@@ -3160,6 +3160,52 @@ function SkillsPlaybookCard({
                         "",
                     )}
                   </div>
+                  <div className="grid gap-3 md:grid-cols-3">
+                    <PlaybookFieldList
+                      label="Generator moves"
+                      items={detail.data.skill_playbook.generator_moves}
+                    />
+                    <PlaybookFieldList
+                      label="Watch for"
+                      items={detail.data.skill_playbook.watch_for}
+                    />
+                    <PlaybookFieldList
+                      label="Avoid"
+                      items={detail.data.skill_playbook.avoid}
+                    />
+                  </div>
+                  <div className="rounded-lg border bg-background/60 p-3">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <p className="text-xs font-medium">
+                        Evaluator fields are staged for observation only
+                      </p>
+                      <Badge variant="outline" className="font-mono text-[10px]">
+                        evaluator_visibility=
+                        {String(detail.data.skill_playbook.evaluator_visibility)}
+                      </Badge>
+                    </div>
+                    <p className="mt-1 text-[11px] text-muted-foreground">
+                      These hints are not used by Evaluator runtime.
+                    </p>
+                    <div className="mt-3 grid gap-3 md:grid-cols-2">
+                      <PlaybookFieldList
+                        label="Rubric hints"
+                        items={detail.data.skill_playbook.evaluator_rubric_hints}
+                      />
+                      <PlaybookFieldList
+                        label="Positive signals"
+                        items={detail.data.skill_playbook.positive_signals}
+                      />
+                      <PlaybookFieldList
+                        label="Negative signals"
+                        items={detail.data.skill_playbook.negative_signals}
+                      />
+                      <PlaybookFieldList
+                        label="Score bias rules"
+                        items={detail.data.skill_playbook.score_bias_rules}
+                      />
+                    </div>
+                  </div>
                   <Separator />
                   <pre className="max-h-96 overflow-auto whitespace-pre-wrap rounded-md bg-background/70 p-3 text-xs leading-relaxed text-foreground/85">
                     {detail.data.skill_playbook.body_markdown || ""}
@@ -3176,6 +3222,30 @@ function SkillsPlaybookCard({
         )}
       </CardContent>
     </Card>
+  );
+}
+
+function PlaybookFieldList({
+  label,
+  items,
+}: {
+  label: string;
+  items: string[] | undefined;
+}) {
+  const values = items ?? [];
+  return (
+    <div className="rounded-lg border bg-background/60 p-3">
+      <p className="text-xs font-medium">{label}</p>
+      {values.length === 0 ? (
+        <p className="mt-2 text-[11px] text-muted-foreground">empty</p>
+      ) : (
+        <ul className="mt-2 space-y-1.5 text-xs text-muted-foreground">
+          {values.map((item) => (
+            <li key={item}>- {item}</li>
+          ))}
+        </ul>
+      )}
+    </div>
   );
 }
 

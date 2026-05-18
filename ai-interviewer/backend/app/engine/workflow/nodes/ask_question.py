@@ -341,6 +341,16 @@ def _skill_card_ref(entry: Any) -> dict[str, Any]:
         "job_levels": list(getattr(entry, "job_levels", []) or []),
         "probe_intents": list(getattr(entry, "probe_intents", []) or []),
         "failure_categories": list(getattr(entry, "failure_categories", []) or []),
+        "generator_moves": list(getattr(entry, "generator_moves", []) or []),
+        "watch_for": list(getattr(entry, "watch_for", []) or []),
+        "avoid": list(getattr(entry, "avoid", []) or []),
+        "evaluator_rubric_hints": list(
+            getattr(entry, "evaluator_rubric_hints", []) or []
+        ),
+        "positive_signals": list(getattr(entry, "positive_signals", []) or []),
+        "negative_signals": list(getattr(entry, "negative_signals", []) or []),
+        "score_bias_rules": list(getattr(entry, "score_bias_rules", []) or []),
+        "evaluator_visibility": bool(getattr(entry, "evaluator_visibility", False)),
         "match_score": float(getattr(entry, "match_score", 0.0) or 0.0),
         "match_reasons": list(getattr(entry, "match_reasons", []) or []),
     }
