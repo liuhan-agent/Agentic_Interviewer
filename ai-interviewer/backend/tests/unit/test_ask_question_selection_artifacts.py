@@ -1443,3 +1443,156 @@ def test_structured_primary_seed_miss_still_injects_db_playbook_with_rag_fallbac
     assert generated_kwargs.get("candidate_anchor_block", "") == ""
     assert "Generator moves:" in generated_kwargs["skill_block"]
     assert "Ask for rollback blast radius." in generated_kwargs["skill_block"]
+
+
+def test_generator_context_slot_order_baseline(monkeypatch) -> None:
+    captured_keys: list[str] = []
+
+    def fake_generate_question(**kwargs):
+        captured_keys.extend(kwargs.keys())
+        return _fake_generate_question(**kwargs)
+
+    monkeypatch.setattr(ask_mod, "generate_question", fake_generate_question)
+
+    ask_mod._step_draft_question(
+        _base_state(),
+        {
+            "dimension": "system_design",
+            "retrieval_block": "knowledge slot",
+            "question_seed_block": "seed slot",
+            "candidate_anchor_block": "rule anchor slot",
+            "strategy_block": "strategy slot",
+            "skill_block": "skill slot",
+            "avoid_patterns": "avoid slot",
+            "resume_anchor": {
+                "project_name": "Smart Learning Coupon Guard",
+                "tech_stack": ["Redis"],
+            },
+            "target_skills": ["Redis"],
+            "probe_intent": None,
+            "contract_hints": {},
+        },
+    )
+
+    expected_relative_order = [
+        "retrieval_block",
+        "question_seed_block",
+        "candidate_anchor_block",
+        "strategy_block",
+        "skill_block",
+        "avoid_patterns_block",
+        "resume_anchor",
+    ]
+    positions = [captured_keys.index(key) for key in expected_relative_order]
+    assert positions == sorted(positions)
+
+
+def test_retrieval_block_for_prompt_returns_empty_on_seed_hit() -> None:
+    ctx = {"structured_primary_seed_hit": True, "retrieval_block": "something"}
+    assert ask_mod._retrieval_block_for_prompt(ctx) == ""
+
+
+def test_retrieval_block_for_prompt_returns_block_without_seed_hit() -> None:
+    ctx = {"structured_primary_seed_hit": False, "retrieval_block": "knowledge body"}
+    assert ask_mod._retrieval_block_for_prompt(ctx) == "knowledge body"
+
+
+def test_step_select_structured_question_uses_rule_anchor_only(monkeypatch) -> None:
+    captured: dict[str, Any] = {}
+
+    class _FitProfile:
+        def as_artifact(self) -> dict[str, Any]:
+            return {"anchor_confidence": "medium"}
+
+    def fake_build_question_fit_profile(**kwargs):
+        captured["fit_kwargs"] = kwargs
+        return _FitProfile()
+
+    def fake_select_question_candidates(**kwargs):
+        captured["kwargs"] = kwargs
+        return QuestionSelectionResult(candidates=[])
+
+    monkeypatch.setattr(
+        ask_mod,
+        "build_question_fit_profile",
+        fake_build_question_fit_profile,
+    )
+    monkeypatch.setattr(
+        ask_mod,
+        "select_question_candidates",
+        fake_select_question_candidates,
+    )
+    monkeypatch.setattr(
+        ask_mod,
+        "get_settings",
+        lambda: SimpleNamespace(
+            enable_question_fit_profile=True,
+            enable_question_reranker_shadow=False,
+            question_reranker_timeout_ms=4000,
+            question_primary_role_tags=list(_COVERED_PRIMARY_ROLE_TAGS),
+        ),
+    )
+
+    state = _base_state(
+        runtime_config={
+            "question_selector_mode": "structured_shadow",
+            "rag_mode": "vector",
+        }
+    )
+    ctx = {
+        "dimension": "system_design",
+        "target_skills": ["Redis"],
+        "contract_hints": {},
+        "resume_anchor": {
+            "project_name": "Smart Learning Coupon Guard",
+            "tech_stack": ["Redis"],
+        },
+        "resume_rag_block": "[resume] Redis Lua coupon guard",
+        "self_intro_rag_block": "[self_intro] 50w QPS Lua atomic",
+        "candidate_anchor_rag_artifact": {"status": "primary"},
+    }
+
+    ask_mod._step_select_structured_question(state, ctx, probe_intent=None)
+
+    assert captured["kwargs"]["resume_anchor_text"]
+    assert "resume_rag_block" not in captured["kwargs"]
+    assert "self_intro_rag_block" not in captured["kwargs"]
+    assert "candidate_anchor_rag_artifact" not in captured["kwargs"]
+    assert "resume_rag_block" not in captured["fit_kwargs"]
+    assert "self_intro_rag_block" not in captured["fit_kwargs"]
+    assert "candidate_anchor_rag_artifact" not in captured["fit_kwargs"]
+
+
+def test_selection_artifacts_baseline_keys_superset_after_rag() -> None:
+    artifacts = ask_mod._build_selection_artifacts(
+        {
+            "dimension": "system_design",
+            "rag_artifact": {
+                "mode": "vector",
+                "top_k": 2,
+                "doc_refs": [],
+                "empty": True,
+                "reason": "no_relevant_knowledge",
+            },
+            "strategy_memory_refs": [],
+            "skill_artifact": {"enabled": False, "refs": []},
+            "avoid_pattern_artifact": {
+                "enabled": False,
+                "rendered": False,
+                "dimension": "system_design",
+                "top_n": 0,
+                "min_support": 0,
+            },
+            "question_items": [],
+            "contract_hints": {},
+        }
+    )
+    expected_baseline = {
+        "rag",
+        "strategies",
+        "skills",
+        "avoid_patterns",
+        "question_items",
+        "failure_categories",
+    }
+    assert expected_baseline.issubset(set(artifacts.keys()))
