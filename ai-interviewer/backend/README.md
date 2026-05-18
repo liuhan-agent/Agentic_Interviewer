@@ -24,7 +24,7 @@ Docker compose 会启动：
 
 | 服务 | 本地端口 | 说明 |
 | --- | --- | --- |
-| PostgreSQL | `5433` | 会话、trace、报告、checkpoint |
+| PostgreSQL | `5433` | 会话、trace、报告、checkpoint；生产/本地推荐使用 `pgvector/pgvector:pg16` |
 | Redis | `6380` | session / prompt cache / drift 后端 |
 | Chroma | `8100` | 向量知识库 |
 
@@ -226,6 +226,34 @@ CHECKPOINT_BACKEND=memory
 
 内存模式更轻，但后端进程重启后会话状态会丢失。
 
+## 候选人锚点 RAG
+
+候选人锚点 RAG 使用同一个 PostgreSQL 实例里的 PgVector 表保存本场面试的简历与自我介绍语义锚点。推荐镜像是 `pgvector/pgvector:pg16`；如果使用自建 Postgres，需要提前安装 vector 扩展。应用启动的 `init_db()` 会在数据库支持时自动执行：
+
+```sql
+CREATE EXTENSION vector;
+```
+
+默认模式是：
+
+```env
+RESUME_RAG_MODE=shadow
+```
+
+Shadow 模式只记录检索结果和指标，不把检索块注入 Generator。紧急回滚：
+
+```env
+RESUME_RAG_MODE=off
+```
+
+会话锚点数据随隐私清理调度自动清理；外部 cron 环境建议每天运行：
+
+```powershell
+python -m app.scripts.cleanup_session_anchor_chunks
+```
+
+完整 rollout、promote-to-primary 和 rollback 步骤见 `../docs/RESUME_RAG_ROLLOUT.md`。
+
 ## 关键环境变量
 
 | 变量 | 默认值 | 说明 |
@@ -245,6 +273,8 @@ CHECKPOINT_BACKEND=memory
 | `RESUME_PARSER_LLM_TIMEOUT_SECONDS` | `120` | 同步简历上传时等待 LLM 精修的秒数 |
 | `RESUME_PARSE_JOB_LLM_TIMEOUT_SECONDS` | `300` | 异步简历解析 job 等待 LLM 精修的秒数 |
 | `RESUME_PARSE_JOB_TTL_SECONDS` | `3600` | 异步简历解析 job 在进程内保留的秒数 |
+| `RESUME_RAG_MODE` | `shadow` | 候选人锚点 RAG 模式；回滚设为 `RESUME_RAG_MODE=off` |
+| `RESUME_RAG_SESSION_SAMPLE_RATE` | `1.0` | Shadow rollout 的 session 稳定采样率 |
 | `OPENAI_API_KEY` | 空 | OpenAI key |
 | `ANTHROPIC_API_KEY` | 空 | Anthropic key |
 | `EMBEDDING_PROVIDER` | `openai` | `openai` 或 `stub` |

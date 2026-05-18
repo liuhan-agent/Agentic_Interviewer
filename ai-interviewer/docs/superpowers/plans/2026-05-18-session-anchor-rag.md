@@ -2028,9 +2028,9 @@ git commit -m "feat: observe session anchor rag in admin and add cleanup job"
 - Modify: `ai-interviewer/backend/README.md`
 - Create: `ai-interviewer/backend/tests/unit/test_resume_rag_rollout_docs.py`
 
-- [ ] Flip the default `resume_rag_mode = "shadow"`. Keep `off` as the rollback switch.
+- [x] Flip the default `resume_rag_mode = "shadow"`. Keep `off` as the rollback switch.
 
-- [ ] Document the per-mode Shadow → Primary thresholds (hit-rate gate + duplicate-rewrite gate must both pass):
+- [x] Document the per-mode Shadow → Primary thresholds (hit-rate gate + duplicate-rewrite gate must both pass):
 
 | Mode | Hit-rate threshold | Minimum sessions | Duplicate-rewrite rate gate | Notes |
 |---|---|---|---|---|
@@ -2042,7 +2042,7 @@ git commit -m "feat: observe session anchor rag in admin and add cleanup job"
 
 Duplicate-rewrite rate is the fraction of formal turns where `record_question_fallback("duplicate")` fires (already counted by `ask_question.py:931`). Baseline is the same metric over the trailing 30 days **before** Shadow is enabled for the mode in question. The gate exists because high hit-rate alone does not prove the recalled fragments are useful: if RAG misleads Generator into rewriting the same question with new wording, duplicate-rewrite spikes. A mode is only promoted to `primary` when its hit-rate is above threshold **and** its duplicate-rewrite rate stays at or below the rule-only baseline. The two gates are evaluated independently per mode.
 
-- [ ] Write the runbook `RESUME_RAG_ROLLOUT.md` covering:
+- [x] Write the runbook `RESUME_RAG_ROLLOUT.md` covering:
 
   - Stage descriptions: `off / shadow / primary`.
   - How to verify Shadow data (admin metrics endpoint and panel).
@@ -2050,14 +2050,14 @@ Duplicate-rewrite rate is the fraction of formal turns where `record_question_fa
   - Sampling knob: `resume_rag_session_sample_rate` — set `0.05`, watch, then `0.3`, then `1.0`.
   - Rollback procedure: flip `resume_rag_mode=off` and (optionally) wipe session anchor chunks. If a mode is promoted to primary and duplicate-rewrite rate then climbs above baseline, demote the mode back to shadow without a full off rollback.
 
-- [ ] Update README with:
+- [x] Update README with:
 
-  - Required Postgres image (`pgvector/pgvector:pg17`).
+  - Required Postgres image (`pgvector/pgvector:pg16`, matching the current compose major version).
   - `CREATE EXTENSION vector` is auto-issued during `init_db()`.
   - `RESUME_RAG_MODE` env var default and rollback.
   - `python -m app.scripts.cleanup_session_anchor_chunks` recommended cron schedule.
 
-- [ ] Write a docs-source test asserting README and runbook contain the required strings.
+- [x] Write a docs-source test asserting README and runbook contain the required strings.
 
 ```python
 def test_readme_contains_pgvector_image():
@@ -2086,13 +2086,13 @@ def test_rollout_doc_includes_duplicate_rewrite_gate():
     assert "baseline" in text.lower()
 ```
 
-- [ ] Run docs tests.
+- [x] Run docs tests.
 
 ```bash
 python -m pytest tests/unit/test_resume_rag_rollout_docs.py -q
 ```
 
-- [ ] Commit.
+- [x] Commit.
 
 ```bash
 git add ai-interviewer/backend/app/core/settings.py ai-interviewer/docs/RESUME_RAG_ROLLOUT.md ai-interviewer/backend/README.md ai-interviewer/backend/tests/unit/test_resume_rag_rollout_docs.py
@@ -2106,7 +2106,7 @@ git commit -m "feat: enable resume rag shadow by default with rollout runbook"
 - Create: `ai-interviewer/backend/tests/unit/test_session_anchor_rag_isolation.py`
 - Create: `ai-interviewer/backend/tests/unit/test_session_anchor_rag_pii.py`
 
-- [ ] R1 cross-session isolation test (multi-scenario):
+- [x] R1 cross-session isolation test (multi-scenario):
 
 ```python
 def test_cross_session_query_never_returns_other_session_chunks(db_session):
@@ -2125,7 +2125,7 @@ def test_session_and_revision_filters_are_both_required(db_session):
     # one planted row differs only by session_id, the other only by revision_id.
 ```
 
-- [ ] R2 PII redaction test:
+- [x] R2 PII redaction test:
 
 ```python
 def test_phone_numbers_are_redacted_before_storing():
@@ -2186,7 +2186,7 @@ def test_subject_deletion_wipes_all_traces(client_with_token, db_session):
     assert rows == []
 ```
 
-- [ ] Run the isolation suite.
+- [x] Run the isolation suite.
 
 ```bash
 python -m pytest tests/unit/test_session_anchor_rag_isolation.py tests/unit/test_session_anchor_rag_pii.py -q
@@ -2194,7 +2194,7 @@ python -m pytest tests/unit/test_session_anchor_rag_isolation.py tests/unit/test
 
 Expected: every cross-session attempt is blocked; every PII pattern is redacted; subject deletion is complete.
 
-- [ ] Commit.
+- [x] Commit.
 
 ```bash
 git add ai-interviewer/backend/tests/unit/test_session_anchor_rag_isolation.py ai-interviewer/backend/tests/unit/test_session_anchor_rag_pii.py
@@ -2208,9 +2208,9 @@ git commit -m "test: harden session anchor rag isolation and pii"
 - No new files expected.
 - Modify if APScheduler is already wired: `ai-interviewer/backend/app/main.py` to register the cleanup job with APScheduler.
 
-- [ ] Register the cleanup job (if APScheduler is already wired). If not, document the cron command in the runbook.
+- [x] Register the cleanup job (if APScheduler is already wired). If not, document the cron command in the runbook.
 
-- [ ] Run backend full unit tests.
+- [x] Run backend full unit tests.
 
 ```bash
 cd D:\Agent\Agentic_Interviewer\ai-interviewer\backend
@@ -2219,7 +2219,7 @@ python -m pytest tests/unit -q
 
 Expected: all tests pass.
 
-- [ ] Run targeted lint.
+- [x] Run targeted lint.
 
 ```bash
 python -m ruff check \
@@ -2245,7 +2245,7 @@ python -m ruff check \
 
 Expected: `All checks passed!`
 
-- [ ] Run frontend source/type checks.
+- [x] Run frontend source/type checks.
 
 ```bash
 cd D:\Agent\Agentic_Interviewer\ai-interviewer\frontend
@@ -2256,7 +2256,7 @@ npm run lint
 
 Expected: tests pass, typecheck passes. Pre-existing lint warnings may remain if unrelated.
 
-- [ ] Run end-to-end workflow regression for both seed-hit and seed-miss paths.
+- [x] Run end-to-end workflow regression for both seed-hit and seed-miss paths.
 
 ```bash
 python -m pytest tests/unit/test_ask_question_selection_artifacts.py -q
@@ -2264,7 +2264,7 @@ python -m pytest tests/unit/test_ask_question_selection_artifacts.py -q
 
 Expected: each plan template produces `resume_anchor` and `candidate_anchor_rag` artifacts as part of `selection_artifacts`.
 
-- [ ] Diff cleanliness.
+- [x] Diff cleanliness.
 
 ```bash
 git diff --check
@@ -2272,7 +2272,7 @@ git diff --check
 
 Expected: no whitespace errors.
 
-- [ ] Verify Admin parity in a local Postgres run.
+- [x] Verify Admin parity in a local Postgres run.
 
   - Start backend with `RESUME_RAG_MODE=shadow`.
   - Upload a resume and run one interview turn.
@@ -2281,7 +2281,7 @@ Expected: no whitespace errors.
     - Per-mode breakdown matches expected mode for the uploaded resume and `SI` appears after a long self-intro.
     - One hit recorded for the run with `latency_ms` populated.
 
-- [ ] Commit any final adjustments.
+- [x] Commit any final adjustments.
 
 ```bash
 git add .

@@ -1550,6 +1550,50 @@ def test_candidate_anchor_rag_shadow_writes_artifact_but_not_blocks(monkeypatch)
     assert ctx["candidate_anchor_rag_artifact"]["status"] == "shadow"
 
 
+def test_candidate_anchor_rag_sample_rate_can_skip_retrieval(monkeypatch) -> None:
+    monkeypatch.setattr(
+        ask_mod,
+        "get_settings",
+        lambda: SimpleNamespace(
+            resume_rag_mode="shadow",
+            resume_rag_session_sample_rate=0.0,
+        ),
+    )
+    monkeypatch.setattr(
+        ask_mod,
+        "retrieve_candidate_anchors",
+        lambda **_kwargs: (_ for _ in ()).throw(AssertionError("should not retrieve")),
+    )
+    ctx = {
+        "dimension": "system_design",
+        "question_items": [{"scenario_brief": "Redis consistency"}],
+        "resume_anchor": {"project_name": "Coupon Guard"},
+        "target_skills": ["Redis"],
+    }
+
+    ask_mod._step_retrieve_candidate_anchors(
+        _base_state(
+            candidate={
+                "resume_parsed": {},
+                "resume_vector_status": {
+                    "status": "ready",
+                    "resume_revision_id": "rev_1",
+                },
+            },
+        ),
+        ctx,
+    )
+
+    assert ctx["resume_rag_block"] == ""
+    assert ctx["self_intro_rag_block"] == ""
+    assert ctx["candidate_anchor_rag_artifact"] == {
+        "status": "shadow",
+        "skipped": True,
+        "fallback_reason": "sampled_out",
+        "hits": [],
+    }
+
+
 def test_anchor_rag_blocks_survive_structured_primary_seed_hit(monkeypatch) -> None:
     monkeypatch.setattr(
         ask_mod,

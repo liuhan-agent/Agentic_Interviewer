@@ -159,6 +159,12 @@ def test_start_session_passes_sanitized_setup_snapshot(monkeypatch) -> None:
                 "interview_direction": "java_backend",
                 "interview_direction_label": None,
             },
+            "resume_vector_status": {
+                "status": "skipped",
+                "skipped_reason": "no_parse_artifact",
+                "resume_source_id": None,
+                "resume_revision_id": None,
+            },
         }
     ]
     assert "llm_config" not in manager.setup_snapshots[0]
