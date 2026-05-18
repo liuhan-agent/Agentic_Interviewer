@@ -81,6 +81,12 @@ VALID_ROLE_TAGS = {
     "hr_function",
     "customer_success",
     "general_management",
+    # P0-5 unlocks data analyst playbook coverage; qa_engineer / ux_designer
+    # are reserved for the P1 batch so seeds and playbooks can reference
+    # them without a second whitelist migration.
+    "data_analyst",
+    "qa_engineer",
+    "ux_designer",
 }
 
 SEED_REQUIRED = {

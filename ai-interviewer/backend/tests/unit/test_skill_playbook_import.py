@@ -144,6 +144,69 @@ def test_parse_bundled_skill_playbooks_is_strict_clean() -> None:
     assert any(card.values["evaluator_rubric_hints"] for card in cards)
 
 
+def test_parse_bundled_skill_playbooks_covers_p0_expansion_cards() -> None:
+    """P0 expansion (2026-05) — five new cards must all pass strict import.
+
+    Pinning the id set here protects the playbook catalog from accidental
+    deletion or renaming of the freshly added direction / role / level
+    coverage cards. Each card is also asserted to carry the structured
+    fields the runtime + admin observability paths consume.
+    """
+    skill_dir = Path(__file__).resolve().parents[2] / "knowledge" / "skills"
+
+    cards, _skipped = parse_skill_playbook_dir(skill_dir)
+    by_id = {card.values["id"]: card.values for card in cards}
+
+    p0_expansion = {
+        "tech_data_engineering_pipeline_probe": {
+            "direction_tags": {"internet_tech"},
+            "role_tags": {"java_backend", "ai_algorithm", "architect"},
+            "job_levels": {"mid", "senior", "staff", "principal"},
+        },
+        "tech_frontend_perf_render_probe": {
+            "direction_tags": {"internet_tech"},
+            "role_tags": {"frontend_web", "mobile", "ai_fullstack"},
+            "job_levels": {"mid", "senior", "staff"},
+        },
+        "tech_mobile_platform_probe": {
+            "direction_tags": {"internet_tech"},
+            "role_tags": {"mobile"},
+            "job_levels": {"junior", "mid", "senior", "staff"},
+        },
+        "business_executive_strategy_probe": {
+            "direction_tags": {"business"},
+            "role_tags": {"general_management", "product_manager", "operations"},
+            "job_levels": {"staff", "principal"},
+        },
+        "business_data_analyst_insight_probe": {
+            "direction_tags": {"business"},
+            "role_tags": {"data_analyst"},
+            "job_levels": {"junior", "mid", "senior", "staff"},
+        },
+    }
+
+    missing = sorted(p0_expansion.keys() - by_id.keys())
+    assert not missing, f"P0 expansion cards missing from catalog: {missing}"
+
+    for card_id, expected in p0_expansion.items():
+        values = by_id[card_id]
+        assert values["status"] == "active", f"{card_id}: must be active"
+        assert int(values["priority"]) >= 7, (
+            f"{card_id}: P0 cards should land with priority >= 7"
+        )
+        assert values["generator_moves"], f"{card_id}: generator_moves required"
+        assert values["watch_for"], f"{card_id}: watch_for required"
+        assert values["avoid"], f"{card_id}: avoid required"
+        assert values["evaluator_rubric_hints"], (
+            f"{card_id}: evaluator_rubric_hints required"
+        )
+        for field, expected_subset in expected.items():
+            actual = set(values.get(field, []))
+            assert expected_subset <= actual, (
+                f"{card_id}: {field} missing values {expected_subset - actual}"
+            )
+
+
 def test_import_skill_playbook_dir_fails_atomically_with_full_error_list(
     tmp_path: Path,
 ) -> None:
