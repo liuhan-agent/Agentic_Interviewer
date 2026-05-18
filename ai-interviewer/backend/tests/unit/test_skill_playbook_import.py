@@ -162,6 +162,41 @@ def test_parse_bundled_skill_playbooks_covers_p1_expansion_cards() -> None:
             "role_tags": {"sre", "architect"},
             "job_levels": {"senior", "staff", "principal"},
         },
+        "tech_qa_test_strategy_probe": {
+            "direction_tags": {"internet_tech"},
+            "role_tags": {"qa_engineer"},
+            "job_levels": {"mid", "senior", "staff"},
+        },
+        "tech_ai_algorithm_training_probe": {
+            "direction_tags": {"internet_tech"},
+            "role_tags": {"ai_algorithm"},
+            "job_levels": {"senior", "staff", "principal"},
+        },
+        "design_ux_research_probe": {
+            "direction_tags": {"business"},
+            "role_tags": {"ux_designer"},
+            "job_levels": {"junior", "mid", "senior", "staff"},
+        },
+        "tech_security_compliance_probe": {
+            "direction_tags": {"internet_tech"},
+            "role_tags": {"sre", "architect", "java_backend"},
+            "job_levels": {"senior", "staff", "principal"},
+        },
+        "business_hr_talent_lifecycle_probe": {
+            "direction_tags": {"business"},
+            "role_tags": {"hr_function"},
+            "job_levels": {"mid", "senior", "staff"},
+        },
+        "senior_backend_distributed_state_probe": {
+            "direction_tags": {"internet_tech"},
+            "role_tags": {"java_backend", "architect", "ai_fullstack"},
+            "job_levels": {"senior", "staff", "principal"},
+        },
+        "business_pricing_packaging_probe": {
+            "direction_tags": {"business"},
+            "role_tags": {"product_manager", "sales_business"},
+            "job_levels": {"senior", "staff", "principal"},
+        },
     }
 
     missing = sorted(p1_expansion.keys() - by_id.keys())
