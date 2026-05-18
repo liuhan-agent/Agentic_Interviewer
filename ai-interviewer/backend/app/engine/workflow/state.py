@@ -117,6 +117,7 @@ BarLevel = Literal["intro", "standard", "deep_probe"]
 PlanStepKind = Literal[
     "retrieve_rag",
     "retrieve_strategy",
+    "retrieve_candidate_anchors",
     "draft_question",
     "negotiate_contract",
     "challenge_with_reference",

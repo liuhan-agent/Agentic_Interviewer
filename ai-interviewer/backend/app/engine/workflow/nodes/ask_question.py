@@ -79,6 +79,7 @@ from app.services.question_selector import (
 from app.services.question_selector import (
     select_question_candidates as _select_question_candidates,
 )
+from app.services.session_anchor_retriever import retrieve_candidate_anchors
 
 log = get_logger(__name__)
 
@@ -381,6 +382,8 @@ def _build_selection_artifacts(ctx: dict[str, Any]) -> dict[str, Any]:
         "failure_categories": _failure_categories_from_hints(
             ctx.get("contract_hints"),
         ),
+        "candidate_anchor_rag": ctx.get("candidate_anchor_rag_artifact")
+        or {"status": "off"},
     }
     if ctx.get("question_fit_profile_artifact") is not None:
         artifacts["question_fit_profile"] = ctx["question_fit_profile_artifact"]
@@ -663,6 +666,83 @@ def _retrieval_block_for_prompt(ctx: dict[str, Any]) -> str:
     return ctx.get("retrieval_block", "")
 
 
+def _step_retrieve_candidate_anchors(
+    state: InterviewState,
+    ctx: dict[str, Any],
+) -> None:
+    settings = get_settings()
+    mode = str(getattr(settings, "resume_rag_mode", "off") or "off")
+    ctx["resume_rag_block"] = ""
+    ctx["self_intro_rag_block"] = ""
+    if mode == "off":
+        ctx["candidate_anchor_rag_artifact"] = {"status": "off"}
+        return
+
+    resume_status = ((state.get("candidate") or {}).get("resume_vector_status") or {})
+    self_intro_status = state.get("self_intro_vector_status") or {}
+    result = retrieve_candidate_anchors(
+        session_id=str(state.get("session_id") or ""),
+        resume_revision_id=_ready_revision(resume_status, "resume_revision_id"),
+        self_intro_revision_id=_ready_revision(
+            self_intro_status,
+            "self_intro_revision_id",
+        ),
+        dimension=ctx["dimension"],
+        seed=(ctx.get("question_items") or [None])[0],
+        target_skills=ctx.get("target_skills") or [],
+        rule_anchor=ctx.get("resume_anchor"),
+        self_intro_profile=state.get("self_intro_profile") or {},
+        used_project_names=_used_project_names(state),
+    )
+    if mode == "primary":
+        ctx["resume_rag_block"] = result.resume_block
+        ctx["self_intro_rag_block"] = result.self_intro_block
+    ctx["candidate_anchor_rag_artifact"] = result.as_artifact(mode=mode)
+
+
+def _ready_revision(status: dict[str, Any], key: str) -> str | None:
+    if not isinstance(status, dict) or status.get("status") != "ready":
+        return None
+    revision = str(status.get(key) or "").strip()
+    return revision or None
+
+
+def _used_project_names(state: InterviewState) -> list[str]:
+    candidate = state.get("candidate") or {}
+    parsed = candidate.get("resume_parsed") if isinstance(candidate, dict) else {}
+    projects = (parsed or {}).get("projects") if isinstance(parsed, dict) else []
+    focus_areas = (parsed or {}).get("focus_areas") if isinstance(parsed, dict) else []
+    projects = projects if isinstance(projects, list) else []
+    focus_areas = focus_areas if isinstance(focus_areas, list) else []
+    projects_by_id = {
+        str(project.get("id")): project
+        for project in projects
+        if isinstance(project, dict) and project.get("id")
+    }
+    focus_project_id = {
+        str(focus.get("id")): str(focus.get("project_id") or "")
+        for focus in focus_areas
+        if isinstance(focus, dict) and focus.get("id")
+    }
+    used: list[str] = []
+    for turn in state.get("qa_history") or []:
+        if not isinstance(turn, dict):
+            continue
+        anchor = turn.get("resume_anchor") if isinstance(turn.get("resume_anchor"), dict) else {}
+        project_name = str(anchor.get("project_name") or "").strip()
+        project_id = str(
+            anchor.get("project_id")
+            or turn.get("project_id")
+            or focus_project_id.get(str(anchor.get("focus_id") or turn.get("focus_id") or ""), "")
+        ).strip()
+        if not project_name and project_id:
+            project = projects_by_id.get(project_id) or {}
+            project_name = str(project.get("name") or "").strip()
+        if project_name:
+            used.append(project_name)
+    return used
+
+
 def _step_draft_question(state: InterviewState, ctx: dict[str, Any]) -> None:
     runtime_config = state.get("runtime_config") or {}
     refine_mode = bool(state.get("refine_mode")) or bool(
@@ -677,6 +757,8 @@ def _step_draft_question(state: InterviewState, ctx: dict[str, Any]) -> None:
         retrieval_block=_retrieval_block_for_prompt(ctx),
         question_seed_block=ctx.get("question_seed_block", ""),
         candidate_anchor_block=ctx.get("candidate_anchor_block", ""),
+        resume_rag_block=ctx.get("resume_rag_block", ""),
+        self_intro_rag_block=ctx.get("self_intro_rag_block", ""),
         strategy_block=ctx.get("strategy_block", "(no relevant strategy memories)"),
         skill_block=ctx.get("skill_block", "(no relevant interview skills)"),
         avoid_patterns_block=ctx.get(
@@ -724,7 +806,12 @@ def _step_challenge_with_reference(state: InterviewState, ctx: dict[str, Any]) -
     variant can be added later by swapping this helper out.
     """
     payload = ctx.get("question_payload") or {}
-    retrieval_block = _retrieval_block_for_prompt(ctx) or ""
+    retrieval_block = (
+        ctx.get("resume_rag_block")
+        or ctx.get("self_intro_rag_block")
+        or _retrieval_block_for_prompt(ctx)
+        or ""
+    )
     first_line = next(
         (line for line in retrieval_block.splitlines() if line.strip()),
         "",
@@ -758,6 +845,7 @@ def _step_guardrail_check(state: InterviewState, ctx: dict[str, Any]) -> None:
 _STEP_DISPATCH = {
     "retrieve_rag": _step_retrieve_rag,
     "retrieve_strategy": _step_retrieve_strategy,
+    "retrieve_candidate_anchors": _step_retrieve_candidate_anchors,
     "draft_question": _step_draft_question,
     "negotiate_contract": _step_negotiate_contract,
     "challenge_with_reference": _step_challenge_with_reference,
