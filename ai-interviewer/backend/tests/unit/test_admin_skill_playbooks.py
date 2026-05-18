@@ -83,6 +83,14 @@ def _card(
         job_levels=["mid", "senior"],
         probe_intents=["debugging_probe"],
         failure_categories=["missing_evidence"],
+        generator_moves=["Ask for concrete evidence."],
+        watch_for=["Names source, owner, and result."],
+        avoid=["Accepting vague best practice claims."],
+        evaluator_rubric_hints=["Credit specific before/after evidence."],
+        positive_signals=["Concrete action and measurable result."],
+        negative_signals=["Generic story with no owner."],
+        score_bias_rules=["Soft positive for named metric."],
+        evaluator_visibility=True,
         source="manual_markdown",
         version=1,
         content_hash=f"sha1:{card_id}",
@@ -145,6 +153,16 @@ def test_admin_skill_playbooks_list_sorts_and_summarizes() -> None:
         "probe_intents": ["debugging_probe"],
         "failure_categories": ["missing_evidence"],
     }
+    assert first["generator_moves"] == ["Ask for concrete evidence."]
+    assert first["watch_for"] == ["Names source, owner, and result."]
+    assert first["avoid"] == ["Accepting vague best practice claims."]
+    assert first["evaluator_rubric_hints"] == [
+        "Credit specific before/after evidence."
+    ]
+    assert first["positive_signals"] == ["Concrete action and measurable result."]
+    assert first["negative_signals"] == ["Generic story with no owner."]
+    assert first["score_bias_rules"] == ["Soft positive for named metric."]
+    assert first["evaluator_visibility"] is True
 
 
 def test_admin_skill_playbooks_filters_by_status_role_direction_and_dimension() -> None:
@@ -176,6 +194,8 @@ def test_admin_skill_playbook_detail_returns_full_body_and_404() -> None:
     card = response.json()["skill_playbook"]
     assert card["id"] == "tech_incident_probe"
     assert card["body_markdown"] == "Tech Incident Probe full body.\nSecond line."
+    assert card["generator_moves"] == ["Ask for concrete evidence."]
+    assert card["evaluator_visibility"] is True
 
     missing = client.get("/admin/skill-playbooks/missing_card")
     assert missing.status_code == 404

@@ -38,6 +38,14 @@ dimensions: [leadership, system_design]
 job_levels: [senior, staff]
 probe_intents: [architecture_challenge]
 failure_categories: [generic_storytelling]
+generator_moves: [Ask what the candidate personally owned.]
+watch_for: [Separates personal ownership from team context.]
+avoid: ['Accepting "we built" without a personal action.']
+evaluator_rubric_hints: [Reward concrete ownership evidence.]
+positive_signals: ["Names decision, action, and outcome."]
+negative_signals: [Only describes team-level work.]
+score_bias_rules: [Soft positive for first-person accountable action.]
+evaluator_visibility: true
 ---
 Body A goes here.
 Longer paragraph that explains the probe strategy in detail so the
@@ -116,6 +124,14 @@ def _db_card(
         job_levels=["senior"],
         probe_intents=["debugging_probe"],
         failure_categories=["root_cause_missing"],
+        generator_moves=["Ask for detection signal."],
+        watch_for=["Separates mitigation from prevention."],
+        avoid=["Accepting generic monitoring claims."],
+        evaluator_rubric_hints=["Credit concrete incident evidence."],
+        positive_signals=["Names metric, owner, and rollback."],
+        negative_signals=["Jumps to fix without diagnosis."],
+        score_bias_rules=["Soft positive for measurable prevention."],
+        evaluator_visibility=True,
         source=source,
         content_hash=f"sha1:{card_id}",
     )
@@ -166,6 +182,16 @@ def test_list_skills_parses_frontmatter(skills_root: Path) -> None:
     assert e.job_levels == ["senior", "staff"]
     assert e.probe_intents == ["architecture_challenge"]
     assert e.failure_categories == ["generic_storytelling"]
+    assert e.generator_moves == ["Ask what the candidate personally owned."]
+    assert e.watch_for == ["Separates personal ownership from team context."]
+    assert e.avoid == ['Accepting "we built" without a personal action.']
+    assert e.evaluator_rubric_hints == ["Reward concrete ownership evidence."]
+    assert e.positive_signals == ["Names decision, action, and outcome."]
+    assert e.negative_signals == ["Only describes team-level work."]
+    assert e.score_bias_rules == [
+        "Soft positive for first-person accountable action."
+    ]
+    assert e.evaluator_visibility is True
     assert "Body A goes here." in e.body
     # Frontmatter must be stripped from the body.
     assert "---" not in e.body.splitlines()[0]
@@ -196,6 +222,8 @@ def test_list_skills_db_backend_reads_manual_markdown_cards(
     assert entries[0].name == "DB Probe"
     assert entries[0].path.name == "tech_db_probe.md"
     assert entries[0].body == "Body for tech_db_probe."
+    assert entries[0].generator_moves == ["Ask for detection signal."]
+    assert entries[0].evaluator_visibility is True
 
 
 def test_retrieve_skills_db_backend_ranks_and_filters_inactive(
@@ -541,7 +569,21 @@ def test_build_skills_block_renders_entries(skills_root: Path) -> None:
     assert "[Skill 1] Senior Backend Ownership" in block
     assert "dims=leadership, system_design" in block
     assert "levels=senior, staff" in block
-    assert "Body A goes here." in block
+    assert "Generator moves:" in block
+    assert "Ask what the candidate personally owned." in block
+    assert "Watch for:" in block
+    assert "Avoid:" in block
+    assert "Body A goes here." not in block
+
+
+def test_build_skills_block_falls_back_to_body_for_legacy_cards(
+    skills_root: Path,
+) -> None:
+    _write_skill(skills_root, "legacy.md", _SKILL_CARD_UNIVERSAL)
+    entries = skill_store.list_skills()
+    block = skill_store.build_skills_block(entries)
+
+    assert "Applies everywhere, regardless of dimension or level." in block
 
 
 def test_build_skills_block_truncates_long_body(

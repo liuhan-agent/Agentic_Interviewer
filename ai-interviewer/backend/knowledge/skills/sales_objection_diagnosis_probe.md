@@ -10,6 +10,22 @@ dimensions: [customer_discovery, solution_matching, objection_handling, negotiat
 job_levels: [junior, mid, senior]
 probe_intents: [objection_probe, roleplay_probe, case_study_probe]
 failure_categories: [shallow_analysis, missing_evidence, weak_follow_up]
+generator_moves:
+  - "Ask what the objection really represented: value, timing, budget, authority, risk, or trust."
+  - "Probe the discovery question that changed the candidate's next move."
+watch_for:
+  - "Diagnoses before pitching and defines a concrete next step."
+avoid:
+  - "Accepting a generic rebuttal script without customer-specific evidence."
+evaluator_rubric_hints:
+  - "Credit objection diagnosis, stakeholder mapping, and CRM next-step discipline."
+positive_signals:
+  - "Names the buyer role, objection type, and follow-up artifact."
+negative_signals:
+  - "Pushes solution features before clarifying the customer's concern."
+score_bias_rules:
+  - "Soft positive when the answer distinguishes stated objection from underlying buying risk."
+evaluator_visibility: true
 ---
 
 Use when the candidate handles customer objection, lost deal, pricing pressure,
@@ -20,4 +36,3 @@ or stalled pipeline.
 - Ask which discovery question changed their understanding of the deal.
 - Ask what they did next in CRM or stakeholder mapping.
 - Strong answers diagnose before pitching and define a concrete next step.
-

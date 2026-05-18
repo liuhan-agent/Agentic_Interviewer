@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from sqlalchemy import create_engine, inspect, select
+from sqlalchemy import create_engine, inspect, select, text
 from sqlalchemy.dialects import postgresql
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.schema import CreateTable
@@ -33,6 +33,14 @@ def test_skill_playbook_card_round_trips_structured_metadata() -> None:
                 job_levels=["mid", "senior"],
                 probe_intents=["debugging_probe", "escalation_probe"],
                 failure_categories=["root_cause_missing", "poor_communication"],
+                generator_moves=["Ask for detection signal and first mitigation."],
+                watch_for=["Distinguishes mitigation from root-cause fix."],
+                avoid=["Accepting generic monitoring claims."],
+                evaluator_rubric_hints=["Credit concrete blast radius evidence."],
+                positive_signals=["Names metric, owner, rollback, and prevention."],
+                negative_signals=["Jumps to solution without diagnosis."],
+                score_bias_rules=["Soft-positive when prevention is measurable."],
+                evaluator_visibility=True,
                 source="manual_markdown",
                 version=2,
                 content_hash="sha1:abc123",
@@ -58,6 +66,14 @@ def test_skill_playbook_card_round_trips_structured_metadata() -> None:
     assert row.job_levels == ["mid", "senior"]
     assert row.probe_intents == ["debugging_probe", "escalation_probe"]
     assert row.failure_categories == ["root_cause_missing", "poor_communication"]
+    assert row.generator_moves == ["Ask for detection signal and first mitigation."]
+    assert row.watch_for == ["Distinguishes mitigation from root-cause fix."]
+    assert row.avoid == ["Accepting generic monitoring claims."]
+    assert row.evaluator_rubric_hints == ["Credit concrete blast radius evidence."]
+    assert row.positive_signals == ["Names metric, owner, rollback, and prevention."]
+    assert row.negative_signals == ["Jumps to solution without diagnosis."]
+    assert row.score_bias_rules == ["Soft-positive when prevention is measurable."]
+    assert row.evaluator_visibility is True
     assert row.source == "manual_markdown"
     assert row.version == 2
     assert row.content_hash == "sha1:abc123"
@@ -89,6 +105,14 @@ def test_skill_playbook_card_defaults() -> None:
     assert row.job_levels == []
     assert row.probe_intents == []
     assert row.failure_categories == []
+    assert row.generator_moves == []
+    assert row.watch_for == []
+    assert row.avoid == []
+    assert row.evaluator_rubric_hints == []
+    assert row.positive_signals == []
+    assert row.negative_signals == []
+    assert row.score_bias_rules == []
+    assert row.evaluator_visibility is False
     assert row.source == "manual_markdown"
     assert row.version == 1
     assert row.content_hash is None
@@ -127,4 +151,56 @@ def test_skill_playbook_postgres_ddl_shape() -> None:
     assert "job_levels JSON NOT NULL" in ddl
     assert "probe_intents JSON NOT NULL" in ddl
     assert "failure_categories JSON NOT NULL" in ddl
+    assert "generator_moves JSON NOT NULL" in ddl
+    assert "watch_for JSON NOT NULL" in ddl
+    assert "avoid JSON NOT NULL" in ddl
+    assert "evaluator_rubric_hints JSON NOT NULL" in ddl
+    assert "positive_signals JSON NOT NULL" in ddl
+    assert "negative_signals JSON NOT NULL" in ddl
+    assert "score_bias_rules JSON NOT NULL" in ddl
+    assert "evaluator_visibility BOOLEAN NOT NULL" in ddl
     assert "PRIMARY KEY (id)" in ddl
+
+
+def test_schema_upgrade_adds_playbook_quality_columns_to_legacy_sqlite() -> None:
+    engine = create_engine("sqlite:///:memory:", future=True)
+    with engine.begin() as conn:
+        conn.execute(
+            text(
+                """
+                CREATE TABLE skill_playbook_cards (
+                    id VARCHAR(160) PRIMARY KEY,
+                    name VARCHAR(200),
+                    description VARCHAR(512),
+                    body_markdown TEXT,
+                    status VARCHAR(32),
+                    priority INTEGER,
+                    direction_tags JSON,
+                    role_tags JSON,
+                    dimensions JSON,
+                    job_levels JSON,
+                    probe_intents JSON,
+                    failure_categories JSON,
+                    source VARCHAR(64),
+                    version INTEGER,
+                    content_hash VARCHAR(128),
+                    created_at DATETIME,
+                    updated_at DATETIME
+                )
+                """
+            )
+        )
+
+    base_mod._upgrade_schema(engine)
+
+    cols = {col["name"] for col in inspect(engine).get_columns("skill_playbook_cards")}
+    assert {
+        "generator_moves",
+        "watch_for",
+        "avoid",
+        "evaluator_rubric_hints",
+        "positive_signals",
+        "negative_signals",
+        "score_bias_rules",
+        "evaluator_visibility",
+    } <= cols

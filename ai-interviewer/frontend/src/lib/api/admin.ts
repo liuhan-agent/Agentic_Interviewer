@@ -208,6 +208,14 @@ export interface SkillPlaybookCard {
   job_levels: string[];
   probe_intents: string[];
   failure_categories: string[];
+  generator_moves: string[];
+  watch_for: string[];
+  avoid: string[];
+  evaluator_rubric_hints: string[];
+  positive_signals: string[];
+  negative_signals: string[];
+  score_bias_rules: string[];
+  evaluator_visibility: boolean;
   source?: string;
   version?: number;
   content_hash?: string | null;

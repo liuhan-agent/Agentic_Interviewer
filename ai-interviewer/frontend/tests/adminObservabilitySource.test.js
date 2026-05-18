@@ -169,6 +169,9 @@ test("admin panel surfaces DB-backed skills playbook observability only", () => 
   assert.match(api, /SkillPlaybooks/);
   assert.match(api, /SkillPlaybookDetail/);
   assert.match(api, /SkillPlaybookImportResult/);
+  assert.match(api, /generator_moves: string\[\]/);
+  assert.match(api, /evaluator_rubric_hints: string\[\]/);
+  assert.match(api, /evaluator_visibility: boolean/);
   assert.match(api, /getSkillPlaybooks/);
   assert.match(api, /getSkillPlaybook/);
   assert.match(api, /importSkillPlaybooks/);
@@ -183,6 +186,8 @@ test("admin panel surfaces DB-backed skills playbook observability only", () => 
   assert.match(panel, /runtime_backend/);
   assert.match(panel, /Import \+ archive missing/);
   assert.match(panel, /body_markdown/);
+  assert.match(panel, /Generator moves/);
+  assert.match(panel, /Evaluator fields are staged for observation only/);
   assert.match(panel, /<QuestionBankCard[\s\S]*<SkillsPlaybookCard[\s\S]*<StrategiesCard/);
   assert.doesNotMatch(panel, /disableSkillPlaybook/);
   assert.doesNotMatch(panel, /archiveSkillPlaybook/);

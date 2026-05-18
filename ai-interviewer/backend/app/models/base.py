@@ -136,6 +136,16 @@ _SQLITE_UPGRADES: dict[str, dict[str, str]] = {
     "strategy_memories": {
         "quality_reason": "VARCHAR(512)",
     },
+    "skill_playbook_cards": {
+        "generator_moves": "JSON DEFAULT '[]'",
+        "watch_for": "JSON DEFAULT '[]'",
+        "avoid": "JSON DEFAULT '[]'",
+        "evaluator_rubric_hints": "JSON DEFAULT '[]'",
+        "positive_signals": "JSON DEFAULT '[]'",
+        "negative_signals": "JSON DEFAULT '[]'",
+        "score_bias_rules": "JSON DEFAULT '[]'",
+        "evaluator_visibility": "BOOLEAN DEFAULT 0",
+    },
 }
 
 _POSTGRES_UPGRADES: dict[str, dict[str, str]] = {
@@ -170,6 +180,16 @@ _POSTGRES_UPGRADES: dict[str, dict[str, str]] = {
     },
     "strategy_memories": {
         "quality_reason": "VARCHAR(512)",
+    },
+    "skill_playbook_cards": {
+        "generator_moves": "JSONB DEFAULT '[]'::jsonb",
+        "watch_for": "JSONB DEFAULT '[]'::jsonb",
+        "avoid": "JSONB DEFAULT '[]'::jsonb",
+        "evaluator_rubric_hints": "JSONB DEFAULT '[]'::jsonb",
+        "positive_signals": "JSONB DEFAULT '[]'::jsonb",
+        "negative_signals": "JSONB DEFAULT '[]'::jsonb",
+        "score_bias_rules": "JSONB DEFAULT '[]'::jsonb",
+        "evaluator_visibility": "BOOLEAN DEFAULT FALSE",
     },
 }
 
