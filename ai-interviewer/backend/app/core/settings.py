@@ -120,6 +120,27 @@ class Settings(BaseSettings):
     resume_parse_cache_backend: Literal["redis", "memory", "off"] = "redis"
     resume_parse_cache_ttl_seconds: int = 86400
     resume_parse_cache_redis_prefix: str = "agentic_interviewer:resume_parse"
+    resume_rag_mode: Literal["off", "shadow", "primary"] = "off"
+    session_anchor_top_k_resume: int = 2
+    session_anchor_top_k_self_intro: int = 1
+    resume_rag_distance_threshold: float = 0.45
+    resume_rag_timeout_ms: int = 300
+    resume_rag_block_max_chars: int = 800
+    resume_rag_min_text_chars: int = 500
+    session_anchor_self_intro_min_chars: int = 200
+    session_anchor_self_intro_max_cards: int = 8
+    session_anchor_self_intro_card_max_chars: int = 500
+    resume_rag_session_sample_rate: float = 1.0
+    resume_rag_session_ttl_hours: int = 24
+    resume_rag_parse_artifact_ttl_seconds: int = 3600
+    resume_rag_embedding_endpoint: str = "https://api.openai.com/v1"
+    resume_rag_embedding_model: str = "text-embedding-3-small"
+    resume_rag_embedding_dimension: int = 1536
+    resume_rag_embedding_api_key: str = ""
+    resume_rag_embedding_concurrency: int = 4
+    resume_rag_embedding_max_retries: int = 3
+    resume_rag_embedding_retry_backoff_seconds: float = 1.0
+    resume_rag_used_project_penalty: float = 0.05
 
     # ------------------------------------------------------------------
     # Per-agent model override. ``call_chat(..., agent_role="evaluator")``
