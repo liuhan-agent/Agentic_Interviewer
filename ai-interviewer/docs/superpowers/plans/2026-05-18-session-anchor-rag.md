@@ -1798,11 +1798,11 @@ git commit -m "feat: integrate session anchor RAG into ask plans"
 **Files:**
 
 - Modify: `ai-interviewer/backend/app/api/v1/admin.py`
+- Modify: `ai-interviewer/backend/app/services/session_anchor_retriever.py`
 - Modify: `ai-interviewer/frontend/src/lib/api/admin.ts`
 - Modify: `ai-interviewer/frontend/src/components/admin/AdminPanel.tsx`
 - Modify: `ai-interviewer/frontend/src/components/admin/RagEvalPanel.tsx`
 - Create: `ai-interviewer/frontend/src/components/admin/CandidateAnchorRagCard.tsx`
-- Modify: `ai-interviewer/frontend/src/lib/api/types.ts`
 - Modify: `ai-interviewer/frontend/tests/adminObservabilitySource.test.js`
 - Create: `ai-interviewer/backend/app/scripts/cleanup_session_anchor_chunks.py`
 - Create: `ai-interviewer/backend/tests/unit/test_admin_session_anchor_rag.py`
@@ -1810,7 +1810,7 @@ git commit -m "feat: integrate session anchor RAG into ask plans"
 
 ### Task 6a: Admin endpoints
 
-- [ ] Add these routes (all behind `Depends(require_admin_token)`):
+- [x] Add these routes (all behind `Depends(require_admin_token)`):
 
   - `GET /admin/session-anchors/summary` - overall counts, source-type counts, per-mode counts, current `resume_rag_mode`.
   - `GET /admin/session-anchors/metrics` - last 24h hit-rate / fallback_reason distribution / p50/p99 latency, grouped by `source_type` and mode A/B/C/D/SI.
@@ -1863,7 +1863,7 @@ git commit -m "feat: integrate session anchor RAG into ask plans"
 
 ### Task 6b: Admin frontend card
 
-- [ ] Add `CandidateAnchorRagCard.tsx` rendering:
+- [x] Add `CandidateAnchorRagCard.tsx` rendering:
 
   - Card title: `候选人锚点 RAG`.
   - Current `resume_rag_mode` (off / shadow / primary) prominent.
@@ -1872,9 +1872,9 @@ git commit -m "feat: integrate session anchor RAG into ask plans"
   - Fallback reasons stacked bar per mode.
   - Subject deletion button with explicit confirmation modal.
 
-- [ ] Wire the card into `AdminPanel.tsx`. Keep `AdminPanel.tsx` lean — fetching and layout only, presentation in the new card.
+- [x] Wire the card into `AdminPanel.tsx`. Keep `AdminPanel.tsx` lean — fetching and layout only, presentation in the new card.
 
-- [ ] Apply frontend layout option F2: group the existing knowledge-RAG panel and the new session-anchor panel together in `AdminPanel.tsx`.
+- [x] Apply frontend layout option F2: group the existing knowledge-RAG panel and the new session-anchor panel together in `AdminPanel.tsx`.
 
   - Rename only the existing `RagEvalPanel.tsx` visible title from `RAG 检索评测` to `知识 RAG 评测`.
   - Add `CandidateAnchorRagCard` next to the existing `RagEvalPanel` in the same admin section/tab.
@@ -1884,7 +1884,7 @@ git commit -m "feat: integrate session anchor RAG into ask plans"
 
 ### Task 6c: Cleanup job
 
-- [ ] CLI: `python -m app.scripts.cleanup_session_anchor_chunks`
+- [x] CLI: `python -m app.scripts.cleanup_session_anchor_chunks`
 
   - Deletes expired rows from **both** tables:
     - `session_anchor_chunks` where `expires_at < now()` (batches of 1000)
@@ -1892,11 +1892,11 @@ git commit -m "feat: integrate session anchor RAG into ask plans"
   - Logs per-table counts and the total; returns non-zero on DB error.
   - Idempotent: safe to run multiple times.
 
-- [ ] Documented intended deployment: APScheduler hook (Task 9) or external cron.
+- [x] Documented intended deployment: APScheduler hook (Task 9) or external cron.
 
 ### Tests
 
-- [ ] Frontend source tests for F2 layout:
+- [x] Frontend source tests for F2 layout:
 
 ```ts
 test("admin rag section labels knowledge and session-anchor panels distinctly", () => {
@@ -1912,7 +1912,7 @@ test("admin rag section labels knowledge and session-anchor panels distinctly", 
 });
 ```
 
-- [ ] Admin endpoint tests.
+- [x] Admin endpoint tests.
 
 ```python
 def test_admin_session_anchor_summary_requires_token(client):
@@ -1935,7 +1935,7 @@ def test_admin_delete_session_anchor_data_wipes_chunks(client_with_token, seeded
     assert "sess_a" not in [s["session_id"] for s in remaining.get("recent_sessions", [])]
 ```
 
-- [ ] Cleanup job test.
+- [x] Cleanup job test.
 
 ```python
 def test_cleanup_session_anchor_chunks_deletes_expired_only(db_session):
@@ -2001,7 +2001,7 @@ def test_cleanup_session_anchor_chunks_also_deletes_expired_parse_artifacts(
     assert read_resume_parse_artifact(fresh.artifact_id, db_session=db_session) is not None
 ```
 
-- [ ] Run all Task 6 tests.
+- [x] Run all Task 6 tests.
 
 ```bash
 python -m pytest tests/unit/test_admin_session_anchor_rag.py tests/unit/test_cleanup_session_anchor_chunks.py tests/unit/test_admin_auth.py -q
@@ -2012,10 +2012,10 @@ npm run typecheck
 
 Expected: admin routes require auth, summary/metrics return correct shape, deletion fully wipes, cleanup deletes only expired rows.
 
-- [ ] Commit.
+- [x] Commit.
 
 ```bash
-git add ai-interviewer/backend/app/api/v1/admin.py ai-interviewer/backend/tests/unit/test_admin_session_anchor_rag.py ai-interviewer/backend/app/scripts/cleanup_session_anchor_chunks.py ai-interviewer/backend/tests/unit/test_cleanup_session_anchor_chunks.py ai-interviewer/frontend/src/lib/api/admin.ts ai-interviewer/frontend/src/lib/api/types.ts ai-interviewer/frontend/src/components/admin/AdminPanel.tsx ai-interviewer/frontend/src/components/admin/RagEvalPanel.tsx ai-interviewer/frontend/src/components/admin/CandidateAnchorRagCard.tsx ai-interviewer/frontend/tests/adminObservabilitySource.test.js
+git add ai-interviewer/backend/app/api/v1/admin.py ai-interviewer/backend/app/services/session_anchor_retriever.py ai-interviewer/backend/tests/unit/test_admin_session_anchor_rag.py ai-interviewer/backend/app/scripts/cleanup_session_anchor_chunks.py ai-interviewer/backend/tests/unit/test_cleanup_session_anchor_chunks.py ai-interviewer/frontend/src/lib/api/admin.ts ai-interviewer/frontend/src/components/admin/AdminPanel.tsx ai-interviewer/frontend/src/components/admin/RagEvalPanel.tsx ai-interviewer/frontend/src/components/admin/CandidateAnchorRagCard.tsx ai-interviewer/frontend/tests/adminObservabilitySource.test.js ai-interviewer/docs/superpowers/plans/2026-05-18-session-anchor-rag.md
 git commit -m "feat: observe session anchor rag in admin and add cleanup job"
 ```
 

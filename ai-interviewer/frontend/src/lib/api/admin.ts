@@ -1124,6 +1124,80 @@ export function getRagEval(
   );
 }
 
+export interface SessionAnchorRagCountBucket {
+  chunks: number;
+  sessions: number;
+  avg_chunks_per_session?: number;
+}
+
+export interface SessionAnchorRagSummary {
+  resume_rag_mode: "off" | "shadow" | "primary" | string;
+  total_chunks: number;
+  total_sessions: number;
+  by_source_type: Record<string, SessionAnchorRagCountBucket>;
+  by_mode: Record<string, SessionAnchorRagCountBucket>;
+  embedding_model_version?: string | null;
+  recent_sessions?: Array<{
+    session_id: string;
+    chunks: number;
+    last_chunk_at?: string | null;
+  }>;
+}
+
+export interface SessionAnchorRagMetricBucket {
+  total_retrievals: number;
+  hit_count: number;
+  hit_rate: number;
+  fallback_distribution: Record<string, number>;
+  latency_ms: {
+    p50?: number | null;
+    p99?: number | null;
+  };
+}
+
+export interface SessionAnchorRagMetrics {
+  window_hours: number;
+  by_source_type: Record<string, SessionAnchorRagMetricBucket>;
+  by_mode: Record<string, SessionAnchorRagMetricBucket>;
+  by_status?: Record<string, number>;
+}
+
+export interface DeleteSessionAnchorDataResponse {
+  session_id: string;
+  deleted: boolean;
+  chunks_deleted: number;
+  resume_artifacts_deleted: number;
+  resume_artifact_ids?: string[];
+  sessions_scrubbed: number;
+  traces_scrubbed: number;
+}
+
+export function getSessionAnchorRagSummary(
+  signal?: AbortSignal,
+): Promise<SessionAnchorRagSummary> {
+  return adminGet<SessionAnchorRagSummary>(
+    "/admin/session-anchors/summary",
+    signal,
+  );
+}
+
+export function getSessionAnchorRagMetrics(
+  signal?: AbortSignal,
+): Promise<SessionAnchorRagMetrics> {
+  return adminGet<SessionAnchorRagMetrics>(
+    "/admin/session-anchors/metrics",
+    signal,
+  );
+}
+
+export function deleteSessionAnchorData(
+  sessionId: string,
+): Promise<DeleteSessionAnchorDataResponse> {
+  return adminDelete<DeleteSessionAnchorDataResponse>(
+    `/admin/sessions/${encodeURIComponent(sessionId)}/anchor-data`,
+  );
+}
+
 // ---------------------------------------------------------------------------
 // Trace Annotations (Human Review)
 // ---------------------------------------------------------------------------
