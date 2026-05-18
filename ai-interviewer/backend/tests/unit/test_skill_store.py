@@ -12,11 +12,18 @@ real ``knowledge/skills/`` directory.
 """
 from __future__ import annotations
 
+from contextlib import contextmanager
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
+from sqlalchemy import create_engine
+from sqlalchemy.orm import sessionmaker
+from sqlalchemy.pool import StaticPool
 
 from app.memory import skill_store
+from app.models.base import Base
+from app.models.skill_playbook import SkillPlaybookCard
 
 _SKILL_CARD_A = """\
 ---
@@ -63,6 +70,57 @@ def _write_skill(root: Path, name: str, body: str) -> Path:
     return path
 
 
+def _install_db_cards(
+    monkeypatch: pytest.MonkeyPatch,
+    cards: list[SkillPlaybookCard],
+) -> None:
+    engine = create_engine(
+        "sqlite://",
+        connect_args={"check_same_thread": False},
+        poolclass=StaticPool,
+        future=True,
+    )
+    Base.metadata.create_all(engine)
+    session_local = sessionmaker(bind=engine, expire_on_commit=False, autoflush=False)
+    with session_local() as sess:
+        sess.add_all(cards)
+        sess.commit()
+
+    @contextmanager
+    def fake_get_session():
+        with session_local() as sess:
+            yield sess
+
+    monkeypatch.setattr(skill_store, "get_session", fake_get_session, raising=False)
+
+
+def _db_card(
+    card_id: str,
+    *,
+    name: str = "DB Production Incident",
+    status: str = "active",
+    source: str = "manual_markdown",
+    dimensions: list[str] | None = None,
+    role_tags: list[str] | None = None,
+) -> SkillPlaybookCard:
+    return SkillPlaybookCard(
+        id=card_id,
+        name=name,
+        description="DB-backed probe card.",
+        body_markdown=f"Body for {card_id}.",
+        status=status,
+        priority=7,
+        direction_tags=["internet_tech"],
+        role_tags=role_tags or ["java_backend"],
+        dimensions=dimensions or ["problem_solving"],
+        job_levels=["senior"],
+        probe_intents=["debugging_probe"],
+        failure_categories=["root_cause_missing"],
+        source=source,
+        content_hash=f"sha1:{card_id}",
+    )
+
+
 @pytest.fixture
 def skills_root(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
@@ -75,6 +133,11 @@ def skills_root(
     """
     root = tmp_path / "skills"
     monkeypatch.setattr(skill_store, "_skills_dir", lambda: root)
+    monkeypatch.setattr(
+        skill_store,
+        "get_settings",
+        lambda: SimpleNamespace(skill_playbook_backend="file"),
+    )
     return root
 
 
@@ -114,6 +177,134 @@ def test_list_skills_ignores_index_file(skills_root: Path) -> None:
     _write_skill(skills_root, "a.md", _SKILL_CARD_A)
     entries = skill_store.list_skills()
     assert [e.path.name for e in entries] == ["a.md"]
+
+
+def test_list_skills_db_backend_reads_manual_markdown_cards(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _install_db_cards(
+        monkeypatch,
+        [
+            _db_card("tech_db_probe", name="DB Probe"),
+            _db_card("generated_probe", name="Generated Probe", source="generated"),
+        ],
+    )
+
+    entries = skill_store.list_skills(backend="db")
+
+    assert [entry.id for entry in entries] == ["tech_db_probe"]
+    assert entries[0].name == "DB Probe"
+    assert entries[0].path.name == "tech_db_probe.md"
+    assert entries[0].body == "Body for tech_db_probe."
+
+
+def test_retrieve_skills_db_backend_ranks_and_filters_inactive(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _install_db_cards(
+        monkeypatch,
+        [
+            _db_card("db_incident", name="DB Incident Probe"),
+            _db_card("db_draft", status="draft"),
+            _db_card("db_archived", status="archived"),
+        ],
+    )
+
+    entries = skill_store.retrieve_skills(
+        dimension="problem_solving",
+        job_level="senior",
+        direction_tags=["internet_tech"],
+        role_tags=["java_backend"],
+        probe_intent="debugging_probe",
+        failure_categories=["root_cause_missing"],
+        backend="db",
+    )
+
+    assert [entry.id for entry in entries] == ["db_incident"]
+    assert "role_tag:java_backend" in entries[0].match_reasons
+    assert "probe_intent:debugging_probe" in entries[0].match_reasons
+    assert "failure_category:root_cause_missing" in entries[0].match_reasons
+
+
+def test_db_with_file_fallback_uses_file_when_db_has_no_active_cards(
+    skills_root: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _install_db_cards(monkeypatch, [_db_card("db_draft_only", status="draft")])
+    _write_skill(skills_root, "file.md", _SKILL_CARD_A)
+
+    entries = skill_store.retrieve_skills(
+        dimension="system_design",
+        job_level="senior",
+        direction_tags=["internet_tech"],
+        role_tags=["java_backend"],
+        backend="db_with_file_fallback",
+    )
+
+    assert [entry.id for entry in entries] == ["senior_backend_ownership"]
+
+
+def test_db_with_file_fallback_uses_file_on_db_error(
+    skills_root: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def failing_get_session():
+        raise RuntimeError("database unavailable")
+
+    monkeypatch.setattr(skill_store, "get_session", failing_get_session, raising=False)
+    _write_skill(skills_root, "file.md", _SKILL_CARD_A)
+
+    entries = skill_store.retrieve_skills(
+        dimension="system_design",
+        job_level="senior",
+        direction_tags=["internet_tech"],
+        role_tags=["java_backend"],
+        backend="db_with_file_fallback",
+    )
+
+    assert [entry.id for entry in entries] == ["senior_backend_ownership"]
+
+
+def test_db_with_file_fallback_does_not_fallback_when_db_has_active_nonmatch(
+    skills_root: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _install_db_cards(
+        monkeypatch,
+        [_db_card("db_coding_only", dimensions=["coding_quality"])],
+    )
+    _write_skill(skills_root, "file.md", _SKILL_CARD_A)
+
+    entries = skill_store.retrieve_skills(
+        dimension="system_design",
+        job_level="senior",
+        direction_tags=["internet_tech"],
+        role_tags=["java_backend"],
+        backend="db_with_file_fallback",
+    )
+
+    assert entries == []
+
+
+def test_db_backend_does_not_fallback_to_file_on_error(
+    skills_root: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def failing_get_session():
+        raise RuntimeError("database unavailable")
+
+    monkeypatch.setattr(skill_store, "get_session", failing_get_session, raising=False)
+    _write_skill(skills_root, "file.md", _SKILL_CARD_A)
+
+    entries = skill_store.retrieve_skills(
+        dimension="system_design",
+        job_level="senior",
+        direction_tags=["internet_tech"],
+        role_tags=["java_backend"],
+        backend="db",
+    )
+
+    assert entries == []
 
 
 def test_retrieve_skills_scores_dimension_match_highest(

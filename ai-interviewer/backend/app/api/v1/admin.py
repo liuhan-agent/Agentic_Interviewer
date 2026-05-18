@@ -1641,6 +1641,133 @@ def _question_review_payload(row: Any) -> dict[str, Any]:
     }
 
 
+def _skill_playbook_payload(row: Any, *, include_body: bool = False) -> dict[str, Any]:
+    body_markdown = str(row.body_markdown or "")
+    preview = re.sub(r"\s+", " ", body_markdown).strip()[:240]
+    payload = {
+        "id": row.id,
+        "name": row.name,
+        "description": row.description,
+        "status": row.status,
+        "priority": row.priority,
+        "tags": {
+            "direction_tags": list(row.direction_tags or []),
+            "role_tags": list(row.role_tags or []),
+            "probe_intents": list(row.probe_intents or []),
+            "failure_categories": list(row.failure_categories or []),
+        },
+        "direction_tags": list(row.direction_tags or []),
+        "role_tags": list(row.role_tags or []),
+        "dimensions": list(row.dimensions or []),
+        "job_levels": list(row.job_levels or []),
+        "probe_intents": list(row.probe_intents or []),
+        "failure_categories": list(row.failure_categories or []),
+        "source": row.source,
+        "version": row.version,
+        "content_hash": row.content_hash,
+        "body_preview": preview,
+        "created_at": row.created_at.isoformat() if row.created_at else None,
+        "updated_at": row.updated_at.isoformat() if row.updated_at else None,
+    }
+    if include_body:
+        payload["body_markdown"] = body_markdown
+    return payload
+
+
+@router.get("/skill-playbooks", dependencies=[Depends(require_admin_token)])
+def list_skill_playbooks(
+    status: str | None = None,
+    direction_tag: str | None = None,
+    role_tag: str | None = None,
+    dimension: str | None = None,
+) -> dict[str, Any]:
+    from app.models.skill_playbook import SkillPlaybookCard
+
+    status_filter = _slug_filter(status)
+    direction_filter = _slug_filter(direction_tag)
+    role_filter = _slug_filter(role_tag)
+    dimension_filter = _slug_filter(dimension)
+
+    with get_session() as sess:
+        rows = (
+            sess.query(SkillPlaybookCard)
+            .order_by(
+                SkillPlaybookCard.status.asc(),
+                SkillPlaybookCard.priority.desc(),
+                SkillPlaybookCard.id.asc(),
+            )
+            .all()
+        )
+
+    filtered = []
+    for row in rows:
+        if status_filter and _slug_filter(row.status) != status_filter:
+            continue
+        if direction_filter and direction_filter not in set(row.direction_tags or []):
+            continue
+        if role_filter and role_filter not in set(row.role_tags or []):
+            continue
+        if dimension_filter and dimension_filter not in set(row.dimensions or []):
+            continue
+        filtered.append(row)
+
+    status_counts: dict[str, int] = {}
+    for row in filtered:
+        status_key = str(row.status or "")
+        status_counts[status_key] = status_counts.get(status_key, 0) + 1
+
+    settings = get_settings()
+    return {
+        "runtime_backend": getattr(
+            settings,
+            "skill_playbook_backend",
+            "db_with_file_fallback",
+        ),
+        "count": len(filtered),
+        "active_count": sum(1 for row in filtered if row.status == "active"),
+        "status_counts": status_counts,
+        "skill_playbooks": [_skill_playbook_payload(row) for row in filtered],
+    }
+
+
+@router.post("/skill-playbooks/import", dependencies=[Depends(require_admin_token)])
+def import_skill_playbooks(archive_missing: bool = False) -> dict[str, int]:
+    from app.services.skill_playbook_import import (
+        SkillPlaybookImportError,
+        import_skill_playbook_dir,
+    )
+
+    skill_dir = Path(get_settings().knowledge_dir) / "skills"
+    try:
+        with get_session() as sess:
+            result = import_skill_playbook_dir(
+                skill_dir,
+                session=sess,
+                archive_missing=archive_missing,
+            )
+    except SkillPlaybookImportError as exc:
+        raise HTTPException(status_code=422, detail={"errors": exc.errors}) from exc
+    return {
+        "imported": result.imported,
+        "updated": result.updated,
+        "unchanged": result.unchanged,
+        "archived": result.archived,
+        "skipped": result.skipped,
+    }
+
+
+@router.get("/skill-playbooks/{card_id}", dependencies=[Depends(require_admin_token)])
+def get_skill_playbook(card_id: str) -> dict[str, Any]:
+    from app.models.skill_playbook import SkillPlaybookCard
+
+    with get_session() as sess:
+        row = sess.get(SkillPlaybookCard, card_id)
+        if row is None:
+            raise HTTPException(status_code=404, detail="skill playbook not found")
+        payload = _skill_playbook_payload(row, include_body=True)
+    return {"skill_playbook": payload}
+
+
 @router.get("/question-seeds", dependencies=[Depends(require_admin_token)])
 def list_question_seeds(
     direction_tag: str | None = None,

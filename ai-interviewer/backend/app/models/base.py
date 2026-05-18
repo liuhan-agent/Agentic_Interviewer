@@ -320,6 +320,7 @@ def init_db() -> None:
         interview_session,
         outcome_record,
         question_bank,
+        skill_playbook,
         strategy_memory,
         verifier_drift,
     )

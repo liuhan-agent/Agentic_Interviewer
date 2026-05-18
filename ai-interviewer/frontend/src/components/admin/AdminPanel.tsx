@@ -51,12 +51,15 @@ import {
   getQuestionSeeds,
   getQuestionUsages,
   getRecentTracesByNode,
+  getSkillPlaybook,
+  getSkillPlaybooks,
   getStrategySignals,
   getStrategyStats,
   getStrategyUsages,
   getStrategies,
   getTraceRollUp,
   getVerifierDrift,
+  importSkillPlaybooks,
   importQuestionSeeds,
   runQuestionSeedLint,
   loadAdminToken,
@@ -85,6 +88,8 @@ import {
   type QuestionUsages,
   type QuestionQualityRollupResponse,
   type RecentTracesResponse,
+  type SkillPlaybookDetail,
+  type SkillPlaybooks,
   type Strategies,
   type StrategySignals,
   type StrategyStats,
@@ -187,6 +192,11 @@ export function AdminPanel() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [tokenSaved],
   );
+  const skillPlaybooksFetcher = useCallback(
+    (signal?: AbortSignal) => getSkillPlaybooks(signal),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [tokenSaved],
+  );
   const questionSeedsFetcher = useCallback(
     (signal?: AbortSignal) => getQuestionSeeds(signal),
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -260,6 +270,7 @@ export function AdminPanel() {
   const sessions = useAutoFetch(sessionsFetcher, tick);
   const history = useAutoFetch(historyFetcher, tick);
   const strategies = useAutoFetch(strategiesFetcher, tick);
+  const skillPlaybooks = useAutoFetch(skillPlaybooksFetcher, tick);
   const questionSeeds = useAutoFetch(questionSeedsFetcher, tick);
   const questionUsages = useAutoFetch(questionUsagesFetcher, tick);
   const questionRerankUsages = useAutoFetch(questionRerankUsagesFetcher, tick);
@@ -332,6 +343,10 @@ export function AdminPanel() {
         usages={questionUsages}
         rerankUsages={questionRerankUsages}
         reviews={questionReviews}
+        onRefresh={() => setTick((t) => t + 1)}
+      />
+      <SkillsPlaybookCard
+        state={skillPlaybooks}
         onRefresh={() => setTick((t) => t + 1)}
       />
       <StrategiesCard
@@ -2878,6 +2893,285 @@ function QuestionBankCard({
                 </li>
               ))}
             </ul>
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+function SkillsPlaybookCard({
+  state,
+  onRefresh,
+}: {
+  state: Loadable<SkillPlaybooks>;
+  onRefresh: () => void;
+}) {
+  const { toast } = useToast();
+  const [selectedCardId, setSelectedCardId] = useState<string | null>(null);
+  const [detail, setDetail] = useState<Loadable<SkillPlaybookDetail> | null>(null);
+  const [busy, setBusy] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (selectedCardId || state.phase !== "ready") return;
+    const first = state.data.skill_playbooks[0];
+    if (first) setSelectedCardId(first.id);
+  }, [selectedCardId, state]);
+
+  useEffect(() => {
+    if (!selectedCardId) {
+      setDetail(null);
+      return;
+    }
+    const ctrl = new AbortController();
+    setDetail({ phase: "loading" });
+    getSkillPlaybook(selectedCardId, ctrl.signal)
+      .then((data) => {
+        if (!ctrl.signal.aborted) setDetail({ phase: "ready", data });
+      })
+      .catch((err) => {
+        if (!ctrl.signal.aborted) {
+          setDetail({
+            phase: "error",
+            message: err instanceof Error ? err.message : String(err),
+          });
+        }
+      });
+    return () => ctrl.abort();
+  }, [selectedCardId]);
+
+  async function handleImport(archiveMissing: boolean) {
+    if (busy) return;
+    setBusy(archiveMissing ? "import-archive" : "import");
+    try {
+      const result = await importSkillPlaybooks(archiveMissing);
+      toast({
+        title: "Skills playbook imported",
+        description: `imported=${result.imported}, updated=${result.updated}, unchanged=${result.unchanged}, archived=${result.archived}, skipped=${result.skipped}`,
+      });
+      onRefresh();
+    } catch (err) {
+      toast({
+        title: "Skills playbook import failed",
+        description: err instanceof Error ? err.message : String(err),
+        variant: "destructive",
+      });
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  return (
+    <Card>
+      <CardHeader>
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <CardTitle className="flex items-center gap-2 text-base">
+              <BookMarked className="h-4 w-4 text-cyan-400" />
+              Skills Playbook
+            </CardTitle>
+            <CardDescription className="mt-1">
+              DB-backed interviewer playbook cards imported from knowledge/skills.
+            </CardDescription>
+          </div>
+          <div className="flex flex-wrap justify-end gap-2">
+            {state.phase === "ready" && (
+              <>
+                <Badge variant="outline" className="font-mono text-[10px]">
+                  {state.data.count} cards
+                </Badge>
+                <Badge variant="secondary" className="font-mono text-[10px]">
+                  {state.data.active_count} active
+                </Badge>
+                <Badge variant="outline" className="font-mono text-[10px]">
+                  runtime_backend={state.data.runtime_backend}
+                </Badge>
+              </>
+            )}
+          </div>
+        </div>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border bg-secondary/20 p-3">
+          <div>
+            <p className="text-sm font-medium">Markdown import</p>
+            <p className="text-xs text-muted-foreground">
+              Markdown remains authoritative; this panel only observes DB rows and triggers strict import.
+            </p>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => handleImport(false)}
+              disabled={busy !== null}
+            >
+              {busy === "import" && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
+              Import
+            </Button>
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              onClick={() => handleImport(true)}
+              disabled={busy !== null}
+            >
+              {busy === "import-archive" && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
+              Import + archive missing
+            </Button>
+          </div>
+        </div>
+
+        {state.phase === "loading" && <LoadingList rows={3} />}
+        {state.phase === "error" && <ErrorBox message={state.message} />}
+        {state.phase === "ready" && (
+          <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.15fr)]">
+            <div className="space-y-3">
+              <div className="rounded-lg border bg-card/40 p-3">
+                <p className="text-xs font-medium text-muted-foreground">status distribution</p>
+                <div className="mt-2 flex flex-wrap gap-1.5">
+                  {Object.entries(state.data.status_counts).map(([status, count]) => (
+                    <Badge key={status} variant="outline" className="font-mono text-[10px]">
+                      {status}:{count}
+                    </Badge>
+                  ))}
+                </div>
+              </div>
+
+              {state.data.skill_playbooks.length === 0 ? (
+                <p className="text-xs text-muted-foreground">
+                  No skill playbook cards in DB. Run import after deploying the schema.
+                </p>
+              ) : (
+                <ul className="space-y-2">
+                  {state.data.skill_playbooks.slice(0, 12).map((card) => (
+                    <li
+                      key={card.id}
+                      className={cn(
+                        "rounded-lg border bg-card/50 p-3 text-sm",
+                        selectedCardId === card.id && "border-primary/50",
+                      )}
+                    >
+                      <button
+                        type="button"
+                        className="w-full text-left"
+                        onClick={() => setSelectedCardId(card.id)}
+                      >
+                        <div className="flex items-start justify-between gap-2">
+                          <span className="font-medium">{card.name || card.id}</span>
+                          <Badge variant="outline" className="font-mono text-[10px]">
+                            {card.status}
+                          </Badge>
+                        </div>
+                        <div className="mt-1 font-mono text-[10px] text-muted-foreground">
+                          {card.id}
+                        </div>
+                        {card.description && (
+                          <p className="mt-1 text-xs text-muted-foreground">
+                            {card.description}
+                          </p>
+                        )}
+                        <div className="mt-2 flex flex-wrap gap-1.5">
+                          <Badge variant="secondary" className="font-mono text-[10px]">
+                            p{card.priority}
+                          </Badge>
+                          {card.direction_tags.map((tag) => (
+                            <Badge key={tag} variant="outline" className="font-mono text-[10px]">
+                              {tag}
+                            </Badge>
+                          ))}
+                          {card.role_tags.slice(0, 3).map((tag) => (
+                            <Badge key={tag} variant="outline" className="font-mono text-[10px]">
+                              {tag}
+                            </Badge>
+                          ))}
+                          {card.dimensions.slice(0, 3).map((dimension) => (
+                            <Badge key={dimension} variant="secondary" className="font-mono text-[10px]">
+                              {dimension}
+                            </Badge>
+                          ))}
+                        </div>
+                        {card.body_preview && (
+                          <p className="mt-2 line-clamp-2 text-xs text-muted-foreground">
+                            {card.body_preview}
+                          </p>
+                        )}
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+
+            <div className="rounded-lg border bg-card/40 p-3">
+              {detail?.phase === "loading" && <LoadingList rows={4} />}
+              {detail?.phase === "error" && <ErrorBox message={detail.message} />}
+              {detail?.phase === "ready" && (
+                <div className="space-y-3">
+                  <div>
+                    <p className="text-sm font-medium">
+                      {detail.data.skill_playbook.name}
+                    </p>
+                    <p className="mt-1 font-mono text-[10px] text-muted-foreground">
+                      {detail.data.skill_playbook.id}
+                    </p>
+                  </div>
+                  <div className="flex flex-wrap gap-1.5">
+                    <Badge variant="outline" className="font-mono text-[10px]">
+                      {detail.data.skill_playbook.status}
+                    </Badge>
+                    <Badge variant="secondary" className="font-mono text-[10px]">
+                      v{detail.data.skill_playbook.version ?? 1}
+                    </Badge>
+                    <Badge variant="outline" className="font-mono text-[10px]">
+                      {detail.data.skill_playbook.source ?? "unknown"}
+                    </Badge>
+                    <Badge variant="outline" className="font-mono text-[10px]">
+                      hash {truncate(detail.data.skill_playbook.content_hash ?? "")}
+                    </Badge>
+                  </div>
+                  <div className="flex flex-wrap gap-1.5">
+                    {detail.data.skill_playbook.direction_tags.map((tag) => (
+                      <Badge key={tag} variant="outline" className="font-mono text-[10px]">
+                        {tag}
+                      </Badge>
+                    ))}
+                    {detail.data.skill_playbook.role_tags.map((tag) => (
+                      <Badge key={tag} variant="outline" className="font-mono text-[10px]">
+                        {tag}
+                      </Badge>
+                    ))}
+                    {detail.data.skill_playbook.dimensions.map((dimension) => (
+                      <Badge key={dimension} variant="secondary" className="font-mono text-[10px]">
+                        {dimension}
+                      </Badge>
+                    ))}
+                    {detail.data.skill_playbook.job_levels.map((level) => (
+                      <Badge key={level} variant="outline" className="font-mono text-[10px]">
+                        {level}
+                      </Badge>
+                    ))}
+                  </div>
+                  <div className="text-[11px] text-muted-foreground">
+                    updated {formatDateTime(
+                      detail.data.skill_playbook.updated_at ||
+                        detail.data.skill_playbook.created_at ||
+                        "",
+                    )}
+                  </div>
+                  <Separator />
+                  <pre className="max-h-96 overflow-auto whitespace-pre-wrap rounded-md bg-background/70 p-3 text-xs leading-relaxed text-foreground/85">
+                    {detail.data.skill_playbook.body_markdown || ""}
+                  </pre>
+                </div>
+              )}
+              {!detail && (
+                <p className="text-xs text-muted-foreground">
+                  Select a playbook card to inspect the full body_markdown.
+                </p>
+              )}
+            </div>
           </div>
         )}
       </CardContent>

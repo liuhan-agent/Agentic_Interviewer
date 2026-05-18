@@ -1,14 +1,22 @@
 from __future__ import annotations
 
+from contextlib import contextmanager
 from pathlib import Path
 from types import SimpleNamespace
 from typing import Any
 
+from sqlalchemy import create_engine
+from sqlalchemy.orm import sessionmaker
+from sqlalchemy.pool import StaticPool
+
 from app.engine.rag.retriever import RetrievalContext
 from app.engine.rag.vectorstore import RetrievedDoc
 from app.engine.workflow.nodes import ask_question as ask_mod
+from app.memory import skill_store
 from app.memory.skill_store import SkillEntry
 from app.memory.strategy_store import StrategyEntry
+from app.models.base import Base
+from app.models.skill_playbook import SkillPlaybookCard
 from app.services.question_selector import QuestionCandidate, QuestionSelectionResult
 
 _COVERED_PRIMARY_ROLE_TAGS = [
@@ -392,6 +400,46 @@ def _base_state(**overrides: Any) -> dict[str, Any]:
 
 def _raise_if_called(*_args: Any, **_kwargs: Any) -> Any:
     raise AssertionError("guarded helper must not be invoked in this scenario")
+
+
+def _install_db_skill_playbook(monkeypatch, card: SkillPlaybookCard) -> None:
+    engine = create_engine(
+        "sqlite://",
+        connect_args={"check_same_thread": False},
+        poolclass=StaticPool,
+        future=True,
+    )
+    Base.metadata.create_all(engine)
+    session_local = sessionmaker(bind=engine, expire_on_commit=False, autoflush=False)
+    with session_local() as sess:
+        sess.add(card)
+        sess.commit()
+
+    @contextmanager
+    def fake_get_session():
+        with session_local() as sess:
+            yield sess
+
+    monkeypatch.setattr(skill_store, "get_session", fake_get_session, raising=False)
+
+
+def _db_playbook_card() -> SkillPlaybookCard:
+    return SkillPlaybookCard(
+        id="db_system_design_probe",
+        name="DB System Design Probe",
+        description="Probe rollout and failure evidence.",
+        body_markdown="DB playbook: ask for rollback blast radius and concrete metrics.",
+        status="active",
+        priority=9,
+        direction_tags=["internet_tech"],
+        role_tags=["java_backend"],
+        dimensions=["system_design"],
+        job_levels=["senior"],
+        probe_intents=["architecture_challenge"],
+        failure_categories=["missing_metrics"],
+        source="manual_markdown",
+        content_hash="sha1:db_system_design_probe",
+    )
 
 
 def test_ask_question_records_empty_rag(monkeypatch) -> None:
@@ -968,6 +1016,89 @@ def test_question_selector_structured_primary_covered_tech_role_injects_seed(
     assert [candidate.injected for candidate in recorded["candidates"]] == [True]
 
 
+def test_structured_primary_seed_hit_injects_db_playbook_and_keeps_rag_shadow(
+    monkeypatch,
+) -> None:
+    generated_kwargs: dict[str, Any] = {}
+    recorded: dict[str, Any] = {}
+    captured_trace: dict[str, Any] = {}
+
+    def fake_generate_question(**kwargs):
+        generated_kwargs.update(kwargs)
+        return _fake_generate_question(**kwargs)
+
+    def fake_record(**kwargs):
+        recorded.update(kwargs)
+
+    _install_db_skill_playbook(monkeypatch, _db_playbook_card())
+    monkeypatch.setattr(ask_mod, "retrieve_for_question", lambda **_kw: _make_retrieval())
+    monkeypatch.setattr(ask_mod, "retrieve_strategies", lambda **_kw: [_make_strategy()])
+    monkeypatch.setattr(
+        ask_mod,
+        "format_strategies_for_prompt",
+        lambda entries: "\n".join(entry.body for entry in entries),
+    )
+    monkeypatch.setattr(
+        ask_mod,
+        "build_generator_avoid_patterns",
+        lambda **_kw: "avoid shallow evidence",
+    )
+    monkeypatch.setattr(ask_mod, "generate_question", fake_generate_question)
+    monkeypatch.setattr(ask_mod, "negotiate_contract_via_evaluator", _fake_negotiate)
+    monkeypatch.setattr(
+        ask_mod,
+        "select_question_candidates",
+        lambda **_kw: QuestionSelectionResult(candidates=[_question_candidate()]),
+    )
+    monkeypatch.setattr(ask_mod, "record_question_usages", fake_record)
+    monkeypatch.setattr(
+        ask_mod,
+        "get_settings",
+        lambda: SimpleNamespace(
+            enable_llm_memory_selector=False,
+            enable_skill_injection=True,
+            skill_retrieval_limit=3,
+            skill_playbook_backend="db",
+            enable_generator_avoid_patterns=True,
+            drift_feedback_top_n=3,
+            drift_feedback_min_support=2,
+            enable_question_fit_profile=True,
+            enable_question_reranker_shadow=False,
+            question_reranker_timeout_ms=4000,
+            question_primary_role_tags=list(_COVERED_PRIMARY_ROLE_TAGS),
+        ),
+    )
+
+    class _Tracer:
+        def trace_node_event(self, _state, *, node, payload, **_kwargs):
+            if node == "ask_question":
+                captured_trace.update(payload)
+
+    monkeypatch.setattr(ask_mod, "get_tracer", lambda: _Tracer())
+
+    out = ask_mod.ask_question_node(
+        _base_state(
+            runtime_config={
+                "rag_mode": "hybrid",
+                "rag_top_k": 2,
+                "question_selector_mode": "structured_primary",
+            }
+        )
+    )  # type: ignore[arg-type]
+
+    artifacts = out["current_question"]["selection_artifacts"]
+    assert captured_trace["selection_artifacts"] == artifacts
+    assert artifacts["rag"]["mode"] == "hybrid"
+    assert artifacts["rag"]["empty"] is False
+    assert artifacts["question_items"][0]["injected"] is True
+    assert artifacts["skills"]["refs"][0]["id"] == "db_system_design_probe"
+    assert generated_kwargs["retrieval_block"] == ""
+    assert "Dimension: system_design" in generated_kwargs["question_seed_block"]
+    assert "redis" in generated_kwargs["candidate_anchor_block"]
+    assert "DB playbook: ask for rollback blast radius" in generated_kwargs["skill_block"]
+    assert [candidate.injected for candidate in recorded["candidates"]] == [True]
+
+
 def test_question_selector_structured_primary_covered_business_role_injects_seed(
     monkeypatch,
 ) -> None:
@@ -1210,3 +1341,69 @@ def test_question_selector_structured_primary_falls_back_to_rag_without_hit(
     assert generated_kwargs.get("question_seed_block", "") == ""
     assert generated_kwargs.get("candidate_anchor_block", "") == ""
     assert "candidate_anchor" not in artifacts
+
+
+def test_structured_primary_seed_miss_still_injects_db_playbook_with_rag_fallback(
+    monkeypatch,
+) -> None:
+    generated_kwargs: dict[str, Any] = {}
+
+    def fake_generate_question(**kwargs):
+        generated_kwargs.update(kwargs)
+        return _fake_generate_question(**kwargs)
+
+    _install_db_skill_playbook(monkeypatch, _db_playbook_card())
+    monkeypatch.setattr(ask_mod, "retrieve_for_question", lambda **_kw: _make_retrieval())
+    monkeypatch.setattr(ask_mod, "retrieve_strategies", lambda **_kw: [_make_strategy()])
+    monkeypatch.setattr(
+        ask_mod,
+        "format_strategies_for_prompt",
+        lambda entries: "\n".join(entry.body for entry in entries),
+    )
+    monkeypatch.setattr(
+        ask_mod,
+        "build_generator_avoid_patterns",
+        lambda **_kw: "avoid shallow evidence",
+    )
+    monkeypatch.setattr(ask_mod, "generate_question", fake_generate_question)
+    monkeypatch.setattr(ask_mod, "negotiate_contract_via_evaluator", _fake_negotiate)
+    monkeypatch.setattr(
+        ask_mod,
+        "select_question_candidates",
+        lambda **_kw: QuestionSelectionResult(candidates=[]),
+    )
+    monkeypatch.setattr(
+        ask_mod,
+        "get_settings",
+        lambda: SimpleNamespace(
+            enable_llm_memory_selector=False,
+            enable_skill_injection=True,
+            skill_retrieval_limit=3,
+            skill_playbook_backend="db",
+            enable_generator_avoid_patterns=True,
+            drift_feedback_top_n=3,
+            drift_feedback_min_support=2,
+            enable_question_fit_profile=True,
+            enable_question_reranker_shadow=False,
+            question_reranker_timeout_ms=4000,
+            question_primary_role_tags=list(_COVERED_PRIMARY_ROLE_TAGS),
+        ),
+    )
+
+    out = ask_mod.ask_question_node(
+        _base_state(
+            runtime_config={
+                "rag_mode": "hybrid",
+                "rag_top_k": 2,
+                "question_selector_mode": "structured_primary",
+            }
+        )
+    )  # type: ignore[arg-type]
+
+    artifacts = out["current_question"]["selection_artifacts"]
+    assert artifacts["question_items"] == []
+    assert artifacts["skills"]["refs"][0]["id"] == "db_system_design_probe"
+    assert generated_kwargs["retrieval_block"] == "[1] retrieved prompt block"
+    assert generated_kwargs.get("question_seed_block", "") == ""
+    assert generated_kwargs.get("candidate_anchor_block", "") == ""
+    assert "DB playbook: ask for rollback blast radius" in generated_kwargs["skill_block"]
