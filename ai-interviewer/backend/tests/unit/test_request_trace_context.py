@@ -16,6 +16,7 @@ class _FakeManager:
         self.started: list[tuple[str, str, dict[str, Any]]] = []
         self.llm_configs: list[dict[str, Any] | None] = []
         self.session_token_hashes: list[str | None] = []
+        self.setup_snapshots: list[dict[str, Any] | None] = []
         self.existing_sessions: set[str] = set()
 
     def start(
@@ -26,10 +27,15 @@ class _FakeManager:
         *,
         llm_config: dict[str, Any] | None = None,
         session_token_hash: str | None = None,
+        session_token_expires_at: Any = None,
+        recovery_token_hash: str | None = None,
+        recovery_token_expires_at: Any = None,
+        setup_snapshot: dict[str, Any] | None = None,
     ) -> None:
         self.started.append((session_id, trace_id, initial))
         self.llm_configs.append(llm_config)
         self.session_token_hashes.append(session_token_hash)
+        self.setup_snapshots.append(setup_snapshot)
 
     def session_exists(self, session_id: str) -> bool:
         return session_id in self.existing_sessions
@@ -77,6 +83,92 @@ def test_start_session_returns_session_token_and_stores_hash(monkeypatch) -> Non
     assert len(body["session_token"]) >= 32
     assert manager.session_token_hashes[0]
     assert manager.session_token_hashes[0] != body["session_token"]
+
+
+def test_start_session_returns_video_capability(monkeypatch) -> None:
+    client, manager = _client_with_fake_manager(monkeypatch)
+
+    resp = client.post(
+        "/api/v1/interview/sessions",
+        json=_payload(enable_video_analysis=True),
+    )
+
+    assert resp.status_code == 200
+    assert resp.json()["enable_video_analysis"] is True
+    assert manager.started[0][2]["runtime_config"]["enable_video_analysis"] is True
+
+
+def test_start_session_passes_sanitized_setup_snapshot(monkeypatch) -> None:
+    client, manager = _client_with_fake_manager(monkeypatch)
+
+    resp = client.post(
+        "/api/v1/interview/sessions",
+        json=_payload(
+            candidate={
+                "name": "Ada",
+                "resume_parsed": {
+                    "summary": "Built payment systems.",
+                    "skills": ["Python", "Redis"],
+                    "candidate_profile": {
+                        "suggested_job_title": "Backend Engineer",
+                        "suggested_job_level": "senior",
+                    },
+                },
+            },
+            job_spec={
+                "title": "Backend Engineer",
+                "level": "senior",
+                "required_skills": ["Python"],
+                "rubric_dimensions": ["system_design"],
+                "interview_direction": "java_backend",
+                "interview_industry": "internet",
+            },
+            llm_config={
+                "provider": "qwen",
+                "api_key": "secret-key",
+                "model": "qwen3.6-flash",
+            },
+        ),
+    )
+
+    assert resp.status_code == 200
+    assert manager.setup_snapshots == [
+        {
+            "candidate": {
+                "name": "Ada",
+                "resume_parsed": {
+                    "summary": "Built payment systems.",
+                    "skills": ["Python", "Redis"],
+                    "highlights": [],
+                    "projects": [],
+                    "focus_areas": [],
+                    "concerns": [],
+                    "candidate_profile": {
+                        "suggested_job_title": "Backend Engineer",
+                        "suggested_job_level": "senior",
+                    },
+                },
+            },
+            "job_spec": {
+                "title": "Backend Engineer",
+                "level": "senior",
+                "required_skills": ["Python"],
+                "rubric_dimensions": ["system_design"],
+                "rubric": {},
+                "interview_industry": "internet",
+                "interview_direction": "java_backend",
+                "interview_direction_label": None,
+            },
+            "resume_vector_status": {
+                "status": "skipped",
+                "skipped_reason": "no_parse_artifact",
+                "resume_source_id": None,
+                "resume_revision_id": None,
+            },
+        }
+    ]
+    assert "llm_config" not in manager.setup_snapshots[0]
+    assert "api_key" not in str(manager.setup_snapshots[0])
 
 
 def test_explicit_body_trace_id_overrides_traceparent(monkeypatch) -> None:

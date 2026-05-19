@@ -1,0 +1,52 @@
+dimension: execution_management
+seeds:
+  - id: execution_management.management_execution_rhythm
+    version: 1
+    title: Management execution rhythm
+    dimension: execution_management
+    job_levels: [junior, mid, senior]
+    skill_tags: [general_management, execution_management, delivery, operating_rhythm]
+    direction_tags: [business]
+    role_tags: [general_management]
+    rubric:
+      must_cover: [milestone_plan, risk_tracking, operating_rhythm, result_review]
+      minimum_bar: Explain how to keep team execution visible, controlled, and tied to outcomes.
+      stretch: Build a rhythm that catches risk early without creating process burden.
+    priority: 24
+    status: active
+    source: manual_yaml
+    scope: global
+    language: zh-CN
+    variants:
+      - id: execution_management.management_execution_rhythm.slipping_cross_team_project
+        version: 1
+        intent: opening
+        difficulty: standard
+        scenario_brief: A cross team project is slipping because milestones are unclear and blockers surface too late.
+        question_stem: How would you rebuild the execution rhythm so milestones, blockers, and ownership become visible?
+        prompt_template: Generate a general management execution question about milestone rhythm and blocker handling.
+        scenario_skill_tags: [general_management, execution_management, milestone, blocker_tracking]
+        resume_anchor_hints: [execution, project_management, milestone, blocker, delivery]
+        failure_categories: [vague_process, weak_stakeholder_alignment, missing_metrics]
+        rubric_additions: [Clarify milestones and owners, create risk review cadence, track outcomes]
+        expected_signals: [Defines cadence, makes blockers visible, assigns owners]
+        anti_patterns: [Adds meetings without purpose, only asks people to hurry, lacks milestone criteria]
+        good_answer_hints: [Clarify work breakdown, create review rhythm, escalate blockers early]
+        priority: 17
+        status: active
+      - id: execution_management.management_execution_rhythm.busy_but_no_result
+        version: 1
+        intent: deep_probe
+        difficulty: deep_probe
+        scenario_brief: The team reports many activities, but business results are not improving.
+        question_stem: How would you inspect the execution process and redirect effort toward measurable results?
+        prompt_template: Generate a deep probe about management execution quality and result orientation.
+        scenario_skill_tags: [general_management, execution_management, result_orientation, process_review]
+        resume_anchor_hints: [execution, result, review, operating_rhythm, management]
+        failure_categories: [missing_metrics, shallow_analysis, weak_prioritization]
+        rubric_additions: [Separate activity from outcome, find bottleneck, reset operating focus]
+        expected_signals: [Uses result metrics, cuts low value work, updates rhythm]
+        anti_patterns: [Rewards busyness, blames team effort, keeps same plan without diagnosis]
+        good_answer_hints: [Compare output with outcome, identify bottleneck, reset priorities and cadence]
+        priority: 15
+        status: active

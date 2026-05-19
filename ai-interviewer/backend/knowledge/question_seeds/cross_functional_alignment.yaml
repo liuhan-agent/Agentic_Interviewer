@@ -1,0 +1,52 @@
+dimension: cross_functional_alignment
+seeds:
+  - id: cross_functional_alignment.management_cross_team_conflict
+    version: 1
+    title: Management cross functional alignment
+    dimension: cross_functional_alignment
+    job_levels: [junior, mid, senior]
+    skill_tags: [general_management, cross_functional_alignment, conflict_resolution, stakeholder_alignment]
+    direction_tags: [business]
+    role_tags: [general_management]
+    rubric:
+      must_cover: [stakeholder_goal, conflict_source, alignment_mechanism, decision_owner]
+      minimum_bar: Explain how to align cross functional teams when goals and constraints conflict.
+      stretch: Create durable alignment by clarifying incentives, decision rights, and escalation path.
+    priority: 25
+    status: active
+    source: manual_yaml
+    scope: global
+    language: zh-CN
+    variants:
+      - id: cross_functional_alignment.management_cross_team_conflict.product_sales_ops_conflict
+        version: 1
+        intent: opening
+        difficulty: standard
+        scenario_brief: Product, sales, and operations disagree on launch scope because each team optimizes a different goal.
+        question_stem: How would you identify the real conflict and drive alignment without letting the loudest team decide?
+        prompt_template: Generate a management alignment question about stakeholder goals, conflict source, and decision rights.
+        scenario_skill_tags: [general_management, cross_functional_alignment, stakeholder_alignment, conflict_resolution]
+        resume_anchor_hints: [cross_functional, alignment, stakeholder, launch, conflict]
+        failure_categories: [weak_stakeholder_alignment, missing_tradeoff, poor_communication]
+        rubric_additions: [Map stakeholder goals, surface tradeoffs, define decision owner]
+        expected_signals: [Names each team's incentive, creates decision criteria, communicates final tradeoff]
+        anti_patterns: [Lets seniority decide, avoids conflict, treats alignment as one meeting]
+        good_answer_hints: [Map goals, define tradeoff criteria, name decision owner and follow up]
+        priority: 17
+        status: active
+      - id: cross_functional_alignment.management_cross_team_conflict.repeated_alignment_breakdown
+        version: 1
+        intent: deep_probe
+        difficulty: deep_probe
+        scenario_brief: Cross team alignment breaks down repeatedly because decisions are revisited after meetings.
+        question_stem: How would you change the alignment mechanism so decisions are recorded, owned, and followed through?
+        prompt_template: Generate a deep probe about recurring cross functional alignment failure.
+        scenario_skill_tags: [general_management, cross_functional_alignment, decision_rights, operating_mechanism]
+        resume_anchor_hints: [alignment, decision, stakeholder, governance, management]
+        failure_categories: [vague_process, weak_follow_up, poor_communication]
+        rubric_additions: [Clarify decision record, owner, escalation path, and review rhythm]
+        expected_signals: [Creates decision log, defines owner, escalates unresolved tradeoffs]
+        anti_patterns: [Adds more meetings only, relies on memory, avoids naming owner]
+        good_answer_hints: [Record decisions, assign owner, make reopening conditions explicit]
+        priority: 15
+        status: active

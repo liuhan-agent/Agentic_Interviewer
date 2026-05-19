@@ -7,8 +7,12 @@ testing without an OpenAI key.
 """
 from __future__ import annotations
 
+from typing import Any, Callable
+
 from app.core.logging import get_logger
 from app.core.settings import get_settings
+from app.voice.routing import resolve_asr_route
+from app.voice.providers import QwenConnectFactory, provider_for, _qwen_audio_payload
 
 log = get_logger(__name__)
 
@@ -86,9 +90,16 @@ class WhisperASR:
     def __init__(self) -> None:
         settings = get_settings()
         self.model = settings.asr_model
-        self.stub = settings.use_stub_llm or settings.asr_provider == "stub"
+        self.provider = settings.asr_provider
+        self.llm_provider = settings.llm_provider
+        self.openai_api_key = settings.openai_api_key
+        self.openai_base_url = None
+        self.qwen_api_key = settings.qwen_api_key
+        self.dashscope_api_key = settings.dashscope_api_key
+        self.qwen_realtime_base_url = settings.qwen_realtime_base_url
+        self.stub = settings.asr_provider == "stub"
         self._client = None
-        if not self.stub:
+        if not self.stub and settings.asr_provider == "openai" and settings.openai_api_key:
             try:
                 from openai import OpenAI
 
@@ -97,7 +108,15 @@ class WhisperASR:
                 log.warning("openai package unavailable; ASR will use stub mode")
                 self.stub = True
 
-    def transcribe(self, audio: bytes, *, mime_type: str = "audio/webm") -> str:
+    def transcribe(
+        self,
+        audio: bytes,
+        *,
+        mime_type: str = "audio/webm",
+        llm_config: dict[str, Any] | None = None,
+        client_factory: Callable[..., Any] | None = None,
+        qwen_connect_factory: QwenConnectFactory | None = None,
+    ) -> str:
         """Transcribe a complete utterance.
 
         Returns an empty string on any provider-side failure or empty
@@ -106,8 +125,10 @@ class WhisperASR:
         speak again). We never raise here because killing the
         interview over an ASR hiccup is strictly worse than re-asking.
         """
-        if self.stub:
-            return "(stub transcription) the candidate spoke for a few seconds."
+        route = resolve_asr_route(self, llm_config)
+        if route.is_stub:
+            log.info("ASR unavailable: provider=%s model=%s", route.provider, route.model)
+            return ""
         if not audio:
             return ""
         import io
@@ -115,13 +136,34 @@ class WhisperASR:
         buf = io.BytesIO(audio)
         buf.name = f"utterance.{_extension_for_mime(mime_type)}"
         try:
-            result = self._client.audio.transcriptions.create(
-                model=self.model, file=buf
+            provider = provider_for(route)
+            if route.provider == "qwen":
+                import asyncio
+
+                return asyncio.run(
+                    provider.transcribe_async(  # type: ignore[attr-defined]
+                        route,
+                        audio,
+                        mime_type=mime_type,
+                        connect_factory=qwen_connect_factory,
+                    )
+                )
+            text = provider.transcribe(  # type: ignore[attr-defined]
+                route,
+                file=buf,
+                existing_client=self._client,
+                client_factory=client_factory,
             )
         except Exception as e:  # pragma: no cover - provider flakes
-            log.warning("ASR provider call failed: %s", e)
+            try:
+                from app.engine.agents.llm_client import redact_llm_secrets
+
+                error = redact_llm_secrets(str(e), llm_config)
+            except Exception:
+                error = "<redaction failed>"
+            log.warning("ASR provider call failed: %s", error)
             return ""
-        return getattr(result, "text", "") or ""
+        return text or ""
 
 
 _asr: WhisperASR | None = None

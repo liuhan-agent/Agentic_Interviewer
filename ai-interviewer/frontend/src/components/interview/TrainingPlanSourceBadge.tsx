@@ -45,7 +45,7 @@ export function TrainingPlanSourceBadge({
   if (source === "fallback") {
     return (
       <SourceTooltipBadge
-        label="系统聚合"
+        label="基础版"
         description={FALLBACK_SOURCE_DESCRIPTION}
         className="ml-1 border-amber-500/40 bg-amber-500/10 text-[10px] text-amber-200"
       />

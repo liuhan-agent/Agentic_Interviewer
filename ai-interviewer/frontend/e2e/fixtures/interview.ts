@@ -55,6 +55,8 @@ export async function mockSetupApis(page: Page) {
         session_token: "token-e2e",
         trace_id: "trace-e2e",
         status: "running",
+        created_at: "2026-05-01T10:00:00+00:00",
+        updated_at: "2026-05-01T10:00:00+00:00",
       },
     });
   });

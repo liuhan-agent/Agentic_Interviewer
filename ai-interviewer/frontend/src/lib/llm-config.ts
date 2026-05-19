@@ -31,6 +31,7 @@ export interface LLMConfig {
   temperature: number;
   baseUrl: string;
   roleOverrides: Partial<Record<LLMRoleGroupId, LLMRoleOverrideConfig>>;
+  voiceOverrides: Partial<Record<LLMVoiceRouteId, LLMVoiceOverrideConfig>>;
   storageMode?: "local" | "session" | "memory";
 }
 
@@ -63,6 +64,29 @@ export interface LLMRoleOverrideConfig {
   apiKey: string;
   model: string;
   baseUrl: string;
+}
+
+export type LLMVoiceRouteId = "asr" | "tts";
+export type LLMVoiceProviderId = "qwen" | "openai";
+
+export interface LLMVoiceOverrideConfig {
+  enabled?: boolean;
+  provider: LLMVoiceProviderId;
+  apiKey: string;
+  model: string;
+  baseUrl: string;
+  voice?: string;
+}
+
+export interface VoiceProviderInfo {
+  id: LLMVoiceProviderId;
+  label: string;
+  asrModel: string;
+  ttsModel: string;
+  ttsVoice: string;
+  ttsVoices: readonly string[];
+  baseUrl: string;
+  keyPlaceholder: string;
 }
 
 export type LLMErrorKind = ApiLLMErrorKind;
@@ -142,6 +166,29 @@ export const PROVIDERS = [
     baseUrlMode: "required",
   },
 ] as const satisfies readonly ProviderInfo[];
+
+export const VOICE_PROVIDERS = [
+  {
+    id: "qwen",
+    label: "通义千问 Qwen",
+    asrModel: "qwen3-asr-flash-realtime",
+    ttsModel: "qwen3-tts-flash-realtime",
+    ttsVoice: "Cherry",
+    ttsVoices: ["Cherry", "Serena", "Ethan", "Chelsie"],
+    baseUrl: "wss://dashscope.aliyuncs.com/api-ws/v1/realtime",
+    keyPlaceholder: "sk-...",
+  },
+  {
+    id: "openai",
+    label: "OpenAI",
+    asrModel: "whisper-1",
+    ttsModel: "gpt-4o-mini-tts",
+    ttsVoice: "alloy",
+    ttsVoices: ["alloy"],
+    baseUrl: "",
+    keyPlaceholder: "sk-...",
+  },
+] as const satisfies readonly VoiceProviderInfo[];
 
 export interface LLMRecommendation {
   provider: string;
@@ -239,6 +286,23 @@ const DEFAULTS: LLMConfig = {
   temperature: 0.7,
   baseUrl: "https://dashscope.aliyuncs.com/compatible-mode/v1",
   roleOverrides: {},
+  voiceOverrides: {
+    asr: {
+      enabled: false,
+      provider: "qwen",
+      apiKey: "",
+      model: "qwen3-asr-flash-realtime",
+      baseUrl: "wss://dashscope.aliyuncs.com/api-ws/v1/realtime",
+    },
+    tts: {
+      enabled: false,
+      provider: "qwen",
+      apiKey: "",
+      model: "qwen3-tts-flash-realtime",
+      voice: "Cherry",
+      baseUrl: "wss://dashscope.aliyuncs.com/api-ws/v1/realtime",
+    },
+  },
   storageMode: "session",
 };
 
@@ -259,6 +323,10 @@ export function loadLLMConfig(): LLMConfig {
       ...DEFAULTS,
       ...parsed,
       roleOverrides: parsed.roleOverrides ?? {},
+      voiceOverrides: {
+        ...DEFAULTS.voiceOverrides,
+        ...(parsed.voiceOverrides ?? {}),
+      },
       storageMode: parsed.storageMode ?? defaultStorageMode,
     };
   } catch {
@@ -303,12 +371,33 @@ export function hasCustomApiKey(config: LLMConfig = loadLLMConfig()): boolean {
     config.apiKey.trim().length > 0 ||
     enabledRoleGroups(config).some(
       (group) => config.roleOverrides[group.id]?.apiKey.trim(),
+    ) ||
+    (["asr", "tts"] as const).some(
+      (routeId) =>
+        config.voiceOverrides[routeId]?.enabled &&
+        config.voiceOverrides[routeId]?.apiKey.trim(),
     )
   );
 }
 
 export function providerInfo(provider: string): ProviderInfo {
   return PROVIDERS.find((p) => p.id === provider) ?? PROVIDERS[0];
+}
+
+export function voiceProviderInfo(provider: string): VoiceProviderInfo {
+  return (
+    VOICE_PROVIDERS.find((p) => p.id === provider) ?? VOICE_PROVIDERS[0]
+  );
+}
+
+function normalizeVoiceProvider(provider: string): LLMVoiceProviderId | null {
+  if (provider === "dashscope") return "qwen";
+  if (provider === "qwen" || provider === "openai") return provider;
+  return null;
+}
+
+function sameVoiceProvider(a: string, b: string): boolean {
+  return normalizeVoiceProvider(a) === normalizeVoiceProvider(b);
 }
 
 export function providerShowsBaseUrl(provider: string): boolean {
@@ -362,6 +451,39 @@ export function effectiveRoleConfig(
   };
 }
 
+export function defaultVoiceOverride(
+  routeId: LLMVoiceRouteId,
+  providerId: LLMVoiceProviderId = "qwen",
+): LLMVoiceOverrideConfig {
+  const provider = voiceProviderInfo(providerId);
+  return {
+    enabled: true,
+    provider: provider.id,
+    apiKey: "",
+    model: routeId === "asr" ? provider.asrModel : provider.ttsModel,
+    baseUrl: provider.baseUrl,
+    ...(routeId === "tts" ? { voice: provider.ttsVoice } : {}),
+  };
+}
+
+export function effectiveVoiceConfig(
+  config: LLMConfig,
+  routeId: LLMVoiceRouteId,
+): LLMVoiceOverrideConfig {
+  const override = config.voiceOverrides[routeId] ?? defaultVoiceOverride(routeId);
+  const providerId = override.enabled ? override.provider : "qwen";
+  const defaults = defaultVoiceOverride(routeId, providerId);
+  const effective = override.enabled ? { ...defaults, ...override } : defaults;
+  return {
+    ...effective,
+    apiKey:
+      (override.enabled ? override.apiKey.trim() : "") ||
+      (sameVoiceProvider(config.provider, effective.provider)
+        ? config.apiKey.trim()
+        : ""),
+  };
+}
+
 /**
  * Build the `llm_config` payload to send with session creation requests.
  * Returns `undefined` if no API key is configured (backend will use its own).
@@ -384,6 +506,21 @@ export function buildLLMPayload():
           }
         >
       >;
+      voice_overrides?: {
+        asr?: {
+          provider?: LLMVoiceProviderId;
+          api_key?: string;
+          model?: string;
+          base_url?: string;
+        };
+        tts?: {
+          provider?: LLMVoiceProviderId;
+          api_key?: string;
+          model?: string;
+          voice?: string;
+          base_url?: string;
+        };
+      };
     }
   | undefined {
   const c = loadLLMConfig();
@@ -404,6 +541,21 @@ export function buildLLMPayload():
         }
       >
     >;
+    voice_overrides?: {
+      asr?: {
+        provider?: LLMVoiceProviderId;
+        api_key?: string;
+        model?: string;
+        base_url?: string;
+      };
+      tts?: {
+        provider?: LLMVoiceProviderId;
+        api_key?: string;
+        model?: string;
+        voice?: string;
+        base_url?: string;
+      };
+    };
   } = {};
   const defaultApiKey = c.apiKey.trim();
   if (defaultApiKey) {
@@ -437,7 +589,34 @@ export function buildLLMPayload():
   if (Object.keys(roleOverrides).length > 0) {
     payload.role_overrides = roleOverrides;
   }
-  if (!payload.api_key && !payload.role_overrides) return undefined;
+
+  const asrVoice = effectiveVoiceConfig(c, "asr");
+  const ttsVoice = effectiveVoiceConfig(c, "tts");
+  const voiceOverrides: NonNullable<typeof payload.voice_overrides> = {};
+  if (asrVoice.apiKey.trim()) {
+    voiceOverrides.asr = {
+      provider: asrVoice.provider,
+      api_key: asrVoice.apiKey.trim(),
+      model: asrVoice.model || voiceProviderInfo(asrVoice.provider).asrModel,
+      ...(asrVoice.baseUrl.trim() ? { base_url: asrVoice.baseUrl.trim() } : {}),
+    };
+  }
+  if (ttsVoice.apiKey.trim()) {
+    voiceOverrides.tts = {
+      provider: ttsVoice.provider,
+      api_key: ttsVoice.apiKey.trim(),
+      model: ttsVoice.model || voiceProviderInfo(ttsVoice.provider).ttsModel,
+      voice: ttsVoice.voice || voiceProviderInfo(ttsVoice.provider).ttsVoice,
+      ...(ttsVoice.baseUrl.trim() ? { base_url: ttsVoice.baseUrl.trim() } : {}),
+    };
+  }
+  if (voiceOverrides.asr || voiceOverrides.tts) {
+    payload.voice_overrides = voiceOverrides;
+  }
+
+  if (!payload.api_key && !payload.role_overrides && !payload.voice_overrides) {
+    return undefined;
+  }
   return payload;
 }
 
@@ -472,7 +651,8 @@ export type LLMConfigStatus =
   | "transient"
   | "misconfig"
   | "error";
-export type LLMTestTargetId = "default" | LLMRoleGroupId;
+export type LLMTestTargetId = "default" | LLMRoleGroupId | `voice:${LLMVoiceRouteId}`;
+export type LLMTestTargetKind = "chat" | "asr" | "tts";
 
 export interface LLMTestTargetStatus {
   fingerprint: string;
@@ -482,6 +662,7 @@ export interface LLMTestTargetStatus {
   provider: string;
   model: string;
   label: string;
+  kind?: LLMTestTargetKind;
   errorKind?: LLMErrorKind;
   message?: string;
   error?: string;
@@ -686,6 +867,18 @@ export function configFingerprint(config: LLMConfig = loadLLMConfig()): string {
         hashString(override.apiKey.trim()),
       ];
     }),
+    ...(["asr", "tts"] as const).flatMap((routeId) => {
+      const voice = config.voiceOverrides[routeId] ?? defaultVoiceOverride(routeId);
+      return [
+        `voice:${routeId}`,
+        String(Boolean(voice.enabled)),
+        voice.provider,
+        voice.model.trim(),
+        voice.baseUrl.trim(),
+        voice.voice?.trim() ?? "",
+        hashString(voice.apiKey.trim()),
+      ];
+    }),
   ].join("|");
 }
 
@@ -693,6 +886,18 @@ export function targetFingerprint(
   config: LLMConfig,
   targetId: LLMTestTargetId,
 ): string {
+  if (targetId === "voice:asr" || targetId === "voice:tts") {
+    const routeId = targetId === "voice:asr" ? "asr" : "tts";
+    const voice = effectiveVoiceConfig(config, routeId);
+    return [
+      targetId,
+      voice.provider,
+      voice.model.trim(),
+      voice.baseUrl.trim(),
+      voice.voice?.trim() ?? "",
+      hashString(voice.apiKey.trim()),
+    ].join("|");
+  }
   const targetConfig =
     targetId === "default" ? config : effectiveRoleConfig(config, targetId);
   return [
@@ -768,20 +973,51 @@ export function getLLMConfigStatus(
 
 export function testTargets(
   config: LLMConfig = loadLLMConfig(),
-): Array<{ id: LLMTestTargetId; label: string; config: LLMConfig }> {
-  const targets: Array<{ id: LLMTestTargetId; label: string; config: LLMConfig }> = [];
+): Array<{
+  id: LLMTestTargetId;
+  label: string;
+  kind: LLMTestTargetKind;
+  config?: LLMConfig;
+  voice?: LLMVoiceOverrideConfig;
+}> {
+  const targets: Array<{
+    id: LLMTestTargetId;
+    label: string;
+    kind: LLMTestTargetKind;
+    config?: LLMConfig;
+    voice?: LLMVoiceOverrideConfig;
+  }> = [];
   if (config.apiKey.trim()) {
-    targets.push({ id: "default", label: "默认配置", config });
+    targets.push({ id: "default", label: "默认配置", kind: "chat", config });
   }
   targets.push(
     ...enabledRoleGroups(config)
       .map((group) => ({
         id: group.id,
         label: group.label,
+        kind: "chat" as const,
         config: effectiveRoleConfig(config, group.id),
       }))
       .filter((target) => target.config.apiKey.trim().length > 0),
   );
+  const asrVoice = effectiveVoiceConfig(config, "asr");
+  if (asrVoice.apiKey.trim()) {
+    targets.push({
+      id: "voice:asr",
+      label: "语音识别",
+      kind: "asr",
+      voice: asrVoice,
+    });
+  }
+  const ttsVoice = effectiveVoiceConfig(config, "tts");
+  if (ttsVoice.apiKey.trim()) {
+    targets.push({
+      id: "voice:tts",
+      label: "语音合成",
+      kind: "tts",
+      voice: ttsVoice,
+    });
+  }
   return targets;
 }
 
@@ -828,23 +1064,47 @@ export async function testConnection(
   if (!target) {
     throw new Error("测试目标不存在，请检查按环节配置。");
   }
-  const trimmed: LLMConfig = {
-    ...target.config,
-    apiKey: target.config.apiKey.trim(),
-    model: target.config.model.trim(),
-    baseUrl: target.config.baseUrl.trim(),
-  };
+  const trimmed: LLMConfig | null = target.config
+    ? {
+        ...target.config,
+        apiKey: target.config.apiKey.trim(),
+        model: target.config.model.trim(),
+        baseUrl: target.config.baseUrl.trim(),
+      }
+    : null;
+  const trimmedVoice = target.voice
+    ? {
+        ...target.voice,
+        apiKey: target.voice.apiKey.trim(),
+        model: target.voice.model.trim(),
+        baseUrl: target.voice.baseUrl.trim(),
+        voice: target.voice.voice?.trim(),
+      }
+    : null;
   let targetStatus: LLMTestTargetStatus;
   try {
     const result = await request<LLMTestResponse>("/api/v1/llm/test", {
       method: "POST",
-      body: {
-        provider: trimmed.provider,
-        api_key: trimmed.apiKey,
-        model: trimmed.model,
-        temperature: trimmed.temperature,
-        ...(trimmed.baseUrl ? { base_url: trimmed.baseUrl } : {}),
-      },
+      body:
+        target.kind === "chat" && trimmed
+          ? {
+              kind: target.kind,
+              provider: trimmed.provider,
+              api_key: trimmed.apiKey,
+              model: trimmed.model,
+              temperature: trimmed.temperature,
+              ...(trimmed.baseUrl ? { base_url: trimmed.baseUrl } : {}),
+            }
+          : {
+              kind: target.kind,
+              provider: trimmedVoice?.provider,
+              api_key: trimmedVoice?.apiKey,
+              model: trimmedVoice?.model,
+              ...(target.kind === "tts" && trimmedVoice?.voice
+                ? { voice: trimmedVoice.voice }
+                : {}),
+              ...(trimmedVoice?.baseUrl ? { base_url: trimmedVoice.baseUrl } : {}),
+            },
       timeoutMs: 20_000,
     });
     targetStatus = {
@@ -855,6 +1115,7 @@ export async function testConnection(
       provider: result.provider,
       model: result.model,
       label: target.label,
+      kind: target.kind,
       errorKind:
         result.error_kind ??
         (!result.ok && result.error ? inferLLMErrorKindFromText(result.error) : undefined),
@@ -867,9 +1128,10 @@ export async function testConnection(
       testedAt: new Date().toISOString(),
       ok: false,
       latencyMs: 0,
-      provider: trimmed.provider,
-      model: trimmed.model,
+      provider: trimmed?.provider ?? trimmedVoice?.provider ?? "",
+      model: trimmed?.model ?? trimmedVoice?.model ?? "",
       label: target.label,
+      kind: target.kind,
       errorKind: inferLLMErrorKind(err),
       error:
         err instanceof Error ? err.message : typeof err === "string" ? err : String(err),
@@ -894,9 +1156,10 @@ export async function testAllConnections(
         testedAt: now,
         ok: false,
         latencyMs: 0,
-        provider: target.config.provider,
-        model: target.config.model,
+        provider: target.config?.provider ?? target.voice?.provider ?? "",
+        model: target.config?.model ?? target.voice?.model ?? "",
         label: target.label,
+        kind: target.kind,
         errorKind: inferLLMErrorKind(err),
         error: err instanceof Error ? err.message : String(err),
       });

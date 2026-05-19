@@ -1,0 +1,52 @@
+dimension: data_analysis
+seeds:
+  - id: data_analysis.operations_metric_diagnosis
+    version: 1
+    title: 运营数据诊断与因果判断
+    dimension: data_analysis
+    job_levels: [junior, mid, senior]
+    skill_tags: [operations, data_analysis, diagnosis, metric, attribution]
+    direction_tags: [business]
+    role_tags: [operations]
+    rubric:
+      must_cover: [指标拆解, 分群分析, 因果假设, 验证动作]
+      minimum_bar: 能用结构化数据分析定位运营问题，而不是只报现象。
+      stretch: 能区分相关和因果，设计低成本验证方案。
+    priority: 28
+    status: active
+    source: manual_yaml
+    scope: global
+    language: zh-CN
+    variants:
+      - id: data_analysis.operations_metric_diagnosis.gmv_drop
+        version: 1
+        intent: opening
+        difficulty: standard
+        scenario_brief: 最近一周 GMV 下滑，但流量、客单价、转化率都有小幅波动。
+        question_stem: 你会如何拆解数据来定位 GMV 下滑的根因，并判断下一步动作？
+        prompt_template: 生成一道运营数据分析题，要求候选人说明指标树、分群拆解、假设排序和验证动作。
+        scenario_skill_tags: [operations, data_analysis, metric_tree, gmv]
+        resume_anchor_hints: [gmv, data_analysis, metric, operations, diagnosis]
+        failure_categories: [shallow_analysis, vague_metrics, missing_attribution]
+        rubric_additions: [说明指标树拆解, 说明分群或渠道分析, 说明行动和验证]
+        expected_signals: [能从 GMV 拆到流量转化客单, 能看渠道和人群, 能提出验证优先级]
+        anti_patterns: [只看总盘, 直接归因到一个原因, 没有下一步动作]
+        good_answer_hints: [先建指标树, 再分群定位, 最后验证最可能假设]
+        priority: 17
+        status: active
+      - id: data_analysis.operations_metric_diagnosis.ab_experiment
+        version: 1
+        intent: deep_probe
+        difficulty: deep_probe
+        scenario_brief: A/B 实验结果显著，但样本集中在高活跃用户，普通用户样本不足。
+        question_stem: 实验结果看似显著但样本偏斜时，你会如何判断是否能推广到全量？
+        prompt_template: 生成一道运营实验追问，要求候选人说明样本代表性、显著性、分层分析和上线决策。
+        scenario_skill_tags: [operations, experiment, data_analysis, sample_bias]
+        resume_anchor_hints: [ab_test, experiment, metric, data_analysis, operations]
+        failure_categories: [missing_evidence, missing_risk, shallow_analysis]
+        rubric_additions: [说明样本偏斜风险, 说明分层验证, 说明灰度或补充实验]
+        expected_signals: [能识别样本代表性问题, 能提出分层或补样, 能谨慎做全量决策]
+        anti_patterns: [只看显著性, 不看样本结构, 直接全量上线]
+        good_answer_hints: [先审样本, 再做分层, 最后灰度验证]
+        priority: 16
+        status: active

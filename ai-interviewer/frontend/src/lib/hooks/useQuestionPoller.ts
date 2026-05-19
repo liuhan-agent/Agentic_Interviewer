@@ -10,6 +10,7 @@ import type {
   PollQuestionResponse,
   PreviousTurnEvaluation,
   LLMErrorKind,
+  ResumeHistoryTurn,
 } from "@/lib/api/types";
 import { inferLLMErrorKind } from "@/lib/llm-config";
 
@@ -26,6 +27,7 @@ export interface PollerState {
   question: PollQuestion | null;
   turnIdx: number | null;
   maxTurns: number | null;
+  enableVideoAnalysis: boolean;
   finalReport: FinalReport | null;
   error: string | null;
   errorKind: LLMErrorKind | null;
@@ -34,11 +36,12 @@ export interface PollerState {
    * Compact projection of the candidate's most recently evaluated turn,
    * piped through from the long-poll response. ``null`` when there is
    * no displayable feedback (first ask, non-scoring intent, fallback
-   * evaluator). Updated only on ``QUESTION`` so terminal frames
-   * (completed / cancelled / error) preserve the last-shown card and
-   * the ``SUBMITTING`` transition does not flicker the panel away.
+   * evaluator). Updated only on ``QUESTION`` / ``RESUMED`` and cleared
+   * on ``SUBMITTING`` so stale feedback cannot attach to the answer that
+   * was just submitted while the next question is being prepared.
    */
   previousEvaluation: PreviousTurnEvaluation | null;
+  restoredHistory: ResumeHistoryTurn[];
   /**
    * Wall-clock duration of the most recent server-side segment in
    * milliseconds (#11). The InterviewRoom can use it to render an ETA
@@ -55,12 +58,16 @@ type Action =
       question: PollQuestion | null;
       turnIdx: number | null;
       maxTurns: number | null;
+      enableVideoAnalysis: boolean;
+      previousEvaluation: PreviousTurnEvaluation | null;
+      history: ResumeHistoryTurn[];
     }
   | {
       type: "QUESTION";
       question: PollQuestion;
       turnIdx: number | null;
       maxTurns: number | null;
+      enableVideoAnalysis: boolean;
       previousEvaluation: PreviousTurnEvaluation | null;
       serverLatencyMs: number | null;
     }
@@ -79,11 +86,13 @@ const initial: PollerState = {
   question: null,
   turnIdx: null,
   maxTurns: null,
+  enableVideoAnalysis: false,
   finalReport: null,
   error: null,
   errorKind: null,
   retryable: false,
   previousEvaluation: null,
+  restoredHistory: [],
   lastServerLatencyMs: null,
 };
 
@@ -107,6 +116,9 @@ function reducer(state: PollerState, a: Action): PollerState {
         question: a.question,
         turnIdx: a.turnIdx,
         maxTurns: a.maxTurns,
+        enableVideoAnalysis: a.enableVideoAnalysis,
+        previousEvaluation: a.previousEvaluation,
+        restoredHistory: a.history,
         error: null,
         errorKind: null,
         retryable: false,
@@ -118,6 +130,7 @@ function reducer(state: PollerState, a: Action): PollerState {
         question: a.question,
         turnIdx: a.turnIdx,
         maxTurns: a.maxTurns,
+        enableVideoAnalysis: a.enableVideoAnalysis,
         previousEvaluation: a.previousEvaluation,
         lastServerLatencyMs: a.serverLatencyMs,
         error: null,
@@ -135,7 +148,13 @@ function reducer(state: PollerState, a: Action): PollerState {
     case "CANCELLED":
       return { ...state, phase: "cancelled", question: null, retryable: false };
     case "SUBMITTING":
-      return { ...state, phase: "loading", question: null, retryable: false };
+      return {
+        ...state,
+        phase: "loading",
+        question: null,
+        previousEvaluation: null,
+        retryable: false,
+      };
     case "ERROR":
       return {
         ...state,
@@ -218,6 +237,7 @@ export function useQuestionPoller(sessionId: string) {
               question: res.question,
               turnIdx: res.turn_idx ?? null,
               maxTurns: res.max_turns ?? null,
+              enableVideoAnalysis: Boolean(res.enable_video_analysis),
               previousEvaluation: res.previous_turn_evaluation ?? null,
               serverLatencyMs: res.server_latency_ms ?? null,
             });
@@ -284,6 +304,9 @@ export function useQuestionPoller(sessionId: string) {
             question: r.question,
             turnIdx: r.turn_idx ?? null,
             maxTurns: r.max_turns ?? null,
+            enableVideoAnalysis: Boolean(r.enable_video_analysis),
+            previousEvaluation: r.previous_turn_evaluation ?? null,
+            history: r.history ?? [],
           });
           return;
         }

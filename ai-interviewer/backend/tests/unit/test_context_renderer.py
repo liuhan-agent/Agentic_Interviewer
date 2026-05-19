@@ -34,6 +34,10 @@ def _full_payload(**overrides: Any) -> dict[str, Any]:
         "user_material_boundary": "USER MATERIAL BOUNDARY",
         "history_section": "RECENT_QA = []",
         "retrieval": "RETRIEVAL",
+        "question_seed": "",
+        "candidate_anchor": "",
+        "resume_rag": "",
+        "self_intro_rag": "",
         "strategy": "STRATEGY",
         "skills": "(no relevant interview skills)",
         "avoid_patterns": "(no historical shallow patterns on this dimension)",
@@ -97,6 +101,8 @@ def test_renderer_splits_static_and_dynamic_system() -> None:
         "user_material_boundary",
         "history_section",
         "retrieval",
+        "question_seed",
+        "candidate_anchor",
         "strategy",
         "skills",
         "avoid_patterns",
@@ -127,6 +133,109 @@ def test_renderer_omits_dynamic_when_empty() -> None:
     assert messages[0].content == "SYS"
     assert messages[0].cache_control == "ephemeral"
     assert messages[1].role == "user"
+
+
+def test_generator_renderer_suppresses_empty_question_seed_prompt_section() -> None:
+    """Vector/shadow mode keeps the structured seed prompt completely absent."""
+    rendered = """Resume grounding rules:
+- Prefer resume anchors.
+- If STRUCTURED_QUESTION_SEED is non-empty, treat it as the primary reusable
+  question skeleton for this turn. Use it to shape the scenario and contract,
+  but do not reveal seed IDs, expected signals, anti-patterns, or hints.
+- Treat TARGET_SKILLS as primary.
+RETRIEVED_KNOWLEDGE =
+RAG
+
+STRUCTURED_QUESTION_SEED =
+
+STRATEGY_MEMORY =
+STRATEGY
+"""
+    frame = ContextFrame(
+        agent_role="generator",
+        turn_idx=0,
+        static_system="SYS",
+        dynamic_system="",
+        payload=_full_payload(question_seed=""),
+    )
+    with patch(
+        "app.engine.context.renderer.render_prompt",
+        return_value=rendered,
+    ):
+        messages = frame_to_generator_messages(frame)
+
+    user_text = messages[-1].content
+    assert "STRUCTURED_QUESTION_SEED" not in user_text
+    assert "primary reusable" not in user_text
+    assert "RETRIEVED_KNOWLEDGE" in user_text
+    assert "STRATEGY_MEMORY" in user_text
+
+
+def test_generator_renderer_suppresses_empty_candidate_anchor_prompt_section() -> None:
+    rendered = """Resume grounding rules:
+- If CANDIDATE_ANCHOR is non-empty, use it to adapt the structured seed
+  to the candidate's project and job skills, but do not reveal internal
+  fit scores, seed IDs, expected signals, anti-patterns, or hints.
+RETRIEVED_KNOWLEDGE =
+RAG
+
+STRUCTURED_QUESTION_SEED =
+Seed: cache consistency
+
+CANDIDATE_ANCHOR =
+
+STRATEGY_MEMORY =
+STRATEGY
+"""
+    frame = ContextFrame(
+        agent_role="generator",
+        turn_idx=0,
+        static_system="SYS",
+        dynamic_system="",
+        payload=_full_payload(question_seed="Seed: cache consistency", candidate_anchor=""),
+    )
+    with patch(
+        "app.engine.context.renderer.render_prompt",
+        return_value=rendered,
+    ):
+        messages = frame_to_generator_messages(frame)
+
+    user_text = messages[-1].content
+    assert "CANDIDATE_ANCHOR" not in user_text
+    assert "fit scores" not in user_text
+    assert "STRUCTURED_QUESTION_SEED" in user_text
+
+
+def test_generator_renderer_keeps_non_empty_question_seed_prompt_section() -> None:
+    rendered = """STRUCTURED_QUESTION_SEED =
+Seed: cache consistency
+
+CANDIDATE_ANCHOR =
+Project: Inventory
+
+STRATEGY_MEMORY =
+STRATEGY
+"""
+    frame = ContextFrame(
+        agent_role="generator",
+        turn_idx=0,
+        static_system="SYS",
+        dynamic_system="",
+        payload=_full_payload(
+            question_seed="Seed: cache consistency",
+            candidate_anchor="Project: Inventory",
+        ),
+    )
+    with patch(
+        "app.engine.context.renderer.render_prompt",
+        return_value=rendered,
+    ):
+        messages = frame_to_generator_messages(frame)
+
+    assert "STRUCTURED_QUESTION_SEED" in messages[-1].content
+    assert "Seed: cache consistency" in messages[-1].content
+    assert "CANDIDATE_ANCHOR" in messages[-1].content
+    assert "Project: Inventory" in messages[-1].content
 
 
 def test_renderer_rejects_wrong_role() -> None:

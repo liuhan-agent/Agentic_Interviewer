@@ -1,0 +1,52 @@
+dimension: organization_development
+seeds:
+  - id: organization_development.hr_performance_development
+    version: 1
+    title: HR organization performance development
+    dimension: organization_development
+    job_levels: [junior, mid, senior]
+    skill_tags: [hr_function, organization_development, performance_management, talent_development]
+    direction_tags: [business]
+    role_tags: [hr_function]
+    rubric:
+      must_cover: [diagnosis, development_need, manager_enablement, outcome_measure]
+      minimum_bar: Explain how to identify organization or performance development needs and turn them into actions.
+      stretch: Connect development actions to business capability gaps and measurable behavior change.
+    priority: 24
+    status: active
+    source: manual_yaml
+    scope: global
+    language: zh-CN
+    variants:
+      - id: organization_development.hr_performance_development.manager_capability_gap
+        version: 1
+        intent: opening
+        difficulty: standard
+        scenario_brief: A team misses delivery goals repeatedly, and leaders suspect first line managers lack coaching capability.
+        question_stem: How would you diagnose the capability gap and design a practical manager development intervention?
+        prompt_template: Generate an HR organization development question about diagnosis, manager enablement, and outcome measure.
+        scenario_skill_tags: [hr_function, organization_development, manager_enablement, performance_management]
+        resume_anchor_hints: [training, performance, manager, organization_development, coaching]
+        failure_categories: [shallow_analysis, missing_metrics, weak_follow_up]
+        rubric_additions: [Diagnose behavior gap, choose targeted intervention, define measurable follow up]
+        expected_signals: [Uses manager behavior evidence, links to delivery outcomes, plans reinforcement]
+        anti_patterns: [Only suggests generic training, ignores manager context, measures attendance only]
+        good_answer_hints: [Start with observed behaviors, design practice plus feedback, track business and behavior signals]
+        priority: 17
+        status: active
+      - id: organization_development.hr_performance_development.performance_cycle_bias
+        version: 1
+        intent: deep_probe
+        difficulty: deep_probe
+        scenario_brief: During performance calibration, several teams show inconsistent rating standards and potential bias.
+        question_stem: How would you improve the performance calibration process while keeping managers accountable for fair evidence?
+        prompt_template: Generate a deep probe about performance calibration quality and fairness.
+        scenario_skill_tags: [hr_function, performance_calibration, organization_development, fairness]
+        resume_anchor_hints: [performance, calibration, talent_review, manager, fairness]
+        failure_categories: [missing_evidence, weak_stakeholder_alignment, vague_process]
+        rubric_additions: [Require evidence standards, reduce rating drift, create manager accountability]
+        expected_signals: [Defines calibration criteria, challenges unsupported ratings, documents decisions]
+        anti_patterns: [Lets senior voice decide, changes ratings without evidence, ignores manager education]
+        good_answer_hints: [Set evidence rules, compare across teams, close with process improvement]
+        priority: 15
+        status: active

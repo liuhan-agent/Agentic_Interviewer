@@ -22,6 +22,7 @@ import { AnimatePresence, motion } from "framer-motion";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { LLMSettingsDialog } from "@/components/layout/LLMSettingsDialog";
+import { LightScrollWheel } from "@/components/layout/LightScrollWheel";
 import {
   getLLMConfigStatus,
   LLM_CONFIG_EVENT,
@@ -139,7 +140,7 @@ function NavigationShortcuts({ pathname }: { pathname: string | null }) {
   const parentHref = resolveParentHref(pathname);
 
   return (
-    <div className="border-b bg-background/70">
+    <div className="sticky top-16 z-20 border-b bg-background/90 backdrop-blur-xl supports-[backdrop-filter]:bg-background/75">
       <div className="container flex h-10 items-center gap-2 text-xs">
         {parentHref && parentHref !== "/" && (
           <Button asChild variant="ghost" size="sm" className="h-7 gap-1.5 px-2">
@@ -310,6 +311,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       </header>
       <NavigationShortcuts pathname={pathname} />
       {children}
+      <LightScrollWheel />
     </div>
   );
 }

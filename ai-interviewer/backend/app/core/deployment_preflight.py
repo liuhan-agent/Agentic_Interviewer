@@ -40,6 +40,10 @@ def build_config_summary(settings: Settings) -> dict[str, Any]:
         "llm_model": settings.llm_model,
         "stub_mode": settings.use_stub_llm,
         "embedding_provider": settings.embedding_provider,
+        "resume_rag_mode": settings.resume_rag_mode,
+        "resume_rag_embedding_model": settings.resume_rag_embedding_model,
+        "resume_rag_embedding_dimension": settings.resume_rag_embedding_dimension,
+        "resume_rag_session_sample_rate": settings.resume_rag_session_sample_rate,
         "resume_parse_cache_backend": settings.resume_parse_cache_backend,
         "asr_provider": settings.asr_provider,
         "tts_provider": settings.tts_provider,
@@ -50,6 +54,7 @@ def build_config_summary(settings: Settings) -> dict[str, Any]:
         "default_guard_mode": settings.default_guard_mode,
         "redact_answer_pii": settings.redact_answer_pii,
         "enable_skill_injection": settings.enable_skill_injection,
+        "skill_playbook_backend": settings.skill_playbook_backend,
         "enable_probe_intent": settings.enable_probe_intent,
         "policy_mode": settings.policy_mode,
     }

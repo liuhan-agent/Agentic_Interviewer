@@ -39,8 +39,8 @@ from typing import Any
 from app.core.logging import bind_log_context, get_logger, reset_log_context
 from app.core.settings import get_settings
 from app.core.timing import reset_timing_trace, start_timing_trace
-from app.services.session_recovery import RecoveryService
 from app.services.session_persistence import SessionPersistence
+from app.services.session_recovery import RecoveryService
 from app.services.session_registry import SessionRegistry
 
 # Per-session LLM override, readable by call_chat via get_llm_override().
@@ -164,14 +164,14 @@ def _extract_last_turn_evaluation(
     - There is no prior turn yet (first ask),
     - The candidate's answer was non-scoring (empty / clarification / repeat /
       too_short / skipped),
-    - The evaluator fell back to a deterministic stub for that turn (LLM
-      outage), so the score is not real signal,
     - The turn was an explicit skip.
 
-    The projection is deliberately small (≤ 2 strengths / weaknesses) to
-    keep the in-interview UI compact and to avoid leaking long-form
-    rubric prose into the polling response body. The full structured
-    evaluation still lives in ``state.qa_history`` for the report.
+    The projection keeps the feedback arrays intact so UI surfaces can
+    preview a compact subset and still expand without a second backend
+    path. Evaluator fallback turns are still surfaced as a system notice,
+    but without score/strength/weakness signals so the UI cannot mistake
+    an LLM outage for candidate quality. The full structured evaluation
+    still lives in ``state.qa_history`` for the report.
     """
     if not qa_history:
         return None
@@ -183,10 +183,27 @@ def _extract_last_turn_evaluation(
     evaluation = last.get("evaluation")
     if not isinstance(evaluation, dict) or not evaluation:
         return None
-    if evaluation.get("source") == "fallback" or evaluation.get("fallback_reason"):
-        return None
     if evaluation.get("skipped"):
         return None
+
+    if evaluation.get("source") == "fallback" or evaluation.get("fallback_reason"):
+        system_warnings = evaluation.get("system_warnings") or []
+        return {
+            "turn_idx": last.get("turn_idx"),
+            "dimension": last.get("dimension"),
+            "score": None,
+            "passed": False,
+            "source": evaluation.get("source") or "fallback",
+            "fallback_reason": evaluation.get("fallback_reason") or "llm_failed",
+            "strengths": [],
+            "weaknesses": [],
+            "system_warnings": (
+                [str(w) for w in system_warnings]
+                if isinstance(system_warnings, list)
+                else []
+            ),
+            "rubric_coverage": {},
+        }
 
     strengths = evaluation.get("strengths") or []
     weaknesses = evaluation.get("weaknesses") or []
@@ -196,8 +213,8 @@ def _extract_last_turn_evaluation(
         "dimension": last.get("dimension"),
         "score": evaluation.get("score"),
         "passed": bool(evaluation.get("passed", False)),
-        "strengths": [str(s) for s in strengths[:2]] if isinstance(strengths, list) else [],
-        "weaknesses": [str(w) for w in weaknesses[:2]] if isinstance(weaknesses, list) else [],
+        "strengths": [str(s) for s in strengths] if isinstance(strengths, list) else [],
+        "weaknesses": [str(w) for w in weaknesses] if isinstance(weaknesses, list) else [],
         "rubric_coverage": dict(rubric_coverage) if isinstance(rubric_coverage, dict) else {},
     }
 
@@ -331,6 +348,10 @@ class SessionHandle:
     llm_config: dict[str, Any] | None = None
     llm_config_meta: dict[str, Any] | None = None
     session_token_hash: str | None = None
+    session_token_expires_at: datetime | None = None
+    recovery_token_hash: str | None = None
+    recovery_token_expires_at: datetime | None = None
+    recovery_token_revoked_at: datetime | None = None
 
     # Session-level metadata cached on the handle so every
     # ``workflow.stream`` segment reuses the same LangSmith
@@ -344,6 +365,8 @@ class SessionHandle:
     job_title: str | None = None
     job_level: str | None = None
     mode: str | None = None
+    enable_video_analysis: bool = False
+    setup_snapshot: dict[str, Any] | None = None
 
     # Compact projection of ``state.qa_history[-1].evaluation`` cached at
     # interrupt time so ``GET /question`` can ship the previous turn's
@@ -842,6 +865,10 @@ class SessionManager:
         *,
         llm_config: dict[str, Any] | None = None,
         session_token_hash: str | None = None,
+        session_token_expires_at: datetime | None = None,
+        recovery_token_hash: str | None = None,
+        recovery_token_expires_at: datetime | None = None,
+        setup_snapshot: dict[str, Any] | None = None,
     ) -> SessionHandle:
         runtime_cfg = initial.get("runtime_config") or {}
         use_sync = bool(runtime_cfg.get("use_sync_provider"))
@@ -858,6 +885,7 @@ class SessionManager:
             "job_title": job_spec.get("title"),
             "job_level": job_spec.get("level"),
             "mode": initial.get("mode"),
+            "enable_video_analysis": bool(runtime_cfg.get("enable_video_analysis")),
             "max_turns": int(initial.get("max_turns") or 0) or None,
         }
         llm_config_meta = _safe_llm_config_meta(llm_config)
@@ -872,6 +900,10 @@ class SessionManager:
                 llm_config=llm_config,
                 llm_config_meta=llm_config_meta,
                 session_token_hash=session_token_hash,
+                session_token_expires_at=session_token_expires_at,
+                recovery_token_hash=recovery_token_hash,
+                recovery_token_expires_at=recovery_token_expires_at,
+                setup_snapshot=setup_snapshot,
                 **session_meta,
             )
             self._session_registry().add(session_id, handle)
@@ -892,6 +924,10 @@ class SessionManager:
                 llm_config=llm_config,
                 llm_config_meta=llm_config_meta,
                 session_token_hash=session_token_hash,
+                session_token_expires_at=session_token_expires_at,
+                recovery_token_hash=recovery_token_hash,
+                recovery_token_expires_at=recovery_token_expires_at,
+                setup_snapshot=setup_snapshot,
                 **session_meta,
             )
             self._session_registry().add(session_id, handle)
@@ -1208,6 +1244,7 @@ class SessionManager:
             session_id=session_id,
             trace_id=str(data.get("trace_id") or values.get("trace_id") or session_id),
             session_token_hash=data.get("session_token_hash"),
+                session_token_expires_at=data.get("session_token_expires_at"),
             llm_config_meta=data.get("llm_config_meta"),
             current_question=question,
             turn_idx=turn_idx,
@@ -1217,6 +1254,10 @@ class SessionManager:
             job_title=data.get("job_title") or job_spec.get("title"),
             job_level=data.get("job_level") or job_spec.get("level"),
             mode=data.get("mode") or values.get("mode"),
+            enable_video_analysis=bool(
+                data.get("enable_video_analysis")
+                or (values.get("runtime_config") or {}).get("enable_video_analysis")
+            ),
             last_turn_evaluation=_extract_last_turn_evaluation(
                 values.get("qa_history")
             ),
@@ -1236,7 +1277,12 @@ class SessionManager:
     def _mark_retry_running(self, session_id: str) -> None:
         self._session_persistence().mark_retry_running(session_id)
 
-    def retry_failed_question(self, session_id: str) -> SessionHandle | None:
+    def retry_failed_question(
+        self,
+        session_id: str,
+        *,
+        llm_config: dict[str, Any] | None = None,
+    ) -> SessionHandle | None:
         """Retry a failed graph segment from the latest checkpoint.
 
         The frontend uses this when the generator times out before a question
@@ -1262,6 +1308,7 @@ class SessionManager:
                 job_title=data.get("job_title"),
                 job_level=data.get("job_level"),
                 mode=data.get("mode"),
+                enable_video_analysis=bool(data.get("enable_video_analysis")),
                 turn_idx=int(data.get("turn_idx") or 0),
                 asked_turn=int(
                     data.get("asked_turn")
@@ -1282,11 +1329,16 @@ class SessionManager:
         previous_error = handle.error
         previous_error_kind = handle.error_kind
         previous_cancelled = handle.cancelled
+        previous_llm_config = handle.llm_config
+        previous_llm_config_meta = handle.llm_config_meta
         previous_current_question = handle.current_question
         previous_final_state = handle.final_state
         previous_question_event_set = handle.question_event.is_set()
         previous_done_event_set = handle.done_event.is_set()
         previous_cancel_event_set = handle._cancel_event.is_set()
+        if llm_config is not None:
+            handle.llm_config = llm_config
+            handle.llm_config_meta = _safe_llm_config_meta(llm_config)
         handle.touch()
         handle.error = None
         handle.error_kind = None
@@ -1300,6 +1352,8 @@ class SessionManager:
             handle.error = previous_error
             handle.error_kind = previous_error_kind
             handle.cancelled = previous_cancelled
+            handle.llm_config = previous_llm_config
+            handle.llm_config_meta = previous_llm_config_meta
             handle.current_question = previous_current_question
             handle.final_state = previous_final_state
             if previous_question_event_set:
@@ -1392,6 +1446,9 @@ class SessionManager:
                 job_title=row.job_title,
                 job_level=row.job_level,
                 mode=row.mode,
+                enable_video_analysis=bool(
+                    getattr(row, "enable_video_analysis", False)
+                ),
             )
             if row.current_question:
                 handle.question_event.set()

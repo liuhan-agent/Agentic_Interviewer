@@ -10,10 +10,9 @@ that downstream consumers have to reinterpret.
 """
 from __future__ import annotations
 
-from typing import Literal
+from typing import Any, Literal
 
-from pydantic import BaseModel, ConfigDict, Field
-
+from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
 VideoSignalsEmotion = Literal["neutral", "positive", "nervous", "confused"]
 
@@ -34,3 +33,18 @@ class VideoSignalsInput(BaseModel):
     engagement: float = Field(ge=0, le=1)
     dominant_emotion: VideoSignalsEmotion
     sample_count: int = Field(ge=1, le=1000)
+
+
+def normalize_video_signals(value: Any) -> dict[str, Any] | None:
+    """Return a strict video signal dict, or ``None`` for unusable input.
+
+    Video analysis is a weak side channel: invalid camera metrics must
+    not reject an otherwise valid interview answer.
+    """
+
+    if value is None:
+        return None
+    try:
+        return VideoSignalsInput.model_validate(value).model_dump(exclude_none=False)
+    except ValidationError:
+        return None

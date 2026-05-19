@@ -11,6 +11,18 @@ from app.core.settings import get_settings
 from app.core.tracer import get_tracer
 from app.engine.agents.evaluator_agent import evaluate_answer
 from app.engine.workflow.eval_helpers import is_evaluator_fallback
+from app.engine.workflow.evaluation_consistency import (
+    normalize_evaluation_consistency,
+    sync_dimension_status,
+)
+from app.engine.workflow.followup_reason import attach_replay_followup_reason
+from app.engine.workflow.replay_basis import sanitize_replay_question_basis
+from app.engine.workflow.score_aggregation import (
+    build_score_breakdowns_from_qa,
+    finite_score,
+    legacy_score_breakdown,
+    update_score_breakdown,
+)
 from app.engine.workflow.state import InterviewState, QATurn
 from app.ml.drift.prompt_feedback import build_evaluator_drift_negatives
 from app.ml.rl.reward_fn import immediate_reward
@@ -21,16 +33,42 @@ from .wait_answer import get_raw_answer_for_state
 log = get_logger(__name__)
 
 
-def _merge_score(existing: float, new_score: float) -> float:
-    """Running average so repeated attempts at the same dim converge.
+def _failure_categories_for_drift_feedback(
+    state: InterviewState,
+    question: dict[str, Any],
+) -> list[str]:
+    artifacts = question.get("selection_artifacts") or {}
+    raw = None
+    if isinstance(artifacts, dict):
+        raw = artifacts.get("failure_categories")
+    if not raw:
+        raw = (state.get("evaluation") or {}).get("failure_categories")
+    if not isinstance(raw, list):
+        return []
+    return [str(value) for value in raw if isinstance(value, str) and value.strip()]
 
-    For the first sample we simply take ``new_score``; subsequently we
-    take a 70/30 blend favouring history, which prevents a single bad
-    refine round from sinking a dimension that was otherwise strong.
-    """
-    if existing <= 0.0:
-        return new_score
-    return round(0.7 * existing + 0.3 * new_score, 3)
+
+def _has_scored_evaluator_turn(
+    qa_history: list[dict[str, Any]],
+    dimension: str,
+) -> bool:
+    for qa in qa_history:
+        if qa.get("dimension") != dimension:
+            continue
+        evaluation = qa.get("evaluation") or {}
+        if evaluation.get("skipped") or qa.get("answer_intent") == "skipped":
+            continue
+        if is_evaluator_fallback(evaluation):
+            continue
+        raw_score = evaluation.get("score")
+        if raw_score is None or isinstance(raw_score, bool):
+            continue
+        try:
+            float(raw_score)
+        except (TypeError, ValueError):
+            continue
+        return True
+    return False
 
 
 def evaluator_node(state: InterviewState) -> dict[str, Any]:
@@ -63,25 +101,42 @@ def evaluator_node(state: InterviewState) -> dict[str, Any]:
                 dimension=dimension,
                 top_n=settings.drift_feedback_top_n,
                 min_support=settings.drift_feedback_min_support,
+                failure_categories=_failure_categories_for_drift_feedback(
+                    state,
+                    question,
+                ),
             )
         except Exception as e:  # pragma: no cover - feedback is non-critical
             log.debug("drift feedback render failed: %s", e)
 
+    quality_threshold = state.get("quality_threshold", 7.5)
     evaluation = evaluate_answer(
         dimension=dimension,
         question=question.get("question", ""),
         rubric_points=question.get("rubric_points", []),
         answer=raw_answer,
-        quality_threshold=state.get("quality_threshold", 7.5),
+        quality_threshold=quality_threshold,
         contract=contract,
         drift_negatives=drift_negatives,
         video_signals=state.get("video_signals"),
         context_flags=state.get("context_flags") or {},
     )
+    evaluation = normalize_evaluation_consistency(
+        evaluation,
+        contract=contract,
+        quality_threshold=float(quality_threshold),
+    )
+    evaluation = attach_replay_followup_reason(evaluation)
     fallback_turn = is_evaluator_fallback(evaluation)
     if fallback_turn:
         record_question_fallback("evaluator_fallback")
     scores = dict(state.get("scores_per_dim", {}))
+    score_breakdowns = dict(state.get("score_breakdowns") or {})
+    score_breakdowns_changed = False
+    if dimension not in score_breakdowns:
+        score_breakdowns.update(
+            build_score_breakdowns_from_qa(list(state.get("qa_history") or []))
+        )
     if not fallback_turn:
         # Fallback evaluations come from the conservative path when the
         # LLM was unavailable — folding their score into the running
@@ -89,21 +144,28 @@ def evaluator_node(state: InterviewState) -> dict[str, Any]:
         # candidate's reported score down (audit finding F3). Keep the
         # dim score unchanged on fallback turns; the bandit is also
         # already protected by ``reward_update`` skipping fallbacks.
-        scores[dimension] = _merge_score(
-            scores.get(dimension, 0.0),
-            float(evaluation.get("score", 0.0)),
+        existing_score = finite_score(scores.get(dimension))
+        has_prior_turn = _has_scored_evaluator_turn(
+            state.get("qa_history", []),
+            dimension,
         )
+        if existing_score == 0.0 and not has_prior_turn:
+            existing_score = None
+        existing_breakdown = score_breakdowns.get(dimension)
+        if existing_breakdown is None and existing_score is not None:
+            existing_breakdown = legacy_score_breakdown(existing_score)
+        new_score = finite_score(evaluation.get("score"))
+        if new_score is not None:
+            next_breakdown = update_score_breakdown(existing_breakdown, new_score)
+            score_breakdowns[dimension] = next_breakdown
+            scores[dimension] = next_breakdown["adopted_score"]
+            score_breakdowns_changed = True
 
-    status = dict(state.get("dimension_status", {}))
-    if fallback_turn:
-        # Same rationale: a fallback turn does not produce reliable
-        # signal, so it should neither promote a dim to ``passed`` nor
-        # demote a previously-passed dim back to ``active``.
-        pass
-    elif evaluation.get("passed"):
-        status[dimension] = "passed"
-    elif status.get(dimension) != "passed":
-        status[dimension] = "active"
+    status = sync_dimension_status(
+        dict(state.get("dimension_status", {})),
+        dimension,
+        evaluation,
+    )
 
     turn_idx = state.get("turn_idx", 0)
     formal_turn_idx = state.get("formal_turn_idx", turn_idx)
@@ -128,6 +190,12 @@ def evaluator_node(state: InterviewState) -> dict[str, Any]:
         # classifier.
         "answer_intent": state.get("current_answer_intent") or "normal",
     }
+    question_basis = sanitize_replay_question_basis(question.get("question_basis"))
+    if question_basis is not None:
+        qa_turn["question_basis"] = question_basis
+    video_signals = state.get("video_signals")
+    if isinstance(video_signals, dict) and video_signals:
+        qa_turn["video_signals"] = video_signals
 
     turn_budget = max(0, state.get("turn_budget_remaining", 0) - 1)
 
@@ -165,6 +233,8 @@ def evaluator_node(state: InterviewState) -> dict[str, Any]:
         "formal_turn_idx": formal_turn_idx + 1,
         "turn_budget_remaining": turn_budget,
     }
+    if score_breakdowns_changed:
+        updated_state["score_breakdowns"] = score_breakdowns
 
     # Tracer is side-channel: write trace from a consolidated view of the
     # state so downstream joins don't have to guess which turn we mean.
