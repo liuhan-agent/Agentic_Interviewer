@@ -107,7 +107,12 @@ class Settings(BaseSettings):
     # Resume upload is an interactive setup step. If BYOK resume_parser
     # refinement is slow, return the heuristic parse instead of making
     # the browser wait until its upload request times out.
-    resume_parser_llm_timeout_seconds: float = 60.0
+    resume_parser_llm_timeout_seconds: float = 120.0
+    # Async resume parse jobs run in the background, so they can give
+    # slower high-quality models more room without blocking the upload
+    # request.
+    resume_parse_job_llm_timeout_seconds: float = 300.0
+    resume_parse_job_ttl_seconds: int = 3600
     # Resume parsing can involve a relatively slow LLM refinement. Cache
     # structured results briefly by extracted text + effective model config.
     # Redis is the production default; tests and local fallback can use memory.
@@ -115,6 +120,27 @@ class Settings(BaseSettings):
     resume_parse_cache_backend: Literal["redis", "memory", "off"] = "redis"
     resume_parse_cache_ttl_seconds: int = 86400
     resume_parse_cache_redis_prefix: str = "agentic_interviewer:resume_parse"
+    resume_rag_mode: Literal["off", "shadow", "primary"] = "shadow"
+    session_anchor_top_k_resume: int = 2
+    session_anchor_top_k_self_intro: int = 1
+    resume_rag_distance_threshold: float = 0.45
+    resume_rag_timeout_ms: int = 300
+    resume_rag_block_max_chars: int = 800
+    resume_rag_min_text_chars: int = 500
+    session_anchor_self_intro_min_chars: int = 200
+    session_anchor_self_intro_max_cards: int = 8
+    session_anchor_self_intro_card_max_chars: int = 500
+    resume_rag_session_sample_rate: float = 1.0
+    resume_rag_session_ttl_hours: int = 24
+    resume_rag_parse_artifact_ttl_seconds: int = 3600
+    resume_rag_embedding_endpoint: str = "https://api.openai.com/v1"
+    resume_rag_embedding_model: str = "text-embedding-3-small"
+    resume_rag_embedding_dimension: int = 1536
+    resume_rag_embedding_api_key: str = ""
+    resume_rag_embedding_concurrency: int = 4
+    resume_rag_embedding_max_retries: int = 3
+    resume_rag_embedding_retry_backoff_seconds: float = 1.0
+    resume_rag_used_project_penalty: float = 0.05
 
     # ------------------------------------------------------------------
     # Per-agent model override. ``call_chat(..., agent_role="evaluator")``
@@ -148,11 +174,14 @@ class Settings(BaseSettings):
     embedding_model: str = "text-embedding-3-small"
     allow_stub_embeddings_in_prod: bool = False
 
-    asr_provider: Literal["openai", "deepgram", "stub"] = "openai"
-    asr_model: str = "whisper-1"
-    tts_provider: Literal["openai", "stub"] = "openai"
-    tts_model: str = "gpt-4o-mini-tts"
-    tts_voice: str = "alloy"
+    asr_provider: Literal["qwen", "dashscope", "openai", "deepgram", "stub"] = "qwen"
+    asr_model: str = "qwen3-asr-flash-realtime"
+    tts_provider: Literal["qwen", "dashscope", "openai", "stub"] = "qwen"
+    tts_model: str = "qwen3-tts-flash-realtime"
+    tts_voice: str = "Cherry"
+    qwen_api_key: str | None = None
+    dashscope_api_key: str | None = None
+    qwen_realtime_base_url: str = "wss://dashscope.aliyuncs.com/api-ws/v1/realtime"
 
     # "postgres" enables durable HITL: interviews survive process restarts
     # via PostgresSaver checkpoints + DB-persisted session state.
@@ -353,6 +382,8 @@ class Settings(BaseSettings):
     # ------------------------------------------------------------------
     session_idle_ttl_minutes: int = 60
     session_reaper_interval_seconds: int = 120
+    session_token_ttl_hours: int = 24
+    recovery_token_ttl_days: int = 7
     # Grace window between yielding an interrupt and clearing the
     # ``_running`` flag.  Too low and clients see spurious "prior
     # segment still running" warnings on cold LLM calls.
@@ -360,17 +391,24 @@ class Settings(BaseSettings):
 
     # Lightweight per-process rate limits for high-cost setup and BYOK
     # validation endpoints. Values are per client IP per window.
+    rate_limit_backend: Literal["memory", "redis"] = "memory"
+    rate_limit_redis_prefix: str = "agentic_interviewer:rate_limit"
     rate_limit_window_seconds: int = 60
     resume_parse_rate_limit_per_minute: int = 20
     jd_parse_rate_limit_per_minute: int = 30
     llm_test_rate_limit_per_minute: int = 120
 
-    # Privacy lifecycle defaults. Cleanup is manual/script-driven unless
-    # operators wire it into their scheduler.
+    # Privacy lifecycle defaults. When ``enable_privacy_cleanup`` is True
+    # an in-process APScheduler job runs ``cleanup_expired_data`` every
+    # ``privacy_cleanup_interval_hours`` hours on startup.
+    enable_privacy_cleanup: bool = False
+    privacy_cleanup_interval_hours: int = 24
     session_retention_days: int = 30
     trace_retention_days: int = 30
     outcome_retention_days: int = 180
     privacy_cleanup_batch_size: int = 500
+    voice_ticket_backend: Literal["memory", "redis"] = "memory"
+    voice_ticket_redis_prefix: str = "agentic_interviewer:voice_ticket"
     voice_ticket_ttl_seconds: int = 30
 
     # ------------------------------------------------------------------
@@ -450,6 +488,39 @@ class Settings(BaseSettings):
     verifier_drift_redis_prefix: str = "agentic_interviewer:verifier_drift"
 
     # ------------------------------------------------------------------
+    # Verifier drift persistence (see docs/PLAN_DRIFT_PERSISTENCE.md).
+    # When ON, ``verification_node`` dual-writes every ``DriftEvent``
+    # into ``verifier_drift_events`` so cross-restart aggregation and
+    # ``(dimension, check, failure_category)`` rollups remain possible.
+    # The persistence path is best-effort: a DB failure is logged and
+    # swallowed; monitor.record() runs first so the rolling window stays
+    # populated even when the DB hand-off fails.
+    #
+    # PR7 rollout defaults
+    # --------------------
+    # ``enable_verifier_drift_persistence=True`` so an out-of-the-box
+    # deployment starts capturing events the moment
+    # ``enable_verifier_drift_monitor`` is also flipped on. The persist
+    # path remains best-effort: any DB outage is logged and swallowed
+    # so the live interview is never blocked on observability.
+    #
+    # ``drift_feedback_source="db_shadow"`` so the prompt callers
+    # (``build_evaluator_drift_negatives`` / ``build_generator_avoid_patterns``)
+    # still return the monitor-rendered markdown byte-for-byte, while
+    # also reading the DB-backed read model and logging a structured
+    # parity diff. Operators flip to ``"db"`` only after the diff log
+    # has been quiet for the desired observation window. The legacy
+    # ``"monitor"`` source is preserved as the emergency rollback knob.
+    # ------------------------------------------------------------------
+    enable_verifier_drift_persistence: bool = True
+    verifier_drift_event_retention_days: int = 90
+    drift_pattern_aggregation_window_days: int = 30
+    drift_feedback_source: Literal["monitor", "db_shadow", "db"] = "db_shadow"
+    enable_drift_maintenance_scheduler: bool = False
+    drift_pattern_aggregation_interval_minutes: int = 30
+    drift_event_retention_interval_hours: int = 24
+
+    # ------------------------------------------------------------------
     # Adaptive verifier trigger (feedback loop from drift monitor).
     # Opt-in; OFF by default so the legacy ``should_trigger`` rule set
     # is the sole gate. When ON AND ``enable_verifier_drift_monitor``
@@ -479,19 +550,69 @@ class Settings(BaseSettings):
     verifier_adaptive_min_samples: int = 30
 
     # ------------------------------------------------------------------
+    # Strategy memory backend. Production uses Postgres-backed strategy
+    # memories; ``file`` is kept as a dev/test fallback for the legacy
+    # ``knowledge/strategy/*.md`` seed files.
+    # ------------------------------------------------------------------
+    strategy_memory_backend: Literal["db", "file"] = "db"
+    strategy_memory_ranking_mode: Literal[
+        "metadata",
+        "reward_shadow",
+        "reward",
+    ] = "reward_shadow"
+
+    # Structured question-bank rollout mode.
+    # - vector: current vector/hybrid RAG question generation only.
+    # - structured_shadow: select YAML question seeds and record artifacts/usages
+    #   without changing the Generator prompt.
+    # - structured_primary: inject rank-1 seed when available and keep vector RAG
+    #   as a shadow/fallback artifact.
+    question_selector_mode: Literal[
+        "vector",
+        "structured_shadow",
+        "structured_primary",
+    ] = "structured_primary"
+    enable_question_fit_profile: bool = True
+    enable_question_reranker_shadow: bool = False
+    question_reranker_timeout_ms: int = 4000
+    question_primary_role_tags: list[str] = Field(
+        default_factory=lambda: [
+            "java_backend",
+            "frontend_web",
+            "sre",
+            "ai_fullstack",
+            "ai_agent",
+            "mobile",
+            "ai_algorithm",
+            "architect",
+            "product_manager",
+            "operations",
+            "sales_business",
+            "marketing_brand",
+            "hr_function",
+            "customer_success",
+            "general_management",
+        ],
+    )
+
+    # ------------------------------------------------------------------
     # Skill injection (see docs/PLAN_SKILL_INJECTION.md).  When ON,
     # ``ask_question_node`` reads ``app.memory.skill_store`` for cards
     # matching the current ``(dimension, job_level)`` and splices them
     # into the Generator's ``skills`` prompt slot.  Sibling feature to
     # the existing strategy injection (``strategy_store``): strategies
     # are reward-driven memory maintained by ``strategy_dream``, skills
-    # are hand-authored business know-how curated by humans.  Default
-    # OFF because shipping without any authored skill cards would
-    # inject the ``"(no relevant interview skills)"`` placeholder on
-    # every turn for no benefit.
+    # are hand-authored business know-how curated by humans. Skills are
+    # now structured playbook cards and selected by rules, so keep the
+    # slot on by default.
     # ------------------------------------------------------------------
-    enable_skill_injection: bool = False
+    enable_skill_injection: bool = True
     skill_retrieval_limit: int = 3
+    skill_playbook_backend: Literal[
+        "file",
+        "db",
+        "db_with_file_fallback",
+    ] = "db_with_file_fallback"
 
     # ------------------------------------------------------------------
     # LLM memory selector (see docs/PLAN_LLM_MEMORY_SELECTOR.md). When

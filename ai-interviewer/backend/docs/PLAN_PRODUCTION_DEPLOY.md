@@ -2,6 +2,23 @@
 
 > **当前阶段**：dev / test 仍允许低门槛启动；当 `APP_ENV=prod` 时，`app/core/deployment_preflight.py` 会在启动期强制拦截高风险配置。本清单仍作为上线前人工核对入口。
 
+## 自动预检命令
+
+上线前先运行生产 smoke CLI，确保启动期 preflight 与依赖连通性检查在当前环境中可执行：
+
+```powershell
+cd D:\Agent\Agentic_Interviewer\ai-interviewer\backend
+interviewer-prod-smoke --check-deps
+```
+
+如果没有安装脚本入口，也可以直接使用模块方式：
+
+```powershell
+python -m app.scripts.production_smoke --check-deps
+```
+
+CLI 输出只包含脱敏配置摘要和 Postgres / Redis / Chroma 探测状态，不会打印 API token、数据库密码或 Redis 密码。`APP_ENV=prod` 时 preflight 失败或依赖探测失败会返回非零退出码；dev / test 下依赖探测失败只作为预览环境告警。
+
 ## 适用范围
 
 仅当 `APP_ENV=prod` 真正部署上线时手工核对下面项目。staging 可以参考 1 / 2 / 4 / 6，按需启用。
@@ -24,19 +41,40 @@
 - **建议**：prod env 显式 `ALLOW_OPEN_ADMIN=false`，不依赖默认值
 - **#1 / #2 必须同时正确**：单独配 `API_TOKEN` 但漏关 `ALLOW_OPEN_ADMIN` 等于零防御
 
-### 3. 多 worker / 多副本下的限流策略
+### 3. 多 worker / 多副本下的共享状态策略
 
-`app/core/rate_limit.py` 是进程内限流，N 个 uvicorn worker 或 N 个 pod 会把限额放大 N 倍。三选一：
+以下 backend 在 `APP_ENV=prod` 下不能继续使用 `memory`：
 
-| 方案 | 改动 | 优劣 |
-|------|------|------|
-| A · 静态降配 | 把 `RESUME_PARSE_RATE_LIMIT_PER_MINUTE` / `JD_PARSE_RATE_LIMIT_PER_MINUTE` / `LLM_TEST_RATE_LIMIT_PER_MINUTE` 都除以 worker 数 | 最简单；但每次扩缩容都要重算 |
-| B · 上游限流 | nginx `limit_req` 或 ALB rate-based rule | 最贴生产实践；增加运维 L7 配置 |
-| C · Redis 共享 | 把 `rate_limit.py` 换成 Redis-backed sliding window，保持 `check_rate_limit` / `RateLimitExceededError` 接口不变 | 弹性最好；增加 Redis 依赖与代码改动 |
+| 配置 | prod 要求 | 原因 |
+|------|-----------|------|
+| `RATE_LIMIT_BACKEND` | `redis`，或在应用外配置等价上游限流后才可例外 | `/resume/parse`、`/jd/parse`、`/llm/test` 是高成本端点，memory backend 会被 worker 数放大限额 |
+| `VOICE_TICKET_BACKEND` | `redis` | 语音 WebSocket 一次性 ticket 必须能跨 worker 消费且只消费一次 |
+| `VERIFIER_DRIFT_BACKEND` | 建议 `redis`；当前 `memory` 只告警不阻断 | drift 观测窗口按进程分裂会影响 admin 诊断可信度，但不阻塞主链面试 |
 
-**不做任一项的后果**：`/api/v1/resume/parse` 与 `/api/v1/jd/parse` 是 LLM 计费端点，限流被绕过会直接放大账单。
+默认 dev/test 仍可使用 `memory`，避免本地启动强依赖 Redis。生产部署建议显式配置：
 
-### 4. CORS 收紧
+```env
+RATE_LIMIT_BACKEND=redis
+VOICE_TICKET_BACKEND=redis
+VERIFIER_DRIFT_BACKEND=redis
+```
+
+### 4. 隐私删除与留存策略
+
+默认策略沿用 `Settings`，不在代码里区分 preview / prod：
+
+| 配置 | 默认值 | 说明 |
+|------|--------|------|
+| `ENABLE_PRIVACY_CLEANUP` | `false` | 默认不自动硬删除，避免 dev/test 或预览环境误删 |
+| `PRIVACY_CLEANUP_INTERVAL_MINUTES` | `60` | 开启后每小时执行一次过期清理 |
+| `SESSION_RETENTION_DAYS` | `30` | 面试 session 保留 30 天 |
+| `TRACE_RETENTION_DAYS` | `30` | generation trace 保留 30 天 |
+| `OUTCOME_RETENTION_DAYS` | `180` | outcome/反馈信号保留 180 天 |
+| `PRIVACY_CLEANUP_BATCH_SIZE` | `500` | 单轮最多处理 500 条 |
+
+决策：**默认留存天数继续由 settings 提供；preview / staging 如需更短留存，必须在 `.env` 或部署平台环境变量中显式覆盖**，不要在代码里为环境写隐式分支。启用自动清理前，先用 `python -m app.scripts.privacy_cleanup --dry-run` 观察待删数量。
+
+### 5. CORS 收紧
 
 - **配置项**：`CORS_ORIGINS`
 - **dev 默认**：`localhost` 系列
@@ -44,14 +82,14 @@
 - **校验代码**：`app/main.py` `CORSMiddleware` 段
 - **遗漏后果**：浏览器侧任意源都能调你的 LLM 计费端点
 
-### 5. LangSmith 路由
+### 6. LangSmith 路由
 
 仅当 `LANGSMITH_TRACING=true` 时关注：
 
 - **关注项**：`LANGSMITH_PROJECT` 必须与 dev / staging 区分（建议 suffix `-prod` / `-staging` / `-dev`）
 - **遗漏后果**：prod 流量与 dev 调试 trace 串台，dashboard 数据被污染、计费方混淆
 
-### 6. 生产 fallback 禁止静默退化
+### 7. 生产 fallback 禁止静默退化
 
 以下配置由启动 preflight 自动校验：
 
@@ -62,17 +100,19 @@
 | `EMBEDDING_PROVIDER` | 默认禁止 `stub` | 避免 RAG/检索能力静默退化 |
 | `ALLOW_STUB_EMBEDDINGS_IN_PROD` | 仅临时降级时显式设 `true` | 让降级成为可审计选择 |
 | `RESUME_PARSE_CACHE_BACKEND` | 禁止 `memory` | 多 worker 下 memory cache 行为不一致 |
+| `RATE_LIMIT_BACKEND` | 禁止 `memory` | 多 worker 下高成本端点限额会被放大 |
+| `VOICE_TICKET_BACKEND` | 禁止 `memory` | 语音 ticket 不能跨 worker 一次性消费 |
 | `API_TOKEN` | 必须非空，除非显式 `ALLOW_OPEN_ADMIN=true` | 保护 admin 接口 |
 
 `ENABLE_VERIFIER_DRIFT_MONITOR=true` 且 `VERIFIER_DRIFT_BACKEND=memory` 只告警不阻断；多 worker 部署建议改为 Redis，否则 drift 窗口按进程分裂。
 
-## 6. 已知延后加固触发器（Pending Hardening Triggers）
+## 8. 已知延后加固触发器（Pending Hardening Triggers）
 
 以下三项在 [PLAN_DEPLOYMENT_HARDENING_AUDIT.md](./PLAN_DEPLOYMENT_HARDENING_AUDIT.md) 中**显式延后**，每次部署变更时按表格列的「触发条件」核对一次；任何一项触发立即把对应「最小落地动作」加入本次发布范围，禁止"再延后一次"。
 
 | ID | 项 | 触发条件 | 最小落地动作 |
 |----|----|---------|-------------|
-| F1 | Voice-ticket Redis-backed store | 部署 ≥ 2 backend worker 且无 sticky session（cookie / IP-hash） | 抽 `VoiceTicketStore` 接口；新增 `RedisVoiceTicketStore`，配 `VOICE_TICKET_BACKEND=redis` |
+| F1 | Voice-ticket Redis-backed store | 部署 ≥ 2 backend worker 且无 sticky session（cookie / IP-hash） | 已落地 `VoiceTicketStore` 接口与 `RedisVoiceTicketStore`；生产配置 `VOICE_TICKET_BACKEND=redis` |
 | F2 | `/resume/parse` per-provider rate limit | 切换到「服务端共享 LLM key」模式（任意一个 `LLM_API_KEY_*` settings 非空且非 BYOK） | 在 `_enforce_setup_rate_limit` 加 `provider:host` 二级桶；与 `effective_llm_fingerprint` 拼 key |
 | F3 | Cache 多租户 salt | 引入 org / tenant / workspace 概念，或合规要求消除"已处理简历"侧信道 | 在 `resume_parse_cache_key` 的 `material` 字典加 `org_id`；Redis prefix 按 org 拆分以支持单租户驱逐 |
 

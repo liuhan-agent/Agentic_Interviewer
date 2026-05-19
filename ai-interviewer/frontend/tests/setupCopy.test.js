@@ -59,6 +59,14 @@ const apiTypesPath = path.join(
   "api",
   "types.ts",
 );
+const interviewConstantsPath = path.join(
+  __dirname,
+  "..",
+  "src",
+  "lib",
+  "constants",
+  "interview.ts",
+);
 
 function readSetupForm() {
   return fs.readFileSync(setupFormPath, "utf8");
@@ -86,6 +94,10 @@ function readInterviewApi() {
 
 function readApiTypes() {
   return fs.readFileSync(apiTypesPath, "utf8");
+}
+
+function readInterviewConstants() {
+  return fs.readFileSync(interviewConstantsPath, "utf8");
 }
 
 test("setup uses interview depth copy instead of strict duration copy", () => {
@@ -129,14 +141,18 @@ test("setup stores a local interview history entry after session creation", () =
 
 test("setup accepts weak-focus query prefill", () => {
   const source = readSetupForm();
+  const types = readApiTypes();
 
   assert.match(source, /useSearchParams/);
   assert.match(source, /focus/);
   assert.match(source, /length/);
   assert.match(source, /job_title/);
   assert.match(source, /applyPracticeFocusQuery/);
+  assert.match(source, /practiceFocusDims/);
   assert.match(source, /setSelectedDims\(resolvedFocus\.slice\(0,\s*5\)\)/);
+  assert.match(source, /focus_dimensions:\s*practiceFocusDims\.map\(\(d\)\s*=>\s*d\.id\)/);
   assert.match(source, /setValue\("length",\s*queryLength/);
+  assert.match(types, /focus_dimensions\?: string\[\]/);
 });
 
 test("interview room creates a fallback local history entry on deep links", () => {
@@ -164,6 +180,13 @@ test("interview room offers retry when a backend segment failed", () => {
   assert.match(source, /retryable/);
 });
 
+test("retrying a failed question resends saved LLM config", () => {
+  const source = readInterviewApi();
+
+  assert.match(source, /const llmConfig = buildLLMPayload\(\)/);
+  assert.match(source, /llm_config: llmConfig/);
+});
+
 test("interview room does not redirect completed sessions without a report", () => {
   const source = readQuestionPoller();
 
@@ -175,11 +198,20 @@ test("interview room does not redirect completed sessions without a report", () 
 
 test("report page keeps dimension names user-facing", () => {
   const source = readReportView();
+  const constants = readInterviewConstants();
 
-  assert.match(source, /project_experience:\s*"项目经验"/);
-  assert.match(source, /coding_quality:\s*"代码质量"/);
-  assert.match(source, /product_thinking:\s*"产品思维"/);
-  assert.match(source, /customer_discovery:\s*"客户发现"/);
+  assert.match(source, /formatDimensionName/);
+  assert.match(constants, /project_experience:\s*"项目经验"/);
+  assert.match(constants, /coding_quality:\s*"代码质量"/);
+  assert.match(constants, /product_thinking:\s*"产品思维"/);
+  assert.match(constants, /customer_discovery:\s*"客户发现"/);
+});
+
+test("report page avoids recruitment-facing candidate copy", () => {
+  const source = readReportView();
+
+  assert.doesNotMatch(source, /候选人回答/);
+  assert.match(source, /你的回答/);
 });
 
 test("report page localizes evaluator fallback rationale", () => {
@@ -197,6 +229,7 @@ test("interview API exposes confirmed hard-delete session call", () => {
   const types = readApiTypes();
 
   assert.match(types, /export interface DeleteSessionResponse/);
+  assert.match(types, /sessions_deleted:\s*number/);
   assert.match(api, /export function deleteSession/);
   assert.match(api, /method:\s*"DELETE"/);
   assert.match(api, /confirm_session_id=\$\{encodeURIComponent\(sessionId\)\}/);
@@ -231,6 +264,15 @@ test("interview room exposes progress pause skip and draft persistence", () => {
   assert.match(source, /answerDraftKey/);
   assert.match(source, /sessionStorage/);
   assert.doesNotMatch(source, /将丢失/);
+});
+
+test("interview room keeps answer length aligned with backend validation", () => {
+  const source = readInterviewRoom();
+
+  assert.match(source, /const ANSWER_MAX_LENGTH = 8000;/);
+  assert.match(source, /maxLength=\{ANSWER_MAX_LENGTH\}/);
+  assert.match(source, /<VoiceAnswerPanel[\s\S]*maxLength=\{ANSWER_MAX_LENGTH\}/);
+  assert.doesNotMatch(source, /const ANSWER_MAX_LENGTH = 50000;/);
 });
 
 test("interview room exposes directional hint without submitting or clearing draft", () => {

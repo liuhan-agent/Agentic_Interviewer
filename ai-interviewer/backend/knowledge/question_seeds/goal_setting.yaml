@@ -1,0 +1,52 @@
+dimension: goal_setting
+seeds:
+  - id: goal_setting.management_goal_alignment
+    version: 1
+    title: Management goal setting and alignment
+    dimension: goal_setting
+    job_levels: [junior, mid, senior]
+    skill_tags: [general_management, goal_setting, team_management, prioritization]
+    direction_tags: [business]
+    role_tags: [general_management]
+    rubric:
+      must_cover: [business_goal, priority_tradeoff, team_alignment, measurement]
+      minimum_bar: Explain how to translate broad objectives into team goals, priorities, and measurable outcomes.
+      stretch: Handle resource constraints and conflicting stakeholder expectations with a clear alignment mechanism.
+    priority: 26
+    status: active
+    source: manual_yaml
+    scope: global
+    language: zh-CN
+    variants:
+      - id: goal_setting.management_goal_alignment.ambiguous_quarter_target
+        version: 1
+        intent: opening
+        difficulty: standard
+        scenario_brief: Leadership gives the team a broad quarterly target, but product, sales, and operations expect different outcomes.
+        question_stem: How would you clarify the goal, break it into team priorities, and align stakeholders on what success means?
+        prompt_template: Generate a general management question about goal setting, priority tradeoff, and stakeholder alignment.
+        scenario_skill_tags: [general_management, goal_setting, stakeholder_alignment, prioritization]
+        resume_anchor_hints: [goal_setting, okr, team_management, prioritization, stakeholder]
+        failure_categories: [vague_goal, weak_prioritization, poor_communication]
+        rubric_additions: [Clarify success metric, define priority order, align stakeholders]
+        expected_signals: [Translates goal into measurable outcomes, names tradeoffs, sets review cadence]
+        anti_patterns: [Copies leadership slogan, accepts all requests, lacks measurement]
+        good_answer_hints: [Clarify outcome, decide priority, communicate tradeoff and cadence]
+        priority: 18
+        status: active
+      - id: goal_setting.management_goal_alignment.resource_constraint
+        version: 1
+        intent: deep_probe
+        difficulty: deep_probe
+        scenario_brief: The team has fewer people than planned, but the business target has not changed.
+        question_stem: How would you reset goals and protect team focus without simply lowering the standard?
+        prompt_template: Generate a deep probe about management goal adjustment under resource constraints.
+        scenario_skill_tags: [general_management, goal_setting, resource_allocation, tradeoff]
+        resume_anchor_hints: [resource, team_management, okr, priority, delivery]
+        failure_categories: [missing_tradeoff, weak_stakeholder_alignment, vague_process]
+        rubric_additions: [Quantify resource gap, protect critical outcome, communicate scope tradeoff]
+        expected_signals: [Uses capacity evidence, proposes focused scope, escalates decision clearly]
+        anti_patterns: [Pushes team overtime by default, hides risk, cuts scope randomly]
+        good_answer_hints: [Show capacity math, identify must win outcome, renegotiate scope with evidence]
+        priority: 16
+        status: active

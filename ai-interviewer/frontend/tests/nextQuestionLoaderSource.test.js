@@ -12,8 +12,6 @@ function read(relPath) {
 test("NextQuestionLoader exposes ARIA progressbar role with aria-valuenow", () => {
   const source = read("src/components/interview/NextQuestionLoader.tsx");
 
-  // Screen readers must hear the progress percentage so blind users
-  // know the AI is still working and how far along it is.
   assert.match(source, /role="progressbar"/);
   assert.match(source, /aria-valuemin=\{0\}/);
   assert.match(source, /aria-valuemax=\{100\}/);
@@ -23,10 +21,6 @@ test("NextQuestionLoader exposes ARIA progressbar role with aria-valuenow", () =
 test("NextQuestionLoader caps progress at 95% to avoid the false-completion trap", () => {
   const source = read("src/components/interview/NextQuestionLoader.tsx");
 
-  // When the server runs longer than the prior segment, the bar must
-  // stay short of 100% — finishing the bar before the next question
-  // arrives looks broken. 0.95 is the agreed visual cap; either a
-  // literal or a clearly-named constant counts.
   assert.match(source, /0\.95/);
   assert.match(source, /Math\.min\(/);
 });
@@ -34,20 +28,79 @@ test("NextQuestionLoader caps progress at 95% to avoid the false-completion trap
 test("NextQuestionLoader cleans up its interval on unmount", () => {
   const source = read("src/components/interview/NextQuestionLoader.tsx");
 
-  // Without an explicit clearInterval, the timer keeps firing after the
-  // user navigates away (memory leak + repeated setState on a stale
-  // component). Source-scan asserts both the timer and the cleanup.
   assert.match(source, /setInterval\(/);
   assert.match(source, /clearInterval\(/);
 });
 
-test("NextQuestionLoader uses a 7000ms fallback when etaMs is missing", () => {
+test("NextQuestionLoader uses a 45000ms fallback when etaMs is missing", () => {
   const source = read("src/components/interview/NextQuestionLoader.tsx");
 
-  // The first turn has no prior latency on the handle; falling back to
-  // a sane default lets the bar still animate. 7s mirrors the legacy
-  // hard-coded "通常 5-10 秒" hint roughly.
-  assert.match(source, /7000/);
+  assert.match(source, /45000/);
+  assert.doesNotMatch(source, /const FALLBACK_ETA_MS = 7000/);
+});
+
+test("NextQuestionLoader shows staged waiting copy for slow question generation", () => {
+  const source = read("src/components/interview/NextQuestionLoader.tsx");
+
+  assert.match(source, /QUESTION_STAGE_HEADLINES/);
+  assert.match(source, /elapsedMs < 10_000/);
+  assert.match(source, /elapsedMs < 30_000/);
+  assert.match(source, /elapsedMs < 60_000/);
+});
+
+test("NextQuestionLoader shows stable answer insight without fragile keywords", () => {
+  const source = read("src/components/interview/NextQuestionLoader.tsx");
+
+  assert.match(source, /answerInsight\?: AnswerInsight \| null/);
+  assert.match(source, /answerInsight = null/);
+  assert.match(source, /dimensionId\?: string \| null/);
+  assert.match(source, /dimensionLabel\?: string \| null/);
+  assert.match(source, /isOpeningTurn\?: boolean/);
+  assert.doesNotMatch(source, /keywords: string\[\]/);
+  assert.doesNotMatch(source, /answerPreview/);
+});
+
+test("NextQuestionLoader uses opening-intro copy instead of question-dimension copy", () => {
+  const source = read("src/components/interview/NextQuestionLoader.tsx");
+
+  assert.match(source, /const isOpeningTurn = Boolean\(answerInsight\?\.isOpeningTurn\)/);
+  assert.match(source, /OPENING_STAGE_HEADLINES/);
+  assert.match(source, /tipScope = isFinalTurn[\s\S]*"self_intro"/);
+});
+
+test("NextQuestionLoader keeps answer insight visible while final summary is generated", () => {
+  const source = read("src/components/interview/NextQuestionLoader.tsx");
+
+  assert.match(source, /const showAnswerInsight = Boolean\(/);
+  assert.doesNotMatch(source, /!isFinalTurn\s*&&\s*Boolean/);
+});
+
+test("NextQuestionLoader renders backend waiting tips with a 10s local rotation", () => {
+  const source = read("src/components/interview/NextQuestionLoader.tsx");
+
+  assert.match(source, /import type \{ InterviewWaitingTip \}/);
+  assert.match(source, /waitingTips\?: InterviewWaitingTip\[\] \| null/);
+  assert.match(source, /tipRotationIntervalMs\?: number/);
+  assert.match(source, /const WAITING_TIP_ROTATION_MS = 10000/);
+  assert.match(source, /selectNextWaitingTip/);
+  assert.match(source, /displayedTipIds\?: ReadonlySet<string>/);
+  assert.match(source, /onWaitingTipShown\?: \(tipId: string\) => void/);
+  assert.match(source, /setInterval\(showNextTip, effectiveTipRotationMs\)/);
+  assert.match(source, /面试小贴士/);
+  assert.doesNotMatch(source, /处理状态/);
+});
+
+test("NextQuestionLoader selects tips by scope with default fallback and no pre-exhaustion repeats", () => {
+  const source = read("src/components/interview/NextQuestionLoader.tsx");
+
+  assert.match(source, /tips\.filter\(\(tip\) => tip\.scope === scope\)/);
+  assert.match(source, /tips\.filter\(\(tip\) => tip\.scope === "default"\)/);
+  assert.match(source, /FALLBACK_WAITING_TIPS/);
+  assert.match(source, /!displayedTipIds\?\.has\(tip\.id\)/);
+  assert.match(source, /unused\.length > 0 \? unused : candidates/);
+  assert.match(source, /currentTipId\?: string \| null/);
+  assert.match(source, /tip\.id !== currentTipId/);
+  assert.match(source, /available\.find\(\(tip\) => tip\.id !== currentTipId\)/);
 });
 
 test("InterviewRoom delegates loading state to NextQuestionLoader with etaMs", () => {
@@ -55,7 +108,17 @@ test("InterviewRoom delegates loading state to NextQuestionLoader with etaMs", (
 
   assert.match(
     source,
-    /import \{ NextQuestionLoader \} from "@\/components\/interview\/NextQuestionLoader"/,
+    /NextQuestionLoader[\s\S]*from "@\/components\/interview\/NextQuestionLoader"/,
   );
   assert.match(source, /<NextQuestionLoader\s+etaMs=\{state\.lastServerLatencyMs\}/);
+  assert.match(source, /answerInsight=\{latestSubmittedAnswerInsight\}/);
+  assert.match(source, /waitingTips=\{waitingTipsResponse\?\.tips \?\? null\}/);
+  assert.match(source, /tipRotationIntervalMs=\{waitingTipsResponse\?\.rotation_interval_ms\}/);
+});
+
+test("NextQuestionLoader has final-turn copy that does not promise another question", () => {
+  const source = read("src/components/interview/NextQuestionLoader.tsx");
+
+  assert.match(source, /FINAL_STAGE_HEADLINES/);
+  assert.match(source, /isFinalTurn/);
 });

@@ -41,6 +41,60 @@ test("resume upload ignores stale parse responses", () => {
   assert.match(source, /requestId !== uploadRequestRef\.current/);
 });
 
+test("resume parsing state lets users continue setup instead of waiting blindly", () => {
+  const source = fs.readFileSync(
+    path.join(__dirname, "..", "src", "components", "interview", "SetupForm.tsx"),
+    "utf8",
+  );
+
+  assert.match(source, /AI 解析中/);
+  assert.match(source, /可以离开当前页面/);
+  assert.match(source, /首页“接着练”或“我的面试”继续回来/);
+  assert.match(source, /取消解析/);
+  assert.match(source, /解析可能需要几分钟/);
+  assert.doesNotMatch(source, /可以先填写或编辑下面的信息/);
+});
+
+test("setup form restores async resume parse drafts by draft id", () => {
+  const source = fs.readFileSync(
+    path.join(__dirname, "..", "src", "components", "interview", "SetupForm.tsx"),
+    "utf8",
+  );
+
+  assert.match(source, /searchParams\.get\("draft_id"\)/);
+  assert.match(source, /getSetupDraft/);
+  assert.match(source, /getResumeParseJob/);
+  assert.match(source, /upsertSetupDraft/);
+  assert.match(source, /removeSetupDraft/);
+  assert.match(source, /resumeFieldsLocked/);
+});
+
+test("setup form restores resume snapshot for report practice links", () => {
+  const source = fs.readFileSync(
+    path.join(__dirname, "..", "src", "components", "interview", "SetupForm.tsx"),
+    "utf8",
+  );
+
+  assert.match(source, /getResumeSetupSnapshot/);
+  assert.match(source, /getSessionSetupSnapshot/);
+  assert.match(source, /searchParams\.get\("resume_from"\)/);
+  assert.match(source, /applyResumeSetupSnapshot/);
+  assert.match(
+    source,
+    /getResumeSetupSnapshot\(sourceSessionId\)[\s\S]*getSessionSetupSnapshot\(sourceSessionId\)/,
+  );
+  assert.match(source, /已沿用上一场简历解析结果/);
+});
+
+test("setup form does not show the legacy resume polish draft prompt", () => {
+  const source = fs.readFileSync(
+    path.join(__dirname, "..", "src", "components", "interview", "SetupForm.tsx"),
+    "utf8",
+  );
+
+  assert.doesNotMatch(source, /检测到你有未提交的简历精修草稿/);
+});
+
 test("setup form exposes actionable JD and upload error copy", () => {
   const source = fs.readFileSync(
     path.join(__dirname, "..", "src", "components", "interview", "SetupForm.tsx"),
@@ -49,7 +103,9 @@ test("setup form exposes actionable JD and upload error copy", () => {
 
   assert.match(source, /friendlySetupError/);
   assert.match(source, /仍可继续使用默认考察维度/);
-  assert.match(source, /移除文件状态/);
+  assert.match(source, /清除解析结果/);
+  assert.doesNotMatch(source, /移除文件/);
+  assert.doesNotMatch(source, /移除文件状态/);
   assert.doesNotMatch(source, />清除</);
 });
 
@@ -102,5 +158,16 @@ test("history export and copy explain session token privacy", () => {
   assert.match(source, /sessionTokenExpiresAt/);
   assert.match(source, /delete safeEntry\.sessionToken/);
   assert.match(source, /delete safeEntry\.sessionTokenExpiresAt/);
-  assert.match(source, /当前标签页会话/);
+  assert.match(source, /导出历史只包含面试记录/);
+  assert.match(source, /不会包含继续访问会话的临时凭证/);
+});
+
+test("setup form stores browser recovery credential from start response", () => {
+  const source = fs.readFileSync(
+    path.join(__dirname, "..", "src", "components", "interview", "SetupForm.tsx"),
+    "utf8",
+  );
+
+  assert.match(source, /recoveryToken: res\.recovery_token/);
+  assert.match(source, /recoveryTokenExpiresAt: res\.recovery_token_expires_at/);
 });

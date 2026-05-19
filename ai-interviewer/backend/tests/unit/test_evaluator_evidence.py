@@ -34,6 +34,17 @@ from app.engine.agents.evaluator_agent import (
 )
 from app.engine.agents.llm_client import LLMTransient
 
+
+def _assert_check_core(
+    check: dict[str, Any],
+    *,
+    verdict: str,
+    evidence: list[str],
+) -> None:
+    assert check["verdict"] == verdict
+    assert check["evidence"] == evidence
+    assert isinstance(check["evidence_spans"], list)
+
 # ---------------------------------------------------------------------------
 # _normalize_check_result — shape contract
 # ---------------------------------------------------------------------------
@@ -221,16 +232,17 @@ def test_evaluate_answer_preserves_new_shape_evidence(monkeypatch) -> None:
         },
     )
 
-    assert result["acceptance_check_results"] == {
-        "Names a CAP trade-off.": {
-            "verdict": "yes",
-            "evidence": ["we prefer AP for availability"],
-        },
-        "Explains a failure mode.": {
-            "verdict": "partial",
-            "evidence": ["mostly discusses partitions"],
-        },
-    }
+    acceptance = result["acceptance_check_results"]
+    _assert_check_core(
+        acceptance["Names a CAP trade-off."],
+        verdict="yes",
+        evidence=["we prefer AP for availability"],
+    )
+    _assert_check_core(
+        acceptance["Explains a failure mode."],
+        verdict="partial",
+        evidence=["mostly discusses partitions"],
+    )
     # Coverage grid is derived from the verdicts and reaches the
     # downstream consumers untouched.
     assert result["rubric_coverage"]["CAP"] == "covered"
@@ -271,10 +283,9 @@ def test_evaluate_answer_upgrades_legacy_string_shape(monkeypatch) -> None:
         },
     )
 
-    assert result["acceptance_check_results"] == {
-        "Names one technique.": {"verdict": "yes", "evidence": []},
-        "Mentions risks.": {"verdict": "partial", "evidence": []},
-    }
+    acceptance = result["acceptance_check_results"]
+    _assert_check_core(acceptance["Names one technique."], verdict="yes", evidence=[])
+    _assert_check_core(acceptance["Mentions risks."], verdict="partial", evidence=[])
 
 
 def test_evaluate_answer_mixed_shape_response(monkeypatch) -> None:
@@ -308,10 +319,10 @@ def test_evaluate_answer_mixed_shape_response(monkeypatch) -> None:
     )
 
     acceptance = result["acceptance_check_results"]
-    assert acceptance["CheckA"] == {"verdict": "yes", "evidence": []}
-    assert acceptance["CheckB"] == {"verdict": "partial", "evidence": ["quote B"]}
+    _assert_check_core(acceptance["CheckA"], verdict="yes", evidence=[])
+    _assert_check_core(acceptance["CheckB"], verdict="partial", evidence=["quote B"])
     # Invalid verdict collapses to "no"; non-list evidence drops.
-    assert acceptance["CheckC"] == {"verdict": "no", "evidence": []}
+    _assert_check_core(acceptance["CheckC"], verdict="no", evidence=[])
 
 
 def test_evaluate_answer_synthesises_canonical_fallback_when_llm_silent(
@@ -352,9 +363,10 @@ def test_evaluate_answer_synthesises_canonical_fallback_when_llm_silent(
     # so Verifier prompt rendering (``json.dumps``) doesn't KeyError.
     assert set(acceptance.keys()) == {"Names A.", "Names B."}
     for check in acceptance.values():
-        assert set(check.keys()) == {"verdict", "evidence"}
+        assert set(check.keys()) == {"verdict", "evidence", "evidence_spans"}
         assert check["verdict"] in {"yes", "partial", "no"}
         assert check["evidence"] == []
+        assert check["evidence_spans"] == []
 
 
 def test_evaluate_answer_falls_back_when_llm_call_fails(monkeypatch) -> None:

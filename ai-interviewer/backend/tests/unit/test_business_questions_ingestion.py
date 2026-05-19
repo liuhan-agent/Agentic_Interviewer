@@ -1,25 +1,24 @@
 from __future__ import annotations
 
-from collections import Counter
 from pathlib import Path
 
 from app.engine.rag.ingestion import _iter_documents
 
 
-def test_business_questions_are_ingested_from_knowledge_tree() -> None:
+def test_legacy_question_sources_are_not_ingested_from_knowledge_tree() -> None:
     knowledge_root = Path(__file__).resolve().parents[2] / "knowledge"
-    expected_sources = {
-        path.relative_to(knowledge_root).as_posix()
-        for path in (knowledge_root / "business_questions").glob("*.md")
-    }
+    sources = {meta["source"] for _, meta in _iter_documents(knowledge_root)}
 
-    assert len(expected_sources) == 7
-
-    chunks_by_source = Counter(
-        meta["source"]
-        for _, meta in _iter_documents(knowledge_root)
-        if meta["source_type"] == "business_questions"
-    )
-
-    assert set(chunks_by_source) == expected_sources
-    assert all(count >= 1 for count in chunks_by_source.values())
+    assert any((knowledge_root / "business_questions").glob("*.md"))
+    assert any((knowledge_root / "tech_questions").glob("*.md"))
+    assert any((knowledge_root / "behavioral_questions").glob("*.md"))
+    assert any((knowledge_root / "sample_resumes").glob("*.md"))
+    assert any((knowledge_root / "strategy").glob("*.md"))
+    assert any((knowledge_root / "skills").glob("*.md"))
+    assert not any(source.startswith("business_questions/") for source in sources)
+    assert not any(source.startswith("tech_questions/") for source in sources)
+    assert not any(source.startswith("behavioral_questions/") for source in sources)
+    assert not any(source.startswith("sample_resumes/") for source in sources)
+    assert not any(source.startswith("strategy/") for source in sources)
+    assert not any(source.startswith("skills/") for source in sources)
+    assert "interview_directions.json" not in sources

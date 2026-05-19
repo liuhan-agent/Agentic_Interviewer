@@ -45,6 +45,50 @@ from .llm_client import call_chat, classify_llm_error_kind, parse_json_response
 log = get_logger(__name__)
 
 
+_VALID_FAILURE_CATEGORIES: set[str] = set()
+
+
+def _failure_category_vocabulary() -> set[str]:
+    """Resolve the legal :data:`FailureCategory` enum lazily.
+
+    The ``state`` module imports a fair chunk of LangGraph machinery, so
+    we defer the import to first use to keep ``evaluator_agent`` cheap
+    to import for tooling. The result is cached because the enum is
+    fixed for the life of the process.
+    """
+    global _VALID_FAILURE_CATEGORIES
+    if not _VALID_FAILURE_CATEGORIES:
+        from app.engine.workflow.state import FailureCategory  # noqa: WPS433
+
+        _VALID_FAILURE_CATEGORIES = set(FailureCategory.__args__)  # type: ignore[attr-defined]
+    return _VALID_FAILURE_CATEGORIES
+
+
+def _normalize_failure_categories(raw: Any, *, max_items: int = 3) -> list[str]:
+    """Clean up the model's ``failure_categories`` field.
+
+    Drops unknown / blank values, collapses duplicates while preserving
+    order, and hard-caps the result at ``max_items`` so prompt budgets
+    downstream stay bounded. Non-list inputs degrade to ``[]`` rather
+    than raising — the evaluator is on a hot path and a malformed LLM
+    response must never break scoring.
+    """
+    if not isinstance(raw, list):
+        return []
+    vocab = _failure_category_vocabulary()
+    seen: set[str] = set()
+    out: list[str] = []
+    for item in raw:
+        value = str(item or "").strip()
+        if not value or value not in vocab or value in seen:
+            continue
+        out.append(value)
+        seen.add(value)
+        if len(out) >= max_items:
+            break
+    return out
+
+
 def _normalize_check_result(
     raw: Any,
     *,
@@ -271,6 +315,7 @@ def _fallback_evaluation(
         "acceptance_check_results": acceptance,
         "recommended_next": "refine",
         "recommended_next_plan": "simple",
+        "failure_categories": [],
         "rationale": (
             "评估模型在返回评分前失败。系统已保留本轮回答，但本轮不作为能力弱项。"
         ),
@@ -437,6 +482,7 @@ def evaluate_answer(
     failure_reason = data.get("failure_reason")
     if not isinstance(failure_reason, str) or not failure_reason.strip():
         failure_reason = None
+    failure_categories = _normalize_failure_categories(data.get("failure_categories"))
 
     result = {
         "score": score,
@@ -449,6 +495,7 @@ def evaluate_answer(
         "recommended_next_plan": rec_plan,
         "recommended_probe_intent": rec_probe_intent,
         "failure_reason": failure_reason,
+        "failure_categories": failure_categories,
         "rationale": data.get("rationale", ""),
     }
     log.debug(

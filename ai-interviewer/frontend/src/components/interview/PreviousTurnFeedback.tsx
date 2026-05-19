@@ -21,10 +21,9 @@ import type { PreviousTurnEvaluation } from "@/lib/api/types";
  *   ``passed`` into a three-tier qualitative signal so candidates aren't
  *   anchored on a quantitative number mid-loop. The score still rides the
  *   wire in case the report surfaces want it later.
- * - **Strengths and weaknesses are capped at 2 items each upstream**
- *   (``_extract_last_turn_evaluation`` in ``session_manager.py``); we
- *   render whatever arrives without further trimming so the projection
- *   layer is the single source of truth on length.
+ * - **Feedback arrays are transported intact.** Primary room surfaces
+ *   preview a compact subset and can expand locally; this component renders
+ *   whatever it receives from its caller.
  * - **Empty / first-turn / fallback evaluator → ``null``.** The hook
  *   already filters those out by setting ``previousEvaluation = null``,
  *   and this component returns ``null`` defensively as a second guard.

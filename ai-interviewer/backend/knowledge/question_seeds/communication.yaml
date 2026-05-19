@@ -1,0 +1,766 @@
+dimension: communication
+seeds:
+  - id: communication.frontend_design_backend_alignment
+    version: 1
+    title: 前端跨角色方案对齐
+    dimension: communication
+    job_levels: [junior, mid, senior, staff]
+    skill_tags: [frontend, communication, design, backend, alignment]
+    direction_tags: [internet_tech]
+    role_tags: [frontend_web]
+    rubric:
+      must_cover: [目标对齐, 约束说明, 分歧处理, 行动闭环]
+      minimum_bar: 能清楚表达前端方案并推动设计、产品、后端形成共识。
+      stretch: 能把体验、技术成本、接口风险和上线节奏讲成可执行决策。
+    priority: 22
+    status: active
+    source: manual_yaml
+    scope: global
+    language: zh-CN
+    variants:
+      - id: communication.frontend_design_backend_alignment.design_tradeoff
+        version: 1
+        intent: opening
+        difficulty: standard
+        scenario_brief: 设计稿交互复杂，前端判断实现成本和性能风险较高，需要和设计、产品重新对齐。
+        question_stem: 当前端实现成本和设计体验发生冲突时，你会如何沟通并推动方案收敛？
+        prompt_template: 结合候选人的前端协作经历，生成一道沟通表达题，要求说明如何表达约束、给出替代方案、对齐验收标准和后续动作。
+        scenario_skill_tags: [frontend, design, communication, tradeoff]
+        resume_anchor_hints: [frontend, design, product, collaboration, ui]
+        failure_categories: [missing_tradeoff, missing_action, vague_ownership]
+        rubric_additions: [说明不同角色关注点, 说明替代方案和成本, 说明决策记录和验收]
+        expected_signals: [能把技术约束翻译成体验影响, 能提出可选方案, 能推动明确结论]
+        anti_patterns: [只说做不了, 不给替代方案, 没有验收口径]
+        good_answer_hints: [先对齐目标, 再解释约束和方案, 最后形成行动项]
+        priority: 14
+        status: active
+      - id: communication.frontend_design_backend_alignment.api_contract
+        version: 1
+        intent: followup
+        difficulty: standard
+        scenario_brief: 前端和后端对接口字段、错误状态和加载体验理解不一致，联调反复返工。
+        question_stem: 当前后端接口契约理解不一致时，你会如何组织沟通并减少返工？
+        prompt_template: 生成一道前端跨团队沟通追问题，要求候选人说明接口契约、错误状态、mock、联调节奏和验收样例。
+        scenario_skill_tags: [frontend, backend, api contract, communication]
+        resume_anchor_hints: [frontend, api, backend, mock, collaboration]
+        failure_categories: [vague_contract, missing_action, missing_test_strategy]
+        rubric_additions: [说明字段和状态契约, 说明 mock 与联调样例, 说明验收和变更通知]
+        expected_signals: [能推动接口文档或类型契约, 能覆盖异常状态, 能减少联调返工]
+        anti_patterns: [只在群里口头确认, 不处理错误状态, 改字段不通知]
+        good_answer_hints: [先固定契约和样例, 再安排联调节奏, 最后补变更机制]
+        priority: 12
+        status: active
+
+  - id: communication.sre_incident_stakeholder_alignment
+    version: 1
+    title: SRE 故障协同与风险沟通
+    dimension: communication
+    job_levels: [junior, mid, senior, staff]
+    skill_tags: [sre, communication, incident, stakeholder, postmortem]
+    direction_tags: [internet_tech]
+    role_tags: [sre]
+    rubric:
+      must_cover: [事实同步, 影响范围, 协作分工, 复盘改进]
+      minimum_bar: 能在故障处理中清晰同步状态、风险和下一步动作。
+      stretch: 能协调研发、业务和值班团队，在恢复后形成可执行改进。
+    priority: 23
+    status: active
+    source: manual_yaml
+    scope: global
+    language: zh-CN
+    variants:
+      - id: communication.sre_incident_stakeholder_alignment.incident_update
+        version: 1
+        intent: opening
+        difficulty: standard
+        scenario_brief: 核心服务告警升级，业务方需要知道影响范围和预计恢复时间，研发正在定位。
+        question_stem: 故障处理中，你会如何向研发、业务和值班同学同步事实、风险和处理计划？
+        prompt_template: 结合候选人的 SRE 故障经历，生成一道沟通表达题，要求说明事实口径、影响范围、状态同步节奏、分工和恢复确认。
+        scenario_skill_tags: [sre, incident communication, stakeholder, status update]
+        resume_anchor_hints: [sre, incident, oncall, stakeholder, postmortem]
+        failure_categories: [missing_action, vague_ownership, missing_observability]
+        rubric_additions: [说明事实和假设的区分, 说明影响面和恢复节奏, 说明跨团队分工]
+        expected_signals: [能稳定同步已知事实, 能避免未经验证结论扩散, 能推动相关方行动]
+        anti_patterns: [只在技术群排查, 迟迟不通报影响, 把猜测当结论]
+        good_answer_hints: [先同步影响和状态, 再明确正在做什么, 最后定义下一次更新时间]
+        priority: 15
+        status: active
+      - id: communication.sre_incident_stakeholder_alignment.postmortem_alignment
+        version: 1
+        intent: deep_probe
+        difficulty: deep_probe
+        scenario_brief: 故障恢复后，各团队对根因和改进优先级存在分歧。
+        question_stem: 故障复盘中团队对根因和改进优先级不一致时，你会如何推动收敛？
+        prompt_template: 生成一道 SRE 复盘沟通深挖题，要求候选人说明证据对齐、责任边界、改进排序、owner 和跟踪机制。
+        scenario_skill_tags: [sre, postmortem, communication, risk]
+        resume_anchor_hints: [sre, postmortem, incident, risk, governance]
+        failure_categories: [missing_action, missing_tradeoff, vague_metrics]
+        rubric_additions: [说明证据和时间线, 说明改进优先级, 说明责任人和跟踪]
+        expected_signals: [能用事实时间线减少争议, 能按风险排序改进项, 能形成闭环跟踪]
+        anti_patterns: [复盘变成追责, 没有 owner, 改进项不可验证]
+        good_answer_hints: [先对齐证据, 再排序风险, 最后落到 owner 和时间点]
+        priority: 13
+        status: active
+
+  - id: communication.ai_fullstack_cross_role_alignment
+    version: 1
+    title: AI 全栈跨角色方案沟通
+    dimension: communication
+    job_levels: [junior, mid, senior]
+    skill_tags: [ai_fullstack, communication, product, algorithm, engineering]
+    direction_tags: [internet_tech]
+    role_tags: [ai_fullstack]
+    rubric:
+      must_cover: [目标口径, 技术边界, 质量风险, 推进动作]
+      minimum_bar: 能在产品、算法和工程之间讲清 AI 应用方案边界和落地风险。
+      stretch: 能把模型质量、体验、成本、数据和上线节奏纳入同一套决策。
+    priority: 22
+    status: active
+    source: manual_yaml
+    scope: global
+    language: zh-CN
+    variants:
+      - id: communication.ai_fullstack_cross_role_alignment.quality_expectation
+        version: 1
+        intent: opening
+        difficulty: standard
+        scenario_brief: 产品希望 AI 功能效果稳定，算法同学强调模型存在不确定性，工程需要按期上线。
+        question_stem: 你会如何和产品、算法、工程团队对齐 AI 功能的质量预期和上线边界？
+        prompt_template: 结合候选人的 AI 全栈协作经验，生成一道沟通表达题，要求说明质量指标、体验兜底、成本约束和灰度上线。
+        scenario_skill_tags: [ai_fullstack, quality, communication, product, algorithm]
+        resume_anchor_hints: [llm, product, algorithm, fullstack, communication]
+        failure_categories: [vague_metrics, missing_tradeoff, missing_action]
+        rubric_additions: [说明效果指标和失败样例, 说明上线边界和兜底, 说明跨团队行动项]
+        expected_signals: [能把模型不确定性转成验收指标, 能设计灰度和兜底, 能推动角色分工]
+        anti_patterns: [承诺模型百分百正确, 不定义质量标准, 不考虑成本和回滚]
+        good_answer_hints: [先定义成功标准, 再讲风险和兜底, 最后明确上线节奏]
+        priority: 14
+        status: active
+      - id: communication.ai_fullstack_cross_role_alignment.data_permission
+        version: 1
+        intent: followup
+        difficulty: standard
+        scenario_brief: AI 功能需要使用用户数据和企业知识库，不同团队对权限边界理解不同。
+        question_stem: 当 AI 功能涉及数据权限和隐私边界时，你会如何推动跨团队对齐？
+        prompt_template: 生成一道 AI 全栈数据权限沟通追问题，要求候选人说明数据范围、权限过滤、审计、产品提示和风险确认。
+        scenario_skill_tags: [ai_fullstack, permission, privacy, communication]
+        resume_anchor_hints: [rag, permission, privacy, product, engineering]
+        failure_categories: [missing_edge_case, missing_action, missing_tradeoff]
+        rubric_additions: [说明数据使用边界, 说明权限和审计机制, 说明用户提示和决策记录]
+        expected_signals: [能识别敏感数据边界, 能推动权限方案评审, 能沉淀可审计记录]
+        anti_patterns: [默认所有数据都可用, 只靠口头约定, 不给用户可理解提示]
+        good_answer_hints: [先列数据和风险, 再对齐权限方案, 最后形成评审结论]
+        priority: 12
+        status: active
+
+  - id: communication.ai_agent_risk_alignment
+    version: 1
+    title: Agent 风险边界与方案表达
+    dimension: communication
+    job_levels: [junior, mid, senior, staff]
+    skill_tags: [ai_agent, communication, risk, tool_calling, alignment]
+    direction_tags: [internet_tech]
+    role_tags: [ai_agent]
+    rubric:
+      must_cover: [风险识别, 能力边界, 兜底方案, 决策同步]
+      minimum_bar: 能向非 Agent 背景同学解释 Agent 能力边界和风险控制。
+      stretch: 能围绕工具调用、权限、评估和人工兜底形成可落地共识。
+    priority: 22
+    status: active
+    source: manual_yaml
+    scope: global
+    language: zh-CN
+    variants:
+      - id: communication.ai_agent_risk_alignment.tool_permission
+        version: 1
+        intent: opening
+        difficulty: standard
+        scenario_brief: Agent 需要调用内部工具完成任务，业务方希望自动化，安全团队担心越权。
+        question_stem: 你会如何向业务和安全团队解释 Agent 工具调用的权限边界和风险控制？
+        prompt_template: 结合候选人的 Agent 开发经验，生成一道沟通表达题，要求说明风险分级、权限边界、人工确认和审计机制。
+        scenario_skill_tags: [ai_agent, tool_calling, permission, communication]
+        resume_anchor_hints: [agent, tool, permission, security, communication]
+        failure_categories: [missing_tradeoff, missing_edge_case, missing_action]
+        rubric_additions: [说明高风险动作分级, 说明权限最小化, 说明人工确认和审计]
+        expected_signals: [能把工具风险讲清楚, 能提出分级授权, 能推动安全评审]
+        anti_patterns: [只说 prompt 会约束模型, 不做权限隔离, 不记录工具调用]
+        good_answer_hints: [先列动作风险, 再设计权限和确认, 最后补审计和评估]
+        priority: 14
+        status: active
+      - id: communication.ai_agent_risk_alignment.effect_review
+        version: 1
+        intent: deep_probe
+        difficulty: deep_probe
+        scenario_brief: Agent 灰度后效果争议较大，产品看到效率提升，客服担心错误处理成本。
+        question_stem: 当 Agent 效果评价存在分歧时，你会如何组织证据并推动下一步决策？
+        prompt_template: 生成一道 Agent 效果沟通深挖题，要求候选人说明评估样本、失败分类、人工 review、风险阈值和决策记录。
+        scenario_skill_tags: [ai_agent, evaluation, review, communication]
+        resume_anchor_hints: [agent, evaluation, review, product, customer_support]
+        failure_categories: [vague_metrics, missing_action, missing_tradeoff]
+        rubric_additions: [说明效果指标和失败类型, 说明人工 review 样本, 说明继续灰度或回滚条件]
+        expected_signals: [能把争议转成可评估样本, 能分类失败原因, 能推动明确决策]
+        anti_patterns: [只看调用量, 不看失败成本, 没有灰度退出条件]
+        good_answer_hints: [先定义评价口径, 再组织样本 review, 最后给决策阈值]
+        priority: 12
+        status: active
+
+  - id: communication.mobile_release_alignment
+    version: 1
+    title: 移动端发布风险与协作沟通
+    dimension: communication
+    job_levels: [junior, mid, senior]
+    skill_tags: [mobile, communication, release, qa, product]
+    direction_tags: [internet_tech]
+    role_tags: [mobile]
+    rubric:
+      must_cover: [版本风险, 验收范围, 发布节奏, 回滚兜底]
+      minimum_bar: 能和产品、测试、后端对齐移动端发布风险和验收标准。
+      stretch: 能讲清应用商店审核、灰度、端能力差异和线上问题响应。
+    priority: 22
+    status: active
+    source: manual_yaml
+    scope: global
+    language: zh-CN
+    variants:
+      - id: communication.mobile_release_alignment.version_scope
+        version: 1
+        intent: opening
+        difficulty: standard
+        scenario_brief: 移动端版本包含多个业务需求和系统权限变更，测试窗口有限。
+        question_stem: 移动端版本发布前，你会如何和产品、测试、后端对齐范围、风险和验收？
+        prompt_template: 结合候选人的移动端项目经验，生成一道沟通表达题，要求说明版本范围、风险清单、验收标准、灰度和问题响应。
+        scenario_skill_tags: [mobile, release, qa, communication]
+        resume_anchor_hints: [mobile, release, qa, app, collaboration]
+        failure_categories: [missing_action, vague_ownership, missing_test_strategy]
+        rubric_additions: [说明版本范围和风险, 说明验收标准, 说明灰度和问题响应]
+        expected_signals: [能识别端上发布不可逆风险, 能推动测试范围确认, 能准备灰度和回滚兜底]
+        anti_patterns: [只等测试提 bug, 不列风险, 不考虑应用商店审核周期]
+        good_answer_hints: [先对齐版本范围, 再列风险和验收, 最后安排灰度观察]
+        priority: 14
+        status: active
+      - id: communication.mobile_release_alignment.backend_contract
+        version: 1
+        intent: followup
+        difficulty: standard
+        scenario_brief: 移动端依赖后端接口变更，但旧版本用户仍在使用，兼容策略需要跨团队确认。
+        question_stem: 当移动端新旧版本并存且后端接口要变更时，你会如何推动兼容方案对齐？
+        prompt_template: 生成一道移动端跨团队沟通追问题，要求候选人说明版本分布、接口兼容、灰度策略、降级和用户影响。
+        scenario_skill_tags: [mobile, api compatibility, backend, communication]
+        resume_anchor_hints: [mobile, api, backend, version, compatibility]
+        failure_categories: [vague_contract, missing_edge_case, missing_action]
+        rubric_additions: [说明新旧版本兼容, 说明接口变更节奏, 说明降级和监控]
+        expected_signals: [能考虑旧版本用户, 能推动接口兼容窗口, 能设计灰度和监控]
+        anti_patterns: [强依赖用户立即升级, 后端直接删除字段, 没有版本统计]
+        good_answer_hints: [先看版本分布, 再对齐兼容窗口, 最后做灰度和降级]
+        priority: 12
+        status: active
+
+  - id: communication.ai_algorithm_metric_explanation
+    version: 1
+    title: 算法效果解释与跨团队沟通
+    dimension: communication
+    job_levels: [junior, mid, senior]
+    skill_tags: [ai_algorithm, communication, metric, experiment, business]
+    direction_tags: [internet_tech]
+    role_tags: [ai_algorithm]
+    rubric:
+      must_cover: [指标定义, 实验证据, 业务影响, 决策建议]
+      minimum_bar: 能向产品和业务团队解释模型效果、指标含义和上线风险。
+      stretch: 能处理离线线上差异、样本偏差、实验显著性和业务取舍。
+    priority: 22
+    status: active
+    source: manual_yaml
+    scope: global
+    language: zh-CN
+    variants:
+      - id: communication.ai_algorithm_metric_explanation.offline_online_gap
+        version: 1
+        intent: opening
+        difficulty: standard
+        scenario_brief: 算法离线指标提升明显，但产品和业务方质疑线上效果不稳定。
+        question_stem: 你会如何向产品和业务团队解释算法离线指标与线上业务指标的差异？
+        prompt_template: 结合候选人的算法项目经验，生成一道沟通表达题，要求说明指标定义、样本差异、实验设计、业务影响和决策建议。
+        scenario_skill_tags: [ai_algorithm, metric, experiment, communication]
+        resume_anchor_hints: [algorithm, metric, experiment, model, business]
+        failure_categories: [vague_metrics, missing_tradeoff, missing_action]
+        rubric_additions: [说明离线指标和业务指标关系, 说明样本和分布差异, 说明下一步实验建议]
+        expected_signals: [能用业务语言解释指标, 能说明离线线上差异, 能给出实验或灰度建议]
+        anti_patterns: [只说模型分数更高, 不解释业务价值, 不承认不确定性]
+        good_answer_hints: [先解释指标口径, 再讲差异来源, 最后给实验决策]
+        priority: 14
+        status: active
+      - id: communication.ai_algorithm_metric_explanation.risk_tradeoff
+        version: 1
+        intent: deep_probe
+        difficulty: deep_probe
+        scenario_brief: 新模型提升点击率但可能降低长期留存，团队需要决定是否继续灰度。
+        question_stem: 当算法短期指标和长期业务目标冲突时，你会如何表达取舍并推动决策？
+        prompt_template: 生成一道算法指标沟通深挖题，要求候选人说明短期长期指标、风险假设、实验分层和决策阈值。
+        scenario_skill_tags: [ai_algorithm, business_metric, tradeoff, communication]
+        resume_anchor_hints: [algorithm, ctr, retention, experiment, product]
+        failure_categories: [missing_tradeoff, vague_metrics, missing_action]
+        rubric_additions: [说明短期和长期指标冲突, 说明风险假设和监控, 说明灰度决策阈值]
+        expected_signals: [能平衡模型效果和业务目标, 能提出分层实验, 能推动明确上线条件]
+        anti_patterns: [只追求单一模型指标, 不看长期影响, 没有停止条件]
+        good_answer_hints: [先对齐业务目标, 再拆指标冲突, 最后设置灰度阈值]
+        priority: 12
+        status: active
+
+  - id: communication.java_technical_tradeoff_explanation
+    version: 1
+    title: Java 技术方案取舍表达
+    dimension: communication
+    job_levels: [junior, mid, senior]
+    skill_tags: [java, communication, tradeoff, api, reliability]
+    direction_tags: [internet_tech]
+    role_tags: [java_backend]
+    rubric:
+      must_cover: [背景目标, 取舍依据, 风险边界, 决策结论]
+      minimum_bar: 能把 Java 后端技术方案用业务和工程都能理解的方式讲清楚。
+      stretch: 能针对不同听众调整表达，说明备选方案、风险兜底和后续验证。
+    priority: 23
+    status: active
+    source: manual_yaml
+    scope: global
+    language: zh-CN
+    variants:
+      - id: communication.java_technical_tradeoff_explanation.consistency_tradeoff
+        version: 1
+        intent: opening
+        difficulty: standard
+        scenario_brief: 产品希望订单状态实时一致，研发需要解释强一致成本和最终一致方案的边界。
+        question_stem: 你会如何向产品和测试解释订单状态一致性方案的取舍、风险和验证方式？
+        prompt_template: 结合候选人的 Java 后端项目经验，生成一道沟通表达题，要求说明如何向非后端同学解释一致性边界、风险和验收标准。
+        scenario_skill_tags: [java, consistency, communication, tradeoff]
+        resume_anchor_hints: [java, order, consistency, product, qa]
+        failure_categories: [missing_tradeoff, vague_metrics, missing_action]
+        rubric_additions: [说明业务目标和技术约束, 说明强一致与最终一致取舍, 说明验收和兜底动作]
+        expected_signals: [能用业务语言解释技术风险, 能给出可验证标准, 能推动形成决策记录]
+        anti_patterns: [只讲技术名词, 不说明业务影响, 没有结论和后续动作]
+        good_answer_hints: [先对齐目标和听众, 再解释取舍, 最后给验收和兜底]
+        priority: 15
+        status: active
+      - id: communication.java_technical_tradeoff_explanation.performance_risk
+        version: 1
+        intent: followup
+        difficulty: standard
+        scenario_brief: Java 后端为了控制上线风险建议拆分发布，但业务方担心影响活动窗口。
+        question_stem: 当技术风险和业务上线窗口冲突时，你会如何表达方案选择并推动决策？
+        prompt_template: 生成一道 Java 后端沟通追问题，要求候选人说明风险量化、备选方案、灰度安排、决策记录和责任对齐。
+        scenario_skill_tags: [java, release, risk, communication, gray]
+        resume_anchor_hints: [java, release, gray, risk, stakeholder]
+        failure_categories: [vague_metrics, missing_tradeoff, missing_action]
+        rubric_additions: [说明风险和收益量化, 说明备选发布方案, 说明决策和责任对齐]
+        expected_signals: [能把风险转成影响范围和概率, 能提出分批灰度或回滚方案, 能明确共识和行动项]
+        anti_patterns: [直接拒绝业务需求, 只说技术不行, 没有备选方案]
+        good_answer_hints: [先量化风险, 再给可选路径, 最后推动负责人确认]
+        priority: 13
+        status: active
+
+  - id: communication.java_cross_team_incident_alignment
+    version: 1
+    title: Java 线上事故跨团队沟通
+    dimension: communication
+    job_levels: [junior, mid, senior]
+    skill_tags: [java, communication, incident, stakeholder, postmortem]
+    direction_tags: [internet_tech]
+    role_tags: [java_backend]
+    rubric:
+      must_cover: [事实同步, 影响说明, 协作分工, 复盘改进]
+      minimum_bar: 能在故障处理中清晰同步事实、风险和下一步动作。
+      stretch: 能稳定协调产品、测试、运维和业务方，形成复盘闭环和预防机制。
+    priority: 22
+    status: active
+    source: manual_yaml
+    scope: global
+    language: zh-CN
+    variants:
+      - id: communication.java_cross_team_incident_alignment.permission_change_rollout
+        version: 1
+        intent: opening
+        difficulty: standard
+        scenario_brief: 权限服务变更后部分用户无法访问核心功能，需要研发、客服和产品同时协作处理。
+        question_stem: 线上故障处理中，你会如何向产品、客服和研发同步当前事实、影响范围和处理计划？
+        prompt_template: 结合候选人的 Java 后端线上问题经历，生成一道沟通表达题，要求说明故障同步节奏、事实口径、分工和复盘。
+        scenario_skill_tags: [java, incident, communication, stakeholder]
+        resume_anchor_hints: [java, incident, permission, customer support, product]
+        failure_categories: [missing_action, vague_ownership, missing_observability]
+        rubric_additions: [说明事实和猜测的区分, 说明影响面和当前动作, 说明跨团队分工]
+        expected_signals: [能清晰同步已知事实, 能控制信息节奏和风险口径, 能推动相关方行动]
+        anti_patterns: [把未经验证的猜测当结论, 不同步影响范围, 只在研发群内沟通]
+        good_answer_hints: [先同步事实和影响, 再明确正在做什么, 最后分配外部沟通和修复动作]
+        priority: 14
+        status: active
+      - id: communication.java_cross_team_incident_alignment.mq_incident_alignment
+        version: 1
+        intent: deep_probe
+        difficulty: deep_probe
+        scenario_brief: MQ 积压导致订单状态延迟，客服需要给用户解释，研发需要恢复消费并追踪补偿。
+        question_stem: 面对 MQ 积压导致订单状态延迟，你会如何协调客服口径、研发修复和复盘改进？
+        prompt_template: 生成一道 Java 故障沟通深挖题，要求候选人说明用户影响口径、研发动作、补偿计划、进展同步和复盘机制。
+        scenario_skill_tags: [java, mq, incident communication, postmortem]
+        resume_anchor_hints: [java, mq, incident, customer support, postmortem]
+        failure_categories: [missing_action, vague_metrics, missing_observability]
+        rubric_additions: [说明用户侧可理解口径, 说明研发恢复和补偿计划, 说明复盘改进项]
+        expected_signals: [能避免技术细节淹没业务沟通, 能用预计恢复时间和影响范围同步, 能沉淀预防措施]
+        anti_patterns: [只说系统异常, 不给恢复节奏, 修复后不复盘]
+        good_answer_hints: [先给用户可理解事实, 再同步恢复节奏, 最后复盘技术和流程改进]
+        priority: 12
+        status: active
+
+  - id: communication.architect_review_alignment
+    version: 1
+    title: 架构师方案表达与跨团队对齐
+    dimension: communication
+    job_levels: [senior, staff]
+    skill_tags: [architect, communication, alignment, review, stakeholder]
+    direction_tags: [internet_tech]
+    role_tags: [architect]
+    rubric:
+      must_cover: [方案表达, 风险沟通, 分歧处理, 决策对齐]
+      minimum_bar: 能清晰表达复杂技术方案，并让不同角色理解影响和取舍。
+      stretch: 能在冲突约束下推动共识、记录决策并维护执行节奏。
+    priority: 24
+    status: active
+    source: manual_yaml
+    scope: global
+    language: zh-CN
+    variants:
+      - id: communication.architect_review_alignment.risk_explanation
+        version: 1
+        intent: opening
+        difficulty: standard
+        scenario_brief: 架构方案涉及稳定性风险和交付延期，业务方担心影响上线窗口。
+        question_stem: 你会如何向业务和研发团队解释架构风险、取舍和推荐方案？
+        prompt_template: 结合候选人的架构沟通经验，生成一道沟通表达题，要求说明表达结构、风险对齐和决策推进。
+        scenario_skill_tags: [architect, communication, risk, alignment]
+        resume_anchor_hints: [architecture, communication, stakeholder, risk, review]
+        failure_categories: [vague_ownership, missing_tradeoff, missing_action]
+        rubric_additions: [说明不同受众关注点, 说明风险和备选方案, 说明决策记录和后续动作]
+        expected_signals: [能用业务语言解释技术风险, 能提供备选方案, 能推动明确决策]
+        anti_patterns: [只讲技术细节, 不说业务影响, 没有结论和后续动作]
+        good_answer_hints: [先对齐目标和受众, 再解释风险取舍, 最后给推荐和行动]
+        priority: 14
+        status: active
+      - id: communication.architect_review_alignment.disagreement_resolution
+        version: 1
+        intent: deep_probe
+        difficulty: deep_probe
+        scenario_brief: 两个团队对架构方案分歧很大，一个重视交付速度，一个重视长期治理。
+        question_stem: 遇到跨团队技术方案分歧时，你会如何推动讨论收敛并形成可执行决策？
+        prompt_template: 生成一道架构师沟通深挖题，要求候选人说明分歧拆解、决策标准和执行跟踪。
+        scenario_skill_tags: [architect, communication, disagreement, decision]
+        resume_anchor_hints: [architecture, alignment, decision, communication, governance]
+        failure_categories: [missing_tradeoff, missing_action, vague_metrics]
+        rubric_additions: [说明分歧背后的目标, 说明决策标准, 说明试点或阶段性方案]
+        expected_signals: [能把立场转成约束和指标, 能组织小范围验证, 能记录决策和责任人]
+        anti_patterns: [靠职位压服, 反复争论不收敛, 没有验证方案]
+        good_answer_hints: [先拆目标和约束, 再定义决策标准, 最后用试点和记录推进]
+        priority: 13
+        status: active
+
+  - id: communication.ai_agent_failure_alignment
+    version: 1
+    title: 跨团队对齐"Agent 失败"的定义
+    dimension: communication
+    job_levels: [junior, mid, senior]
+    skill_tags: [agent, communication, alignment, failure definition, stakeholder]
+    direction_tags: [internet_tech]
+    role_tags: [ai_agent]
+    rubric:
+      must_cover: [业务视角失败, 技术视角失败, 共识口径, 复盘机制]
+      minimum_bar: 能说明业务方与 Agent 团队对"失败"定义的差异并给出对齐路径。
+      stretch: 能建立共同口径 + 共同度量 + 共同复盘流程闭环。
+    priority: 22
+    status: active
+    source: manual_yaml
+    scope: global
+    language: zh-CN
+    variants:
+      - id: communication.ai_agent_failure_alignment.metric_consensus
+        version: 1
+        intent: opening
+        difficulty: standard
+        scenario_brief: 业务方反馈"Agent 经常出错"，但技术指标显示成功率 96%，双方各执一词。
+        question_stem: 你会如何与业务方对齐"Agent 失败"的定义并建立共同度量？
+        prompt_template: 结合候选人的 Agent / 跨团队协作经验，生成一道沟通题，要求说明对齐路径。
+        scenario_skill_tags: [agent, alignment, metric, communication]
+        resume_anchor_hints: [agent, communication, stakeholder, metric, alignment]
+        failure_categories: [missing_action, shallow_debugging, missing_tradeoff]
+        rubric_additions: [说明对齐流程, 说明共同度量设计, 说明双方话语翻译]
+        expected_signals: [能用业务 case 翻成技术指标, 能与业务方共同定义"算失败", 能定期同步双方度量]
+        anti_patterns: [只用技术成功率应付, 单方面定义指标, 不做定期对齐]
+        good_answer_hints: [先用 case 对齐, 再共同定指标, 最后定期同步]
+        priority: 12
+        status: active
+      - id: communication.ai_agent_failure_alignment.post_incident
+        version: 1
+        intent: recovery
+        difficulty: standard
+        scenario_brief: 一次 Agent 给出错误退款额度，业务方要求"立刻关闭功能"，技术认为是低概率边界 case。
+        question_stem: 如果出现 Agent 重大失败事件且双方判断不一致，你会如何主持复盘与共识？
+        prompt_template: 生成一道 Agent 故障后复盘沟通题，要求候选人说明复盘流程、共识路径与下一步决策。
+        scenario_skill_tags: [agent, post-incident, alignment, decision]
+        resume_anchor_hints: [agent, incident, postmortem, decision, alignment]
+        failure_categories: [missing_action, shallow_debugging, missing_tradeoff]
+        rubric_additions: [说明复盘流程, 说明数据驱动共识, 说明下一步决策]
+        expected_signals: [能用事实/数据降低分歧, 能区分立刻止血与长期修复, 能给出可落地的下一步]
+        anti_patterns: [带情绪辩论, 不查事实, 没下一步]
+        good_answer_hints: [先用事实降温, 再分止血与修复, 最后定下一步]
+        priority: 10
+        status: active
+
+  - id: communication.ai_fullstack_failure_explanation
+    version: 1
+    title: 跨产品 / 算法 / 业务讲清"模型为什么这次会出错"
+    dimension: communication
+    job_levels: [junior, mid, senior]
+    skill_tags: [ai fullstack, communication, failure explanation, cross-team]
+    direction_tags: [internet_tech]
+    role_tags: [ai_fullstack]
+    rubric:
+      must_cover: [失败现象抽象, 多方语言适配, 下一步动作, 期望管理]
+      minimum_bar: 能跨产品 / 算法 / 业务三方讲清失败原因和下一步。
+      stretch: 能用对方语言精准描述并落地动作。
+    priority: 21
+    status: active
+    source: manual_yaml
+    scope: global
+    language: zh-CN
+    variants:
+      - id: communication.ai_fullstack_failure_explanation.cross_role_briefing
+        version: 1
+        intent: opening
+        difficulty: standard
+        scenario_brief: 一次模型失败影响数十个用户，产品 / 算法 / 业务三方都想知道"到底怎么回事"。
+        question_stem: 你会如何向产品 / 算法 / 业务三方分别讲清"模型为什么这次会出错"？
+        prompt_template: 结合候选人的 AI 全栈 / 跨团队经验，生成一道沟通题，要求说明多方表达适配。
+        scenario_skill_tags: [ai fullstack, communication, cross-team, failure]
+        resume_anchor_hints: [ai fullstack, communication, cross-team, failure, briefing]
+        failure_categories: [missing_action, shallow_debugging, missing_tradeoff]
+        rubric_additions: [说明三方关注点差异, 说明对应语言, 说明下一步动作]
+        expected_signals: [能区分三方核心关注点, 能用对方语言不同侧重表达, 能给出明确下一步]
+        anti_patterns: [一份说明给所有人, 全用技术语言, 没下一步]
+        good_answer_hints: [先识别关注差异, 再按语言适配, 最后落动作]
+        priority: 11
+        status: active
+      - id: communication.ai_fullstack_failure_explanation.expectation_reset
+        version: 1
+        intent: recovery
+        difficulty: standard
+        scenario_brief: 失败之后业务方期望"以后再也不要出错"，但模型本质上无法 100% 保证。
+        question_stem: 如果业务方期望"AI 永远不出错"，你会如何重置预期并维护信任？
+        prompt_template: 生成一道 AI 应用期望管理深挖题，要求候选人说明边界沟通与信任维护。
+        scenario_skill_tags: [ai fullstack, expectation management, trust, communication]
+        resume_anchor_hints: [ai fullstack, expectation, trust, communication]
+        failure_categories: [missing_action, missing_tradeoff, missing_edge_case]
+        rubric_additions: [说明能力边界, 说明可控保障, 说明信任修复]
+        expected_signals: [能讲明 AI 必然边界, 能给出可量化保障, 能用机制重建信任]
+        anti_patterns: [硬承诺, 完全推卸, 不给保障措施]
+        good_answer_hints: [先讲边界, 再给保障, 最后修信任]
+        priority: 9
+        status: active
+
+  - id: communication.ai_algorithm_dumb_explanation
+    version: 1
+    title: 给业务方解释"AI 看起来变笨"的真实原因
+    dimension: communication
+    job_levels: [junior, mid, senior]
+    skill_tags: [ai algorithm, communication, expectation, drift, explanation]
+    direction_tags: [internet_tech]
+    role_tags: [ai_algorithm]
+    rubric:
+      must_cover: [现象与体感, 真实归因, 下一步动作, 期望管理]
+      minimum_bar: 能向业务方解释"AI 变笨"现象的真实归因。
+      stretch: 能用业务方语言讲数据漂移 / 链路变化 / 体验偏差。
+    priority: 19
+    status: active
+    source: manual_yaml
+    scope: global
+    language: zh-CN
+    variants:
+      - id: communication.ai_algorithm_dumb_explanation.attribution
+        version: 1
+        intent: opening
+        difficulty: standard
+        scenario_brief: 业务方反馈"AI 最近变笨了"，但技术指标其实没大变化。
+        question_stem: 你会如何向业务方解释"AI 变笨"现象的真实归因？
+        prompt_template: 结合候选人的算法 / 跨团队经验，生成一道沟通题，要求说明归因解释。
+        scenario_skill_tags: [ai algorithm, communication, expectation, drift]
+        resume_anchor_hints: [ai algorithm, communication, expectation, drift]
+        failure_categories: [missing_action, shallow_debugging, missing_tradeoff]
+        rubric_additions: [说明现象 vs 体感差异, 说明真实归因, 说明业务方语言]
+        expected_signals: [能区分指标变化与体感变化, 能解释数据漂移/链路变化/体验偏差, 能用业务方语言]
+        anti_patterns: [硬怼"指标没变", 不解释体感, 全用技术术语]
+        good_answer_hints: [先承认体感, 再分类归因, 最后用业务话术]
+        priority: 9
+        status: active
+      - id: communication.ai_algorithm_dumb_explanation.expectation_reset
+        version: 1
+        intent: recovery
+        difficulty: standard
+        scenario_brief: 解释完后业务方期望"以后让它别变笨"，但这本质上做不到。
+        question_stem: 如果业务方期望"算法不能再变笨"，你会如何重置预期并维护信任？
+        prompt_template: 生成一道算法期望管理深挖题，要求候选人说明边界沟通与信任维护。
+        scenario_skill_tags: [ai algorithm, expectation management, trust]
+        resume_anchor_hints: [ai algorithm, expectation, trust, communication]
+        failure_categories: [missing_action, missing_tradeoff, missing_edge_case]
+        rubric_additions: [说明能力边界, 说明可控保障, 说明信任建设]
+        expected_signals: [能讲明算法迭代的本质规律, 能给出可量化保障, 能用机制重建信任]
+        anti_patterns: [硬承诺, 完全推卸, 不给保障]
+        good_answer_hints: [先讲边界, 再给保障, 最后建信任]
+        priority: 7
+        status: active
+
+  - id: communication.frontend_web_cross_role_alignment_round2
+    version: 1
+    title: 与后端 / 设计 / 产品对齐前端方案
+    dimension: communication
+    job_levels: [junior, mid, senior]
+    skill_tags: [frontend, communication, alignment, design, backend]
+    direction_tags: [internet_tech]
+    role_tags: [frontend_web]
+    rubric:
+      must_cover: [对齐场景, 多方关注, 共识机制, 落地动作]
+      minimum_bar: 能与后端 / 设计 / 产品对齐前端方案。
+      stretch: 能用 prototype / 对照演示降低分歧。
+    priority: 18
+    status: active
+    source: manual_yaml
+    scope: global
+    language: zh-CN
+    variants:
+      - id: communication.frontend_web_cross_role_alignment_round2.shared_consensus
+        version: 1
+        intent: opening
+        difficulty: standard
+        scenario_brief: 一个新页面后端 / 设计 / 产品三方对实现方式有分歧。
+        question_stem: 你会如何对齐三方并推动前端方案落地？
+        prompt_template: 结合候选人的前端 / 跨团队经验，生成一道沟通题，要求说明对齐路径。
+        scenario_skill_tags: [frontend, communication, alignment, cross-team]
+        resume_anchor_hints: [frontend, communication, alignment, cross-team]
+        failure_categories: [missing_action, shallow_debugging, missing_tradeoff]
+        rubric_additions: [说明各方关注, 说明共识机制, 说明落地动作]
+        expected_signals: [能识别三方核心关注, 能用 prototype / 对照降低分歧, 能给落地动作]
+        anti_patterns: [自己定方案不沟通, 全靠会议拉扯, 没落地动作]
+        good_answer_hints: [先识别关注, 再用 demo 对齐, 最后定动作]
+        priority: 9
+        status: active
+      - id: communication.frontend_web_cross_role_alignment_round2.timeline_risk
+        version: 1
+        intent: recovery
+        difficulty: standard
+        scenario_brief: 项目接近 deadline 时，前端发现某个设计稿无法在期限内还原。
+        question_stem: 如果前端方案落地有时间风险，你会如何与设计 / 产品沟通调整？
+        prompt_template: 生成一道前端时间风险沟通深挖题，要求候选人说明替代方案与共识。
+        scenario_skill_tags: [frontend, communication, risk, alternative]
+        resume_anchor_hints: [frontend, communication, risk, alternative]
+        failure_categories: [missing_action, missing_tradeoff, missing_edge_case]
+        rubric_additions: [说明风险识别, 说明替代方案, 说明对齐沟通]
+        expected_signals: [能提前识别风险, 能给至少 2 个替代方案, 能与对方共识取舍]
+        anti_patterns: [硬扛上线, 偷偷阉割, 不沟通]
+        good_answer_hints: [先识别风险, 再列替代, 最后共识]
+        priority: 7
+        status: active
+
+  - id: communication.sre_stability_governance
+    version: 1
+    title: 跨研发 / 业务团队推动稳定性治理
+    dimension: communication
+    job_levels: [junior, mid, senior]
+    skill_tags: [sre, communication, governance, stability, alignment]
+    direction_tags: [internet_tech]
+    role_tags: [sre]
+    rubric:
+      must_cover: [对齐场景, 推动机制, 价值翻译, 落地动作]
+      minimum_bar: 能跨研发 / 业务推动稳定性治理。
+      stretch: 能用数据 / EB / SLO 等机制推动跨团队投入。
+    priority: 18
+    status: active
+    source: manual_yaml
+    scope: global
+    language: zh-CN
+    variants:
+      - id: communication.sre_stability_governance.alignment
+        version: 1
+        intent: opening
+        difficulty: standard
+        scenario_brief: 业务团队不愿意在稳定性投入资源，认为"出问题再说"。
+        question_stem: 你会如何跨研发 / 业务团队推动稳定性治理投入？
+        prompt_template: 结合候选人的 SRE / 跨团队经验，生成一道沟通题，要求说明推动路径。
+        scenario_skill_tags: [sre, communication, governance, alignment]
+        resume_anchor_hints: [sre, communication, governance, alignment]
+        failure_categories: [missing_action, shallow_debugging, missing_tradeoff]
+        rubric_additions: [说明对齐场景, 说明推动机制, 说明价值翻译]
+        expected_signals: [能用业务损失/成本数据说话, 能用 SLO / EB 推动决策, 能落地具体动作]
+        anti_patterns: [只用技术语言, 没数据, 没动作]
+        good_answer_hints: [先用数据, 再用机制, 最后落动作]
+        priority: 8
+        status: active
+      - id: communication.sre_stability_governance.escalation
+        version: 1
+        intent: recovery
+        difficulty: standard
+        scenario_brief: 一次重大故障后业务方要求"以后不能再出"，但研发资源有限。
+        question_stem: 如果业务期望与研发资源冲突，你会如何升级 / 共识？
+        prompt_template: 生成一道稳定性资源冲突深挖题，要求候选人说明升级路径。
+        scenario_skill_tags: [sre, communication, conflict, escalation]
+        resume_anchor_hints: [sre, communication, conflict, escalation]
+        failure_categories: [missing_action, missing_tradeoff, missing_edge_case]
+        rubric_additions: [说明升级路径, 说明数据驱动, 说明可接受妥协]
+        expected_signals: [能给升级渠道, 能用数据降低分歧, 能给出可接受方案]
+        anti_patterns: [硬扛, 完全妥协, 不升级]
+        good_answer_hints: [先升级, 再用数据, 最后共识]
+        priority: 6
+        status: active
+
+  - id: communication.mobile_cross_role_coordination
+    version: 1
+    title: 与后端 / 设计 / 测试协作完成移动端复杂功能
+    dimension: communication
+    job_levels: [junior, mid, senior]
+    skill_tags: [mobile, communication, cross-team, coordination]
+    direction_tags: [internet_tech]
+    role_tags: [mobile]
+    rubric:
+      must_cover: [对齐机制, 关注差异, 共识路径, 落地动作]
+      minimum_bar: 能与后端 / 设计 / 测试协作完成复杂移动功能。
+      stretch: 能用 demo / 接口契约 / 灰度方案降低分歧。
+    priority: 17
+    status: active
+    source: manual_yaml
+    scope: global
+    language: zh-CN
+    variants:
+      - id: communication.mobile_cross_role_coordination.shared_consensus
+        version: 1
+        intent: opening
+        difficulty: standard
+        scenario_brief: 一个复杂功能需要后端 / 设计 / 测试 / 移动多方协作。
+        question_stem: 你会如何主导多方协作并推动落地？
+        prompt_template: 结合候选人的移动端 / 跨团队经验，生成一道沟通题，要求说明协作机制。
+        scenario_skill_tags: [mobile, communication, cross-team, coordination]
+        resume_anchor_hints: [mobile, communication, cross-team]
+        failure_categories: [missing_action, shallow_debugging, missing_tradeoff]
+        rubric_additions: [说明对齐机制, 说明关注差异, 说明落地动作]
+        expected_signals: [能识别各方关注点, 能用 demo / 契约降低分歧, 能落地具体动作]
+        anti_patterns: [自己定方案, 没契约, 没动作]
+        good_answer_hints: [先识别关注, 再用 demo 对齐, 最后定动作]
+        priority: 8
+        status: active
+      - id: communication.mobile_cross_role_coordination.deadline
+        version: 1
+        intent: recovery
+        difficulty: standard
+        scenario_brief: 项目接近 deadline 时，移动端发现某个功能无法在期限内交付。
+        question_stem: 如果移动端落地有时间风险，你会如何与后端 / 设计 / 产品沟通调整？
+        prompt_template: 生成一道移动端时间风险沟通深挖题，要求候选人说明替代方案。
+        scenario_skill_tags: [mobile, communication, risk, alternative]
+        resume_anchor_hints: [mobile, communication, risk, alternative]
+        failure_categories: [missing_action, missing_tradeoff, missing_edge_case]
+        rubric_additions: [说明风险识别, 说明替代方案, 说明对齐沟通]
+        expected_signals: [能提前识别风险, 能给至少 2 个替代方案, 能与对方共识取舍]
+        anti_patterns: [硬扛上线, 偷偷阉割, 不沟通]
+        good_answer_hints: [先识别, 再列替代, 最后共识]
+        priority: 6
+        status: active

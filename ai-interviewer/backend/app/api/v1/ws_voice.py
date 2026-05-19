@@ -16,18 +16,19 @@ import asyncio
 import concurrent.futures
 import json
 import time
+from collections.abc import AsyncIterator
 from typing import Any, Literal
 from uuid import uuid4
 
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
-from pydantic import BaseModel, ConfigDict, Field, ValidationError
+from pydantic import BaseModel, ConfigDict, ValidationError
 
 from app.core.logging import get_logger
 from app.core.metrics import record_ws_invalid_frame
 from app.core.session_auth import verify_session_token
 from app.core.session_ids import is_valid_session_id
 from app.core.settings import get_settings
-from app.core.video_signals_schema import VideoSignalsInput
+from app.core.video_signals_schema import normalize_video_signals
 from app.core.voice_ticket import consume_voice_ticket
 from app.services.session_manager import SessionHandle, get_session_manager
 from app.voice.asr import get_asr
@@ -44,6 +45,7 @@ MAX_TEXT_FRAME_BYTES = 64 * 1024
 MAX_INVALID_WS_FRAMES = 5
 MAX_AUDIO_TOO_LARGE_FRAMES = 3
 VOICE_TOO_LARGE_MESSAGE = "Audio is too long. Please record a shorter answer."
+VoiceChannelMode = Literal["voice", "asr_only"]
 
 _VOICE_EXECUTOR = concurrent.futures.ThreadPoolExecutor(
     max_workers=4,
@@ -55,6 +57,7 @@ class AuthFrame(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     type: Literal["auth"]
+    mode: VoiceChannelMode | None = None
     session_token: str | None = None
     ticket: str | None = None
     llm_config: dict[str, Any] | None = None
@@ -67,7 +70,17 @@ class StopFrame(BaseModel):
     # Keep turn_idx coercion in the main loop so existing invalid-turn
     # handling returns the user-facing "invalid_turn" error.
     turn_idx: Any = None
-    video_signals: VideoSignalsInput | None = None
+    mime_type: str | None = None
+    video_signals: Any | None = None
+
+
+class SubmitTranscriptFrame(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    type: Literal["submit_transcript"]
+    turn_idx: Any = None
+    content: str
+    video_signals: Any | None = None
     llm_config: dict[str, Any] | None = None
 
 
@@ -119,7 +132,8 @@ def _session_token_hash_from_db(session_id: str) -> str | None:
         return None
 
 
-async def _authenticate_ws(ws: WebSocket, handle: SessionHandle) -> bool:
+async def _authenticate_ws(ws: WebSocket, handle: SessionHandle) -> VoiceChannelMode | None:
+    mode: VoiceChannelMode = "voice"
     token_hash = getattr(handle, "session_token_hash", None)
     if not token_hash:
         # Mirror app.api.v1.interview._require_session_access: pull the
@@ -132,34 +146,57 @@ async def _authenticate_ws(ws: WebSocket, handle: SessionHandle) -> bool:
     if not token_hash:
         if get_settings().app_env == "prod":
             await _send_error(ws, "auth_required")
-            return False
-        return True
+            return None
+        try:
+            raw = await asyncio.wait_for(ws.receive_text(), timeout=0.2)
+        except TimeoutError:
+            return mode
+        except Exception:
+            record_ws_invalid_frame("auth_required")
+            await _send_error(ws, "auth_required")
+            return None
+        payload = _parse_text(raw)
+        if payload.get("type") == "invalid":
+            record_ws_invalid_frame(str(payload.get("error") or "invalid_frame"))
+            await _send_error(ws, str(payload.get("error") or "invalid_frame"))
+            return None
+        if payload.get("type") != "auth":
+            await _send_error(ws, "invalid_token")
+            return None
+        if payload.get("mode") == "asr_only":
+            mode = "asr_only"
+        llm_config = payload.get("llm_config")
+        if isinstance(llm_config, dict):
+            handle.llm_config = llm_config
+        return mode
     try:
         raw = await asyncio.wait_for(ws.receive_text(), timeout=5.0)
         payload = _parse_text(raw)
     except Exception:
         record_ws_invalid_frame("auth_required")
         await _send_error(ws, "auth_required")
-        return False
+        return None
     if payload.get("type") == "invalid":
         record_ws_invalid_frame(str(payload.get("error") or "invalid_frame"))
         await _send_error(ws, str(payload.get("error") or "invalid_frame"))
-        return False
+        return None
     if payload.get("type") != "auth":
         await _send_error(ws, "invalid_token")
-        return False
+        return None
+    if payload.get("mode") == "asr_only":
+        mode = "asr_only"
     if consume_voice_ticket(payload.get("ticket"), handle.session_id):
         llm_config = payload.get("llm_config")
         if isinstance(llm_config, dict):
             handle.llm_config = llm_config
-        return True
+        return mode
     if not verify_session_token(payload.get("session_token"), token_hash):
         await _send_error(ws, "invalid_token")
-        return False
+        return None
     llm_config = payload.get("llm_config")
     if isinstance(llm_config, dict):
         handle.llm_config = llm_config
-    return True
+    return mode
 
 
 async def _push_question(ws: WebSocket, handle: SessionHandle) -> bool:
@@ -188,10 +225,32 @@ async def _push_question(ws: WebSocket, handle: SessionHandle) -> bool:
         )
     )
     tts = get_tts()
-    async for chunk in tts.synth(question.get("question", "")):
+    llm_config = getattr(handle, "llm_config", None)
+    async for chunk in _synth_question_audio(
+        tts,
+        question.get("question", ""),
+        llm_config=llm_config,
+    ):
         await ws.send_bytes(chunk)
     await ws.send_text(json.dumps({"type": "tts_end", "turn_idx": turn_idx}))
     return True
+
+
+async def _synth_question_audio(
+    tts: Any,
+    text: str,
+    *,
+    llm_config: dict[str, Any] | None,
+) -> AsyncIterator[bytes]:
+    try:
+        async for chunk in tts.synth(text, llm_config=llm_config):
+            yield chunk
+        return
+    except TypeError as e:
+        if "llm_config" not in str(e):
+            raise
+    async for chunk in tts.synth(text):
+        yield chunk
 
 
 @router.websocket("/ws/voice/{session_id}")
@@ -210,7 +269,8 @@ async def voice_channel(ws: WebSocket, session_id: str) -> None:
         await ws.send_text(json.dumps({"type": "error", "error": "session not found"}))
         await ws.close()
         return
-    if not await _authenticate_ws(ws, handle):
+    mode = await _authenticate_ws(ws, handle)
+    if mode is None:
         await ws.close()
         return
     from app.core.logging import bind_log_context, reset_log_context
@@ -228,6 +288,7 @@ async def voice_channel(ws: WebSocket, session_id: str) -> None:
     voice_rejected = False
     invalid_frame_count = 0
     audio_too_large_count = 0
+    pending_video_signals: dict[str, Any] | None = None
 
     # Anything that exits the receive loop - normal end, disconnect,
     # explicit cancel, uncaught exception - must tear the workflow
@@ -237,10 +298,11 @@ async def voice_channel(ws: WebSocket, session_id: str) -> None:
     # to write a cancel ack back to it.
     client_closed = False
     try:
-        has_more = await _push_question(ws, handle)
-        if not has_more:
-            await _send_final(ws, handle)
-            return
+        if mode != "asr_only":
+            has_more = await _push_question(ws, handle)
+            if not has_more:
+                await _send_final(ws, handle)
+                return
 
         while True:
             msg = await ws.receive()
@@ -286,14 +348,21 @@ async def voice_channel(ws: WebSocket, session_id: str) -> None:
                     audio = buffer.flush(session_id)
                     voice_bytes = 0
                     asr_t0 = time.perf_counter()
+                    llm_config = getattr(handle, "llm_config", None)
+                    mime_type = str(payload.get("mime_type") or "audio/webm")
                     transcript = await asyncio.get_running_loop().run_in_executor(
-                        _VOICE_EXECUTOR, asr.transcribe, audio
+                        _VOICE_EXECUTOR,
+                        lambda audio=audio, mime_type=mime_type, llm_config=llm_config: asr.transcribe(
+                            audio,
+                            mime_type=mime_type,
+                            llm_config=llm_config,
+                        ),
                     )
                     transcript = (transcript or "").strip()
                     asr_ms = int((time.perf_counter() - asr_t0) * 1000)
                     log.info(
-                        "asr done session=%s bytes=%d chars=%d ms=%d",
-                        session_id, len(audio), len(transcript), asr_ms,
+                        "asr done session=%s bytes=%d chars=%d ms=%d mime=%s",
+                        session_id, len(audio), len(transcript), asr_ms, mime_type,
                     )
                     if not transcript:
                         log.warning(
@@ -306,7 +375,6 @@ async def voice_channel(ws: WebSocket, session_id: str) -> None:
                             "Could not transcribe audio. Please try speaking again.",
                         )
                         continue
-                    video_signals = payload.get("video_signals")
                     try:
                         turn_idx = int(payload.get("turn_idx", handle.turn_idx))
                     except (TypeError, ValueError):
@@ -316,35 +384,66 @@ async def voice_channel(ws: WebSocket, session_id: str) -> None:
                             "Invalid turn index for this answer.",
                         )
                         continue
+                    pending_video_signals = payload.get("video_signals")
+                    await ws.send_text(
+                        json.dumps(
+                            {
+                                "type": "draft_transcript",
+                                "turn_idx": turn_idx,
+                                "content": transcript,
+                            }
+                        )
+                    )
+                    continue
+                elif payload.get("type") == "submit_transcript":
+                    if mode == "asr_only":
+                        await _send_error(
+                            ws,
+                            "unsupported_frame",
+                            "ASR-only voice connections cannot submit answers.",
+                        )
+                        continue
+                    content = str(payload.get("content") or "").strip()
+                    if not content:
+                        await _send_error(
+                            ws,
+                            "empty_transcription",
+                            "Could not transcribe audio. Please try speaking again.",
+                        )
+                        continue
+                    try:
+                        turn_idx = int(payload.get("turn_idx", handle.turn_idx))
+                    except (TypeError, ValueError):
+                        await _send_error(
+                            ws,
+                            "invalid_turn",
+                            "Invalid turn index for this answer.",
+                        )
+                        continue
+                    video_signals = payload.get("video_signals") or pending_video_signals
                     llm_config = payload.get("llm_config")
                     llm_config = llm_config if isinstance(llm_config, dict) else None
+                    if llm_config is not None:
+                        handle.llm_config = llm_config
                     try:
-                        if isinstance(video_signals, dict):
-                            manager.submit_answer(
-                                session_id,
-                                transcript,
-                                turn_idx=turn_idx,
-                                video_signals=video_signals,
-                                llm_config=llm_config,
-                            )
-                        else:
-                            manager.submit_answer(
-                                session_id,
-                                transcript,
-                                turn_idx=turn_idx,
-                                llm_config=llm_config,
-                            )
+                        _submit_voice_answer(
+                            manager,
+                            session_id,
+                            content,
+                            turn_idx=turn_idx,
+                            video_signals=video_signals,
+                            llm_config=llm_config,
+                        )
                     except ValueError as e:
                         error, message = _submit_error_payload(e)
                         await _send_error(ws, error, message)
                         continue
+                    pending_video_signals = None
                     log.info(
                         "answer_submitted session=%s has_video=%s",
                         session_id, isinstance(video_signals, dict),
                     )
-                    await ws.send_text(
-                        json.dumps({"type": "transcript", "content": transcript})
-                    )
+                    await ws.send_text(json.dumps({"type": "transcript", "content": content}))
                     has_more = await _push_question(ws, handle)
                     if not has_more:
                         await _send_final(ws, handle)
@@ -399,13 +498,50 @@ def _parse_text(text: str) -> dict[str, Any]:
         if frame_type == "cancel":
             return CancelFrame.model_validate(raw).model_dump()
         if frame_type == "stop":
-            return StopFrame.model_validate(raw).model_dump(exclude_none=True)
-    except ValidationError as e:
-        if frame_type == "stop" and any(
-            tuple(err.get("loc") or ())[:1] == ("video_signals",)
-            for err in e.errors()
-        ):
-            return {"type": "invalid", "error": "invalid_video_signals"}
+            return _dump_frame_with_soft_video_signals(StopFrame.model_validate(raw))
+        if frame_type == "submit_transcript":
+            return _dump_frame_with_soft_video_signals(
+                SubmitTranscriptFrame.model_validate(raw)
+            )
+    except ValidationError:
         return {"type": "invalid", "error": "invalid_frame"}
 
     return {"type": "invalid", "error": "invalid_frame"}
+
+
+def _dump_frame_with_soft_video_signals(frame: BaseModel) -> dict[str, Any]:
+    payload = frame.model_dump(exclude_none=True)
+    if "video_signals" not in payload:
+        return payload
+    normalized = normalize_video_signals(payload.get("video_signals"))
+    if normalized is None:
+        payload.pop("video_signals", None)
+    else:
+        payload["video_signals"] = normalized
+    return payload
+
+
+def _submit_voice_answer(
+    manager: Any,
+    session_id: str,
+    content: str,
+    *,
+    turn_idx: int,
+    video_signals: Any,
+    llm_config: dict[str, Any] | None,
+) -> None:
+    if isinstance(video_signals, dict):
+        manager.submit_answer(
+            session_id,
+            content,
+            turn_idx=turn_idx,
+            video_signals=video_signals,
+            llm_config=llm_config,
+        )
+        return
+    manager.submit_answer(
+        session_id,
+        content,
+        turn_idx=turn_idx,
+        llm_config=llm_config,
+    )

@@ -1,0 +1,52 @@
+dimension: customer_empathy
+seeds:
+  - id: customer_empathy.customer_emotion_context
+    version: 1
+    title: Customer success empathy and context
+    dimension: customer_empathy
+    job_levels: [junior, mid, senior]
+    skill_tags: [customer_success, customer_empathy, support, customer_context]
+    direction_tags: [business]
+    role_tags: [customer_success]
+    rubric:
+      must_cover: [customer_context, emotional_state, business_impact, response_boundary]
+      minimum_bar: Explain how to understand customer emotion and real impact before proposing a response.
+      stretch: Convert emotional complaint into business impact, action boundary, and trust repair.
+    priority: 26
+    status: active
+    source: manual_yaml
+    scope: global
+    language: zh-CN
+    variants:
+      - id: customer_empathy.customer_emotion_context.angry_enterprise_admin
+        version: 1
+        intent: opening
+        difficulty: standard
+        scenario_brief: An enterprise admin is angry after repeated support delays and says their internal users are losing trust.
+        question_stem: How would you respond in the first conversation and uncover the real customer impact behind the complaint?
+        prompt_template: Generate a customer success question about empathy, impact discovery, and response boundary.
+        scenario_skill_tags: [customer_success, customer_empathy, support, impact_discovery]
+        resume_anchor_hints: [customer_support, complaint, empathy, enterprise_customer, service]
+        failure_categories: [vague_user, poor_communication, missing_evidence]
+        rubric_additions: [Acknowledge emotion, clarify business impact, avoid overpromising]
+        expected_signals: [Listens before solution, asks impact questions, sets clear next step]
+        anti_patterns: [Defends the team first, promises instant fix, ignores customer emotion]
+        good_answer_hints: [Acknowledge emotion, ask impact and timeline, define follow up owner]
+        priority: 18
+        status: active
+      - id: customer_empathy.customer_emotion_context.low_satisfaction_pattern
+        version: 1
+        intent: deep_probe
+        difficulty: deep_probe
+        scenario_brief: Several customers give low satisfaction scores, but their tickets were technically closed on time.
+        question_stem: How would you investigate the gap between ticket closure and customer perceived service quality?
+        prompt_template: Generate a deep probe about customer empathy metrics and service perception.
+        scenario_skill_tags: [customer_success, customer_empathy, satisfaction, support_quality]
+        resume_anchor_hints: [csat, nps, support, customer_feedback, service_quality]
+        failure_categories: [missing_metrics, shallow_analysis, weak_follow_up]
+        rubric_additions: [Compare process metrics with sentiment, sample interactions, define improvement loop]
+        expected_signals: [Looks beyond SLA, analyzes feedback text, identifies experience gaps]
+        anti_patterns: [Says SLA is enough, ignores qualitative feedback, blames customer expectations]
+        good_answer_hints: [Read customer words, inspect moments of friction, improve communication and closure standard]
+        priority: 16
+        status: active

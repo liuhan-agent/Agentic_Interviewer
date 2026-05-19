@@ -11,6 +11,9 @@ export const metadata: Metadata = {
   title: "AI 面试官",
   description:
     "面向求职者的 AI 面试练习工具，提供模拟问答、能力评估和个性化提升建议。",
+  icons: {
+    icon: [{ url: "/favicon.svg", type: "image/svg+xml" }],
+  },
 };
 
 export default function RootLayout({

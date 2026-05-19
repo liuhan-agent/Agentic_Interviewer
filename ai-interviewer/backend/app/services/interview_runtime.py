@@ -66,6 +66,9 @@ def terminal_payload_from_persisted_session(
             persisted_error = getattr(row, "error", None)
             persisted_error_kind = getattr(row, "error_kind", None)
             persisted_retryable = bool(getattr(row, "retryable", False))
+            enable_video_analysis = bool(
+                getattr(row, "enable_video_analysis", False)
+            )
     except Exception as e:
         log.warning("load persisted session %s failed: %s", session_id, e)
         return None
@@ -76,25 +79,31 @@ def terminal_payload_from_persisted_session(
             "status": "completed",
             "question": None,
             "final_report": final_report,
+            "enable_video_analysis": enable_video_analysis,
         }
     if status == "cancelled":
         return {
             "session_id": session_id,
             "status": "cancelled",
             "question": None,
+            "enable_video_analysis": enable_video_analysis,
         }
     if status in {"error", "errored", "failed", "stale", "interrupted", "running"}:
         effective_retryable = retryable or persisted_retryable
         if persisted_error:
-            return terminal_error_payload(
+            payload = terminal_error_payload(
                 session_id=session_id,
                 error=persisted_error,
                 error_kind=persisted_error_kind,
                 retryable=effective_retryable,
             )
-        return stale_session_error(
+            payload["enable_video_analysis"] = enable_video_analysis
+            return payload
+        payload = stale_session_error(
             session_id,
             status=status,
             retryable=effective_retryable,
         )
+        payload["enable_video_analysis"] = enable_video_analysis
+        return payload
     return None

@@ -1,0 +1,52 @@
+dimension: policy_compliance
+seeds:
+  - id: policy_compliance.hr_policy_risk_control
+    version: 1
+    title: HR policy compliance risk control
+    dimension: policy_compliance
+    job_levels: [junior, mid, senior]
+    skill_tags: [hr_function, policy_compliance, risk_control, process_governance]
+    direction_tags: [business]
+    role_tags: [hr_function]
+    rubric:
+      must_cover: [policy_boundary, legal_risk, process_trace, stakeholder_communication]
+      minimum_bar: Explain how to apply HR policy consistently while managing risk and user experience.
+      stretch: Distinguish policy principle, exception handling, and escalation criteria.
+    priority: 24
+    status: active
+    source: manual_yaml
+    scope: global
+    language: zh-CN
+    variants:
+      - id: policy_compliance.hr_policy_risk_control.attendance_exception
+        version: 1
+        intent: opening
+        difficulty: standard
+        scenario_brief: A manager asks HR to make an exception to attendance policy for a high performer.
+        question_stem: How would you judge whether an exception is acceptable and communicate the decision to the manager and employee?
+        prompt_template: Generate an HR policy compliance question about exception boundaries and communication.
+        scenario_skill_tags: [hr_function, policy_compliance, exception_handling, risk_control]
+        resume_anchor_hints: [policy, compliance, hr_process, manager, employee_relations]
+        failure_categories: [missing_risk_boundary, weak_stakeholder_alignment, vague_process]
+        rubric_additions: [Clarify policy purpose, evaluate precedent risk, document decision path]
+        expected_signals: [Balances consistency and context, defines approval path, communicates respectfully]
+        anti_patterns: [Applies policy mechanically, creates hidden exception, ignores documentation]
+        good_answer_hints: [Check principle and precedent, align with owner, record the rationale]
+        priority: 17
+        status: active
+      - id: policy_compliance.hr_policy_risk_control.sensitive_data_access
+        version: 1
+        intent: deep_probe
+        difficulty: deep_probe
+        scenario_brief: A business leader requests salary and performance data for a reorganization analysis.
+        question_stem: How would you control access to sensitive employee data while still supporting the business decision?
+        prompt_template: Generate a deep probe about HR sensitive data boundary and compliance risk.
+        scenario_skill_tags: [hr_function, policy_compliance, data_privacy, risk_control]
+        resume_anchor_hints: [employee_data, salary, performance, compliance, privacy]
+        failure_categories: [missing_risk_boundary, weak_evidence, poor_communication]
+        rubric_additions: [Limit data scope, verify authorization, provide aggregated alternatives when possible]
+        expected_signals: [Checks need to know, protects sensitive fields, documents approval]
+        anti_patterns: [Shares raw data casually, blocks business without alternative, ignores audit trail]
+        good_answer_hints: [Clarify purpose, minimize data, use approval and traceability]
+        priority: 15
+        status: active

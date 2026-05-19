@@ -45,7 +45,7 @@ export function RagEvalPanel() {
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
             <Database className="h-4 w-4 text-sky-400" />
-            <CardTitle className="text-base">RAG 检索评测</CardTitle>
+            <CardTitle className="text-base">知识 RAG 评测</CardTitle>
           </div>
           <div className="flex gap-1">
             {WINDOWS.map((w) => (

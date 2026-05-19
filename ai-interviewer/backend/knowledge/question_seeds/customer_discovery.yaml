@@ -1,0 +1,52 @@
+dimension: customer_discovery
+seeds:
+  - id: customer_discovery.icp_qualification
+    version: 1
+    title: ICP 判断与客户资格识别
+    dimension: customer_discovery
+    job_levels: [junior, mid, senior]
+    skill_tags: [sales_business, customer_discovery, icp, qualification, crm]
+    direction_tags: [business]
+    role_tags: [sales_business]
+    rubric:
+      must_cover: [客户画像, 需求信号, 预算权限, 放弃标准]
+      minimum_bar: 能说明什么客户值得推进、什么客户应该及时放弃。
+      stretch: 能结合行业、规模、痛点和决策链判断长期客户健康度。
+    priority: 30
+    status: active
+    source: manual_yaml
+    scope: global
+    language: zh-CN
+    variants:
+      - id: customer_discovery.icp_qualification.midmarket_saas
+        version: 1
+        intent: opening
+        difficulty: standard
+        scenario_brief: 一个中型 SaaS 客户预算有限但需求急，另一个大型客户金额高但决策链长且痛点不清。
+        question_stem: 你会如何判断两个客户谁更值得优先推进，并说明你的 ICP 标准？
+        prompt_template: 生成一道销售客户发现题，要求候选人说明客户画像、需求强度、预算权限和推进优先级。
+        scenario_skill_tags: [sales_business, customer_discovery, icp, qualification]
+        resume_anchor_hints: [sales, customer, icp, crm, qualification]
+        failure_categories: [missing_evidence, weak_prioritization, vague_customer]
+        rubric_additions: [说明 ICP 维度, 说明预算和决策链, 说明放弃或降优先级标准]
+        expected_signals: [能判断客户质量而非只看金额, 能识别决策链风险, 能说明推进策略]
+        anti_patterns: [金额大就优先, 不问预算权限, 不敢放弃低质客户]
+        good_answer_hints: [先定义 ICP, 再比较客户信号, 最后决定推进节奏]
+        priority: 18
+        status: active
+      - id: customer_discovery.icp_qualification.wrong_fit_deal
+        version: 1
+        intent: deep_probe
+        difficulty: deep_probe
+        scenario_brief: 一个客户愿意快速签约，但需求和产品能力匹配度低，交付团队担心后续成本高。
+        question_stem: 面对可能快速成交但并不匹配的客户，你会如何决定是否推进？
+        prompt_template: 生成一道客户资格深挖题，要求候选人说明短期业绩、长期交付成本、客户成功和放弃标准。
+        scenario_skill_tags: [sales_business, qualification, customer_success, tradeoff]
+        resume_anchor_hints: [sales, deal, customer_success, contract, delivery]
+        failure_categories: [missing_tradeoff, missing_risk, weak_prioritization]
+        rubric_additions: [说明错配风险, 说明内部交付成本, 说明是否推进和替代方案]
+        expected_signals: [能看到签约后的客户健康度, 能与交付或 CSM 对齐, 能承担放弃短期机会]
+        anti_patterns: [为了 KPI 强签, 忽略交付成本, 没有风险同步]
+        good_answer_hints: [先评估匹配度, 再量化后续成本, 最后选择推进或放弃]
+        priority: 16
+        status: active

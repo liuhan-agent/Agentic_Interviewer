@@ -18,6 +18,7 @@ def _base_payload(**overrides: Any) -> dict[str, Any]:
         "retryable": False,
         "turn_idx": 3,
         "max_turns": 8,
+        "enable_video_analysis": False,
         "previous_turn_evaluation": None,
         "server_latency_ms": None,
     }
@@ -39,6 +40,7 @@ def test_waiting_payload_preserves_live_question_fields() -> None:
         "turn_idx": 3,
         "question": {"question": "Q?", "dimension": "system_design"},
         "max_turns": 8,
+        "enable_video_analysis": False,
         "previous_turn_evaluation": previous,
         "server_latency_ms": 456,
     }
@@ -53,6 +55,7 @@ def test_pending_payload_when_no_question_and_not_done() -> None:
         "turn_idx": 3,
         "question": None,
         "max_turns": 8,
+        "enable_video_analysis": False,
         "previous_turn_evaluation": None,
         "server_latency_ms": None,
     }
@@ -73,6 +76,7 @@ def test_completed_payload_includes_final_report() -> None:
         "question": None,
         "final_report": {"overall_score": 8.2},
         "max_turns": 8,
+        "enable_video_analysis": False,
         "previous_turn_evaluation": {"score": 8.2},
         "server_latency_ms": 12,
     }
@@ -92,6 +96,7 @@ def test_cancelled_payload_omits_final_report() -> None:
         "status": "cancelled",
         "question": None,
         "max_turns": 8,
+        "enable_video_analysis": False,
         "previous_turn_evaluation": None,
         "server_latency_ms": None,
     }
@@ -116,6 +121,13 @@ def test_error_payload_uses_terminal_error_shape_and_retryable_flag() -> None:
         "error": "question generation failed",
         "error_kind": "question_generation_failed",
         "retryable": True,
+        "enable_video_analysis": False,
         "previous_turn_evaluation": {"score": 6.5},
         "server_latency_ms": 789,
     }
+
+
+def test_waiting_payload_surfaces_video_capability() -> None:
+    payload = _base_payload(enable_video_analysis=True)
+
+    assert payload["enable_video_analysis"] is True

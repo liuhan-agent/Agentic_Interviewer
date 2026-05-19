@@ -16,6 +16,7 @@ experience useful even when the upstream provider is flaky.
 """
 from __future__ import annotations
 
+import json
 import math
 from collections import Counter
 from typing import Any
@@ -76,6 +77,88 @@ def _finite_score(value: Any) -> float | None:
     except (TypeError, ValueError):
         return None
     return score if math.isfinite(score) else None
+
+
+def _dimension_score_item(final_report: dict[str, Any], dimension: Any) -> dict[str, Any]:
+    scores = (final_report or {}).get("dimension_scores") or {}
+    item = scores.get(str(dimension or ""))
+    return item if isinstance(item, dict) else {}
+
+
+def _score_status_for_dimension(final_report: dict[str, Any], dimension: Any) -> str | None:
+    item = _dimension_score_item(final_report, dimension)
+    status = item.get("score_status")
+    return str(status) if status else None
+
+
+def _coverage_status_for_dimension(final_report: dict[str, Any], dimension: Any) -> str | None:
+    item = _dimension_score_item(final_report, dimension)
+    status = item.get("coverage_status")
+    return str(status) if status else None
+
+
+def _dimension_is_scored_for_report(
+    final_report: dict[str, Any],
+    dimension: Any,
+) -> bool:
+    item = _dimension_score_item(final_report, dimension)
+    if not item:
+        return True
+    return item.get("score_status") == "scored"
+
+
+def _is_scored_evaluator_turn(
+    qa: dict[str, Any],
+    final_report: dict[str, Any] | None = None,
+) -> bool:
+    evaluation = qa.get("evaluation") or {}
+    if evaluation.get("skipped") or qa.get("answer_intent") == "skipped":
+        return False
+    if _is_evaluator_fallback(evaluation):
+        return False
+    if _finite_score(evaluation.get("score")) is None:
+        return False
+
+    status = _score_status_for_dimension(final_report or {}, qa.get("dimension"))
+    if status is None:
+        return True
+    return status == "scored"
+
+
+def _coach_context_report(final_report: dict[str, Any]) -> dict[str, Any]:
+    """Return the report projection the Coach may use as training signal.
+
+    The persisted final report keeps all dimensions for audit/UI, but
+    the Coach should not infer ability weaknesses from skipped,
+    not-evaluated, or evaluator-unavailable dimensions. Coverage-limited
+    dimensions stay visible with weaknesses cleared so the plan can
+    ask for more evidence rather than treating them as low ability.
+    """
+    report = dict(final_report or {})
+    dimension_summaries = report.get("dimension_summaries") or {}
+    filtered_summaries: dict[str, Any] = {}
+    coverage_limited: list[str] = []
+    for dim, summary in dimension_summaries.items():
+        if not _dimension_is_scored_for_report(report, dim):
+            continue
+        if isinstance(summary, dict):
+            next_summary = dict(summary)
+        else:
+            next_summary = summary
+        if _coverage_status_for_dimension(report, dim) == "coverage_limited":
+            coverage_limited.append(str(dim))
+            if isinstance(next_summary, dict):
+                next_summary["weaknesses"] = []
+        filtered_summaries[str(dim)] = next_summary
+    report["dimension_summaries"] = filtered_summaries
+    policy = dict(report.get("coach_generation_policy") or {})
+    policy["training_signal"] = (
+        "only scored evaluator dimensions; skipped/not_evaluated/"
+        "evaluator_unavailable excluded"
+    )
+    policy["coverage_limited_dimensions"] = sorted(coverage_limited)
+    report["coach_generation_policy"] = policy
+    return report
 
 
 _SYSTEM_FALLBACK_MARKERS = (
@@ -181,6 +264,7 @@ def _project_qa_for_coach(qa: dict[str, Any]) -> dict[str, Any]:
 def _importance_sample_qa(
     qa_history: list[dict[str, Any]],
     max_turns: int = 12,
+    final_report: dict[str, Any] | None = None,
 ) -> list[dict[str, Any]]:
     """Sample QA turns prioritising low scores for coach context.
 
@@ -190,7 +274,7 @@ def _importance_sample_qa(
     """
     valid = [
         qa for qa in qa_history
-        if not _is_evaluator_fallback(qa.get("evaluation") or {})
+        if _is_scored_evaluator_turn(qa, final_report)
     ]
     valid.sort(key=_qa_sort_key)
     sampled = valid[:max_turns]
@@ -243,6 +327,7 @@ def _fallback_training_plan(
     *,
     final_report: dict[str, Any],
     qa_history: list[dict[str, Any]],
+    fallback_reason: str | None = None,
 ) -> dict[str, Any]:
     """Deterministic plan used when the LLM path is unavailable.
 
@@ -252,14 +337,19 @@ def _fallback_training_plan(
     """
     counter: Counter[tuple[str, str]] = Counter()
     dim_last_score: dict[str, float] = {}
+    coverage_limited_dims: dict[str, int] = {}
     for qa in qa_history:
         evaluation = qa.get("evaluation") or {}
-        if _is_evaluator_fallback(evaluation):
+        if not _is_scored_evaluator_turn(qa, final_report):
             continue
         dim = qa.get("dimension") or "general"
-        score = evaluation.get("score")
-        if isinstance(score, (int, float)):
-            dim_last_score[dim] = float(score)
+        score = _finite_score(evaluation.get("score"))
+        if score is not None:
+            dim_last_score[dim] = score
+        if _coverage_status_for_dimension(final_report, dim) == "coverage_limited":
+            key = str(dim)
+            coverage_limited_dims[key] = coverage_limited_dims.get(key, 0) + 1
+            continue
         for w in _candidate_weaknesses(evaluation):
             if not w:
                 continue
@@ -295,6 +385,38 @@ def _fallback_training_plan(
             }
         )
 
+    for dim, count in sorted(coverage_limited_dims.items()):
+        dim_label = _dimension_label(dim)
+        focus = f"补充「{dim_label}」维度的回答证据与覆盖面"
+        priority_weaknesses.append(
+            {
+                "dimension": dim_label,
+                "focus": focus,
+                "why_it_matters": (
+                    f"该维度已有有效评分，但还有 {count} 轮信号显示覆盖不足；"
+                    "下一轮重点是补足证据，而不是按低分能力弱项处理。"
+                ),
+                "category": "coverage_limited",
+            }
+        )
+        practice_plan.append(
+            {
+                "task": f"围绕「{dim_label}」补充一次证据覆盖练习",
+                "rationale": "该维度得分有效，但证据覆盖仍不完整，需要补充更可验证的例子、边界和取舍。",
+                "estimated_hours": 1.5,
+                "steps": [
+                    f"复盘「{dim_label}」维度已有回答，列出已经覆盖和未覆盖的检查点。",
+                    "补充 1 个具体项目例子，写清背景、动作、指标、结果和取舍。",
+                    "用 3 分钟口述一版答案，确保每个关键结论都有证据支撑。",
+                ],
+                "success_criteria": [
+                    f"能够用至少 2 个具体证据支撑「{dim_label}」维度的核心结论。",
+                    "再次模拟时不再出现覆盖不足或证据不足提示。",
+                ],
+                "category": "coverage_limited",
+            }
+        )
+
     lowest_dim = None
     if dim_last_score:
         lowest_dim = min(dim_last_score, key=lambda d: dim_last_score[d])
@@ -327,7 +449,7 @@ def _fallback_training_plan(
         else "综合能力"
     )
 
-    return {
+    plan = {
         "diagnosis": diagnosis,
         "priority_weaknesses": priority_weaknesses,
         "practice_plan": practice_plan,
@@ -348,6 +470,50 @@ def _fallback_training_plan(
         "signal_summary": summary,
         "source": "fallback",
     }
+    if fallback_reason:
+        plan["fallback_reason"] = fallback_reason
+    return plan
+
+
+_COACH_PLAN_KEYS = {
+    "diagnosis",
+    "priority_weaknesses",
+    "practice_plan",
+    "goals_30_60_90",
+    "signal_summary",
+}
+
+
+def _looks_like_empty_json_object(text: str) -> bool:
+    stripped = (text or "").strip()
+    if not stripped:
+        return False
+    if stripped.startswith("```"):
+        stripped = stripped.strip("`").strip()
+        if stripped.lower().startswith("json"):
+            stripped = stripped[4:].strip()
+    try:
+        return json.loads(stripped) == {}
+    except json.JSONDecodeError:
+        return False
+
+
+def _has_coach_plan_shape(data: dict[str, Any]) -> bool:
+    return any(key in data for key in _COACH_PLAN_KEYS)
+
+
+def _fallback_with_reason(
+    *,
+    reason: str,
+    final_report: dict[str, Any],
+    qa_history: list[dict[str, Any]],
+) -> dict[str, Any]:
+    plan = _fallback_training_plan(
+        final_report=final_report,
+        qa_history=qa_history,
+        fallback_reason=reason,
+    )
+    return plan
 
 
 def _normalize_llm_plan(data: dict[str, Any]) -> dict[str, Any]:
@@ -401,11 +567,12 @@ def build_training_plan(
     Never raises; degrades to :func:`_fallback_training_plan` on any
     LLM failure.
     """
-    qa_tailored = _importance_sample_qa(qa_history)
+    coach_report = _coach_context_report(final_report or {})
+    qa_tailored = _importance_sample_qa(qa_history, final_report=coach_report)
     frame = build_context_frame_for_coach(
         job_spec=job_spec or {},
         candidate=candidate or {},
-        final_report=final_report or {},
+        final_report=coach_report,
         qa_tailored=qa_tailored,
         self_intro_profile=self_intro_profile,
         verification_summary=verification,
@@ -413,17 +580,49 @@ def build_training_plan(
     messages = frame_to_coach_messages(frame)
     try:
         raw = call_chat(messages, json_mode=True, agent_role="coach")
-        data = parse_json_response(raw)
     except Exception as e:  # pragma: no cover
         log.warning("coach LLM call failed, using fallback: %s", e)
-        return _fallback_training_plan(
-            final_report=final_report,
+        return _fallback_with_reason(
+            reason="llm_call_failed",
+            final_report=coach_report,
             qa_history=qa_history,
         )
 
-    if not isinstance(data, dict) or not data:
-        return _fallback_training_plan(
-            final_report=final_report,
+    raw_text = str(raw or "").strip()
+    if not raw_text:
+        return _fallback_with_reason(
+            reason="empty_output",
+            final_report=coach_report,
+            qa_history=qa_history,
+        )
+
+    try:
+        data = parse_json_response(raw)
+    except Exception as e:  # pragma: no cover
+        log.warning("coach LLM response parse raised, using fallback: %s", e)
+        return _fallback_with_reason(
+            reason="json_parse_failed",
+            final_report=coach_report,
+            qa_history=qa_history,
+        )
+
+    if not isinstance(data, dict):
+        return _fallback_with_reason(
+            reason="invalid_structure",
+            final_report=coach_report,
+            qa_history=qa_history,
+        )
+    if not data:
+        reason = "invalid_structure" if _looks_like_empty_json_object(raw_text) else "json_parse_failed"
+        return _fallback_with_reason(
+            reason=reason,
+            final_report=coach_report,
+            qa_history=qa_history,
+        )
+    if not _has_coach_plan_shape(data):
+        return _fallback_with_reason(
+            reason="invalid_structure",
+            final_report=coach_report,
             qa_history=qa_history,
         )
 
