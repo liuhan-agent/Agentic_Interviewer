@@ -20,6 +20,7 @@ import type {
   RetryQuestionResponse,
   ResumeParseJobResponse,
   SessionMetadataResponse,
+  SessionSetupSnapshotResponse,
   ResumeResponse,
   SkipQuestionRequest,
   SkipQuestionResponse,
@@ -345,9 +346,11 @@ export function getReport(sessionId: string): Promise<GetReportResponse> {
 }
 
 export function getReplay(sessionId: string): Promise<ReplayResponse> {
-  return request(`${BASE}/sessions/${encodeURIComponent(sessionId)}/replay`, {
-    headers: sessionHeaders(sessionId),
-  });
+  return withSessionRecovery(sessionId, () =>
+    request(`${BASE}/sessions/${encodeURIComponent(sessionId)}/replay`, {
+      headers: sessionHeaders(sessionId),
+    }),
+  );
 }
 
 export function getSessionMetadata(
@@ -355,6 +358,16 @@ export function getSessionMetadata(
 ): Promise<SessionMetadataResponse> {
   return withSessionRecovery(sessionId, () =>
     request(`${BASE}/sessions/${encodeURIComponent(sessionId)}/metadata`, {
+      headers: sessionHeaders(sessionId),
+    }),
+  );
+}
+
+export function getSessionSetupSnapshot(
+  sessionId: string,
+): Promise<SessionSetupSnapshotResponse> {
+  return withSessionRecovery(sessionId, () =>
+    request(`${BASE}/sessions/${encodeURIComponent(sessionId)}/setup-snapshot`, {
       headers: sessionHeaders(sessionId),
     }),
   );

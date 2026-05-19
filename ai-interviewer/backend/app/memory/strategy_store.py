@@ -1,14 +1,13 @@
-"""File-backed strategy memory store.
+"""Strategy memory retrieval and persistence.
 
-Borrows the Claude Code pattern: a human-readable ``MEMORY.md`` index
-plus individual topic files, all living under ``knowledge/strategy/``.
-The store supports reading, writing, and retrieving strategy files so
-the interview workflow can both *consume* past experience and *produce*
-new experience after each session.
+The production runtime is DB-backed: active rows in ``strategy_memories``
+are retrieved, attributed through ``strategy_memory_usages``, and ranked
+against ``strategy_memory_stats`` when reward ranking is enabled.
 
-Retrieval is keyword-based (dimension + job_level match against YAML
-frontmatter).  The vector store handles deeper semantic similarity;
-this module provides the structured, file-native layer on top.
+The legacy file backend remains as a dev/test fallback and seed source
+for ``knowledge/strategy/*.md``. Keeping both backends behind the same
+functions lets the workflow consume strategy memories without knowing
+whether they came from imported markdown seeds or promoted DB signals.
 """
 from __future__ import annotations
 
@@ -17,11 +16,16 @@ import re
 import tempfile
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
+from math import log as math_log
 from pathlib import Path
 from typing import Any
 
+from sqlalchemy import select
+
 from app.core.logging import get_logger
 from app.core.settings import get_settings
+from app.models import get_session
+from app.models.strategy_memory import StrategyMemory, StrategyMemoryStats
 
 log = get_logger(__name__)
 
@@ -53,12 +57,33 @@ _strategy_cache: _StrategyCache | None = None
 @dataclass
 class StrategyEntry:
     path: Path
+    id: str | None = None
+    slug: str | None = None
+    memory_key: str | None = None
     name: str = ""
     description: str = ""
     entry_type: str = "strategy"
+    source: str = "file"
+    status: str = "active"
+    quality_reason: str | None = None
+    promotion_stage: str = ""
+    confidence: float = 0.0
+    support_count: int = 0
+    priority: int = 0
+    ranking_score: float = 0.0
+    ranking_reason: dict[str, Any] = field(default_factory=dict)
+    shadow_rank: int | None = None
     dimensions: list[str] = field(default_factory=list)
     job_levels: list[str] = field(default_factory=list)
     body: str = ""
+
+
+@dataclass(frozen=True)
+class _StrategyStatsMatch:
+    stats: StrategyMemoryStats | None
+    context_key: str | None
+    scope: str
+    requested_context_keys: list[str] = field(default_factory=list)
 
 
 def _parse_frontmatter(text: str) -> dict[str, Any]:
@@ -86,6 +111,17 @@ def _strategy_dir() -> Path:
     return get_settings().knowledge_dir / "strategy"
 
 
+def _strategy_backend() -> str:
+    return str(getattr(get_settings(), "strategy_memory_backend", "file") or "file")
+
+
+def _strategy_ranking_mode() -> str:
+    return str(
+        getattr(get_settings(), "strategy_memory_ranking_mode", "metadata")
+        or "metadata"
+    )
+
+
 def _strategy_signature(root: Path) -> tuple[tuple[str, int, int], ...]:
     if not root.is_dir():
         return ()
@@ -107,6 +143,45 @@ def clear_strategy_cache_for_tests() -> None:
 
 
 def list_strategies() -> list[StrategyEntry]:
+    if _strategy_backend() == "db":
+        return _list_db_strategies()
+    return _list_file_strategies()
+
+
+def _list_db_strategies() -> list[StrategyEntry]:
+    with get_session() as session:
+        rows = list(
+            session.scalars(
+                select(StrategyMemory)
+                .where(StrategyMemory.status == "active")
+                .order_by(StrategyMemory.slug.asc())
+            )
+        )
+    return [
+        StrategyEntry(
+            path=Path(f"{row.slug}.md"),
+            id=row.id,
+            slug=row.slug,
+            memory_key=row.memory_key,
+            name=row.name,
+            description=row.description,
+            entry_type="strategy",
+            source=row.source,
+            status=row.status,
+            quality_reason=row.quality_reason,
+            promotion_stage=row.promotion_stage,
+            confidence=float(row.confidence or 0.0),
+            support_count=int(row.support_count or 0),
+            priority=int(row.priority or 0),
+            dimensions=list(row.dimensions or []),
+            job_levels=list(row.job_levels or []),
+            body=row.body_markdown or "",
+        )
+        for row in rows
+    ]
+
+
+def _list_file_strategies() -> list[StrategyEntry]:
     global _strategy_cache
     root = _strategy_dir()
     if not root.is_dir():
@@ -130,9 +205,12 @@ def list_strategies() -> list[StrategyEntry]:
         fm = _parse_frontmatter(text)
         entries.append(StrategyEntry(
             path=p,
+            slug=p.stem,
             name=fm.get("name", p.stem),
             description=fm.get("description", ""),
             entry_type=fm.get("type", "strategy"),
+            source="file",
+            status="active",
             dimensions=fm.get("dimensions", []),
             job_levels=fm.get("job_levels", []),
             body=_strip_frontmatter(text),
@@ -148,6 +226,7 @@ def retrieve_strategies(
     limit: int = 3,
     use_llm_selector: bool = False,
     recent_qa_summary: str = "",
+    policy_context_keys: list[str] | None = None,
 ) -> list[StrategyEntry]:
     """Return strategy entries relevant to the given dimension and level.
 
@@ -160,15 +239,23 @@ def retrieve_strategies(
     scored: list[tuple[int, StrategyEntry]] = []
     for entry in all_entries:
         score = 0
-        if entry.dimensions and dimension in entry.dimensions:
+        if entry.dimensions:
+            if dimension not in entry.dimensions:
+                continue
             score += 2
-        if entry.job_levels and job_level in entry.job_levels:
+        else:
             score += 1
-        if not entry.dimensions:
+        if entry.job_levels:
+            if job_level not in entry.job_levels:
+                continue
             score += 1
         scored.append((score, entry))
     scored.sort(key=lambda x: x[0], reverse=True)
-    keyword_hits = [e for _, e in scored[:limit] if _ > 0]
+    keyword_hits = _rank_strategy_hits(
+        scored,
+        limit=limit,
+        policy_context_keys=policy_context_keys,
+    )
 
     if not use_llm_selector or not keyword_hits:
         return keyword_hits
@@ -206,6 +293,183 @@ def retrieve_strategies(
         return []
     by_name = {e.path.name: e for e in keyword_hits}
     return [by_name[f] for f in selected if f in by_name]
+
+
+def _rank_strategy_hits(
+    scored: list[tuple[int, StrategyEntry]],
+    *,
+    limit: int,
+    policy_context_keys: list[str] | None = None,
+) -> list[StrategyEntry]:
+    metadata_hits = [entry for score, entry in scored if score > 0]
+    if not metadata_hits:
+        return []
+
+    mode = _strategy_ranking_mode()
+    if mode not in {"reward_shadow", "reward"}:
+        return metadata_hits[:limit]
+
+    metadata_scores = {id(entry): score for score, entry in scored}
+    stats_by_strategy = _load_strategy_stats(
+        metadata_hits,
+        policy_context_keys=policy_context_keys,
+    )
+    reward_ranked = sorted(
+        metadata_hits,
+        key=lambda entry: _reward_ranking_score(
+            entry,
+            base_score=metadata_scores.get(id(entry), 0),
+            stats_match=stats_by_strategy.get(entry.id or ""),
+        ),
+        reverse=True,
+    )
+    for idx, entry in enumerate(reward_ranked, 1):
+        entry.shadow_rank = idx
+        stats_match = stats_by_strategy.get(entry.id or "")
+        entry.ranking_score = _reward_ranking_score(
+            entry,
+            base_score=metadata_scores.get(id(entry), 0),
+            stats_match=stats_match,
+        )
+        entry.ranking_reason = _ranking_reason(
+            entry,
+            base_score=metadata_scores.get(id(entry), 0),
+            stats_match=stats_match,
+        )
+
+    if mode == "reward":
+        return reward_ranked[:limit]
+    return metadata_hits[:limit]
+
+
+def _load_strategy_stats(
+    entries: list[StrategyEntry],
+    *,
+    policy_context_keys: list[str] | None = None,
+) -> dict[str, _StrategyStatsMatch]:
+    requested_context_keys = _normalize_context_keys(policy_context_keys)
+    context_order = [*requested_context_keys, "__global__"]
+    strategy_ids = [entry.id for entry in entries if entry.id]
+    if not strategy_ids:
+        return {}
+    with get_session() as session:
+        rows = list(
+            session.scalars(
+                select(StrategyMemoryStats)
+                .where(StrategyMemoryStats.strategy_id.in_(strategy_ids))
+                .where(StrategyMemoryStats.context_key.in_(context_order))
+            )
+        )
+    rows_by_key = {
+        (row.strategy_id, row.context_key): row
+        for row in rows
+    }
+    return {
+        strategy_id: _select_stats_match(
+            strategy_id,
+            rows_by_key=rows_by_key,
+            context_order=context_order,
+            requested_context_keys=requested_context_keys,
+        )
+        for strategy_id in strategy_ids
+    }
+
+
+def _normalize_context_keys(policy_context_keys: list[str] | None) -> list[str]:
+    normalized: list[str] = []
+    seen: set[str] = set()
+    for key in policy_context_keys or []:
+        value = str(key or "").strip()
+        if not value or value == "__global__" or value in seen:
+            continue
+        normalized.append(value)
+        seen.add(value)
+    return normalized
+
+
+def _select_stats_match(
+    strategy_id: str,
+    *,
+    rows_by_key: dict[tuple[str, str], StrategyMemoryStats],
+    context_order: list[str],
+    requested_context_keys: list[str],
+) -> _StrategyStatsMatch:
+    for idx, context_key in enumerate(context_order):
+        row = rows_by_key.get((strategy_id, context_key))
+        if row is None:
+            continue
+        if context_key == "__global__":
+            scope = "global"
+        elif idx == 0:
+            scope = "exact"
+        else:
+            scope = "fallback"
+        return _StrategyStatsMatch(
+            stats=row,
+            context_key=context_key,
+            scope=scope,
+            requested_context_keys=list(requested_context_keys),
+        )
+    return _StrategyStatsMatch(
+        stats=None,
+        context_key=None,
+        scope="none",
+        requested_context_keys=list(requested_context_keys),
+    )
+
+
+def _reward_ranking_score(
+    entry: StrategyEntry,
+    *,
+    base_score: int,
+    stats_match: _StrategyStatsMatch | None,
+) -> float:
+    score = float(base_score + entry.priority)
+    stats = stats_match.stats if stats_match is not None else None
+    if stats is None:
+        return score
+    avg_reward = float(stats.avg_blended_reward or 0.0)
+    uses = max(0, int(stats.uses or 0))
+    overrule_rate = float(stats.overrule_rate or 0.0)
+    return (
+        score
+        + (avg_reward * 0.5)
+        + (math_log(uses + 1) * 0.1)
+        - (overrule_rate * 0.5)
+    )
+
+
+def _ranking_reason(
+    entry: StrategyEntry,
+    *,
+    base_score: int,
+    stats_match: _StrategyStatsMatch | None,
+) -> dict[str, Any]:
+    requested_context_keys = (
+        list(stats_match.requested_context_keys)
+        if stats_match is not None
+        else []
+    )
+    stats = stats_match.stats if stats_match is not None else None
+    if stats is None:
+        return {
+            "base_score": base_score,
+            "priority": entry.priority,
+            "uses": 0,
+            "requested_context_keys": requested_context_keys,
+            "stats_context_key": None,
+            "stats_scope": "none",
+        }
+    return {
+        "base_score": base_score,
+        "priority": entry.priority,
+        "uses": stats.uses,
+        "avg_blended_reward": stats.avg_blended_reward,
+        "overrule_rate": stats.overrule_rate,
+        "requested_context_keys": requested_context_keys,
+        "stats_context_key": stats_match.context_key if stats_match else None,
+        "stats_scope": stats_match.scope if stats_match else "none",
+    }
 
 
 def build_strategy_index() -> str:
@@ -275,6 +539,15 @@ def save_strategy(
     memory_key: str | None = None,
 ) -> Path:
     """Persist a new or updated strategy topic file and refresh the index."""
+    if _strategy_backend() == "db":
+        return _save_db_strategy(
+            name=name,
+            description=description,
+            dimensions=dimensions,
+            job_levels=job_levels,
+            body=body,
+            memory_key=memory_key,
+        )
     root = _strategy_dir()
     root.mkdir(parents=True, exist_ok=True)
     slug = _slugify(name)
@@ -301,6 +574,42 @@ def save_strategy(
     clear_strategy_cache_for_tests()
     _rebuild_memory_index()
     return path
+
+
+def _save_db_strategy(
+    *,
+    name: str,
+    description: str,
+    dimensions: list[str],
+    job_levels: list[str],
+    body: str,
+    memory_key: str | None = None,
+) -> Path:
+    slug = _slugify(name)
+    with get_session() as session:
+        row = session.scalar(select(StrategyMemory).where(StrategyMemory.slug == slug))
+        if row is None and memory_key:
+            row = session.scalar(
+                select(StrategyMemory).where(StrategyMemory.memory_key == memory_key)
+            )
+        if row is None:
+            row = StrategyMemory(
+                id=f"auto:{slug}",
+                slug=slug,
+                source="promoted_signal",
+                status="active",
+                promotion_stage="low_confidence",
+            )
+            session.add(row)
+        row.name = name
+        row.description = description
+        row.memory_key = memory_key
+        row.dimensions = list(dimensions)
+        row.job_levels = list(job_levels)
+        row.body_markdown = body
+        row.version = int(row.version or 1) + 1
+    clear_strategy_cache_for_tests()
+    return Path(f"{slug}.md")
 
 
 def delete_strategy(path: Path) -> bool:

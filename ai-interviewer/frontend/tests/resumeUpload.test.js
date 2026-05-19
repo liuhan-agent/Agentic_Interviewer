@@ -75,16 +75,17 @@ test("autofills parsed candidate name only when the field is empty", () => {
   assert.equal(candidateNameAutofillValue({ summary: "parsed" }, ""), null);
 });
 
-test("session resume payload excludes candidate profile", () => {
+test("session resume payload keeps candidate profile for setup snapshots", () => {
+  const candidateProfile = {
+    education_level: "本科",
+    school: "九江学院",
+    major: "软件工程",
+    experience_years: 5,
+    current_or_target_role: "Java 后端",
+  };
   const parsed = resumeParsedForSession({
     candidate_name: "刘韩",
-    candidate_profile: {
-      education_level: "本科",
-      school: "九江学院",
-      major: "软件工程",
-      experience_years: 5,
-      current_or_target_role: "Java 后端",
-    },
+    candidate_profile: candidateProfile,
     summary: "parsed",
     skills: ["java"],
     highlights: ["project"],
@@ -98,8 +99,8 @@ test("session resume payload excludes candidate profile", () => {
     summary: "parsed",
     skills: ["java"],
     highlights: ["project"],
+    candidate_profile: candidateProfile,
   });
-  assert.equal("candidate_profile" in parsed, false);
 });
 
 test("autofills job suggestion only before user edits job fields", () => {

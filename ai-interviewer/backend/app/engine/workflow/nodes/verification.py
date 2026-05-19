@@ -34,7 +34,12 @@ from app.core.logging import get_logger
 from app.core.settings import get_settings
 from app.core.tracer import get_tracer
 from app.engine.agents.verification import should_trigger, verify_answer
+from app.engine.workflow.evaluation_consistency import (
+    normalize_evaluation_consistency,
+    sync_dimension_status,
+)
 from app.engine.workflow.state import InterviewState
+from app.models import get_session
 
 from .wait_answer import get_raw_answer_for_state
 
@@ -131,24 +136,21 @@ def _pick_overruled_check(
     return chosen[0], tuple(chosen[1])
 
 
-def _record_drift_event(
+def _compose_drift_event(
     *,
     evaluation: dict[str, Any],
     updated_evaluation: dict[str, Any],
     verification: dict[str, Any],
     dimension: str,
     job_level: str,
-) -> None:
-    """Push one :class:`DriftEvent` into the rolling monitor.
+) -> "DriftEvent":
+    """Build the :class:`DriftEvent` payload shared by monitor + DB sinks.
 
-    Wraps the record call so the caller can ``try/except`` around a
-    single line: the monitor is observation-only and must never
-    propagate an error into the workflow.
+    Pulled out of :func:`_record_drift_event` so PR2's DB persistence
+    can re-use the exact same canonicalisation rules without
+    re-implementing the verdict / overruled / evidence extraction.
     """
-    from app.ml.drift.verifier_drift import (
-        DriftEvent,
-        get_verifier_drift_monitor,
-    )
+    from app.ml.drift.verifier_drift import DriftEvent
 
     miss, total = _count_span_misses(evaluation)
     verifier_verdict = str(verification.get("verdict", "pass")).lower()
@@ -183,7 +185,7 @@ def _record_drift_event(
         str(r) for r in verifier_reasons_raw[:5] if r
     )
 
-    event = DriftEvent(
+    return DriftEvent(
         dimension=str(dimension or "unknown"),
         job_level=str(job_level or "mid"),
         evaluator_passed=evaluator_passed,
@@ -198,7 +200,122 @@ def _record_drift_event(
         evaluator_evidence_quotes=evaluator_evidence_quotes,
         verifier_reasons=verifier_reasons,
     )
+
+
+def _record_drift_event(
+    *,
+    evaluation: dict[str, Any],
+    updated_evaluation: dict[str, Any],
+    verification: dict[str, Any],
+    dimension: str,
+    job_level: str,
+) -> "DriftEvent":
+    """Push one :class:`DriftEvent` into the rolling monitor and return it.
+
+    The monitor is observation-only so the caller still wraps this in a
+    ``try/except``. Returning the event lets ``verification_node`` hand
+    the same payload to the DB persistence path (PR2) without rebuilding
+    the canonicalised fields.
+    """
+    from app.ml.drift.verifier_drift import get_verifier_drift_monitor
+
+    event = _compose_drift_event(
+        evaluation=evaluation,
+        updated_evaluation=updated_evaluation,
+        verification=verification,
+        dimension=dimension,
+        job_level=job_level,
+    )
     get_verifier_drift_monitor().record(event)
+    return event
+
+
+def _drift_event_id(
+    *,
+    session_id: str,
+    turn_idx: int,
+    dimension: str,
+    check_name: str | None,
+    overruled: bool,
+) -> str:
+    """Deterministic id for a persisted drift event row.
+
+    Including ``overruled`` in the key prevents a non-overruled event
+    (no check name) from colliding with an overruled one from the same
+    turn / dimension. Using ``"__none__"`` as the placeholder when the
+    check name is absent keeps the hash stable across re-runs of the
+    same turn — the dual-write path swallows the resulting integrity
+    error so re-runs do not double-count.
+    """
+    import hashlib
+
+    key = "|".join(
+        [
+            session_id or "",
+            str(turn_idx),
+            dimension or "",
+            check_name or "__none__",
+            "ov" if overruled else "noov",
+        ]
+    )
+    digest = hashlib.sha1(key.encode("utf-8"), usedforsecurity=False).hexdigest()
+    return f"drift:{digest[:32]}"
+
+
+def _persist_drift_event(
+    *,
+    event: "DriftEvent",
+    session_id: str,
+    trace_id: str | None,
+    turn_idx: int,
+    failure_categories: list[str],
+) -> None:
+    """Best-effort insert of one :class:`VerifierDriftEvent` row.
+
+    Raises only on unrecoverable errors; duplicate-key failures (same
+    turn replayed) are swallowed so re-runs stay idempotent. The caller
+    is expected to wrap us in another ``try/except`` for true unknowns
+    — see ``verification_node``.
+    """
+    from sqlalchemy.exc import IntegrityError
+
+    from app.models.verifier_drift import VerifierDriftEvent
+
+    event_id = _drift_event_id(
+        session_id=session_id,
+        turn_idx=turn_idx,
+        dimension=event.dimension,
+        check_name=event.overruled_check_name,
+        overruled=event.overruled,
+    )
+    try:
+        with get_session() as sess:
+            existing = sess.get(VerifierDriftEvent, event_id)
+            if existing is not None:
+                return
+            sess.add(
+                VerifierDriftEvent(
+                    id=event_id,
+                    session_id=session_id,
+                    trace_id=trace_id,
+                    turn_idx=int(turn_idx),
+                    dimension=event.dimension,
+                    job_level=event.job_level,
+                    evaluator_passed=event.evaluator_passed,
+                    verifier_verdict=event.verifier_verdict,
+                    verifier_confidence=float(event.verifier_confidence),
+                    verifier_abstained=event.verifier_abstained,
+                    overruled=event.overruled,
+                    span_miss_count=int(event.span_miss_count),
+                    span_total=int(event.span_total),
+                    overruled_check_name=event.overruled_check_name,
+                    evaluator_evidence_quotes=list(event.evaluator_evidence_quotes),
+                    verifier_reasons=list(event.verifier_reasons),
+                    failure_categories=list(failure_categories),
+                )
+            )
+    except IntegrityError:
+        return
 
 
 def _apply_verification(
@@ -313,6 +430,18 @@ def verification_node(state: InterviewState) -> dict[str, Any]:
         evaluator_report=evaluation,
     )
     updated_evaluation = _apply_verification(evaluation, verification)
+    updated_evaluation = normalize_evaluation_consistency(
+        updated_evaluation,
+        contract=contract or {},
+        quality_threshold=quality_threshold,
+        verification=verification,
+        verifier_min_override_confidence=_min_override_confidence(),
+    )
+    dimension_status = sync_dimension_status(
+        dict(state.get("dimension_status") or {}),
+        str(dimension),
+        updated_evaluation,
+    )
     log.info(
         "verification dim=%s verdict=%s forced_refine=%s conf=%.2f",
         dimension,
@@ -323,22 +452,65 @@ def verification_node(state: InterviewState) -> dict[str, Any]:
 
     # Drift observability (opt-in). Anything that can go wrong here is
     # non-critical: the monitor is an observation surface, not a
-    # decision input, so we log-and-swallow every exception.
-    if getattr(get_settings(), "enable_verifier_drift_monitor", False):
+    # decision input, so we log-and-swallow every exception. The
+    # ``enable_verifier_drift_persistence`` flag dual-writes the same
+    # event into ``verifier_drift_events`` so PR3's aggregation job has
+    # a cross-restart source of truth.
+    settings_ = get_settings()
+    should_record_monitor = bool(
+        getattr(settings_, "enable_verifier_drift_monitor", False)
+    )
+    should_persist = bool(
+        getattr(settings_, "enable_verifier_drift_persistence", False)
+    )
+    if should_record_monitor or should_persist:
         try:
-            _record_drift_event(
+            event = _compose_drift_event(
                 evaluation=evaluation,
                 updated_evaluation=updated_evaluation,
                 verification=verification,
                 dimension=dimension,
                 job_level=job_level,
             )
-        except Exception as e:  # pragma: no cover - monitor is non-critical
-            log.debug("drift monitor record failed: %s", e)
+        except Exception as e:  # pragma: no cover - compose is defensive
+            log.debug("drift event compose failed: %s", e)
+            event = None
+        if event is not None and should_record_monitor:
+            try:
+                from app.ml.drift.verifier_drift import (
+                    get_verifier_drift_monitor,
+                )
+
+                get_verifier_drift_monitor().record(event)
+            except Exception as e:  # pragma: no cover - monitor is non-critical
+                log.debug("drift monitor record failed: %s", e)
+        if event is not None and should_persist:
+            try:
+                evaluation_dict = (
+                    evaluation if isinstance(evaluation, dict) else {}
+                )
+                raw_failure_categories = (
+                    evaluation_dict.get("failure_categories") or []
+                )
+                failure_categories = [
+                    str(value)
+                    for value in raw_failure_categories
+                    if isinstance(value, str) and value
+                ]
+                _persist_drift_event(
+                    event=event,
+                    session_id=str(state.get("session_id") or ""),
+                    trace_id=str(state.get("trace_id") or "") or None,
+                    turn_idx=answer_turn_idx,
+                    failure_categories=failure_categories,
+                )
+            except Exception as e:  # pragma: no cover - persistence non-critical
+                log.debug("drift persistence failed: %s", e)
 
     update = {
         "evaluation": updated_evaluation,
         "verification": verification,
+        "dimension_status": dimension_status,
     }
     evaluator_passed = bool(evaluation.get("passed", False))
     updated_passed = bool(updated_evaluation.get("passed", False))

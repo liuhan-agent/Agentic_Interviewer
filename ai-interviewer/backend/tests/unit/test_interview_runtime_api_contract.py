@@ -168,6 +168,35 @@ def test_poll_question_waiting_response_contract(monkeypatch) -> None:
     }
 
 
+def test_poll_question_strips_internal_selection_artifacts(monkeypatch) -> None:
+    http, manager = _client(monkeypatch)
+    manager.handle.current_question = {
+        "question": "请设计库存缓存一致性方案。",
+        "dimension": "system_design",
+        "selection_artifacts": {
+            "question_items": [
+                {
+                    "seed_id": "system_design.cache_consistency",
+                    "variant_id": "system_design.cache_consistency.flash_sale_inventory",
+                    "expected_signals": ["internal"],
+                }
+            ]
+        },
+        "strategy_memory_refs": [{"id": "seed:internal"}],
+    }
+
+    resp = http.get(
+        "/api/v1/interview/sessions/sess-contract/question",
+        headers={"X-Session-Token": "session-secret"},
+    )
+
+    assert resp.status_code == 200
+    question = resp.json()["question"]
+    assert question["question"] == "请设计库存缓存一致性方案。"
+    assert "selection_artifacts" not in question
+    assert "strategy_memory_refs" not in question
+
+
 def test_poll_question_terminal_response_contracts(monkeypatch) -> None:
     http, manager = _client(monkeypatch)
     manager.handle.current_question = None

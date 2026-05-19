@@ -32,6 +32,9 @@ Reply with a single JSON object:
   "recommended_next_plan": "simple|adaptive|deep_probe|null",
   "recommended_probe_intent": "general|evidence_probe|tradeoff_probe|coverage_closeout|architecture_challenge|debugging_probe|performance_probe|metric_probe|prioritization_probe|experiment_probe|roleplay_probe|objection_probe|escalation_probe|null",
   "failure_reason": "short reason for a refine recommendation, or null",
+  "failure_categories": [
+    "missing_evidence|missing_tradeoff|missing_metrics|unclear_architecture|weak_debugging|weak_prioritization|weak_roleplay_response"
+  ],
   "rationale": "2-3 sentences"
 }}
 
@@ -59,6 +62,25 @@ question should use, given this answer:
                 strong; push harder with an adversarial probe.
 - null:         no recommendation / end of dimension.
 
+``failure_categories`` is a structured taxonomy of THIS answer's main
+shortcomings, drawn from the seven fixed labels above:
+- missing_evidence:        answer lacks concrete examples, projects, or
+                           outcomes.
+- missing_tradeoff:        no alternative or constraint comparison.
+- missing_metrics:         no numbers, KPIs, or quantified results.
+- unclear_architecture:    architecture / boundaries / scaling are vague.
+- weak_debugging:          root-cause / incident triage is shallow.
+- weak_prioritization:     priority / roadmap reasoning is missing.
+- weak_roleplay_response:  stakeholder / customer / escalation handling is weak.
+
+Rules for filling it:
+- Pick AT MOST 3 labels — the ones that most directly explain WHY the
+  answer was scored down. Use the strongest label first.
+- Use ``[]`` when the answer passed cleanly or when none of the seven
+  labels applies. Never invent new labels.
+- Labels in ``failure_categories`` complement ``failure_reason``; they
+  do not replace it. ``failure_reason`` stays free text in Chinese.
+
 ``recommended_probe_intent`` describes the style of the next question,
 not the plan template:
 - Use evidence_probe when the answer lacks concrete examples, metrics,
@@ -72,6 +94,8 @@ not the plan template:
 - Use null when you have no style recommendation.
 
 Rules:
+- Score only this current answer. Do not blend with previous turns or
+  infer the final dimension score; backend aggregation handles that.
 - Re-use existing strengths/weaknesses/rubric_coverage semantics;
   we keep those for backwards compatibility.
 - ``passed`` is true IFF score >= QUALITY_THRESHOLD AND every

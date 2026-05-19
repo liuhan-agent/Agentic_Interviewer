@@ -1,0 +1,52 @@
+dimension: retention_growth
+seeds:
+  - id: retention_growth.customer_renewal_risk
+    version: 1
+    title: Customer retention and renewal risk
+    dimension: retention_growth
+    job_levels: [junior, mid, senior]
+    skill_tags: [customer_success, retention_growth, renewal, account_health]
+    direction_tags: [business]
+    role_tags: [customer_success]
+    rubric:
+      must_cover: [health_signal, value_realization, stakeholder_map, renewal_action]
+      minimum_bar: Explain how to identify renewal risk and translate it into customer success actions.
+      stretch: Connect account health evidence with value realization, stakeholder influence, and expansion or retention plan.
+    priority: 26
+    status: active
+    source: manual_yaml
+    scope: global
+    language: zh-CN
+    variants:
+      - id: retention_growth.customer_renewal_risk.low_usage_before_renewal
+        version: 1
+        intent: opening
+        difficulty: standard
+        scenario_brief: A customer has low product usage two months before renewal, but the account owner says the relationship is fine.
+        question_stem: How would you judge whether there is real renewal risk and what customer success actions would you prioritize?
+        prompt_template: Generate a customer success question about account health, renewal risk, and action priority.
+        scenario_skill_tags: [customer_success, retention_growth, renewal, account_health]
+        resume_anchor_hints: [renewal, retention, usage, account_health, customer_success]
+        failure_categories: [missing_metrics, weak_prioritization, vague_customer]
+        rubric_additions: [Use usage and stakeholder signals, identify value gap, prioritize recovery actions]
+        expected_signals: [Checks health data, maps decision makers, proposes value recovery plan]
+        anti_patterns: [Trusts relationship only, waits until renewal call, pushes discount first]
+        good_answer_hints: [Read health signals, find value gap, act before renewal deadline]
+        priority: 18
+        status: active
+      - id: retention_growth.customer_renewal_risk.expansion_vs_retention
+        version: 1
+        intent: deep_probe
+        difficulty: deep_probe
+        scenario_brief: Sales wants to push expansion, while customer success sees unresolved adoption risk in the current account.
+        question_stem: How would you decide whether to push expansion now or first stabilize retention and value realization?
+        prompt_template: Generate a deep probe about retention versus expansion tradeoff in customer success.
+        scenario_skill_tags: [customer_success, retention_growth, expansion, stakeholder_alignment]
+        resume_anchor_hints: [expansion, renewal, sales, customer_success, adoption]
+        failure_categories: [missing_tradeoff, weak_stakeholder_alignment, shallow_analysis]
+        rubric_additions: [Compare account readiness, align sales and success, define customer value condition]
+        expected_signals: [Uses adoption evidence, explains tradeoff, sets expansion readiness criteria]
+        anti_patterns: [Always follows sales target, avoids revenue discussion, ignores current value gap]
+        good_answer_hints: [Assess readiness, align internal incentives, protect long term account health]
+        priority: 16
+        status: active

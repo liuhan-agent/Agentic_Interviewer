@@ -14,20 +14,7 @@
  */
 
 import { WEAK_DIMENSION_THRESHOLD } from "./constants/scores.ts";
-
-const DIMENSION_LABELS: Record<string, string> = {
-  technical_depth: "技术深度",
-  problem_solving: "问题解决",
-  communication: "沟通表达",
-  system_design: "系统设计",
-  coding_quality: "代码质量",
-  project_experience: "项目经验",
-  product_thinking: "产品思维",
-  customer_discovery: "客户发现",
-  architecture: "架构能力",
-  behavioral: "行为面试",
-  leadership: "技术领导力",
-};
+import { formatDimensionName } from "./constants/interview.ts";
 
 export type SessionDeltaEntry = {
   dimension: string;
@@ -73,7 +60,7 @@ export function buildLastSessionDelta(
     )
     .map((dim) => ({
       dimension: dim,
-      label: DIMENSION_LABELS[dim] ?? dim.replaceAll("_", " "),
+      label: formatDimensionName(dim),
       delta: Number((currDims[dim] - prevDims[dim]).toFixed(1)),
     }))
     .sort((a, b) => Math.abs(b.delta) - Math.abs(a.delta))
@@ -146,13 +133,13 @@ export function buildGrowthHints(
     if (isImproving) {
       consecutiveImprove.push({
         dimension: dim,
-        label: DIMENSION_LABELS[dim] ?? dim.replaceAll("_", " "),
+        label: formatDimensionName(dim),
         delta: Number((last - prev).toFixed(1)),
       });
     } else if (allWeak) {
       persistentWeak.push({
         dimension: dim,
-        label: DIMENSION_LABELS[dim] ?? dim.replaceAll("_", " "),
+        label: formatDimensionName(dim),
         delta: Number(lastN[0].toFixed(1)),
       });
     }

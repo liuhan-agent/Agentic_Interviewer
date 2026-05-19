@@ -122,16 +122,40 @@ def test_non_rag_runtime_catalogs_are_not_ingested(tmp_path: Path):
 
     assert "interview_waiting_tips.json" not in sources
     assert "job_templates.json" not in sources
-    assert "interview_directions.json" in sources
+    assert "interview_directions.json" not in sources
 
 
-def test_seeded_default_senior_backend_query_retrieves_relevant_knowledge(monkeypatch):
+def test_non_rag_question_strategy_and_sample_resume_dirs_are_not_ingested(
+    tmp_path: Path,
+):
+    excluded_files = [
+        tmp_path / "tech_questions" / "backend.md",
+        tmp_path / "business_questions" / "product.md",
+        tmp_path / "behavioral_questions" / "communication.md",
+        tmp_path / "sample_resumes" / "alex.md",
+        tmp_path / "strategy" / "pattern.md",
+        tmp_path / "strategy" / ".dream_state.json",
+        tmp_path / "skills" / "backend_reliability.md",
+    ]
+    for path in excluded_files:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text("legacy question or sample resume content", encoding="utf-8")
+    support = tmp_path / "rag_support" / "backend_reliability.md"
+    support.parent.mkdir(parents=True, exist_ok=True)
+    support.write_text("supporting skill about backend reliability", encoding="utf-8")
+
+    sources = {meta["source"] for _, meta in _iter_documents(tmp_path)}
+
+    assert sources == {"rag_support/backend_reliability.md"}
+
+
+def test_seeded_default_knowledge_has_no_rag_documents(monkeypatch):
     _install_fake_chroma(monkeypatch)
     knowledge_root = Path(__file__).resolve().parents[2] / "knowledge"
 
     seed_process_store = vectorstore.ChromaVectorStore()
     monkeypatch.setattr(vectorstore, "get_vectorstore", lambda: seed_process_store)
-    assert ingest_folder(knowledge_root) > 0
+    assert ingest_folder(knowledge_root) == 0
 
     uvicorn_process_store = vectorstore.ChromaVectorStore()
     monkeypatch.setattr(retriever, "get_vectorstore", lambda: uvicorn_process_store)
@@ -145,10 +169,39 @@ def test_seeded_default_senior_backend_query_retrieves_relevant_knowledge(monkey
         top_k=5,
     )
 
-    sources = {doc.metadata["source"] for doc in result.docs}
-    assert result.docs
-    assert sources & {
-        "tech_questions/backend_systems.md",
-        "sample_resumes/alex_chen_backend.md",
-        "tech_questions/system_design.md",
-    }
+    assert result.docs == []
+    assert result.as_prompt_block == "(no relevant knowledge retrieved)"
+
+
+def test_retriever_filters_old_non_rag_sources(monkeypatch):
+    class StoreWithStaleSources:
+        def similarity_search(self, query: str, k: int):
+            return [
+                vectorstore.RetrievedDoc(
+                    text="stale playbook",
+                    metadata={"source": "skills/backend_reliability.md"},
+                    score=0.99,
+                ),
+                vectorstore.RetrievedDoc(
+                    text="stale strategy",
+                    metadata={"source": "strategy/pattern.md"},
+                    score=0.98,
+                ),
+                vectorstore.RetrievedDoc(
+                    text="real support knowledge",
+                    metadata={"source": "rag_support/backend_reliability.md"},
+                    score=0.5,
+                ),
+            ]
+
+    monkeypatch.setattr(retriever, "get_vectorstore", lambda: StoreWithStaleSources())
+
+    result = retriever.retrieve_for_question(
+        job_spec={"title": "Backend Engineer", "required_skills": ["reliability"]},
+        dimension="problem_solving",
+        top_k=2,
+    )
+
+    assert [doc.metadata["source"] for doc in result.docs] == [
+        "rag_support/backend_reliability.md"
+    ]

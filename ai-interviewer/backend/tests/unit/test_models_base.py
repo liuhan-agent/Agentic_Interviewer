@@ -29,13 +29,17 @@ def test_models_base_import_does_not_connect_to_database(
         monkeypatch.undo()
         importlib.reload(base)
         import app.models as models
-        import app.models.generation_trace as generation_trace
-        import app.models.interview_session as interview_session
-        import app.models.outcome_record as outcome_record
-
-        importlib.reload(interview_session)
-        importlib.reload(generation_trace)
-        importlib.reload(outcome_record)
+        for module_name in (
+            "app.models.generation_trace",
+            "app.models.interview_session",
+            "app.models.outcome_record",
+            "app.models.question_bank",
+            "app.models.skill_playbook",
+            "app.models.strategy_memory",
+            "app.models.trace_annotation",
+            "app.models.verifier_drift",
+        ):
+            importlib.reload(importlib.import_module(module_name))
         importlib.reload(models)
 
 

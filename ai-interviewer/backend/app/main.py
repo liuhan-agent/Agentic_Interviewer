@@ -32,6 +32,7 @@ from app.core.request_context import install_request_context_middleware
 from app.core.settings import Settings, get_settings
 from app.models import init_db
 from app.tasks.dream_tasks import start_dream_scheduler
+from app.tasks.drift_maintenance_tasks import start_drift_maintenance_scheduler
 from app.tasks.outcome_sync_tasks import (
     start_background_scheduler,
     start_decay_scheduler,
@@ -122,6 +123,21 @@ def _run_startup(app: FastAPI, settings: Settings) -> None:
         except Exception as e:  # pragma: no cover
             log.warning("strategy dream scheduler startup failed: %s", e)
 
+    if settings.enable_drift_maintenance_scheduler:
+        try:
+            app.state.drift_maintenance_scheduler = (
+                start_drift_maintenance_scheduler(
+                    aggregation_interval_minutes=(
+                        settings.drift_pattern_aggregation_interval_minutes
+                    ),
+                    retention_interval_hours=(
+                        settings.drift_event_retention_interval_hours
+                    ),
+                )
+            )
+        except Exception as e:  # pragma: no cover
+            log.warning("drift maintenance scheduler startup failed: %s", e)
+
     if settings.enable_privacy_cleanup:
         try:
             app.state.privacy_cleanup_scheduler = start_privacy_cleanup_scheduler(
@@ -132,7 +148,13 @@ def _run_startup(app: FastAPI, settings: Settings) -> None:
 
 
 def _run_shutdown(app: FastAPI) -> None:
-    for attr in ("scheduler", "decay_scheduler", "dream_scheduler", "privacy_cleanup_scheduler"):
+    for attr in (
+        "scheduler",
+        "decay_scheduler",
+        "dream_scheduler",
+        "drift_maintenance_scheduler",
+        "privacy_cleanup_scheduler",
+    ):
         s = getattr(app.state, attr, None)
         if s is not None:
             try:
@@ -193,6 +215,7 @@ def create_app() -> FastAPI:
     app.state.scheduler = None
     app.state.decay_scheduler = None
     app.state.dream_scheduler = None
+    app.state.drift_maintenance_scheduler = None
     app.state.privacy_cleanup_scheduler = None
 
     @app.get("/health")

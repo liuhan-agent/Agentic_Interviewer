@@ -69,6 +69,23 @@ test("setup form restores async resume parse drafts by draft id", () => {
   assert.match(source, /resumeFieldsLocked/);
 });
 
+test("setup form restores resume snapshot for report practice links", () => {
+  const source = fs.readFileSync(
+    path.join(__dirname, "..", "src", "components", "interview", "SetupForm.tsx"),
+    "utf8",
+  );
+
+  assert.match(source, /getResumeSetupSnapshot/);
+  assert.match(source, /getSessionSetupSnapshot/);
+  assert.match(source, /searchParams\.get\("resume_from"\)/);
+  assert.match(source, /applyResumeSetupSnapshot/);
+  assert.match(
+    source,
+    /getResumeSetupSnapshot\(sourceSessionId\)[\s\S]*getSessionSetupSnapshot\(sourceSessionId\)/,
+  );
+  assert.match(source, /已沿用上一场简历解析结果/);
+});
+
 test("setup form does not show the legacy resume polish draft prompt", () => {
   const source = fs.readFileSync(
     path.join(__dirname, "..", "src", "components", "interview", "SetupForm.tsx"),

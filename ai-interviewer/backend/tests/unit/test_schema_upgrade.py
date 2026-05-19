@@ -113,6 +113,7 @@ def test_upgrade_adds_langsmith_run_id_on_sqlite(tmp_path) -> None:
         "error_kind",
         "retryable",
         "enable_video_analysis",
+        "setup_snapshot",
     } <= sess_cols
 
 
@@ -205,6 +206,45 @@ def test_postgres_upgrade_uses_if_not_exists(
     assert langsmith_stmts, "expected at least one ADD COLUMN for langsmith_run_id"
     for stmt in langsmith_stmts:
         assert "IF NOT EXISTS" in stmt
+
+
+def test_postgres_upgrade_adds_setup_snapshot_jsonb(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    executed: list[str] = []
+
+    class _FakeInspector:
+        def get_table_names(self) -> list[str]:
+            return ["interview_sessions"]
+
+        def get_columns(self, table: str) -> list[dict[str, Any]]:
+            return [{"name": "session_id"}]
+
+    class _FakeConn:
+        def execute(self, clause) -> None:  # noqa: ANN001
+            executed.append(str(clause))
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc, tb) -> None:
+            return None
+
+    class _FakeEngine:
+        class dialect:  # noqa: N801
+            name = "postgresql"
+
+        def begin(self):
+            return _FakeConn()
+
+    monkeypatch.setattr(base_mod, "inspect", lambda _eng: _FakeInspector())
+
+    base_mod._upgrade_schema(_FakeEngine())  # type: ignore[arg-type]
+
+    setup_snapshot_stmts = [s for s in executed if "setup_snapshot" in s]
+    assert setup_snapshot_stmts
+    assert any("IF NOT EXISTS" in stmt for stmt in setup_snapshot_stmts)
+    assert any("setup_snapshot JSONB" in stmt for stmt in setup_snapshot_stmts)
 
 
 def test_generation_trace_answer_ddl_is_unbounded_text() -> None:

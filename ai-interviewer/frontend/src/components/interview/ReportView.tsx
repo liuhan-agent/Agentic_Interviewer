@@ -7,7 +7,8 @@ import {
   ArrowLeft,
   Camera,
   CheckCircle2,
-  Download,
+  Copy,
+  FileText,
   Loader2,
   Play,
   Sparkles,
@@ -41,6 +42,12 @@ import {
 } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { Skeleton } from "@/components/ui/skeleton";
+import {
+  Tooltip as UiTooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { InfoTooltip } from "@/components/interview/InfoTooltip";
 import { OutcomeFeedback } from "@/components/interview/OutcomeFeedback";
 import { TrainingPlanSourceBadge } from "@/components/interview/TrainingPlanSourceBadge";
@@ -54,13 +61,19 @@ import type {
   TraceHealth,
   VideoAnalysis,
 } from "@/lib/api/types";
+import { useToast } from "@/lib/hooks/useToast";
 import { inferLLMErrorKind, llmErrorKindLabel } from "@/lib/llm-config";
+import {
+  formatReportMarkdown,
+  formatReportSummary,
+} from "@/lib/report-export";
 import {
   buildGrowthHints,
   buildLastSessionDelta,
   type GrowthHints as GrowthHintsType,
   type SessionDelta,
 } from "@/lib/sessionDelta";
+import { formatDimensionName } from "@/lib/constants/interview";
 import {
   getCompletedBefore,
   getHistory,
@@ -71,54 +84,6 @@ import {
   readVoiceReportCache,
 } from "@/lib/storage/voiceReportCache";
 
-const DIMENSION_LABELS: Record<string, string> = {
-  technical_depth: "技术深度",
-  problem_solving: "问题解决",
-  communication: "沟通表达",
-  system_design: "系统设计",
-  coding_quality: "代码质量",
-  project_experience: "项目经验",
-  product_thinking: "产品思维",
-  architecture: "架构能力",
-  behavioral: "行为面试",
-  leadership: "技术领导力",
-  user_insight: "用户洞察",
-  requirement_analysis: "需求分析",
-  prioritization: "优先级判断",
-  metrics_thinking: "指标思维",
-  stakeholder_management: "协同推进",
-  user_growth: "用户增长",
-  content_operations: "内容运营",
-  data_analysis: "数据分析",
-  campaign_execution: "活动执行",
-  process_optimization: "流程优化",
-  customer_discovery: "客户发现",
-  solution_matching: "方案匹配",
-  objection_handling: "异议处理",
-  negotiation: "商务谈判",
-  pipeline_management: "销售漏斗管理",
-  market_insight: "市场洞察",
-  brand_strategy: "品牌策略",
-  campaign_planning: "营销策划",
-  channel_growth: "渠道增长",
-  content_creativity: "内容创意",
-  talent_acquisition: "人才招聘",
-  employee_relations: "员工关系",
-  organization_development: "组织发展",
-  policy_compliance: "制度合规",
-  service_orientation: "服务意识",
-  customer_empathy: "客户同理心",
-  issue_diagnosis: "问题诊断",
-  solution_delivery: "方案交付",
-  escalation_management: "升级管理",
-  retention_growth: "留存增长",
-  goal_setting: "目标设定",
-  team_leadership: "团队领导",
-  decision_making: "决策判断",
-  execution_management: "执行管理",
-  cross_functional_alignment: "跨部门协同",
-};
-
 const scoreTooltipFormatter: Formatter<ValueType, NameType> = (value) => {
   const n = Array.isArray(value) ? Number(value[0]) : Number(value);
   if (Number.isFinite(n)) {
@@ -126,10 +91,6 @@ const scoreTooltipFormatter: Formatter<ValueType, NameType> = (value) => {
   }
   return [`${value ?? "-"}`, "得分"];
 };
-
-function formatDimensionName(id: string): string {
-  return DIMENSION_LABELS[id] ?? id.replaceAll("_", " ");
-}
 
 function isSystemFallbackText(value?: string | null): boolean {
   const text = String(value ?? "").trim();
@@ -337,7 +298,10 @@ export function ReportView({ sessionId }: { sessionId: string }) {
     );
   }
 
-  const weakPracticeHref = buildWeakPracticeHref(report);
+  const weakPracticeHref = buildWeakPracticeHref({
+    ...report,
+    session_id: report.session_id ?? sessionId,
+  });
 
   return (
     <motion.div
@@ -375,7 +339,11 @@ export function ReportView({ sessionId }: { sessionId: string }) {
         <DimensionScores scores={report.dimension_scores} />
       </motion.div>
       <motion.div variants={{ hidden: { opacity: 0, y: 16 }, visible: { opacity: 1, y: 0 } }}>
-        <TrainingPlanCard plan={report.training_plan} weakPracticeHref={weakPracticeHref} />
+        <TrainingPlanCard
+          plan={report.training_plan}
+          weakPracticeHref={weakPracticeHref}
+          sourceSessionId={report.session_id ?? sessionId}
+        />
       </motion.div>
       <motion.div variants={{ hidden: { opacity: 0, y: 16 }, visible: { opacity: 1, y: 0 } }}>
         <OutcomeFeedback sessionId={sessionId} />
@@ -401,7 +369,7 @@ function syncReportHistory(
 ): void {
   // Sync local history index so /interview/history reflects status & score.
   // upsertEntry is a no-op merge if the row was created by SetupForm.
-  const growthSignal = reportGrowthSignal(report);
+  const growthSignal = displayGrowthSignal(report);
   upsertEntry({
     sessionId,
     createdAt: metadata?.created_at ?? undefined,
@@ -445,6 +413,27 @@ function friendlyReportError(kind: LLMErrorKind | null): string {
   }
 }
 
+function displayGrowthSignal(report: FinalReport): string | undefined {
+  const scoreSignal = scoreBasedGrowthSignal(report);
+  return scoreSignal ?? reportGrowthSignal(report);
+}
+
+function scoreBasedGrowthSignal(report: FinalReport): string | undefined {
+  const existingSignal = reportGrowthSignal(report);
+  if (existingSignal === "cancelled" || report.cancelled === true) {
+    return "cancelled";
+  }
+
+  const score = asNumber(report.overall_score);
+  if (score === null) return undefined;
+
+  const threshold = asNumber(report.quality_threshold) ?? 7.5;
+  if (score >= threshold + 0.5) return "excellent";
+  if (score >= threshold) return "target_met";
+  if (score >= threshold - 1.5) return "near_target";
+  return "needs_focus";
+}
+
 function AnimatedScore({ score, max = 10 }: { score: number; max?: number }) {
   const [displayed, setDisplayed] = useState(0);
   const ref = useRef<HTMLSpanElement>(null);
@@ -475,7 +464,7 @@ function AnimatedScore({ score, max = 10 }: { score: number; max?: number }) {
 }
 
 function Summary({ report }: { report: FinalReport }) {
-  const verdict = reportGrowthSignal(report);
+  const verdict = displayGrowthSignal(report);
   const variant = verdictVariant(verdict);
 
   return (
@@ -495,11 +484,14 @@ function Summary({ report }: { report: FinalReport }) {
             </CardDescription>
           </div>
           <div className="flex flex-col items-end gap-2">
-            {verdict && (
-              <Badge variant={variant} className="px-3 py-1 text-sm">
-                {formatVerdict(verdict)}
-              </Badge>
-            )}
+            <div className="flex flex-wrap justify-end gap-2">
+              {verdict && (
+                <Badge variant={variant} className="px-3 py-1 text-sm">
+                  {formatVerdict(verdict)}
+                </Badge>
+              )}
+              <CoverageCautionBadge report={report} />
+            </div>
             {typeof report.overall_score === "number" && (
               <span className="text-4xl font-mono font-bold">
                 <AnimatedScore score={report.overall_score} />
@@ -517,6 +509,24 @@ function Summary({ report }: { report: FinalReport }) {
         </CardContent>
       )}
     </Card>
+  );
+}
+
+function CoverageCautionBadge({ report }: { report: FinalReport }) {
+  const warnings = asArray(report.coverage_warnings);
+  if (warnings.length === 0) return null;
+
+  return (
+    <Badge
+      variant="outline"
+      className="gap-1.5 border-amber-500/35 bg-amber-500/10 px-2.5 py-1 text-xs text-amber-200"
+    >
+      <AlertTriangle className="h-3.5 w-3.5" />
+      <span>部分维度待确认</span>
+      <InfoTooltip label="说明部分维度待确认">
+        部分维度尚未完全通过或证据不足，详情见下方评分维度。
+      </InfoTooltip>
+    </Badge>
   );
 }
 
@@ -734,20 +744,52 @@ function SelfIntroFocus({
       ? profile.summary.trim()
       : "";
   const groups = [
-    { title: "强调项目", items: profile.emphasized_projects },
-    { title: "强调技能", items: profile.emphasized_skills },
-    { title: "希望展开", items: profile.preferred_focus },
-    { title: "需要澄清", items: profile.clarification_targets },
+    {
+      title: "强调项目",
+      caption: "后续追问优先贴近这些经历",
+      items: profile.emphasized_projects,
+      Icon: Target,
+      headingClassName: "text-sky-300",
+      badgeClassName: "border-sky-500/25 bg-sky-500/10 text-sky-200",
+    },
+    {
+      title: "强调技能",
+      caption: "候选人主动抛出的技术关键词",
+      items: profile.emphasized_skills,
+      Icon: CheckCircle2,
+      headingClassName: "text-emerald-300",
+      badgeClassName: "border-emerald-500/25 bg-emerald-500/10 text-emerald-200",
+    },
+    {
+      title: "希望展开",
+      caption: "适合继续深挖的能力方向",
+      items: profile.preferred_focus,
+      Icon: TrendingUp,
+      headingClassName: "text-violet-300",
+      badgeClassName: "border-violet-500/25 bg-violet-500/10 text-violet-200",
+    },
+    {
+      title: "需要澄清",
+      caption: "开场信息不足或需核对的点",
+      items: profile.clarification_targets,
+      Icon: AlertTriangle,
+      headingClassName: "text-amber-300",
+      badgeClassName: "border-amber-500/30 bg-amber-500/10 text-amber-200",
+    },
   ]
     .map((group) => ({
       ...group,
       items: Array.isArray(group.items)
-        ? group.items.filter((item): item is string => typeof item === "string" && item.trim().length > 0)
+        ? group.items.filter(
+            (item): item is string =>
+              typeof item === "string" && item.trim().length > 0,
+          )
         : [],
     }))
     .filter((group) => group.items.length > 0);
 
   if (!summary && groups.length === 0) return null;
+  const shouldSpanLastGroup = groups.length % 2 === 1;
 
   return (
     <Card>
@@ -756,29 +798,49 @@ function SelfIntroFocus({
           <Sparkles className="h-4 w-4 text-emerald-400" />
           <CardTitle className="text-base">自我介绍重点</CardTitle>
         </div>
-        <CardDescription>
-          系统会把你开场主动强调的经历作为后续追问参考，不会覆盖简历解析。
-        </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
         {summary && (
-          <p className="text-sm leading-relaxed text-muted-foreground">
-            {summary}
-          </p>
+          <div className="rounded-lg border border-border/70 bg-muted/25 px-4 py-3">
+            <p className="mb-1 text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
+              开场摘要
+            </p>
+            <p className="max-w-[72ch] text-sm leading-7 text-foreground/90">
+              {summary}
+            </p>
+          </div>
         )}
         {groups.length > 0 && (
-          <div className="grid gap-4 md:grid-cols-2">
-            {groups.map((group) => (
-              <div key={group.title} className="space-y-2">
-                <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
-                  {group.title}
-                </p>
-                <div className="flex flex-wrap gap-2">
+          <div className="grid gap-3 md:grid-cols-2">
+            {groups.map(({ Icon, ...group }, idx) => (
+              <div
+                key={group.title}
+                className={`rounded-lg border border-border/60 bg-background/35 p-3 ${
+                  shouldSpanLastGroup && idx === groups.length - 1
+                    ? "md:col-span-2"
+                    : ""
+                }`}
+              >
+                <div className="mb-3 flex items-start gap-2">
+                  <Icon
+                    aria-hidden="true"
+                    className={`mt-0.5 h-3.5 w-3.5 ${group.headingClassName}`}
+                  />
+                  <div className="min-w-0">
+                    <p className={`text-xs font-semibold ${group.headingClassName}`}>
+                      {group.title}
+                    </p>
+                    <p className="mt-0.5 text-[11px] leading-snug text-muted-foreground">
+                      {group.caption}
+                    </p>
+                  </div>
+                </div>
+                <div className="flex flex-wrap gap-1.5">
                   {group.items.map((item) => (
                     <Badge
                       key={`${group.title}-${item}`}
                       variant="outline"
-                      className="border-emerald-500/25 bg-emerald-500/5 text-emerald-300"
+                      className={`max-w-full break-words px-2.5 py-1 text-xs ${group.badgeClassName}`}
                     >
                       {item}
                     </Badge>
@@ -799,6 +861,84 @@ type QualityMetric = {
   description: string;
   variant: "success" | "warn" | "outline";
 };
+
+type QualityMetricTone = {
+  cardClassName: string;
+  labelClassName: string;
+  valueClassName: string;
+  highlightClassName: string;
+};
+
+function qualityMetricTone(variant: QualityMetric["variant"]): QualityMetricTone {
+  if (variant === "success") {
+    return {
+      cardClassName: "border-emerald-500/20 bg-emerald-500/[0.035]",
+      labelClassName: "text-emerald-300",
+      valueClassName:
+        "border-emerald-500/25 bg-emerald-500/10 text-emerald-200",
+      highlightClassName: "text-emerald-200",
+    };
+  }
+  if (variant === "warn") {
+    return {
+      cardClassName: "border-amber-500/25 bg-amber-500/[0.045]",
+      labelClassName: "text-amber-300",
+      valueClassName: "border-amber-500/30 bg-amber-500/10 text-amber-200",
+      highlightClassName: "text-amber-200",
+    };
+  }
+  return {
+    cardClassName: "border-border/70 bg-background/35",
+    labelClassName: "text-muted-foreground",
+    valueClassName: "border-border bg-secondary/40 text-foreground/80",
+    highlightClassName: "text-sky-200",
+  };
+}
+
+function splitMetricDescription(description: string): {
+  lead: string;
+  rest: string;
+} {
+  const colonIndex = description.indexOf("：");
+  if (colonIndex < 0) {
+    return { lead: "", rest: description };
+  }
+  return {
+    lead: description.slice(0, colonIndex + 1),
+    rest: description.slice(colonIndex + 1),
+  };
+}
+
+function QualityMetricCard({ metric }: { metric: QualityMetric }) {
+  const tone = qualityMetricTone(metric.variant);
+  const description = splitMetricDescription(metric.description);
+
+  return (
+    <div className={`rounded-lg border p-4 ${tone.cardClassName}`}>
+      <div className="mb-3 flex items-start justify-between gap-3">
+        <p
+          className={`text-[11px] font-semibold uppercase tracking-[0.16em] ${tone.labelClassName}`}
+        >
+          {metric.label}
+        </p>
+        <Badge
+          variant="outline"
+          className={`shrink-0 font-mono text-[10px] tabular-nums ${tone.valueClassName}`}
+        >
+          {metric.value}
+        </Badge>
+      </div>
+      <p className="text-sm leading-7 text-foreground/90">
+        {description.lead && (
+          <span className={`font-medium ${tone.highlightClassName}`}>
+            {description.lead}
+          </span>
+        )}
+        <span className="text-muted-foreground">{description.rest}</span>
+      </p>
+    </div>
+  );
+}
 
 function asRecord(value: unknown): Record<string, unknown> {
   return value && typeof value === "object" && !Array.isArray(value)
@@ -821,7 +961,44 @@ function asNumber(value: unknown): number | null {
   return Number.isFinite(n) ? n : null;
 }
 
-// Build the deep link the QualityCenter "查看该 trace" button uses.
+function summarizeCoverageWarnings(coverageWarnings: unknown[]): string {
+  const dimensions = coverageWarnings
+    .map((item) => formatDimensionName(String(asRecord(item).dimension ?? "")))
+    .filter((dimension) => dimension.trim().length > 0);
+  if (dimensions.length === 0) {
+    return "本场面试覆盖的能力维度已形成可读结论。";
+  }
+  const visible = dimensions.slice(0, 3);
+  const suffix = dimensions.length > visible.length ? `等 ${dimensions.length} 项` : "";
+  return `证据不足：${visible.join("、")}${suffix}。报告已按覆盖情况保守处理。`;
+}
+
+function summarizeSkillRows(
+  skillRows: Array<{ skill: string; count: number }>,
+  latestTargetSkills: string[],
+): string {
+  const skills = skillRows.length > 0
+    ? skillRows.map((row) => row.skill)
+    : latestTargetSkills;
+  if (skills.length === 0) {
+    return "当前报告未暴露详细技能覆盖，仍保留基础题目与评分证据。";
+  }
+  const visible = skills.slice(0, 4);
+  const suffix = skills.length > visible.length ? `等 ${skills.length} 个技能点` : "";
+  return `主要追问：${visible.join("、")}${suffix}。`;
+}
+
+function formatCoverageWarningStatus(status: unknown): string {
+  const value = String(status ?? "").trim();
+  if (value === "pending") return "尚未追问到足够证据";
+  if (value === "active") return "已追问，仍需要更多证据";
+  if (value === "not_evaluated") return "尚未形成评分";
+  if (value === "skipped") return "本轮已跳过";
+  if (value === "evaluator_unavailable") return "评分暂时不可用";
+  return value || "证据不足";
+}
+
+// Build the deep link the QualityCenter admin-only "查看记录" link uses.
 // The Trace Explorer page picks up ``node`` and ``dimension`` from the
 // query string and pre-scrolls to the matching card so a candidate or
 // engineer can jump from a flagged dimension to the failing trace
@@ -878,8 +1055,9 @@ function QualityCenter({
     ([dimension, score]) => ({
       dimension,
       label: formatDimensionName(dimension),
-      score: asNumber(score?.score),
-      passed: Boolean(score?.passed),
+      score,
+      badge: dimensionBadgeMeta(score),
+      scoreLabel: dimensionScoreLabel(score),
     }),
   );
   const skillRows = Object.entries(skillCoverage)
@@ -897,18 +1075,15 @@ function QualityCenter({
           : "已记录",
     description:
       coverageWarnings.length > 0
-        ? "仍有维度证据不足，报告已按覆盖情况保守处理。"
-        : "本场面试覆盖的能力维度已形成可读结论。",
+        ? summarizeCoverageWarnings(coverageWarnings)
+        : summarizeCoverageWarnings([]),
     variant: coverageWarnings.length > 0 ? "warn" : "success",
   };
 
   const personalizationMetric: QualityMetric = {
     label: "题目个性化",
     value: skillCount > 0 ? `${skillCount} 个技能点` : "基础个性化",
-    description:
-      skillCount > 0
-        ? "问题围绕目标技能和候选人回答动态调整。"
-        : "当前报告未暴露详细技能覆盖，仍保留基础题目与评分证据。",
+    description: summarizeSkillRows(skillRows, latestTargetSkills),
     variant: skillCount > 0 ? "success" : "outline",
   };
 
@@ -919,9 +1094,11 @@ function QualityCenter({
     if (traceHealth === "partial" || traceHealth === "missing") {
       return {
         label: "评分可信度",
-        value: traceHealth === "missing" ? "trace 缺失" : "未走完整",
+        value: traceHealth === "missing" ? "记录缺失" : "流程未完整",
         description:
-          "本场面试未走完整闭环（评分或学习节点缺失），评分仅供参考。",
+          traceHealth === "missing"
+            ? "流程记录缺失，无法核验评分或学习节点；评分仅供参考。"
+            : "流程记录未完整闭环，评分或学习节点存在缺口；评分仅供参考。",
         variant: "warn",
       };
     }
@@ -943,21 +1120,30 @@ function QualityCenter({
           : "success",
     };
   })();
-  const evidenceMetric: QualityMetric | null =
+  const evidenceMetric: QualityMetric =
     evidenceTotal > 0
       ? {
-          label: "证据可回溯",
+          label: "评分依据",
           value: `${evidenceMatched}/${evidenceTotal}`,
           description:
             evidenceUnmatched > 0
-              ? "部分评分依据未能匹配到原回答，相关评分仅供参考。"
-              : "评分依据中的原文引用可回查到你的回答。",
+              ? `评分所引用的回答片段中，${evidenceMatched} 条可回查到原始问答，${evidenceUnmatched} 条暂未匹配；评分仅供参考。`
+              : `评分所引用的回答片段中，${evidenceMatched} 条可回查到原始问答。`,
           variant: evidenceUnmatched > 0 ? "warn" : "success",
         }
-      : null;
-  const qualityMetrics = evidenceMetric
-    ? [coverageMetric, personalizationMetric, trustMetric, evidenceMetric]
-    : [coverageMetric, personalizationMetric, trustMetric];
+      : {
+          label: "评分依据",
+          value: "未生成引用",
+          description:
+            "本场报告尚未生成可回查的评分引用；分数仍会展示，建议结合问答记录一起判断。",
+          variant: "warn",
+        };
+  const qualityMetrics = [
+    coverageMetric,
+    personalizationMetric,
+    trustMetric,
+    evidenceMetric,
+  ];
 
   return (
     <Card>
@@ -969,7 +1155,7 @@ function QualityCenter({
               <CardTitle className="text-base">面试质量中心</CardTitle>
             </div>
             <CardDescription className="mt-1">
-              本场面试是否覆盖充分、题目是否贴合你、评分是否有据可查；开发者细节默认折叠。
+              检查本场面试的能力覆盖、技能覆盖 Top、评分依据、证据可回溯与流程记录完整性。
             </CardDescription>
           </div>
           {showAdminLinks && (
@@ -980,43 +1166,38 @@ function QualityCenter({
         </div>
       </CardHeader>
       <CardContent className="space-y-5">
-        <div className={`grid gap-3 ${evidenceMetric ? "md:grid-cols-4" : "md:grid-cols-3"}`}>
+        <div className="grid gap-3 md:grid-cols-2">
           {qualityMetrics.map((metric) => (
-            <div key={metric.label} className="rounded-lg border bg-card/50 p-3">
-              <div className="mb-2 flex items-center justify-between gap-2">
-                <p className="text-xs text-muted-foreground">{metric.label}</p>
-                <Badge variant={metric.variant}>{metric.value}</Badge>
-              </div>
-              <p className="text-sm leading-relaxed text-muted-foreground">
-                {metric.description}
-              </p>
-            </div>
+            <QualityMetricCard key={metric.label} metric={metric} />
           ))}
         </div>
 
-        {(coverageWarnings.length > 0 || latestTargetSkills.length > 0) && (
+        {(coverageWarnings.length > 0 || skillRows.length > 0) && (
           <div className="grid gap-4 md:grid-cols-2">
             {coverageWarnings.length > 0 && (
-              <div className="rounded-lg border border-amber-500/30 bg-amber-500/[0.04] p-3">
-                <p className="mb-2 text-xs font-medium uppercase tracking-wider text-amber-300">
-                  待补证据
+              <div className="rounded-lg border border-amber-500/25 bg-amber-500/[0.035] p-4">
+                <p className="mb-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-amber-300">
+                  证据还不够的能力
                 </p>
-                <ul className="space-y-1.5 text-xs leading-relaxed text-muted-foreground">
+                <p className="mb-4 text-xs leading-relaxed text-amber-100/70">
+                  这些能力维度还没有足够回答证据，报告会更保守地看待相关结论。
+                </p>
+                <ul className="space-y-2 text-xs leading-relaxed">
                   {coverageWarnings.slice(0, 4).map((item, idx) => {
                     const warning = asRecord(item);
                     const dimension = String(warning.dimension ?? `dim-${idx}`);
                     const showDeepLink =
                       showAdminLinks &&
                       sessionId &&
-                      (traceHealth === "partial" || traceHealth === "missing");
+                      traceHealth !== "missing";
                     return (
                       <li
                         key={`${dimension}-${idx}`}
-                        className="flex items-center justify-between gap-2"
+                        className="flex items-center justify-between gap-3 rounded-md border border-amber-500/15 bg-background/45 px-3 py-2"
                       >
-                        <span>
+                        <span className="text-muted-foreground">
                           {formatDimensionName(dimension)}：
-                          {String(warning.status ?? "未通过")}
+                          {formatCoverageWarningStatus(warning.status)}
                         </span>
                         {showDeepLink && (
                           <Link
@@ -1027,7 +1208,7 @@ function QualityCenter({
                             })}
                             className="shrink-0 text-[11px] text-amber-300 underline-offset-2 hover:underline"
                           >
-                            查看该 trace
+                            查看记录
                           </Link>
                         )}
                       </li>
@@ -1036,80 +1217,20 @@ function QualityCenter({
                 </ul>
               </div>
             )}
-            {latestTargetSkills.length > 0 && (
-              <div className="rounded-lg border bg-card/50 p-3">
-                <p className="mb-2 text-xs font-medium uppercase tracking-wider text-muted-foreground">
-                  本轮题目依据
+            {skillRows.length > 0 && (
+              <div className="rounded-lg border border-sky-500/15 bg-sky-500/[0.025] p-4">
+                <p className="mb-2 text-[11px] font-semibold uppercase tracking-[0.16em] text-sky-300">
+                  技能覆盖 Top
                 </p>
                 <div className="flex flex-wrap gap-2">
-                  {latestTargetSkills.map((skill) => (
-                    <Badge key={skill} variant="outline">
-                      {skill}
-                    </Badge>
-                  ))}
-                </div>
-              </div>
-            )}
-          </div>
-        )}
-
-        {(dimensionRows.length > 0 || skillRows.length > 0) && (
-          <div className="grid gap-4 lg:grid-cols-2">
-            {dimensionRows.length > 0 && (
-              <div className="rounded-lg border bg-card/50 p-3">
-                <div className="mb-3 flex items-center justify-between gap-2">
-                  <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
-                    维度覆盖明细
-                  </p>
-                  <Badge variant="outline" className="font-mono text-[10px]">
-                    {passedDimensions}/{totalDimensions}
-                  </Badge>
-                </div>
-                <div className="grid gap-2 sm:grid-cols-2">
-                  {dimensionRows.map((row) => (
-                    <div
-                      key={row.dimension}
-                      className="rounded-md border bg-background/60 p-2"
-                    >
-                      <div className="flex items-center justify-between gap-2">
-                        <span className="truncate text-xs font-medium">
-                          {row.label}
-                        </span>
-                        <Badge
-                          variant={row.passed ? "success" : "warn"}
-                          className="shrink-0 text-[10px]"
-                        >
-                          {row.passed ? "已通过" : "待加强"}
-                        </Badge>
-                      </div>
-                      <p className="mt-1 font-mono text-[11px] text-muted-foreground">
-                        {row.score === null ? "未评分" : `${row.score.toFixed(1)} / 10`}
-                      </p>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {skillRows.length > 0 && (
-              <div className="rounded-lg border bg-card/50 p-3">
-                <div className="mb-3 flex items-center justify-between gap-2">
-                  <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
-                    技能覆盖 Top
-                  </p>
-                  <Badge variant="outline" className="font-mono text-[10px]">
-                    target_skill_coverage
-                  </Badge>
-                </div>
-                <div className="flex flex-wrap gap-2">
-                  {skillRows.map((row) => (
+                  {skillRows.slice(0, 6).map((row) => (
                     <Badge
                       key={row.skill}
-                      variant="secondary"
-                      className="gap-1.5 font-mono text-[10px]"
+                      variant="outline"
+                      className="gap-1.5 border-sky-500/20 bg-background/45 px-2.5 py-1 text-foreground/90"
                     >
                       {row.skill}
-                      <span className="text-muted-foreground">×{row.count}</span>
+                      <span className="font-mono text-[10px] text-sky-200">×{row.count}</span>
                     </Badge>
                   ))}
                 </div>
@@ -1118,36 +1239,45 @@ function QualityCenter({
           </div>
         )}
 
-        {(contractTotal > 0 || policyIds.length > 0) && (
-          <div className="grid gap-4 lg:grid-cols-2">
-            {contractTotal > 0 && (
-              <div className="rounded-lg border bg-card/50 p-3">
-                <p className="mb-3 text-xs font-medium uppercase tracking-wider text-muted-foreground">
-                  评分检查项
-                </p>
-                <div className="grid grid-cols-4 gap-2 text-center text-xs">
-                  <StatPill label="总数" value={String(contractTotal)} />
-                  <StatPill label="Yes" value={String(contractYes)} />
-                  <StatPill label="Partial" value={String(contractPartial)} />
-                  <StatPill label="No" value={String(contractNo)} />
-                </div>
-              </div>
-            )}
-
-            {policyIds.length > 0 && (
-              <div className="rounded-lg border bg-card/50 p-3">
-                <p className="mb-3 text-xs font-medium uppercase tracking-wider text-muted-foreground">
-                  策略路径
-                </p>
-                <div className="flex flex-wrap gap-2">
-                  {policyIds.map((policy) => (
-                    <Badge key={policy} variant="outline" className="font-mono text-[10px]">
-                      {policy}
+        {dimensionRows.length > 0 && (
+          <div className="rounded-lg border border-violet-500/15 bg-violet-500/[0.025] p-4">
+            <div className="mb-2 flex items-center justify-between gap-2">
+              <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-violet-300">
+                维度覆盖明细
+              </p>
+              <Badge
+                variant="outline"
+                className="border-violet-500/20 bg-background/45 font-mono text-[10px] text-violet-200"
+              >
+                {totalDimensions} 个维度
+              </Badge>
+            </div>
+            <p className="mb-4 text-xs leading-relaxed text-violet-100/65">
+              展示各能力维度的评分结果，以及结论是否已有足够回答证据支撑。
+            </p>
+            <div className="grid gap-2 sm:grid-cols-2">
+              {dimensionRows.map((row) => (
+                <div
+                  key={row.dimension}
+                  className="rounded-md border border-violet-500/15 bg-background/45 px-3 py-2"
+                >
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="truncate text-sm font-medium text-foreground/90">
+                      {row.label}
+                    </span>
+                    <Badge
+                      variant="outline"
+                      className={`shrink-0 ${dimensionBadgeClass(row.badge.tone)}`}
+                    >
+                      {row.badge.label}
                     </Badge>
-                  ))}
+                  </div>
+                  <p className="mt-2 font-mono text-[11px] text-violet-100/75">
+                    {row.scoreLabel}
+                  </p>
                 </div>
-              </div>
-            )}
+              ))}
+            </div>
           </div>
         )}
 
@@ -1155,26 +1285,37 @@ function QualityCenter({
           <summary className="cursor-pointer select-none font-medium text-muted-foreground">
             查看开发者细节
           </summary>
+          <p className="mt-2 text-xs leading-relaxed text-muted-foreground">
+            这些信息用于排查报告生成链路，包括评分合同检查、策略命中和最近一次流程动作。
+          </p>
           <div className="mt-3 grid gap-3 md:grid-cols-2">
             <DeveloperFact
-              label="latest_selected_action"
-              value={String(latestAction.id ?? "未记录")}
+              label="评分检查项"
+              code="contract_checks"
+              description="合同检查项的通过分布，用来判断评分结论是否满足内部验收规则。"
+              value={
+                contractTotal > 0
+                  ? `yes=${contractYes}, partial=${contractPartial}, no=${contractNo}, total=${contractTotal}`
+                  : "未记录"
+              }
             />
             <DeveloperFact
-              label="latest_verification"
-              value={summarizeVerification(latestVerification)}
-            />
-            <DeveloperFact
-              label="policy_ids"
+              label="策略路径"
+              code="policy_ids"
+              description="本场追问和报告生成命中过的策略，用来复盘系统为什么这样选题。"
               value={policyIds.length > 0 ? policyIds.join(", ") : "未记录"}
             />
             <DeveloperFact
-              label="contract_summary"
-              value={
-                contractTotal > 0
-                  ? `yes=${contractYes}, partial=${contractPartial}, total=${contractTotal}`
-                  : "未记录"
-              }
+              label="最近策略动作"
+              code="latest_selected_action"
+              description="题目规划器最近一次选择的动作，常用于检查追问是否按预期切换。"
+              value={String(latestAction.id ?? "未记录")}
+            />
+            <DeveloperFact
+              label="最近流程校验"
+              code="latest_verification"
+              description="最近一次流程校验摘要，用来定位评分、学习节点或 trace 是否缺失。"
+              value={summarizeVerification(latestVerification)}
             />
           </div>
         </details>
@@ -1194,13 +1335,29 @@ function StatPill({ label, value }: { label: string; value: string }) {
   );
 }
 
-function DeveloperFact({ label, value }: { label: string; value: string }) {
+function DeveloperFact({
+  label,
+  code,
+  description,
+  value,
+}: {
+  label: string;
+  code: string;
+  description: string;
+  value: string;
+}) {
   return (
-    <div className="rounded-md bg-background/70 p-2">
-      <p className="font-mono text-[10px] uppercase tracking-wider text-muted-foreground">
-        {label}
+    <div className="rounded-md border border-border/50 bg-background/55 p-3">
+      <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+        <p className="text-sm font-semibold text-foreground/95">{label}</p>
+        <p className="font-mono text-[10px] uppercase tracking-wider text-muted-foreground">
+          {code}
+        </p>
+      </div>
+      <p className="mt-2 text-xs leading-relaxed text-muted-foreground">
+        {description}
       </p>
-      <p className="mt-1 break-words font-mono text-[11px] text-foreground/80">
+      <p className="mt-3 rounded-md border border-border/70 bg-black/20 px-2.5 py-2 font-mono text-[11px] leading-relaxed text-foreground/90">
         {value}
       </p>
     </div>
@@ -1240,18 +1397,167 @@ function AnimatedBar({
   );
 }
 
+const DEFAULT_DIMENSION_QUALITY_THRESHOLD = 7.5;
+
+function hasDimensionScoreEvidence(score: RubricScore): boolean {
+  const hasRationale =
+    typeof score.rationale === "string" && score.rationale.trim().length > 0;
+  const hasWeakness =
+    Array.isArray(score.weaknesses) &&
+    score.weaknesses.some((item) => String(item ?? "").trim().length > 0);
+  return hasRationale || hasWeakness;
+}
+
+function hasDisplayableDimensionScore(
+  score: RubricScore,
+): score is RubricScore & { score: number } {
+  if (typeof score.score !== "number" || !Number.isFinite(score.score)) {
+    return false;
+  }
+  if (score.score_status === "scored") return true;
+  if (score.score_status) return false;
+  return score.score > 0 || hasDimensionScoreEvidence(score);
+}
+
+function isDimensionScored(
+  score: RubricScore,
+): score is RubricScore & { score: number } {
+  return hasDisplayableDimensionScore(score);
+}
+
+function dimensionScoreLabel(score: RubricScore): string {
+  if (hasDisplayableDimensionScore(score)) {
+    return `${score.score.toFixed(1)} / 10`;
+  }
+  if (score.score_status === "skipped") return "已跳过";
+  if (score.score_status === "evaluator_unavailable") return "评估失败";
+  if (score.score_status === "not_evaluated") return "未评分";
+  return "未评分";
+}
+
+function dimensionScoreBreakdownLabel(score: RubricScore): string | null {
+  const breakdown = score.score_breakdown;
+  if (!breakdown || !(breakdown.scored_turn_count > 1)) return null;
+  const values = [
+    breakdown.latest_score,
+    breakdown.best_score,
+    breakdown.average_score,
+    breakdown.adopted_score,
+  ];
+  if (!values.every((value) => Number.isFinite(value))) return null;
+  return `本维度共评估 ${breakdown.scored_turn_count} 轮，最近 ${breakdown.latest_score.toFixed(1)}，最高 ${breakdown.best_score.toFixed(1)}，均值 ${breakdown.average_score.toFixed(1)}；综合分 ${breakdown.adopted_score.toFixed(1)}。`;
+}
+
+function dimensionBadgeMeta(score: RubricScore): {
+  label: string;
+  tone: "success" | "warning" | "muted";
+} {
+  if (hasDisplayableDimensionScore(score)) {
+    if (score.coverage_status === "passed" || score.passed) {
+      return { label: "通过", tone: "success" };
+    }
+    if (score.coverage_status === "coverage_limited") {
+      return { label: "覆盖不足", tone: "warning" };
+    }
+    if (
+      score.coverage_status === "below_threshold" ||
+      score.score < DEFAULT_DIMENSION_QUALITY_THRESHOLD
+    ) {
+      return { label: "待提升", tone: "warning" };
+    }
+    return { label: "覆盖不足", tone: "warning" };
+  }
+  if (score.score_status === "skipped") {
+    return { label: "已跳过", tone: "muted" };
+  }
+  if (score.score_status === "evaluator_unavailable") {
+    return { label: "评估失败", tone: "warning" };
+  }
+  return { label: "未评分", tone: "muted" };
+}
+
+function dimensionBadgeClass(tone: "success" | "warning" | "muted"): string {
+  if (tone === "success") {
+    return "gap-1 bg-emerald-500/10 text-emerald-400 border-emerald-500/20 text-xs";
+  }
+  if (tone === "warning") {
+    return "gap-1 bg-amber-500/10 text-amber-400 border-amber-500/20 text-xs";
+  }
+  return "gap-1 bg-secondary text-muted-foreground border-border text-xs";
+}
+
+type RadarAngleTickProps = {
+  x?: number | string;
+  y?: number | string;
+  cx?: number | string;
+  cy?: number | string;
+  payload?: { value?: string | number };
+};
+
+function radarTickCoordinate(value: number | string | undefined, fallback = 0) {
+  const numeric = Number(value);
+  return Number.isFinite(numeric) ? numeric : fallback;
+}
+
+function renderRadarAngleTick(props: RadarAngleTickProps) {
+  const { payload } = props;
+  if (payload?.value === undefined) return null;
+
+  const x = radarTickCoordinate(props.x);
+  const y = radarTickCoordinate(props.y);
+  const cx = radarTickCoordinate(props.cx, x);
+  const cy = radarTickCoordinate(props.cy, y);
+  const dx = x - cx;
+  const dy = y - cy;
+  const distance = Math.hypot(dx, dy) || 1;
+  const labelX = x + (dx / distance) * 18;
+  const labelY = y + (dy / distance) * 18 + (dy < 0 ? -6 : dy > 0 ? 6 : 0);
+  const textAnchor = Math.abs(dx) < 8 ? "middle" : dx > 0 ? "start" : "end";
+
+  return (
+    <text
+      x={labelX}
+      y={labelY}
+      textAnchor={textAnchor}
+      dominantBaseline="central"
+      fill="hsl(var(--muted-foreground))"
+      fontSize={12}
+      fontWeight={500}
+    >
+      {payload.value}
+    </text>
+  );
+}
+
 function DimensionRadar({
   scores,
 }: {
   scores?: Record<string, RubricScore>;
 }) {
-  if (!scores || Object.keys(scores).length < 3) return null;
+  if (!scores) return null;
 
-  const data = Object.entries(scores).map(([dim, s]) => ({
+  const scoredEntries = Object.entries(scores).filter(
+    (entry): entry is [string, RubricScore & { score: number }] =>
+      hasDisplayableDimensionScore(entry[1]),
+  );
+  if (scoredEntries.length < 3) return null;
+
+  const data = scoredEntries.map(([dim, s]) => ({
     dimension: formatDimensionName(dim),
-    score: typeof s.score === "number" ? s.score : 0,
+    score: s.score,
     fullMark: 10,
   }));
+  const excludedEntries = Object.entries(scores)
+    .filter((entry) => !hasDisplayableDimensionScore(entry[1]))
+    .map(([dimension]) => ({
+      dimension,
+      label: formatDimensionName(dimension),
+    }));
+  const excludedPreview = excludedEntries.slice(0, 3);
+  const excludedSuffix =
+    excludedEntries.length > excludedPreview.length
+      ? `等 ${excludedEntries.length} 项`
+      : "";
 
   return (
     <Card>
@@ -1261,38 +1567,73 @@ function DimensionRadar({
           <CardTitle className="text-base">能力雷达</CardTitle>
         </div>
         <CardDescription>
-          各评分维度的得分分布，满分 10 分。
+          只展示已完成有效评分的维度，满分 10 分。
         </CardDescription>
       </CardHeader>
       <CardContent>
-        <div className="mx-auto h-[320px] w-full max-w-[480px]">
-          <ResponsiveContainer width="100%" height="100%">
-            <RadarChart cx="50%" cy="50%" outerRadius="75%" data={data}>
+        <div className="mx-auto h-[360px] w-full max-w-[560px] px-2 sm:px-6">
+          <ResponsiveContainer
+            width="100%"
+            height="100%"
+            minWidth={0}
+            minHeight={0}
+          >
+            <RadarChart
+              cx="50%"
+              cy="52%"
+              outerRadius="76%"
+              data={data}
+              margin={{ top: 36, right: 32, bottom: 36, left: 32 }}
+            >
               <PolarGrid
+                gridType="polygon"
                 stroke="hsl(var(--border))"
-                strokeOpacity={0.5}
+                strokeOpacity={0.34}
+                radialLines
               />
               <PolarAngleAxis
                 dataKey="dimension"
-                tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 12 }}
+                tick={renderRadarAngleTick}
+                tickLine={false}
               />
               <PolarRadiusAxis
-                angle={90}
                 domain={[0, 10]}
-                tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 10 }}
                 tickCount={6}
+                tick={false}
+                axisLine={false}
+                tickLine={false}
               />
               <Radar
                 dataKey="score"
                 stroke="rgb(52 211 153)"
                 fill="rgb(52 211 153)"
-                fillOpacity={0.2}
-                strokeWidth={2}
+                fillOpacity={0.24}
+                strokeWidth={3}
                 dot={{
                   r: 4,
                   fill: "rgb(52 211 153)",
-                  strokeWidth: 0,
+                  stroke: "hsl(var(--background))",
+                  strokeWidth: 2,
                 }}
+                activeDot={{
+                  r: 5,
+                  fill: "rgb(52 211 153)",
+                  stroke: "hsl(var(--background))",
+                  strokeWidth: 2,
+                }}
+              />
+              <Radar
+                dataKey="fullMark"
+                stroke="hsl(var(--foreground))"
+                strokeOpacity={0.42}
+                strokeWidth={1.25}
+                fill="transparent"
+                fillOpacity={0}
+                dot={false}
+                activeDot={false}
+                isAnimationActive={false}
+                legendType="none"
+                tooltipType="none"
               />
               <Tooltip
                 contentStyle={{
@@ -1307,6 +1648,14 @@ function DimensionRadar({
             </RadarChart>
           </ResponsiveContainer>
         </div>
+        {excludedEntries.length > 0 && (
+          <p className="mt-3 text-center text-xs leading-relaxed text-muted-foreground/70">
+            <span className="text-muted-foreground">未纳入雷达：</span>
+            {excludedPreview.map((entry) => entry.label).join("、")}
+            {excludedSuffix}
+            <span>（暂无有效评分，详见下方评分维度）</span>
+          </p>
+        )}
       </CardContent>
     </Card>
   );
@@ -1335,6 +1684,9 @@ function DimensionScores({
           const rationale = isSystemFallbackText(s.rationale)
             ? ""
             : translateReportText(s.rationale);
+          const badge = dimensionBadgeMeta(s);
+          const scored = isDimensionScored(s);
+          const breakdownLabel = dimensionScoreBreakdownLabel(s);
 
           return (
             <div key={dim} className="space-y-2">
@@ -1343,24 +1695,28 @@ function DimensionScores({
                   <span className="text-sm font-medium">
                     {formatDimensionName(dim)}
                   </span>
-                  {s.passed ? (
-                    <Badge className="gap-1 bg-emerald-500/10 text-emerald-400 border-emerald-500/20 text-xs">
+                  <Badge className={dimensionBadgeClass(badge.tone)}>
+                    {badge.tone === "success" ? (
                       <CheckCircle2 className="h-3 w-3" />
-                      通过
-                    </Badge>
-                  ) : (
-                    <Badge className="gap-1 bg-amber-500/10 text-amber-400 border-amber-500/20 text-xs">
+                    ) : (
                       <AlertTriangle className="h-3 w-3" />
-                      待提升
-                    </Badge>
-                  )}
+                    )}
+                    {badge.label}
+                  </Badge>
                 </div>
                 <span className="font-mono text-sm tabular-nums">
-                  {typeof s.score === "number" ? s.score.toFixed(1) : "-"} / 10
+                  {dimensionScoreLabel(s)}
                 </span>
               </div>
-              {typeof s.score === "number" && (
+              {scored ? (
                 <AnimatedBar score={s.score} passed={s.passed} delay={i * 0.1} />
+              ) : (
+                <div className="h-2 w-full rounded-full bg-secondary" />
+              )}
+              {breakdownLabel && (
+                <p className="text-[11px] leading-relaxed text-muted-foreground/60">
+                  {breakdownLabel}
+                </p>
               )}
               {rationale && (
                 <p className="text-xs leading-relaxed text-muted-foreground">
@@ -1383,12 +1739,72 @@ function DimensionScores({
   );
 }
 
+const TRAINING_PLAN_TEXT_STYLES = {
+  body: "text-[13px] font-medium leading-5 text-foreground/80",
+  analysisWrap:
+    "mt-2 rounded-md bg-secondary/20 px-3 py-2",
+  analysisBadge:
+    "mb-1 inline-flex rounded-full border border-blue-500/25 bg-blue-500/10 px-1.5 py-0.5 text-[10px] font-semibold leading-none text-blue-300/85",
+  analysis:
+    "text-xs leading-relaxed text-muted-foreground/70",
+  weaknessTitle:
+    "min-w-0 text-sm font-medium leading-5 text-foreground/85",
+  diagnosisBadge:
+    "mb-1 mt-2 inline-flex rounded-full border border-blue-500/25 bg-blue-500/10 px-1.5 py-0.5 text-[10px] font-semibold leading-none text-blue-300/85",
+  description:
+    "mt-1 text-xs leading-relaxed text-muted-foreground/70",
+  meta:
+    "mt-1 inline-flex rounded-full border border-border/50 bg-secondary/20 px-2 py-0.5 text-[11px] leading-relaxed text-muted-foreground/70",
+  steps:
+    "rounded-md border border-border/50 bg-secondary/15 px-3 py-2 text-xs leading-5 text-foreground/60",
+  evidenceWrap:
+    "mt-2 rounded-md border-l-2 border-amber-500/25 bg-amber-500/[0.04] py-2 pl-3 pr-3",
+  evidenceLabel:
+    "mb-1 block text-[10px] font-semibold uppercase tracking-wider text-amber-300/85",
+  evidence:
+    "text-xs leading-relaxed text-amber-100/70 italic",
+  success:
+    "mt-2 rounded-md border border-emerald-500/15 bg-emerald-500/[0.04] px-3 py-2",
+  successLabel:
+    "text-[11px] font-semibold uppercase tracking-wider text-emerald-300/85",
+  successItem:
+    "text-xs leading-5 text-emerald-50/70",
+} as const;
+
+function TrainingPlanEvidence({ text }: { text: unknown }) {
+  const content = String(text ?? "").trim();
+  if (!content) return null;
+  return (
+    <div className={TRAINING_PLAN_TEXT_STYLES.evidenceWrap}>
+      <span className={TRAINING_PLAN_TEXT_STYLES.evidenceLabel}>
+        回答证据
+      </span>
+      <p className={TRAINING_PLAN_TEXT_STYLES.evidence}>{content}</p>
+    </div>
+  );
+}
+
+function TrainingPlanWeaknessAnalysis({ text }: { text: unknown }) {
+  const content = translateReportText(String(text ?? "").trim());
+  if (!content) return null;
+  return (
+    <div className={TRAINING_PLAN_TEXT_STYLES.analysisWrap}>
+      <span className={TRAINING_PLAN_TEXT_STYLES.analysisBadge}>
+        不足分析
+      </span>
+      <p className={TRAINING_PLAN_TEXT_STYLES.analysis}>{content}</p>
+    </div>
+  );
+}
+
 function TrainingPlanCard({
   plan,
   weakPracticeHref,
+  sourceSessionId,
 }: {
   plan?: FinalReport["training_plan"];
   weakPracticeHref?: string | null;
+  sourceSessionId?: string | null;
 }) {
   if (!plan) return null;
   const priorityWeaknesses = (plan.priority_weaknesses || []).filter(
@@ -1430,10 +1846,15 @@ function TrainingPlanCard({
               能力诊断
             </h4>
             {diagnosis.overall_readiness && (
-              <p className="text-sm font-medium">{diagnosis.overall_readiness}</p>
+              <p className={TRAINING_PLAN_TEXT_STYLES.body}>{diagnosis.overall_readiness}</p>
             )}
             {diagnosis.target_level_gap && (
-              <p className="mt-1 text-xs text-muted-foreground">{diagnosis.target_level_gap}</p>
+              <div>
+                <span className={TRAINING_PLAN_TEXT_STYLES.diagnosisBadge}>
+                  目标差距
+                </span>
+                <p className={TRAINING_PLAN_TEXT_STYLES.description}>{diagnosis.target_level_gap}</p>
+              </div>
             )}
             {diagnosis.top_patterns && diagnosis.top_patterns.length > 0 && (
               <div className="mt-2 flex flex-wrap gap-1.5">
@@ -1447,9 +1868,7 @@ function TrainingPlanCard({
             {diagnosis.evidence_refs && diagnosis.evidence_refs.length > 0 && (
               <div className="mt-3 space-y-1">
                 {diagnosis.evidence_refs.map((ref, i) => (
-                  <p key={i} className="border-l-2 border-blue-500/20 pl-3 text-xs text-muted-foreground italic">
-                    {ref}
-                  </p>
+                  <TrainingPlanEvidence key={i} text={ref} />
                 ))}
               </div>
             )}
@@ -1464,21 +1883,32 @@ function TrainingPlanCard({
             </h4>
             <ul className="space-y-2">
               {priorityWeaknesses.map((w, i) => {
-                const focusHref =
-                  w.dimension
-                    ? `/interview/setup?${new URLSearchParams({ focus: w.dimension, length: "deep" }).toString()}`
-                    : null;
+                const focusParams = new URLSearchParams({
+                  focus: w.dimension,
+                  length: "deep",
+                });
+                if (sourceSessionId) {
+                  focusParams.set("resume_from", sourceSessionId);
+                }
+                const focusHref = w.dimension
+                  ? `/interview/setup?${focusParams.toString()}`
+                  : null;
                 return (
                   <li
                     key={i}
                     className="rounded-lg border bg-card/50 p-3 text-sm transition-colors hover:bg-secondary/40"
                   >
-                    <div className="flex items-center justify-between gap-2">
-                      <div className="font-mono text-xs text-emerald-400/80">
-                        {formatDimensionName(w.dimension)}
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <p className="font-mono text-xs text-emerald-400/80">
+                          {formatDimensionName(w.dimension)}
+                        </p>
+                        <p className={TRAINING_PLAN_TEXT_STYLES.weaknessTitle}>
+                          {translateReportText(w.focus)}
+                        </p>
                       </div>
                       {focusHref && (
-                        <Button asChild variant="ghost" size="sm" className="h-6 gap-1 px-2 text-[11px] text-emerald-400 hover:text-emerald-300">
+                        <Button asChild variant="ghost" size="sm" className="h-6 shrink-0 gap-1 px-2 text-[11px] text-emerald-400 hover:text-emerald-300">
                           <Link href={focusHref}>
                             <Play className="h-3 w-3" />
                             练这个
@@ -1486,18 +1916,9 @@ function TrainingPlanCard({
                         </Button>
                       )}
                     </div>
-                    <div className="mt-1 font-medium">
-                      {translateReportText(w.focus)}
-                    </div>
-                    {w.why_it_matters && (
-                      <div className="mt-1 text-xs text-muted-foreground">
-                        {translateReportText(w.why_it_matters)}
-                      </div>
-                    )}
+                    <TrainingPlanWeaknessAnalysis text={w.why_it_matters} />
                     {(w as any).evidence && (
-                      <div className="mt-1 border-l-2 border-amber-500/20 pl-2 text-xs text-muted-foreground italic">
-                        {(w as any).evidence}
-                      </div>
+                      <TrainingPlanEvidence text={(w as any).evidence} />
                     )}
                   </li>
                 );
@@ -1516,41 +1937,44 @@ function TrainingPlanCard({
               {practiceItems.map((p, i) => (
                 <li
                   key={i}
-                  className="flex gap-3 rounded-lg border bg-card/50 p-3 transition-colors hover:bg-secondary/40"
+                  className="flex gap-3 rounded-lg border bg-card/45 p-3.5 transition-colors hover:bg-secondary/25"
                 >
-                  <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-secondary font-mono text-xs font-bold">
+                  <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-secondary/80 font-mono text-xs font-semibold text-foreground/90">
                     {i + 1}
                   </span>
-                  <div className="flex-1 space-y-2">
-                    <div>
-                      <span className="font-medium">
+                  <div className="min-w-0 flex-1 space-y-2.5">
+                    <div className="space-y-1">
+                      <p className={TRAINING_PLAN_TEXT_STYLES.body}>
                         {translateReportText(p.task)}
-                      </span>
+                      </p>
                       {p.rationale && (
-                        <span className="block text-xs text-muted-foreground">
+                        <p className={TRAINING_PLAN_TEXT_STYLES.description}>
                           {translateReportText(p.rationale)}
-                        </span>
+                        </p>
                       )}
                       {typeof p.estimated_hours === "number" && (
-                        <span className="ml-1 text-xs text-muted-foreground">
+                        <span className={TRAINING_PLAN_TEXT_STYLES.meta}>
                           (~{p.estimated_hours}h)
                         </span>
                       )}
                     </div>
                     {Array.isArray((p as any).steps) && (p as any).steps.length > 0 && (
-                      <ol className="list-decimal pl-4 text-xs text-muted-foreground space-y-0.5">
+                      <ol className={`list-decimal space-y-1 pl-5 ${TRAINING_PLAN_TEXT_STYLES.steps}`}>
                         {(p as any).steps.map((s: string, j: number) => (
                           <li key={j}>{s}</li>
                         ))}
                       </ol>
                     )}
                     {Array.isArray((p as any).success_criteria) && (p as any).success_criteria.length > 0 && (
-                      <div className="rounded bg-emerald-500/5 px-2 py-1.5">
-                        <span className="text-[10px] font-medium uppercase tracking-wider text-emerald-400/80">验收标准</span>
-                        <ul className="mt-1 space-y-0.5 text-xs text-muted-foreground">
+                      <div className={TRAINING_PLAN_TEXT_STYLES.success}>
+                        <span className={TRAINING_PLAN_TEXT_STYLES.successLabel}>验收标准</span>
+                        <ul className="mt-2 space-y-1">
                           {(p as any).success_criteria.map((c: string, j: number) => (
-                            <li key={j} className="flex items-start gap-1.5">
-                              <CheckCircle2 className="mt-0.5 h-3 w-3 shrink-0 text-emerald-400/60" />
+                            <li
+                              key={j}
+                              className={`flex items-start gap-2 ${TRAINING_PLAN_TEXT_STYLES.successItem}`}
+                            >
+                              <CheckCircle2 className="mt-1 h-3.5 w-3.5 shrink-0 text-emerald-300/80" />
                               {c}
                             </li>
                           ))}
@@ -1580,7 +2004,7 @@ function TrainingPlanCard({
           <section>
             <h4 className="mb-3 flex items-center gap-2 text-sm font-medium">
               <TrendingUp className="h-3.5 w-3.5 text-emerald-400" />
-              里程碑
+              30/60/90 天训练目标
             </h4>
             <div className="grid gap-3 md:grid-cols-3">
               <GoalColumn
@@ -1630,7 +2054,7 @@ function GoalColumn({
       >
         {label}
       </div>
-      <ul className="space-y-1.5 text-xs leading-relaxed">
+      <ul className={`space-y-1.5 ${TRAINING_PLAN_TEXT_STYLES.description}`}>
         {visibleItems.map((g, i) => (
           <li key={i} className="flex gap-1.5">
             <span className="mt-1 h-1 w-1 shrink-0 rounded-full bg-muted-foreground/40" />
@@ -1710,14 +2134,31 @@ function Actions({
   report: FinalReport | null;
   weakPracticeHref?: string | null;
 }) {
-  function handleExport() {
+  const { toast } = useToast();
+
+  async function handleCopySummary() {
     if (!report) return;
-    const payload = JSON.stringify(report, null, 2);
-    const blob = new Blob([payload], { type: "application/json" });
+    try {
+      await navigator.clipboard.writeText(
+        formatReportSummary(report, { sessionId }),
+      );
+      toast({ title: "已复制报告摘要" });
+    } catch {
+      toast({
+        title: "复制失败，可以改用 Markdown 导出",
+        variant: "destructive",
+      });
+    }
+  }
+
+  function handleExportMarkdown() {
+    if (!report) return;
+    const payload = formatReportMarkdown(report, { sessionId });
+    const blob = new Blob([payload], { type: "text/markdown;charset=utf-8" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = `interview-report-${sessionId.slice(0, 8)}.json`;
+    a.download = `interview-report-${sessionId.slice(0, 8)}.md`;
     document.body.appendChild(a);
     a.click();
     a.remove();
@@ -1752,15 +2193,40 @@ function Actions({
           查看训练回放
         </Link>
       </Button>
-      <Button
-        variant="ghost"
-        size="icon"
-        aria-label="导出报告为 JSON"
-        disabled={!report}
-        onClick={handleExport}
-      >
-        <Download className="h-4 w-4" />
-      </Button>
+      <TooltipProvider delayDuration={150}>
+        <UiTooltip>
+          <TooltipTrigger asChild>
+            <Button
+              variant="outline"
+              size="icon"
+              aria-label="复制报告摘要"
+              disabled={!report}
+              onClick={() => void handleCopySummary()}
+            >
+              <Copy className="h-4 w-4" />
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent>
+            <p>复制报告摘要</p>
+          </TooltipContent>
+        </UiTooltip>
+        <UiTooltip>
+          <TooltipTrigger asChild>
+            <Button
+              variant="ghost"
+              size="icon"
+              aria-label="导出 Markdown"
+              disabled={!report}
+              onClick={handleExportMarkdown}
+            >
+              <FileText className="h-4 w-4" />
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent>
+            <p>导出 Markdown</p>
+          </TooltipContent>
+        </UiTooltip>
+      </TooltipProvider>
     </div>
   );
 }
@@ -1800,7 +2266,7 @@ function compactDimensionScores(
 ): Record<string, number> | undefined {
   const out: Record<string, number> = {};
   for (const [dimension, score] of Object.entries(scores ?? {})) {
-    if (typeof score?.score === "number" && Number.isFinite(score.score)) {
+    if (score && hasDisplayableDimensionScore(score)) {
       out[dimension] = score.score;
     }
   }
@@ -1820,8 +2286,8 @@ function buildWeakPracticeHref(report: FinalReport): string | null {
   for (const [dimension, score] of Object.entries(report.dimension_scores ?? {})) {
     if (
       score &&
-      (score.passed === false ||
-        (typeof score.score === "number" && score.score < 7))
+      hasDisplayableDimensionScore(score) &&
+      (score.passed === false || score.score < 7)
     ) {
       add(dimension);
     }
@@ -1842,6 +2308,9 @@ function buildWeakPracticeHref(report: FinalReport): string | null {
   const jobLevel = typeof report.job_level === "string" ? report.job_level : "";
   if (jobTitle) params.set("job_title", jobTitle);
   if (jobLevel) params.set("job_level", jobLevel);
+  if (typeof report.session_id === "string" && report.session_id) {
+    params.set("resume_from", report.session_id);
+  }
   return `/interview/setup?${params.toString()}`;
 }
 
