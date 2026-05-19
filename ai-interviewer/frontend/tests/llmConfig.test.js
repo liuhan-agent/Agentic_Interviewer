@@ -162,7 +162,24 @@ test("LLM connection tests include voice ASR and TTS routes", () => {
   assert.match(configSource, /effectiveVoiceConfig\(config, "asr"\)/);
   assert.match(configSource, /effectiveVoiceConfig\(config, "tts"\)/);
   assert.match(configSource, /kind: target\.kind/);
-  assert.match(dialogSource, /routeProviderLabel\(result\.provider\)/);
+  assert.match(dialogSource, /routeProviderLabel\(result\.provider, result\.kind\)/);
+});
+
+test("LLM test result provider labels distinguish chat and voice providers", () => {
+  const dialogSource = fs.readFileSync(
+    path.join(__dirname, "..", "src", "components", "layout", "LLMSettingsDialog.tsx"),
+    "utf8",
+  );
+
+  assert.match(
+    dialogSource,
+    /function routeProviderLabel\(provider: string, kind\?: LLMTestTargetKind\): string/,
+  );
+  assert.match(dialogSource, /kind === "asr" \|\| kind === "tts"/);
+  assert.doesNotMatch(
+    dialogSource,
+    /return voiceProviderInfo\(provider\)\.label \|\| providerInfo\(provider\)\.label/,
+  );
 });
 
 test("LLM credentials default to session-only browser storage", () => {

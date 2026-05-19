@@ -60,6 +60,11 @@ test("report page displays self-intro profile", () => {
   assert.match(source, /SelfIntroFocus/);
   assert.match(source, /自我介绍重点/);
   assert.match(source, /强调项目/);
+  assert.match(source, /const shouldSpanLastGroup =/);
+  assert.match(source, /groups\.length % 2 === 1/);
+  assert.match(source, /idx === groups\.length - 1/);
+  assert.match(source, /md:col-span-2/);
+  assert.doesNotMatch(source, /用于追问参考，不覆盖简历解析。/);
 });
 
 test("report page localizes fallback training plan copy", () => {

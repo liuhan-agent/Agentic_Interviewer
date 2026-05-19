@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import React, { useEffect, useRef, useState, useMemo } from "react";
 import {
   Activity,
+  AlertTriangle,
   ArrowRight,
   Camera,
   CameraOff,
@@ -71,6 +72,7 @@ import {
 } from "@/lib/hooks/useTurnVideoCapture";
 import { useToast } from "@/lib/hooks/useToast";
 import { cn } from "@/lib/utils";
+import { formatDimensionName } from "@/lib/constants/interview";
 import {
   loadQuestionSpeechEnabled,
   storeQuestionSpeechEnabled,
@@ -86,15 +88,6 @@ const ENCOURAGEMENTS = [
   "提交成功，正在生成下一轮问题。",
 ];
 const ANSWER_MAX_LENGTH = 8000;
-const DIMENSION_LABELS: Record<string, string> = {
-  technical_depth: "技术深度",
-  problem_solving: "问题解决",
-  communication: "沟通表达",
-  system_design: "系统设计",
-  project_experience: "项目经验",
-  culture_fit: "文化匹配",
-  leadership: "领导力",
-};
 
 type QaEntry = {
   turnIdx: number | null;
@@ -1735,20 +1728,24 @@ function TurnFeedbackSummary({
           {verdict.label}
         </Badge>
       </div>
-      <div className="grid gap-2 sm:grid-cols-2">
-        <TurnFeedbackList
-          tone="positive"
-          heading="做得好"
-          items={evaluation.strengths}
-          emptyText="这题暂未提炼出明确亮点，可以继续保持作答节奏。"
-        />
-        <TurnFeedbackList
-          tone="negative"
-          heading="可补齐"
-          items={evaluation.weaknesses}
-          emptyText="这题暂未识别出必须补齐项，下一题继续按这个颗粒度展开。"
-        />
-      </div>
+      {isFallbackTurnEvaluation(evaluation) ? (
+        <TurnFeedbackFallbackNotice evaluation={evaluation} />
+      ) : (
+        <div className="grid gap-2 sm:grid-cols-2">
+          <TurnFeedbackList
+            tone="positive"
+            heading="做得好"
+            items={evaluation.strengths}
+            emptyText="这题暂未提炼出明确亮点，可以继续保持作答节奏。"
+          />
+          <TurnFeedbackList
+            tone="negative"
+            heading="可补齐"
+            items={evaluation.weaknesses}
+            emptyText={verdict.emptyWeaknessText}
+          />
+        </div>
+      )}
     </div>
   );
 }
@@ -1760,11 +1757,24 @@ type TurnFeedbackVerdict = {
   containerClass: string;
   iconClass: string;
   badgeClass: string;
+  emptyWeaknessText: string;
 };
 
 function getTurnFeedbackVerdict(
   evaluation: PreviousTurnEvaluation,
 ): TurnFeedbackVerdict {
+  if (isFallbackTurnEvaluation(evaluation)) {
+    return {
+      label: "评估暂不可用",
+      icon: AlertTriangle,
+      badgeVariant: "secondary",
+      containerClass: "border-slate-500/20 bg-slate-500/[0.045]",
+      iconClass: "text-slate-300",
+      badgeClass: "border-slate-400/20 text-slate-200",
+      emptyWeaknessText:
+        "评估模型暂时不可用，本轮回答已保存；这次不作为能力短板判断。",
+    };
+  }
   if (evaluation.passed) {
     return {
       label: "本题通过",
@@ -1773,6 +1783,8 @@ function getTurnFeedbackVerdict(
       containerClass: "border-emerald-500/20 bg-emerald-500/[0.045]",
       iconClass: "text-emerald-300",
       badgeClass: "border-emerald-400/20",
+      emptyWeaknessText:
+        "这题完成度不错，暂时没有明显短板。下一题继续保持这样的展开力度。",
     };
   }
   if (typeof evaluation.score === "number" && evaluation.score >= 4) {
@@ -1783,6 +1795,8 @@ function getTurnFeedbackVerdict(
       containerClass: "border-amber-500/20 bg-amber-500/[0.045]",
       iconClass: "text-amber-300",
       badgeClass: "border-amber-400/20",
+      emptyWeaknessText:
+        "整体已经接近要求，下一题可以继续补充关键细节，把证据链再压实一点。",
     };
   }
   return {
@@ -1792,8 +1806,35 @@ function getTurnFeedbackVerdict(
     containerClass: "border-slate-500/20 bg-slate-500/[0.045]",
     iconClass: "text-slate-300",
     badgeClass: "border-slate-400/20 text-slate-200",
+    emptyWeaknessText:
+      "本题还需要更多信息支撑，下一题优先把背景、动作和结果讲完整。",
   };
 }
+
+function isFallbackTurnEvaluation(evaluation: PreviousTurnEvaluation): boolean {
+  return Boolean(evaluation.source === "fallback" || evaluation.fallback_reason);
+}
+
+function TurnFeedbackFallbackNotice({
+  evaluation,
+}: {
+  evaluation: PreviousTurnEvaluation;
+}) {
+  const warning = evaluation.system_warnings?.find((item) => item.trim());
+  return (
+    <div className="rounded-md border border-slate-500/15 bg-background/20 px-3 py-2 leading-relaxed text-slate-300">
+      <p>
+        本轮回答已保存，但评估模型暂时不可用。这次不会作为能力短板判断，
+        可以继续下一题，稍后在报告里查看整体反馈。
+      </p>
+      {warning ? (
+        <p className="mt-1.5 text-[11px] text-slate-400">{warning}</p>
+      ) : null}
+    </div>
+  );
+}
+
+const TURN_FEEDBACK_PREVIEW_LIMIT = 2;
 
 function TurnFeedbackList({
   tone,
@@ -1806,6 +1847,11 @@ function TurnFeedbackList({
   items: string[];
   emptyText: string;
 }) {
+  const [expanded, setExpanded] = useState(false);
+  const hasOverflow = items.length > TURN_FEEDBACK_PREVIEW_LIMIT;
+  const visibleItems = expanded
+    ? items
+    : items.slice(0, TURN_FEEDBACK_PREVIEW_LIMIT);
   const toneClass =
     tone === "positive"
       ? {
@@ -1814,6 +1860,7 @@ function TurnFeedbackList({
           heading: "text-emerald-200",
           item: "border-emerald-500/10 bg-background/20 text-slate-300",
           empty: "border-emerald-500/10 bg-background/10 text-emerald-100/70",
+          action: "text-emerald-100/80 hover:text-emerald-100",
         }
       : {
           panel: "border-amber-500/15 bg-amber-500/[0.035]",
@@ -1821,6 +1868,7 @@ function TurnFeedbackList({
           heading: "text-amber-200",
           item: "border-amber-500/10 bg-background/20 text-slate-300",
           empty: "border-amber-500/10 bg-background/10 text-amber-100/70",
+          action: "text-amber-100/80 hover:text-amber-100",
         };
 
   return (
@@ -1835,19 +1883,44 @@ function TurnFeedbackList({
         </p>
       </div>
       {items.length > 0 ? (
-        <ul className="space-y-1.5">
-          {items.map((item, index) => (
-            <li
-              key={`${tone}-${index}-${item.slice(0, 12)}`}
+        <>
+          <ul className="space-y-1.5">
+            {visibleItems.map((item, index) => (
+              <li
+                key={`${tone}-${index}-${item.slice(0, 12)}`}
+                className={cn(
+                  "rounded-md border px-2 py-1.5 leading-relaxed",
+                  toneClass.item,
+                )}
+              >
+                {item}
+              </li>
+            ))}
+          </ul>
+          {hasOverflow ? (
+            <button
+              type="button"
+              aria-expanded={expanded}
+              onClick={() => setExpanded((value) => !value)}
               className={cn(
-                "rounded-md border px-2 py-1.5 leading-relaxed",
-                toneClass.item,
+                "mt-2 inline-flex items-center gap-1 rounded-md px-1.5 py-1 text-[11px] font-medium transition-colors active:scale-[0.98]",
+                toneClass.action,
               )}
             >
-              {item}
-            </li>
-          ))}
-        </ul>
+              {expanded ? (
+                <>
+                  <Minimize2 className="h-3 w-3" />
+                  收起
+                </>
+              ) : (
+                <>
+                  <Maximize2 className="h-3 w-3" />
+                  展开全部 {items.length} 条
+                </>
+              )}
+            </button>
+          ) : null}
+        </>
       ) : (
         <p
           className={cn(
@@ -1867,7 +1940,9 @@ function hasDisplayableTurnFeedback(
 ): evaluation is PreviousTurnEvaluation {
   return Boolean(
     evaluation &&
-      (evaluation.strengths.length > 0 || evaluation.weaknesses.length > 0),
+      (isFallbackTurnEvaluation(evaluation) ||
+        evaluation.strengths.length > 0 ||
+        evaluation.weaknesses.length > 0),
   );
 }
 
@@ -2063,10 +2138,6 @@ function isFinalFormalTurn({
         ? turnIdx + 1
         : 0;
   return currentTurn >= maxTurns;
-}
-
-function formatDimensionName(id: string): string {
-  return DIMENSION_LABELS[id] ?? id.replaceAll("_", " ");
 }
 
 function resumeAnchorLabel(anchor?: ResumeAnchor): string {

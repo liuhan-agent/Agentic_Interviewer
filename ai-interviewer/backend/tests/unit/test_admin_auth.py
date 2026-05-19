@@ -151,24 +151,48 @@ def test_admin_strategies_route_flattens_entry_fields(client, monkeypatch):
     """Regression: /admin/strategies used to AttributeError on e.metadata."""
     _set_token(monkeypatch, None, allow_open_admin=True)
 
-    from pathlib import Path
+    from contextlib import contextmanager
 
-    from app.memory.strategy_store import StrategyEntry
+    from sqlalchemy import create_engine
+    from sqlalchemy.orm import sessionmaker
+    from sqlalchemy.pool import StaticPool
 
-    fake_entries = [
-        StrategyEntry(
-            path=Path("knowledge/strategy/demo_skill.md"),
-            name="Demo Skill",
-            description="Helps on the demo dimension.",
-            entry_type="strategy",
-            dimensions=["demo"],
-            job_levels=["mid"],
-            body="(body)",
-        ),
-    ]
-    monkeypatch.setattr(
-        "app.memory.strategy_store.list_strategies", lambda: fake_entries
+    from app.models.base import Base
+    from app.models.strategy_memory import StrategyMemory
+
+    engine = create_engine(
+        "sqlite:///:memory:",
+        future=True,
+        connect_args={"check_same_thread": False},
+        poolclass=StaticPool,
     )
+    Base.metadata.create_all(engine)
+    Session = sessionmaker(bind=engine, expire_on_commit=False, autoflush=False)
+    with Session() as sess:
+        sess.add(
+            StrategyMemory(
+                id="seed:demo_skill",
+                slug="demo_skill",
+                name="Demo Skill",
+                description="Helps on the demo dimension.",
+                source="seed",
+                memory_key="seed:demo:mid",
+                dimensions=["demo"],
+                job_levels=["mid"],
+                body_markdown="(body)",
+                status="active",
+                promotion_stage="seed",
+            )
+        )
+        sess.commit()
+
+    @contextmanager
+    def get_session():
+        with Session() as sess:
+            yield sess
+            sess.commit()
+
+    monkeypatch.setattr(admin_api, "get_session", get_session)
 
     resp = client.get("/admin/strategies")
     assert resp.status_code == 200

@@ -120,6 +120,29 @@ def test_probe_intent_is_enabled_by_default():
     assert Settings().enable_probe_intent is True
 
 
+def test_structured_question_bank_is_primary_by_default():
+    settings = Settings()
+
+    assert settings.question_selector_mode == "structured_primary"
+    assert {
+        "java_backend",
+        "frontend_web",
+        "sre",
+        "ai_fullstack",
+        "ai_agent",
+        "mobile",
+        "ai_algorithm",
+        "architect",
+        "product_manager",
+        "operations",
+        "sales_business",
+        "marketing_brand",
+        "hr_function",
+        "customer_success",
+        "general_management",
+    } <= set(settings.question_primary_role_tags)
+
+
 def test_resolver_returns_new_business_scenario_intents(monkeypatch):
     """Smoke test for the four 2026-Q2 business-scenario intents."""
     _enable(monkeypatch)

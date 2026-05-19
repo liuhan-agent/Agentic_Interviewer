@@ -19,6 +19,7 @@ from types import SimpleNamespace
 
 import pytest
 
+from app.core.settings import Settings
 from app.engine.workflow.nodes import ask_question as ask_question_module
 from app.memory import skill_store
 
@@ -35,12 +36,16 @@ argument in every answer.
 
 
 def _stub_settings(
-    *, enable_skill_injection: bool, skill_retrieval_limit: int = 3
+    *,
+    enable_skill_injection: bool,
+    skill_retrieval_limit: int = 3,
+    skill_playbook_backend: str = "file",
 ) -> SimpleNamespace:
     """Minimal settings stub for the skill-injection branch."""
     return SimpleNamespace(
         enable_skill_injection=enable_skill_injection,
         skill_retrieval_limit=skill_retrieval_limit,
+        skill_playbook_backend=skill_playbook_backend,
     )
 
 
@@ -108,6 +113,14 @@ def test_flag_off_leaves_skill_block_untouched(
     assert ctx["skill_block"] == "(no relevant interview skills)"
 
 
+def test_skill_injection_default_is_enabled() -> None:
+    assert Settings(_env_file=None).enable_skill_injection is True
+
+
+def test_skill_playbook_backend_default_is_db_with_file_fallback() -> None:
+    assert Settings(_env_file=None).skill_playbook_backend == "db_with_file_fallback"
+
+
 def test_flag_on_with_matching_skill_injects_rendered_block(
     skills_root: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -159,3 +172,30 @@ def test_flag_on_respects_skill_retrieval_limit(
     assert "[Skill 1]" in block
     assert "[Skill 2]" in block
     assert "[Skill 3]" not in block
+
+
+def test_flag_on_forwards_skill_playbook_backend(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    captured: dict[str, object] = {}
+
+    def fake_retrieve_skills(**kwargs):
+        captured.update(kwargs)
+        return []
+
+    monkeypatch.setattr(ask_question_module, "retrieve_skills", fake_retrieve_skills)
+    monkeypatch.setattr(
+        ask_question_module,
+        "build_skills_block",
+        lambda entries: "(no relevant interview skills)",
+    )
+
+    _run_step(
+        settings=_stub_settings(
+            enable_skill_injection=True,
+            skill_playbook_backend="db",
+        ),
+        monkeypatch=monkeypatch,
+    )
+
+    assert captured["backend"] == "db"

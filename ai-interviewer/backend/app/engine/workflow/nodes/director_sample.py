@@ -30,6 +30,7 @@ from app.core.tracer import get_tracer
 from app.engine.workflow.difficulty_adapter import compute_target_difficulty
 from app.engine.workflow.policy_context import policy_context_keys
 from app.engine.workflow.routers import should_advance_for_coverage
+from app.engine.workflow.score_aggregation import scored_dimensions_from_state
 from app.engine.workflow.state import InterviewState
 from app.ml.rl.action_space import (
     ACTIONS_BY_ID,
@@ -163,6 +164,8 @@ def _apply_dimension_effect(
     state: InterviewState,
     action: InterviewAction,
     current_dim: str,
+    *,
+    forced_target: str | None = None,
 ) -> tuple[str, dict[str, Any]]:
     """Switch dimensions immediately if the chosen arm demands it.
 
@@ -171,11 +174,17 @@ def _apply_dimension_effect(
     / ``switch_dimension`` all result in the interview rotating to
     the next pending dimension *before* ``ask_question_node`` runs.
     """
-    if action.dimension_effect != "switch":
+    if action.dimension_effect != "switch" and not forced_target:
         return current_dim, dict(state.get("dimension_status", {}) or {})
 
     dims = state.get("dimensions", []) or []
     status = dict(state.get("dimension_status", {}) or {})
+    if forced_target:
+        if current_dim and status.get(current_dim) == "active":
+            status[current_dim] = "pending"
+        status[forced_target] = "active"
+        return forced_target, status
+
     if current_dim and status.get(current_dim) == "active":
         status[current_dim] = "pending"
     for d in dims:
@@ -184,6 +193,50 @@ def _apply_dimension_effect(
             return d, status
 
     return current_dim, status
+
+
+def _remaining_turns(state: InterviewState) -> int | None:
+    raw_budget = state.get("turn_budget_remaining")
+    if raw_budget is not None:
+        try:
+            return max(0, int(raw_budget))
+        except (TypeError, ValueError):
+            return None
+
+    max_turns = state.get("max_turns")
+    formal_turn_idx = state.get("formal_turn_idx", state.get("turn_idx", 0))
+    try:
+        return max(0, int(max_turns) - int(formal_turn_idx))
+    except (TypeError, ValueError):
+        return None
+
+
+def _coverage_priority_target(
+    state: InterviewState,
+    current_dim: str,
+) -> tuple[str | None, list[str]]:
+    dims = list(state.get("dimensions") or [])
+    if not dims:
+        return None, []
+
+    scored = scored_dimensions_from_state(state)
+    unscored = [d for d in dims if d not in scored]
+    if not unscored or current_dim in unscored:
+        return None, unscored
+
+    status = state.get("dimension_status", {}) or {}
+    target = next((d for d in unscored if d != current_dim), None)
+    if target is None:
+        return None, unscored
+
+    if status.get(current_dim) == "passed":
+        return target, unscored
+
+    remaining = _remaining_turns(state)
+    if remaining is not None and remaining <= len(unscored):
+        return target, unscored
+
+    return None, unscored
 
 
 def director_sample_node(state: InterviewState) -> dict[str, Any]:
@@ -209,7 +262,20 @@ def director_sample_node(state: InterviewState) -> dict[str, Any]:
             and bandit.observation_count(global_key, mask=allowed) > 0
         ):
             context_key = global_key
-    if should_advance_for_coverage(state):
+    coverage_target, unscored_dimensions = _coverage_priority_target(
+        state,
+        current_dim,
+    )
+    if coverage_target:
+        action = PLAN_SWITCH if mode == "template" else SWITCH_DIMENSION
+        diagnostics = {
+            "mode": "coverage_priority_switch",
+            "context_key": context_key,
+            "chosen": action.id,
+            "target_dimension": coverage_target,
+            "unscored_dimensions": unscored_dimensions,
+        }
+    elif should_advance_for_coverage(state):
         action = PLAN_SWITCH if mode == "template" else SWITCH_DIMENSION
         diagnostics = {
             "mode": "coverage_force_switch",
@@ -228,7 +294,10 @@ def director_sample_node(state: InterviewState) -> dict[str, Any]:
 
     # Apply dimension side-effect (e.g. plan_switch / switch_dimension)
     new_current_dim, new_status = _apply_dimension_effect(
-        state, action, current_dim
+        state,
+        action,
+        current_dim,
+        forced_target=coverage_target,
     )
     # If the dimension rotated, update dimension_status for the new
     # active dimension too.

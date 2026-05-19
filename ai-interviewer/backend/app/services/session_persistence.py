@@ -42,6 +42,8 @@ class SessionPersistence:
                     row.recovery_token_expires_at = handle.recovery_token_expires_at
                 if handle.llm_config_meta:
                     row.llm_config_meta = handle.llm_config_meta
+                if getattr(handle, "setup_snapshot", None) is not None:
+                    row.setup_snapshot = handle.setup_snapshot
                 row.enable_video_analysis = bool(
                     getattr(handle, "enable_video_analysis", False)
                 )
@@ -76,6 +78,8 @@ class SessionPersistence:
                     row.recovery_token_expires_at = handle.recovery_token_expires_at
                 if handle.llm_config_meta:
                     row.llm_config_meta = handle.llm_config_meta
+                if getattr(handle, "setup_snapshot", None) is not None:
+                    row.setup_snapshot = handle.setup_snapshot
                 row.enable_video_analysis = bool(
                     getattr(handle, "enable_video_analysis", False)
                 )

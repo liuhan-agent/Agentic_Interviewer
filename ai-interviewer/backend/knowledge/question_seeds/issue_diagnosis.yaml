@@ -1,0 +1,52 @@
+dimension: issue_diagnosis
+seeds:
+  - id: issue_diagnosis.customer_issue_reproduction
+    version: 1
+    title: Customer issue diagnosis and reproduction
+    dimension: issue_diagnosis
+    job_levels: [junior, mid, senior]
+    skill_tags: [customer_success, issue_diagnosis, support, reproduction]
+    direction_tags: [business]
+    role_tags: [customer_success]
+    rubric:
+      must_cover: [symptom_capture, reproduction_path, severity_judgment, handoff_evidence]
+      minimum_bar: Explain how to turn vague customer problem reports into actionable diagnosis evidence.
+      stretch: Balance customer communication with internal technical handoff quality and severity control.
+    priority: 25
+    status: active
+    source: manual_yaml
+    scope: global
+    language: zh-CN
+    variants:
+      - id: issue_diagnosis.customer_issue_reproduction.intermittent_login_failure
+        version: 1
+        intent: opening
+        difficulty: standard
+        scenario_brief: A customer reports intermittent login failures but cannot provide a stable reproduction step.
+        question_stem: How would you guide the customer to collect useful evidence and decide the likely severity of the issue?
+        prompt_template: Generate a customer support diagnosis question about reproduction, evidence, and severity.
+        scenario_skill_tags: [customer_success, issue_diagnosis, reproduction, severity]
+        resume_anchor_hints: [support, troubleshooting, login, ticket, customer_issue]
+        failure_categories: [missing_evidence, vague_process, weak_prioritization]
+        rubric_additions: [Capture environment and timeline, ask for reproducible path, classify severity]
+        expected_signals: [Collects logs or screenshots, checks affected scope, prepares internal handoff]
+        anti_patterns: [Asks customer to try again only, escalates without evidence, ignores business impact]
+        good_answer_hints: [Clarify who and when, collect evidence, judge severity from impact]
+        priority: 17
+        status: active
+      - id: issue_diagnosis.customer_issue_reproduction.multi_team_handoff
+        version: 1
+        intent: deep_probe
+        difficulty: deep_probe
+        scenario_brief: The issue may involve product, engineering, and customer configuration, and each team has different guesses.
+        question_stem: How would you structure the diagnosis handoff so internal teams can converge instead of passing the customer around?
+        prompt_template: Generate a deep probe about customer issue diagnosis across multiple internal teams.
+        scenario_skill_tags: [customer_success, issue_diagnosis, cross_team_handoff, support]
+        resume_anchor_hints: [handoff, support, engineering, product, customer_configuration]
+        failure_categories: [weak_stakeholder_alignment, missing_evidence, poor_communication]
+        rubric_additions: [Summarize evidence, separate hypotheses, define owner and next check]
+        expected_signals: [Creates concise issue packet, tracks owner, keeps customer updated]
+        anti_patterns: [Forwards long chat logs, loses customer context, lets teams debate without owner]
+        good_answer_hints: [Package facts, list hypotheses, set owner and next update]
+        priority: 15
+        status: active

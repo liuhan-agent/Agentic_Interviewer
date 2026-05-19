@@ -1,0 +1,4 @@
+interface:
+  display_name: "AI Interviewer Retrospective"
+  short_description: "Capture visible AI interviewer debug retrospectives."
+  default_prompt: "Use $ai-interviewer-retrospective to draft a visible retrospective for this AI interviewer debugging issue."

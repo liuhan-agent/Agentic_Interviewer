@@ -17,6 +17,8 @@ const SESSION_TOKEN_TTL_MS = SESSION_TOKEN_TTL_DAYS * 24 * 60 * 60 * 1000;
 const MAX_TEXT_FIELD_LENGTH = 256;
 const MAX_DIMENSION_COUNT = 20;
 const MAX_DIMENSION_LENGTH = 80;
+const MAX_RESUME_TEXT_LENGTH = 20_000;
+const MAX_RESUME_ARRAY_LENGTH = 40;
 
 export type InterviewHistoryStatus = "running" | "done" | "cancelled" | "failed";
 
@@ -40,6 +42,18 @@ export interface InterviewHistoryEntry {
   growthSignal?: string;
   overallVerdict?: string;
   feedbackSubmitted?: boolean;
+  resumeSetupSnapshot?: ResumeSetupSnapshot;
+}
+
+export interface ResumeSetupSnapshot {
+  candidate_name?: string;
+  candidate_summary?: string;
+  candidate_skills?: string;
+  candidate_highlights?: string;
+  resumeProjects?: Record<string, unknown>[];
+  resumeFocusAreas?: Record<string, unknown>[];
+  resumeConcerns?: string[];
+  resumeCandidateProfile?: Record<string, unknown>;
 }
 
 interface StoredShape {
@@ -179,6 +193,7 @@ function isValidEntry(x: unknown): x is InterviewHistoryEntry {
     isDimensionScoreMap(e.dimensionScores) &&
     isValidPositiveInt(e.maxTurns) &&
     isStringList(e.rubricDimensions) &&
+    isResumeSetupSnapshot(e.resumeSetupSnapshot) &&
     (e.status === "running" ||
       e.status === "done" ||
       e.status === "cancelled" ||
@@ -233,6 +248,56 @@ function isStringList(value: unknown): value is string[] | undefined {
   if (!Array.isArray(value) || value.length > MAX_DIMENSION_COUNT) return false;
   return value.every(
     (item) => typeof item === "string" && item.length <= MAX_DIMENSION_LENGTH,
+  );
+}
+
+function isResumeText(value: unknown): value is string | undefined {
+  return (
+    value === undefined ||
+    (typeof value === "string" && value.length <= MAX_RESUME_TEXT_LENGTH)
+  );
+}
+
+function isPlainObject(value: unknown): value is Record<string, unknown> {
+  return Boolean(value) && typeof value === "object" && !Array.isArray(value);
+}
+
+function isRecordList(value: unknown): value is Record<string, unknown>[] | undefined {
+  if (value === undefined) return true;
+  return (
+    Array.isArray(value) &&
+    value.length <= MAX_RESUME_ARRAY_LENGTH &&
+    value.every(isPlainObject)
+  );
+}
+
+function isResumeConcernList(value: unknown): value is string[] | undefined {
+  if (value === undefined) return true;
+  return (
+    Array.isArray(value) &&
+    value.length <= MAX_RESUME_ARRAY_LENGTH &&
+    value.every(
+      (item) =>
+        typeof item === "string" && item.length <= MAX_RESUME_TEXT_LENGTH,
+    )
+  );
+}
+
+function isResumeSetupSnapshot(
+  value: unknown,
+): value is ResumeSetupSnapshot | undefined {
+  if (value === undefined) return true;
+  if (!isPlainObject(value)) return false;
+  return (
+    isResumeText(value.candidate_summary) &&
+    isResumeText(value.candidate_name) &&
+    isResumeText(value.candidate_skills) &&
+    isResumeText(value.candidate_highlights) &&
+    isRecordList(value.resumeProjects) &&
+    isRecordList(value.resumeFocusAreas) &&
+    isResumeConcernList(value.resumeConcerns) &&
+    (value.resumeCandidateProfile === undefined ||
+      isPlainObject(value.resumeCandidateProfile))
   );
 }
 
@@ -317,6 +382,12 @@ export function getRecoveryToken(sessionId: string): string | undefined {
   return entry.recoveryToken;
 }
 
+export function getResumeSetupSnapshot(
+  sessionId: string,
+): ResumeSetupSnapshot | null {
+  return getEntry(sessionId)?.resumeSetupSnapshot ?? null;
+}
+
 export interface UpsertInput {
   sessionId: string;
   sessionToken?: string;
@@ -336,6 +407,7 @@ export interface UpsertInput {
   growthSignal?: string;
   overallVerdict?: string;
   feedbackSubmitted?: boolean;
+  resumeSetupSnapshot?: ResumeSetupSnapshot;
 }
 
 /**
@@ -374,6 +446,7 @@ export function upsertEntry(input: UpsertInput): InterviewHistoryEntry {
         growthSignal: input.growthSignal,
         overallVerdict: input.overallVerdict,
         feedbackSubmitted: input.feedbackSubmitted,
+        resumeSetupSnapshot: input.resumeSetupSnapshot,
       }),
       lastVisitedAt: now,
     };
@@ -396,6 +469,7 @@ export function upsertEntry(input: UpsertInput): InterviewHistoryEntry {
       maxTurns: input.maxTurns,
       growthSignal: input.growthSignal,
       overallVerdict: input.overallVerdict,
+      resumeSetupSnapshot: input.resumeSetupSnapshot,
     };
     shape.entries.push(next);
   }

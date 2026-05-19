@@ -1,8 +1,31 @@
 ---
+id: tech_system_design_scale_reasoning
 name: System Design Scale Reasoning
 description: Force one concrete failure mode + one quantified scale argument per answer.
+status: active
+priority: 8
+direction_tags: [internet_tech]
+role_tags: [java_backend, frontend_web, sre, ai_fullstack, ai_agent, mobile, ai_algorithm, architect]
 dimensions: [system_design, architecture]
 job_levels: [mid, senior, staff, principal]
+probe_intents: [architecture_challenge, performance_probe, tradeoff_probe]
+failure_categories: [missing_scale_reasoning, vague_architecture, missing_failure_mode]
+generator_moves:
+  - "Ask what breaks first at 10x load and which component owns that failure mode."
+  - "Require one quantified bound such as throughput, storage, latency, fanout, or recovery time."
+watch_for:
+  - "Names a concrete failure mode and a numeric viability argument."
+avoid:
+  - "Accepting 'add cache', 'use retries', or 'scale horizontally' without a failure mechanism."
+evaluator_rubric_hints:
+  - "Credit one specific failure mode plus one quantified scale argument even if the design is incomplete."
+positive_signals:
+  - "Ties the number to a component limit or operational constraint."
+negative_signals:
+  - "Lists technologies without explaining what failure they control."
+score_bias_rules:
+  - "Soft negative when both failure mode and numeric bound are absent."
+evaluator_visibility: true
 ---
 
 Every system-design question must, by the time the candidate is done,

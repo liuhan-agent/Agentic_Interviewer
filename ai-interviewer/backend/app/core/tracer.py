@@ -221,6 +221,12 @@ class Tracer:
             with get_session() as sess:
                 existing = sess.get(InterviewSession, state.get("session_id"))
                 if existing is not None:
+                    setup_snapshot = state.get("setup_snapshot")
+                    if (
+                        existing.setup_snapshot is None
+                        and isinstance(setup_snapshot, dict)
+                    ):
+                        existing.setup_snapshot = setup_snapshot
                     _record_trace_success("session_started")
                     return
                 sess.add(
@@ -232,6 +238,9 @@ class Tracer:
                         job_level=(state.get("job_spec") or {}).get("level"),
                         mode=state.get("mode", "mixed"),
                         enable_video_analysis=self._enable_video_analysis(state),
+                        setup_snapshot=state.get("setup_snapshot")
+                        if isinstance(state.get("setup_snapshot"), dict)
+                        else None,
                         status="running",
                     )
                 )

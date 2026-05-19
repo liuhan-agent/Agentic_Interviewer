@@ -22,7 +22,7 @@ from app.core.logging import get_logger
 from app.core.settings import get_settings
 from app.ml.rl.action_space import ALIAS_MAP
 from app.ml.rl.thompson import get_bandit
-from app.models import GenerationTrace, OutcomeRecord, get_session
+from app.models import GenerationTrace, OutcomeRecord, StrategyMemoryUsage, get_session
 
 log = get_logger(__name__)
 
@@ -96,6 +96,41 @@ def _policy_keys(trace: GenerationTrace) -> list[str]:
     return out
 
 
+def _helpful_score(outcome: OutcomeRecord) -> float | None:
+    if (getattr(outcome, "source", None) or "") != "user_feedback":
+        return None
+    raw = getattr(outcome, "helpful_score", None)
+    if raw is None:
+        return None
+    return max(0.0, min(1.0, float(raw)))
+
+
+def _backfill_strategy_usage_delayed_reward(
+    sess,
+    trace: GenerationTrace,
+    *,
+    reward: float,
+    helpful_score: float | None,
+) -> int:
+    if not trace.action_id:
+        return 0
+    updated = 0
+    for context_key in _policy_keys(trace):
+        rows = sess.scalars(
+            select(StrategyMemoryUsage)
+            .where(StrategyMemoryUsage.session_id == trace.session_id)
+            .where(StrategyMemoryUsage.turn_idx == trace.turn_idx)
+            .where(StrategyMemoryUsage.action_id == trace.action_id)
+            .where(StrategyMemoryUsage.context_key == context_key)
+        )
+        for row in rows:
+            row.delayed_reward = reward
+            if helpful_score is not None:
+                row.helpful_score = helpful_score
+            updated += 1
+    return updated
+
+
 def backfill_once() -> dict[str, int]:
     """Apply any outcomes not yet propagated to the bandit.
 
@@ -118,7 +153,7 @@ def backfill_once() -> dict[str, int]:
     preserved so ``policy_mode=template`` keeps learning from traces
     that still log legacy arm ids.
     """
-    counters = {"sessions": 0, "traces": 0}
+    counters = {"sessions": 0, "traces": 0, "strategy_usages": 0}
     applied: list[tuple[list[str], str, float]] = []
 
     with get_session() as sess:
@@ -138,6 +173,12 @@ def backfill_once() -> dict[str, int]:
             reward = _delayed_reward(outcome)
             t.delayed_reward = reward
             t.applied_to_bandit = True
+            counters["strategy_usages"] += _backfill_strategy_usage_delayed_reward(
+                sess,
+                t,
+                reward=reward,
+                helpful_score=_helpful_score(outcome),
+            )
             applied.append((keys, t.action_id, reward))
             counters["traces"] += 1
         counters["sessions"] = len({t.session_id for t in traces})
