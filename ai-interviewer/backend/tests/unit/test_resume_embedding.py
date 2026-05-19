@@ -86,7 +86,71 @@ def test_embed_chunks_batches_under_64(mock_http: _MockHTTP) -> None:
 
     assert len(vectors) == 150
     assert [len(payload["input"]) for payload in mock_http.payloads] == [64, 64, 22]
+    assert all(
+        payload["dimensions"] == int(get_settings().resume_rag_embedding_dimension or 1536)
+        for payload in mock_http.payloads
+    )
     assert mock_http.call_count == 3
+
+
+def test_embed_chunks_uses_qwen_embedding_override(mock_http: _MockHTTP) -> None:
+    mock_http.add_post("/embeddings", lambda req: _ok_response(len(req["input"])))
+
+    vectors = embed_chunks(
+        ["Redis Lua atomic deduction"],
+        embedding_override={
+            "provider": "qwen",
+            "api_key": "sk-qwen-embedding",
+            "model": "text-embedding-v4",
+            "base_url": "https://dashscope.aliyuncs.com/compatible-mode/v1",
+            "dimensions": 1536,
+        },
+    )
+
+    assert len(vectors) == 1
+    assert mock_http.payloads[0]["model"] == "text-embedding-v4"
+    assert mock_http.payloads[0]["dimensions"] == 1536
+
+
+def test_embedding_provider_registry_allows_qwen_byok_only() -> None:
+    from app.services.embedding_providers import (
+        embedding_provider_spec,
+        supported_embedding_override_provider_ids,
+    )
+
+    assert supported_embedding_override_provider_ids() == {"qwen", "dashscope"}
+    qwen = embedding_provider_spec("qwen")
+    assert qwen.default_model == "text-embedding-v4"
+    assert qwen.default_base_url == "https://dashscope.aliyuncs.com/compatible-mode/v1"
+    assert qwen.supported_dimensions == frozenset({1536})
+
+
+def test_openai_embedding_override_is_reserved_for_future_provider_rollout() -> None:
+    with pytest.raises(ResumeEmbeddingError, match="unsupported embedding provider: openai"):
+        current_embedding_model_version(
+            {
+                "provider": "openai",
+                "api_key": "sk-openai-embedding",
+                "model": "text-embedding-3-small",
+                "base_url": "https://api.openai.com/v1",
+                "dimensions": 1536,
+            }
+        )
+
+
+def test_current_embedding_model_version_includes_provider_model_and_dimension() -> None:
+    assert (
+        current_embedding_model_version(
+            {
+                "provider": "qwen",
+                "api_key": "sk-qwen-embedding",
+                "model": "text-embedding-v4",
+                "base_url": "https://dashscope.aliyuncs.com/compatible-mode/v1",
+                "dimensions": 1536,
+            }
+        )
+        == "qwen:text-embedding-v4:1536@v1"
+    )
 
 
 def test_embed_query_swallows_timeout(mock_http: _MockHTTP) -> None:
@@ -103,6 +167,28 @@ def test_embed_query_cache_avoids_second_call(mock_http: _MockHTTP) -> None:
 
     assert v1 == v2
     assert mock_http.call_count == 1
+
+
+def test_embed_query_cache_isolated_by_embedding_version(mock_http: _MockHTTP) -> None:
+    mock_http.add_post("/embeddings", lambda req: _ok_response(len(req["input"])))
+    mock_http.add_post("/embeddings", lambda req: _ok_response(len(req["input"])))
+
+    override_a = {
+        "provider": "qwen",
+        "api_key": "sk-qwen-embedding",
+        "model": "text-embedding-v4",
+        "base_url": "https://dashscope.aliyuncs.com/compatible-mode/v1",
+        "dimensions": 1536,
+    }
+    override_b = {
+        **override_a,
+        "model": "text-embedding-v4-alt",
+    }
+
+    embed_query("Redis high concurrency", cache_key="seed1", embedding_override=override_a)
+    embed_query("Redis high concurrency", cache_key="seed1", embedding_override=override_b)
+
+    assert mock_http.call_count == 2
 
 
 def test_embed_chunks_retries_on_429(mock_http: _MockHTTP) -> None:
@@ -145,6 +231,6 @@ def test_embed_chunks_semaphore_matches_settings_concurrency() -> None:
 
 
 def test_current_embedding_model_version_uses_configured_model() -> None:
-    assert current_embedding_model_version() == (
-        f"{get_settings().resume_rag_embedding_model}@v1"
+    assert current_embedding_model_version().endswith(
+        f":{get_settings().resume_rag_embedding_dimension}@v1"
     )

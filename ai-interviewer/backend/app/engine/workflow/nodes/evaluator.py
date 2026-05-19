@@ -27,6 +27,7 @@ from app.engine.workflow.state import InterviewState, QATurn
 from app.ml.drift.prompt_feedback import build_evaluator_drift_negatives
 from app.ml.rl.reward_fn import immediate_reward
 from app.ml.rl.thompson import get_bandit  # noqa: F401 - legacy tests patch this name
+from app.services.question_selector import build_question_history_selection_artifacts
 
 from .wait_answer import get_raw_answer_for_state
 
@@ -193,6 +194,9 @@ def evaluator_node(state: InterviewState) -> dict[str, Any]:
     question_basis = sanitize_replay_question_basis(question.get("question_basis"))
     if question_basis is not None:
         qa_turn["question_basis"] = question_basis
+    history_selection_artifacts = build_question_history_selection_artifacts(question)
+    if history_selection_artifacts:
+        qa_turn["selection_artifacts"] = history_selection_artifacts
     video_signals = state.get("video_signals")
     if isinstance(video_signals, dict) and video_signals:
         qa_turn["video_signals"] = video_signals

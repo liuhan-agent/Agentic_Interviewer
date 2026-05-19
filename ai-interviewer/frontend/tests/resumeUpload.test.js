@@ -141,6 +141,13 @@ test("uses qwen plus for resume parsing when default config is qwen flash", asyn
     api_key: "default-key",
     model: "qwen3.6-flash",
     base_url: "https://dashscope.aliyuncs.com/compatible-mode/v1",
+    embedding_override: {
+      provider: "qwen",
+      api_key: "default-key",
+      model: "text-embedding-v4",
+      base_url: "https://dashscope.aliyuncs.com/compatible-mode/v1",
+      dimensions: 1536,
+    },
   };
   const calls = [];
 
@@ -165,6 +172,13 @@ test("uses qwen plus for resume parsing when default config is qwen flash", asyn
         api_key: "default-key",
         model: "qwen3.6-flash",
         base_url: "https://dashscope.aliyuncs.com/compatible-mode/v1",
+        embedding_override: {
+          provider: "qwen",
+          api_key: "default-key",
+          model: "text-embedding-v4",
+          base_url: "https://dashscope.aliyuncs.com/compatible-mode/v1",
+          dimensions: 1536,
+        },
         role_overrides: {
           resume_parser: {
             provider: "qwen",

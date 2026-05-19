@@ -116,6 +116,78 @@ test("voice capability section is independently collapsible", () => {
   assert.match(voiceDetails[0], /group-open:rotate-180/);
 });
 
+test("LLM settings exposes session anchor embedding route", () => {
+  const configSource = fs.readFileSync(
+    path.join(__dirname, "..", "src", "lib", "llm-config.ts"),
+    "utf8",
+  );
+  const dialogSource = fs.readFileSync(
+    path.join(__dirname, "..", "src", "components", "layout", "LLMSettingsDialog.tsx"),
+    "utf8",
+  );
+  const typeSource = fs.readFileSync(
+    path.join(__dirname, "..", "src", "lib", "api", "types.ts"),
+    "utf8",
+  );
+
+  assert.match(configSource, /embeddingOverride/);
+  assert.match(configSource, /embedding_override/);
+  assert.match(configSource, /text-embedding-v4/);
+  assert.match(configSource, /dimensions: 1536/);
+  assert.match(configSource, /\| "embedding:session_anchor"/);
+  assert.match(configSource, /kind: "embedding"/);
+  assert.match(dialogSource, /EmbeddingRouteCard/);
+  assert.match(dialogSource, /资料理解能力/);
+  assert.match(dialogSource, /简历与自我介绍/);
+  assert.doesNotMatch(dialogSource, /Session Anchor RAG/);
+  assert.doesNotMatch(dialogSource, /Session Anchor Embedding/);
+  assert.doesNotMatch(dialogSource, /PgVector 表/);
+  assert.match(typeSource, /embedding_override/);
+});
+
+test("embedding route inherits only same-provider default keys", () => {
+  const source = fs.readFileSync(
+    path.join(__dirname, "..", "src", "lib", "llm-config.ts"),
+    "utf8",
+  );
+
+  assert.match(source, /effectiveEmbeddingConfig/);
+  assert.match(source, /sameEmbeddingProvider\(config\.provider, effective\.provider\)/);
+  assert.doesNotMatch(source, /config\.provider === "deepseek" \? config\.apiKey/);
+});
+
+test("embedding route uses the role override form pattern with qwen-only provider", () => {
+  const configSource = fs.readFileSync(
+    path.join(__dirname, "..", "src", "lib", "llm-config.ts"),
+    "utf8",
+  );
+  const dialogSource = fs.readFileSync(
+    path.join(__dirname, "..", "src", "components", "layout", "LLMSettingsDialog.tsx"),
+    "utf8",
+  );
+  const providerBlock = configSource.match(
+    /export const EMBEDDING_PROVIDERS = \[([\s\S]*?)\] as const/,
+  )?.[1];
+  const embeddingCard = dialogSource.match(
+    /function EmbeddingRouteCard[\s\S]*?function VoiceRouteCard/,
+  )?.[0];
+
+  assert.ok(providerBlock);
+  assert.match(providerBlock, /id: "qwen"/);
+  assert.doesNotMatch(providerBlock, /id: "openai"/);
+  assert.doesNotMatch(providerBlock, /id: "openai_compatible"/);
+  assert.match(configSource, /isSupportedEmbeddingProvider/);
+  assert.match(configSource, /provider: provider\.id/);
+  assert.ok(embeddingCard);
+  assert.match(embeddingCard, /使用建议配置/);
+  assert.match(embeddingCard, /<Label>服务商<\/Label>/);
+  assert.match(embeddingCard, /<option[\s\S]*\{provider\.label\}[\s\S]*<\/option>/);
+  assert.doesNotMatch(embeddingCard, /EMBEDDING_PROVIDERS\.map/);
+  assert.match(embeddingCard, /<Label>API 密钥（可选）<\/Label>/);
+  assert.doesNotMatch(embeddingCard, /<Label>\{provider\.label\} API 密钥/);
+  assert.match(embeddingCard, /Base URL（基础地址）/);
+});
+
 test("voice overrides only inherit the default key from same-provider configs", async () => {
   const source = fs.readFileSync(
     path.join(__dirname, "..", "src", "lib", "llm-config.ts"),
@@ -163,6 +235,22 @@ test("LLM connection tests include voice ASR and TTS routes", () => {
   assert.match(configSource, /effectiveVoiceConfig\(config, "tts"\)/);
   assert.match(configSource, /kind: target\.kind/);
   assert.match(dialogSource, /routeProviderLabel\(result\.provider, result\.kind\)/);
+});
+
+test("LLM connection tests include session anchor embedding route", () => {
+  const configSource = fs.readFileSync(
+    path.join(__dirname, "..", "src", "lib", "llm-config.ts"),
+    "utf8",
+  );
+  const dialogSource = fs.readFileSync(
+    path.join(__dirname, "..", "src", "components", "layout", "LLMSettingsDialog.tsx"),
+    "utf8",
+  );
+
+  assert.match(configSource, /id: "embedding:session_anchor"/);
+  assert.match(configSource, /label: "资料理解能力"/);
+  assert.match(configSource, /dimensions: embedding\.dimensions/);
+  assert.match(dialogSource, /target\.kind === "embedding"/);
 });
 
 test("LLM test result provider labels distinguish chat and voice providers", () => {

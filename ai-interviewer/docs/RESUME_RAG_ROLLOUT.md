@@ -38,6 +38,27 @@ Verify shadow data in the Admin "Candidate Anchor RAG" card and through:
 Track source type, chunk counts, hit-rate by mode/source, p50/p99 latency,
 fallback reasons, and subject deletion actions.
 
+## Embedding BYOK
+
+Session Anchor RAG can use the browser-supplied LLM configuration for
+embeddings. In the LLM settings dialog, the "Candidate Anchor Retrieval" route
+defaults to Qwen `text-embedding-v4` at 1536 dimensions with base URL
+`https://dashscope.aliyuncs.com/compatible-mode/v1`.
+
+If the default chat provider is Qwen and a default Qwen API key is present, the
+embedding route inherits that key without requiring a second key entry. If the
+embedding route is configured separately, its key is sent only with the session
+request and is stripped from persisted `llm_config_meta` like the chat and voice
+keys.
+
+The dimension is intentionally fixed at 1536 because `session_anchor_chunks`
+uses a `vector(1536)` column. Qwen `text-embedding-v4` must therefore be called
+with `dimensions=1536`; changing dimensions requires a database/schema rollout,
+not only a UI config edit.
+
+Without a browser-supplied embedding key, the backend falls back to the
+server-side `resume_rag_embedding_*` settings.
+
 ## Primary Promotion Gates
 
 Both gates must pass independently per mode. High hit-rate alone is not enough.
