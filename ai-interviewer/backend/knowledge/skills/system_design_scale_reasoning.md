@@ -1,5 +1,5 @@
 ---
-id: tech_system_design_scale_reasoning
+id: system_design_scale_reasoning
 name: System Design Scale Reasoning
 description: Force one concrete failure mode + one quantified scale argument per answer.
 status: active
