@@ -20,6 +20,8 @@ def run_privacy_cleanup_now(*, batch_size: int | None = None) -> dict[str, Any]:
     """One-shot privacy cleanup entrypoint for schedulers and tests."""
     from app.services.privacy_cleanup import cleanup_expired_data
 
+    if batch_size is None:
+        return cleanup_expired_data(dry_run=False)
     return cleanup_expired_data(dry_run=False, batch_size=batch_size)
 
 
