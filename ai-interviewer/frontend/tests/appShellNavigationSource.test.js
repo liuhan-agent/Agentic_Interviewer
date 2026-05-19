@@ -14,6 +14,8 @@ test("app shell exposes parent and root navigation shortcuts", () => {
 
   assert.match(source, /NavigationShortcuts/);
   assert.match(source, /resolveParentHref/);
+  assert.match(source, /sticky top-16 z-20/);
+  assert.match(source, /backdrop-blur-xl/);
   assert.match(source, /返回上一级/);
   assert.match(source, /回到首页/);
 });

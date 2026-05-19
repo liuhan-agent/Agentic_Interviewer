@@ -1,0 +1,52 @@
+dimension: talent_acquisition
+seeds:
+  - id: talent_acquisition.hr_role_qualification
+    version: 1
+    title: HR recruiting role qualification
+    dimension: talent_acquisition
+    job_levels: [junior, mid, senior]
+    skill_tags: [hr_function, recruiting, talent_acquisition, role_qualification]
+    direction_tags: [business]
+    role_tags: [hr_function]
+    rubric:
+      must_cover: [role_requirements, sourcing_signal, interview_calibration, conversion_risk]
+      minimum_bar: Explain how to translate a business hiring need into screening criteria and interview calibration.
+      stretch: Connect hiring funnel evidence with tradeoffs between speed, quality, and candidate experience.
+    priority: 26
+    status: active
+    source: manual_yaml
+    scope: global
+    language: zh-CN
+    variants:
+      - id: talent_acquisition.hr_role_qualification.new_role_kickoff
+        version: 1
+        intent: opening
+        difficulty: standard
+        scenario_brief: A business team opens a new role but the hiring manager describes requirements in broad slogans.
+        question_stem: How would you clarify the real hiring requirement and turn it into usable screening and interview criteria?
+        prompt_template: Generate an HR recruiting question about role qualification, sourcing signals, and interview calibration.
+        scenario_skill_tags: [hr_function, recruiting, role_qualification, hiring_manager_alignment]
+        resume_anchor_hints: [recruiting, hiring, interview, talent_acquisition, stakeholder]
+        failure_categories: [vague_requirement, missing_evidence, weak_stakeholder_alignment]
+        rubric_additions: [Clarify business context, define must have signals, align interview questions with role criteria]
+        expected_signals: [Separates must have and nice to have, uses intake meeting evidence, defines funnel feedback loop]
+        anti_patterns: [Only reposts JD keywords, screens by years alone, ignores hiring manager calibration]
+        good_answer_hints: [Start from role outcome, define observable signals, calibrate with examples]
+        priority: 18
+        status: active
+      - id: talent_acquisition.hr_role_qualification.funnel_quality_drop
+        version: 1
+        intent: deep_probe
+        difficulty: deep_probe
+        scenario_brief: Candidate volume is high but interview pass rate is low, and the business team doubts HR screening quality.
+        question_stem: How would you diagnose the recruiting funnel and decide whether the problem is sourcing, screening, or role calibration?
+        prompt_template: Generate a deep probe about recruiting funnel diagnosis and evidence based adjustment.
+        scenario_skill_tags: [hr_function, recruiting_funnel, screening_quality, stakeholder_alignment]
+        resume_anchor_hints: [funnel, recruiting, interview_pass_rate, sourcing, calibration]
+        failure_categories: [missing_metrics, shallow_analysis, weak_prioritization]
+        rubric_additions: [Use funnel conversion data, compare pass reasons and rejection reasons, propose adjustment cycle]
+        expected_signals: [Uses data by stage, checks requirement drift, proposes calibration review]
+        anti_patterns: [Blames candidate quality only, adds more channels without diagnosis, ignores interviewer feedback]
+        good_answer_hints: [Read funnel data first, sample interview feedback, adjust sourcing and screening together]
+        priority: 16
+        status: active

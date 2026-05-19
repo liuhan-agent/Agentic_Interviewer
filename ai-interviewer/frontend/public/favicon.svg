@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="AI 面试官">
+  <rect width="64" height="64" rx="14" fill="#0f172a"/>
+  <path
+    d="M18 26.5c0-7.2 6.2-12.5 14.4-12.5 8.6 0 14.6 5.4 14.6 12.7 0 7.1-6.2 12.4-14.7 12.4h-4.7l-8.4 6.2 2.5-8.4C19.3 34.4 18 30.8 18 26.5Z"
+    fill="#10b981"
+  />
+  <path
+    d="M25 25.7c2-3.2 4.7-4.8 8-4.8 3.6 0 6.3 1.6 8.2 4.8M25.5 31.2h15"
+    fill="none"
+    stroke="#ecfdf5"
+    stroke-linecap="round"
+    stroke-width="4"
+  />
+  <path
+    d="M47.5 15.5 49 20l4.5 1.5L49 23l-1.5 4.5L46 23l-4.5-1.5L46 20l1.5-4.5Z"
+    fill="#a7f3d0"
+  />
+  <circle cx="45.5" cy="43.5" r="4.5" fill="#34d399"/>
+</svg>

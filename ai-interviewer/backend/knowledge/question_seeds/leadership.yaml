@@ -1,0 +1,52 @@
+dimension: leadership
+seeds:
+  - id: leadership.architect_technical_governance
+    version: 1
+    title: 架构师技术治理与影响力
+    dimension: leadership
+    job_levels: [senior, staff]
+    skill_tags: [architect, leadership, governance, technical influence, review]
+    direction_tags: [internet_tech]
+    role_tags: [architect]
+    rubric:
+      must_cover: [技术标准, 评审机制, 影响力, 落地跟踪]
+      minimum_bar: 能说明架构师如何通过机制推动团队技术质量，而不是只靠个人判断。
+      stretch: 能处理跨团队分歧、历史包袱、业务压力和技术治理长期化。
+    priority: 26
+    status: active
+    source: manual_yaml
+    scope: global
+    language: zh-CN
+    variants:
+      - id: leadership.architect_technical_governance.arch_review
+        version: 1
+        intent: opening
+        difficulty: standard
+        scenario_brief: 多个团队提交架构方案，质量参差不齐，评审经常变成临时争论。
+        question_stem: 作为架构师，你会如何建立架构评审机制并推动方案质量提升？
+        prompt_template: 结合候选人的技术影响力经验，生成一道领导力题，要求说明评审机制、标准和落地跟踪。
+        scenario_skill_tags: [architect, leadership, architecture review, governance]
+        resume_anchor_hints: [architecture review, governance, leadership, standard, architect]
+        failure_categories: [missing_action, missing_tradeoff, vague_metrics]
+        rubric_additions: [说明评审标准, 说明决策和记录机制, 说明后续跟踪和复盘]
+        expected_signals: [能制定轻量模板, 能推动关键风险前置, 能跟踪评审结果]
+        anti_patterns: [只凭个人拍板, 评审没有标准, 评审后没人跟进]
+        good_answer_hints: [先定义评审目标, 再建立标准和流程, 最后跟踪结果]
+        priority: 15
+        status: active
+      - id: leadership.architect_technical_governance.cross_team_standard
+        version: 1
+        intent: deep_probe
+        difficulty: deep_probe
+        scenario_brief: 各团队技术栈和工程规范差异很大，平台能力难以复用。
+        question_stem: 你会如何推动跨团队技术标准统一，同时避免过度管控影响交付？
+        prompt_template: 生成一道架构师技术治理深挖题，要求候选人说明标准制定、试点推广和例外机制。
+        scenario_skill_tags: [architect, leadership, technical standard, governance]
+        resume_anchor_hints: [technical standard, governance, leadership, platform, architect]
+        failure_categories: [missing_tradeoff, missing_action, missing_edge_case]
+        rubric_additions: [说明标准适用边界, 说明试点和推广, 说明例外处理和反馈机制]
+        expected_signals: [能先找高收益场景, 能用工具降低接入成本, 能允许合理例外]
+        anti_patterns: [一刀切强推, 不考虑团队成本, 没有反馈机制]
+        good_answer_hints: [先选择治理优先级, 再用试点证明价值, 最后形成标准和例外机制]
+        priority: 14
+        status: active

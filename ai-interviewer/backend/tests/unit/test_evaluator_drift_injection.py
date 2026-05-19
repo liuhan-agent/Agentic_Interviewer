@@ -28,6 +28,7 @@ import pytest
 
 from app.engine.agents import evaluator_agent as evaluator_module
 from app.engine.agents.llm_client import ChatMessage
+from app.engine.workflow.nodes import evaluator as evaluator_node_module
 from app.ml.drift.verifier_drift import (
     DriftEvent,
     get_verifier_drift_monitor,
@@ -152,3 +153,83 @@ def test_qualifying_pattern_adds_system_message() -> None:
     assert "Prior Evaluator Drift" in messages[1].content
     assert "token bucket" in messages[1].content
     assert messages[2].role == "user"
+
+
+def test_evaluator_node_forwards_failure_categories_to_drift_feedback(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The node caller must pass the current question's failure taxonomy
+    into the drift renderer so DB-backed feedback can read the
+    ``(dimension, check, failure_category)`` bucket instead of the
+    ``__global__`` rollup.
+    """
+    captured_kwargs: dict[str, Any] = {}
+
+    monkeypatch.setattr(
+        evaluator_node_module,
+        "get_settings",
+        lambda: type(
+            "Settings",
+            (),
+            {
+                "enable_evaluator_prompt_feedback": True,
+                "drift_feedback_top_n": 3,
+                "drift_feedback_min_support": 2,
+            },
+        )(),
+    )
+
+    def fake_build_evaluator_drift_negatives(**kwargs: Any) -> str:
+        captured_kwargs.update(kwargs)
+        return ""
+
+    monkeypatch.setattr(
+        evaluator_node_module,
+        "build_evaluator_drift_negatives",
+        fake_build_evaluator_drift_negatives,
+    )
+    monkeypatch.setattr(
+        evaluator_node_module,
+        "evaluate_answer",
+        lambda **_kwargs: {
+            "score": 5.0,
+            "passed": False,
+            "recommended_next": "refine",
+            "failure_categories": ["missing_metrics"],
+        },
+    )
+
+    class _Tracer:
+        def trace_evaluator(self, *_args: Any, **_kwargs: Any) -> None:
+            return None
+
+    monkeypatch.setattr(evaluator_node_module, "get_tracer", lambda: _Tracer())
+
+    evaluator_node_module.evaluator_node(
+        {
+            "current_question": {
+                "question": "How would you scale this system?",
+                "dimension": "system_design",
+                "selection_artifacts": {
+                    "failure_categories": [
+                        "missing_metrics",
+                        "missing_evidence",
+                    ],
+                },
+            },
+            "current_answer": "I would add Redis.",
+            "quality_threshold": 7.5,
+            "turn_idx": 1,
+            "formal_turn_idx": 1,
+            "turn_budget_remaining": 3,
+            "scores_per_dim": {},
+            "score_breakdowns": {},
+            "dimension_status": {"system_design": "active"},
+            "qa_history": [],
+        }
+    )
+
+    assert captured_kwargs["failure_categories"] == [
+        "missing_metrics",
+        "missing_evidence",
+    ]

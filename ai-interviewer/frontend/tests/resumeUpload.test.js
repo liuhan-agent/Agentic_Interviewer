@@ -7,6 +7,8 @@ const {
   parseResumeForSetup,
   resumeParsedForSession,
   resumeReuploadInputValue,
+  resumeSourceIdForSession,
+  resumeSourceRefFromParseResult,
 } = require("../src/lib/resume-upload.ts");
 
 test("passes the current LLM payload to resume parsing", async () => {
@@ -75,16 +77,17 @@ test("autofills parsed candidate name only when the field is empty", () => {
   assert.equal(candidateNameAutofillValue({ summary: "parsed" }, ""), null);
 });
 
-test("session resume payload excludes candidate profile", () => {
+test("session resume payload keeps candidate profile for setup snapshots", () => {
+  const candidateProfile = {
+    education_level: "本科",
+    school: "九江学院",
+    major: "软件工程",
+    experience_years: 5,
+    current_or_target_role: "Java 后端",
+  };
   const parsed = resumeParsedForSession({
     candidate_name: "刘韩",
-    candidate_profile: {
-      education_level: "本科",
-      school: "九江学院",
-      major: "软件工程",
-      experience_years: 5,
-      current_or_target_role: "Java 后端",
-    },
+    candidate_profile: candidateProfile,
     summary: "parsed",
     skills: ["java"],
     highlights: ["project"],
@@ -98,8 +101,8 @@ test("session resume payload excludes candidate profile", () => {
     summary: "parsed",
     skills: ["java"],
     highlights: ["project"],
+    candidate_profile: candidateProfile,
   });
-  assert.equal("candidate_profile" in parsed, false);
 });
 
 test("autofills job suggestion only before user edits job fields", () => {
@@ -177,4 +180,35 @@ test("uses qwen plus for resume parsing when default config is qwen flash", asyn
 
 test("clears the file input before reupload so selecting the same file fires change", () => {
   assert.equal(resumeReuploadInputValue(), "");
+});
+
+test("keeps resume parse artifact ids separate from parsed resume fields", () => {
+  assert.deepEqual(
+    resumeSourceRefFromParseResult({
+      resume_source_id: "  artifact_123  ",
+      resume_source_expires_at: "2099-01-01T00:00:00Z",
+    }),
+    {
+      id: "artifact_123",
+      expiresAt: "2099-01-01T00:00:00Z",
+    },
+  );
+  assert.equal(resumeSourceRefFromParseResult({}), null);
+});
+
+test("only sends non-expired resume source ids to session creation", () => {
+  assert.equal(
+    resumeSourceIdForSession(
+      { id: "artifact_123", expiresAt: "2099-01-01T00:00:00Z" },
+      Date.parse("2026-05-18T00:00:00Z"),
+    ),
+    "artifact_123",
+  );
+  assert.equal(
+    resumeSourceIdForSession(
+      { id: "artifact_123", expiresAt: "2026-05-17T00:00:00Z" },
+      Date.parse("2026-05-18T00:00:00Z"),
+    ),
+    undefined,
+  );
 });

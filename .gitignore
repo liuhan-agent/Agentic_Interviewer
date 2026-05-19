@@ -25,6 +25,7 @@ test-results/
 *.db
 *.sqlite
 *.sqlite3
+*.dump
 ai-interviewer/backend/knowledge/strategy/.dream_state.json
 
 # Local tool configuration
@@ -35,6 +36,12 @@ reference/
 
 # Local agent planning/audit workspace, keep local but do not publish.
 docs/superpowers/
+
+# Local synced agent skills
+.agents/skills/deploy-to-vercel/
+.agents/skills/vercel-*/
+.agents/skills/web-design-guidelines/
+skills-lock.json
 
 # OS / editor
 .DS_Store

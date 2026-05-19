@@ -15,7 +15,8 @@ test("shared TrainingPlanSourceBadge component exists with both variants", () =>
   assert.match(badge, /export function TrainingPlanSourceBadge/);
   assert.match(badge, /AI 复盘/);
   assert.doesNotMatch(badge, /AI 教练/);
-  assert.match(badge, /系统聚合/);
+  assert.match(badge, /基础版/);
+  assert.doesNotMatch(badge, /系统聚合/);
   assert.match(badge, /source === "llm"/);
   assert.match(badge, /source === "fallback"/);
   // Returns null when source is unknown so the call site keeps shape.
@@ -35,6 +36,8 @@ test("ReplayView TrainingPlanCard renders the shared badge", () => {
   const source = read("src/components/interview/ReplayView.tsx");
 
   assert.match(source, /import \{ TrainingPlanSourceBadge \}/);
+  assert.match(source, /后续练习任务/);
+  assert.doesNotMatch(source, /后续训练建议/);
   assert.match(source, /<TrainingPlanSourceBadge source=\{source\} \/>/);
   // ReplayView passes the source down from ReplayResponse.training_plan
   assert.match(
@@ -47,4 +50,6 @@ test("TrainingPlan API type exposes the source field", () => {
   const types = read("src/lib/api/types.ts");
 
   assert.match(types, /source\?: "llm" \| "fallback" \| string/);
+  assert.match(types, /export type TrainingPlanFallbackReason/);
+  assert.match(types, /fallback_reason\?: TrainingPlanFallbackReason/);
 });

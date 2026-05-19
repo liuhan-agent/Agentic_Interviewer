@@ -121,6 +121,78 @@ test("admin panel surfaces question quality grounding observability", () => {
   assert.match(panel, /avg_acceptance_checks/);
 });
 
+test("admin panel surfaces structured question bank controls", () => {
+  const panel = read("src/components/admin/AdminPanel.tsx");
+  const api = read("src/lib/api/admin.ts");
+
+  assert.match(api, /QuestionSeed/);
+  assert.match(api, /direction_tags/);
+  assert.match(api, /role_tags/);
+  assert.match(api, /QuestionVariant/);
+  assert.match(api, /QuestionUsageItem/);
+  assert.match(api, /QuestionRerankUsageItem/);
+  assert.match(api, /QuestionReviewItem/);
+  assert.match(api, /QuestionSeedLintResponse/);
+  assert.match(api, /getQuestionSeeds/);
+  assert.match(api, /getQuestionSeed/);
+  assert.match(api, /getQuestionUsages/);
+  assert.match(api, /getQuestionRerankUsages/);
+  assert.match(api, /getQuestionReviews/);
+  assert.match(api, /createQuestionReview/);
+  assert.match(api, /runQuestionSeedLint/);
+  assert.match(api, /importQuestionSeeds/);
+  assert.match(api, /disableQuestionVariant/);
+  assert.ok(api.includes("/admin/question-seeds"));
+  assert.ok(api.includes("direction_tag"));
+  assert.ok(api.includes("role_tag"));
+  assert.ok(api.includes("/admin/question-usages?"));
+  assert.ok(api.includes("/admin/question-rerank-usages?limit=100"));
+  assert.ok(api.includes("/admin/question-reviews?limit=100"));
+  assert.ok(api.includes("/admin/question-seeds/lint"));
+
+  assert.match(panel, /QuestionBankCard/);
+  assert.match(panel, /shadow reranker pairwise review/);
+  assert.match(panel, /recent question reviews/);
+  assert.match(panel, /Strict lint/);
+  assert.match(panel, /结构化题库/);
+  assert.match(panel, /YAML 导入/);
+  assert.match(panel, /最近 question usage/);
+  assert.match(panel, /disableQuestionSeed/);
+  assert.match(panel, /archiveQuestionVariant/);
+});
+
+test("admin panel surfaces DB-backed skills playbook observability only", () => {
+  const panel = read("src/components/admin/AdminPanel.tsx");
+  const api = read("src/lib/api/admin.ts");
+
+  assert.match(api, /SkillPlaybookCard/);
+  assert.match(api, /SkillPlaybooks/);
+  assert.match(api, /SkillPlaybookDetail/);
+  assert.match(api, /SkillPlaybookImportResult/);
+  assert.match(api, /generator_moves: string\[\]/);
+  assert.match(api, /evaluator_rubric_hints: string\[\]/);
+  assert.match(api, /evaluator_visibility: boolean/);
+  assert.match(api, /getSkillPlaybooks/);
+  assert.match(api, /getSkillPlaybook/);
+  assert.match(api, /importSkillPlaybooks/);
+  assert.ok(api.includes("/admin/skill-playbooks"));
+  assert.ok(api.includes("direction_tag"));
+  assert.ok(api.includes("role_tag"));
+  assert.ok(api.includes("dimension"));
+  assert.ok(api.includes("archive_missing=true"));
+
+  assert.match(panel, /SkillsPlaybookCard/);
+  assert.match(panel, /Skills Playbook/);
+  assert.match(panel, /runtime_backend/);
+  assert.match(panel, /Import \+ archive missing/);
+  assert.match(panel, /body_markdown/);
+  assert.match(panel, /Generator moves/);
+  assert.match(panel, /Evaluator fields are staged for observation only/);
+  assert.match(panel, /<QuestionBankCard[\s\S]*<SkillsPlaybookCard[\s\S]*<StrategiesCard/);
+  assert.doesNotMatch(panel, /disableSkillPlaybook/);
+  assert.doesNotMatch(panel, /archiveSkillPlaybook/);
+});
+
 test("admin panel summarizes interview main-chain quality", () => {
   const panel = read("src/components/admin/AdminPanel.tsx");
 
@@ -130,4 +202,26 @@ test("admin panel summarizes interview main-chain quality", () => {
   assert.match(panel, /fallback_rate/);
   assert.match(panel, /evidence_span_rate/);
   assert.match(panel, /contract_rate/);
+});
+
+test("admin rag section labels knowledge and session-anchor panels distinctly", () => {
+  const ragEval = read("src/components/admin/RagEvalPanel.tsx");
+  const adminPanel = read("src/components/admin/AdminPanel.tsx");
+  const anchorCard = read("src/components/admin/CandidateAnchorRagCard.tsx");
+  const api = read("src/lib/api/admin.ts");
+
+  assert.match(ragEval, /知识 RAG 评测/);
+  assert.doesNotMatch(ragEval, /RAG 检索评测/);
+  assert.match(anchorCard, /候选人锚点 RAG/);
+  assert.match(anchorCard, /getSessionAnchorRagSummary/);
+  assert.match(anchorCard, /getSessionAnchorRagMetrics/);
+  assert.match(anchorCard, /deleteSessionAnchorData/);
+  assert.match(adminPanel, /RagEvalPanel/);
+  assert.match(adminPanel, /CandidateAnchorRagCard/);
+  assert.match(adminPanel, /RAG 观察/);
+  assert.ok(api.includes("/admin/session-anchors/summary"));
+  assert.ok(api.includes("/admin/session-anchors/metrics"));
+  assert.ok(api.includes("/admin/sessions/${encodeURIComponent(sessionId)}/anchor-data"));
+  assert.match(api, /SessionAnchorRagSummary/);
+  assert.match(api, /SessionAnchorRagMetrics/);
 });

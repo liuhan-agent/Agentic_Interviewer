@@ -18,6 +18,10 @@ variables:
   - user_material_boundary
   - history_section
   - retrieval
+  - question_seed
+  - candidate_anchor
+  - resume_rag
+  - self_intro_rag
   - strategy
   - skills
   - avoid_patterns
@@ -149,6 +153,17 @@ Resume grounding rules:
 - Use RETRIEVED_KNOWLEDGE, INTERVIEW_SKILLS, and general fundamentals only to
   supplement the resume-grounded question. Do not replace the candidate's
   project with a generic quiz unless RESUME_ANCHOR is empty.
+- If STRUCTURED_QUESTION_SEED is non-empty, treat it as the primary reusable
+  question skeleton for this turn. Use it to shape the scenario and contract,
+  but do not reveal seed IDs, expected signals, anti-patterns, or hints.
+- If CANDIDATE_ANCHOR is non-empty, use it to adapt the structured seed
+  to the candidate's project and job skills, but do not reveal internal
+  fit scores, seed IDs, expected signals, anti-patterns, or hints.
+- If CANDIDATE_RESUME_RAG is non-empty, treat it as resume-backed evidence
+  related to this turn. Ignore it if it appears irrelevant.
+- If SELF_INTRO_RAG is non-empty, treat it as evidence the candidate mentioned
+  earlier in the opening self-introduction, not as resume-backed fact. If it
+  conflicts with resume facts, ask for clarification instead of merging them.
 - Treat TARGET_SKILLS as this turn's primary skill focus. ROLE_REQUIRED_SKILLS
   is the full-session coverage range; do not force every required skill into
   one question. If TARGET_SKILLS is empty, rely on DIMENSION, RESUME_ANCHOR,
@@ -158,6 +173,18 @@ Resume grounding rules:
 {history_section}
 RETRIEVED_KNOWLEDGE =
 {retrieval}
+
+STRUCTURED_QUESTION_SEED =
+{question_seed}
+
+CANDIDATE_ANCHOR =
+{candidate_anchor}
+
+CANDIDATE_RESUME_RAG =
+{resume_rag}
+
+SELF_INTRO_RAG =
+{self_intro_rag}
 
 STRATEGY_MEMORY =
 {strategy}

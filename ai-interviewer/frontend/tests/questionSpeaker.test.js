@@ -4,6 +4,8 @@ const test = require("node:test");
 const {
   loadQuestionSpeechEnabled,
   normalizeQuestionSpeechText,
+  pauseQuestionSpeech,
+  resumeQuestionSpeech,
   speakQuestion,
   stopQuestionSpeech,
   storeQuestionSpeechEnabled,
@@ -27,6 +29,8 @@ function makeStorage(initial = {}) {
 function makeSpeechWindow() {
   const spoken = [];
   let cancelCount = 0;
+  let pauseCount = 0;
+  let resumeCount = 0;
   class FakeUtterance {
     constructor(text) {
       this.text = text;
@@ -44,12 +48,24 @@ function makeSpeechWindow() {
       cancel() {
         cancelCount += 1;
       },
+      pause() {
+        pauseCount += 1;
+      },
+      resume() {
+        resumeCount += 1;
+      },
     },
     get spoken() {
       return spoken;
     },
     get cancelCount() {
       return cancelCount;
+    },
+    get pauseCount() {
+      return pauseCount;
+    },
+    get resumeCount() {
+      return resumeCount;
     },
   };
 }
@@ -83,6 +99,23 @@ test("speakQuestion cancels previous speech and uses Chinese voice settings", ()
   assert.equal(win.spoken[0].pitch, 1);
 });
 
+test("speakQuestion notifies when browser speech ends", () => {
+  const win = makeSpeechWindow();
+  let ended = false;
+
+  assert.equal(
+    speakQuestion("请读这道题", win, {
+      onEnd: () => {
+        ended = true;
+      },
+    }),
+    true,
+  );
+  win.spoken[0].onend();
+
+  assert.equal(ended, true);
+});
+
 test("speakQuestion fails quietly without browser speech support", () => {
   assert.equal(speakQuestion("请读这道题", {}), false);
   assert.equal(speakQuestion("   ", makeSpeechWindow()), false);
@@ -94,4 +127,14 @@ test("stopQuestionSpeech cancels current browser speech", () => {
   stopQuestionSpeech(win);
 
   assert.equal(win.cancelCount, 1);
+});
+
+test("pause and resume question speech use browser controls", () => {
+  const win = makeSpeechWindow();
+
+  pauseQuestionSpeech(win);
+  resumeQuestionSpeech(win);
+
+  assert.equal(win.pauseCount, 1);
+  assert.equal(win.resumeCount, 1);
 });

@@ -1,0 +1,501 @@
+{
+  "version": "2026-05-11",
+  "rotation_interval_ms": 10000,
+  "tips": [
+    {
+      "id": "self_intro_001",
+      "scope": "self_intro",
+      "text": "开场介绍可以用一条主线串起来：你做过什么、擅长什么、希望面试官重点了解什么。"
+    },
+    {
+      "id": "self_intro_002",
+      "scope": "self_intro",
+      "text": "自我介绍不用覆盖所有经历，选 1-2 个最能代表岗位匹配度的亮点就够。"
+    },
+    {
+      "id": "self_intro_003",
+      "scope": "self_intro",
+      "text": "结尾可以主动抛出一个方向，比如“我后面可以重点展开某个项目”。"
+    },
+    {
+      "id": "final_001",
+      "scope": "final",
+      "text": "总结会综合整场表现，不只看最后一题，稳定表达和补充修正也会被纳入观察。"
+    },
+    {
+      "id": "final_002",
+      "scope": "final",
+      "text": "如果中途有题没答满，报告里会更关注可改进方向，后续可以按弱项继续练。"
+    },
+    {
+      "id": "final_003",
+      "scope": "final",
+      "text": "面试结束后先看高频短板，再看单题细节，复盘效率会更高。"
+    },
+    {
+      "id": "default_001",
+      "scope": "default",
+      "text": "回答可以先给结论，再补关键动作和结果，面试官会更容易抓住重点。"
+    },
+    {
+      "id": "default_002",
+      "scope": "default",
+      "text": "如果问题很大，可以先说明边界，再展开最有把握的一段经历。"
+    },
+    {
+      "id": "default_003",
+      "scope": "default",
+      "text": "有数据、日志、用户反馈或业务结果时，优先说出来增强可信度。"
+    },
+    {
+      "id": "default_004",
+      "scope": "default",
+      "text": "不确定时可以讲清你的判断过程，过程清楚比硬凑答案更可靠。"
+    },
+    {
+      "id": "technical_depth_001",
+      "scope": "technical_depth",
+      "text": "技术深度题尽量讲清取舍：为什么这样做、代价是什么、怎么验证。"
+    },
+    {
+      "id": "technical_depth_002",
+      "scope": "technical_depth",
+      "text": "不要只说用了某个技术，补一句它解决了什么具体问题会更有分量。"
+    },
+    {
+      "id": "technical_depth_003",
+      "scope": "technical_depth",
+      "text": "可以从机制、边界、失败场景三个角度展开，避免答案停在概念层。"
+    },
+    {
+      "id": "system_design_001",
+      "scope": "system_design",
+      "text": "系统设计题先确认目标和约束，再讲架构、数据流和关键风险。"
+    },
+    {
+      "id": "system_design_002",
+      "scope": "system_design",
+      "text": "设计方案里可以主动说明容量、降级、监控和回滚，这会显得更完整。"
+    },
+    {
+      "id": "system_design_003",
+      "scope": "system_design",
+      "text": "如果有多个方案，先比较取舍，再说明你最终为什么选其中一个。"
+    },
+    {
+      "id": "problem_solving_001",
+      "scope": "problem_solving",
+      "text": "排查类回答可以按：现象、假设、验证、修复、防复发来组织。"
+    },
+    {
+      "id": "problem_solving_002",
+      "scope": "problem_solving",
+      "text": "讲问题解决时，最好说清你如何缩小范围，而不是直接跳到最终答案。"
+    },
+    {
+      "id": "problem_solving_003",
+      "scope": "problem_solving",
+      "text": "复盘类问题可以补充后续机制，比如监控、测试、流程或文档如何改进。"
+    },
+    {
+      "id": "coding_quality_001",
+      "scope": "coding_quality",
+      "text": "代码质量题可以从可读性、边界处理、测试和后续维护四个角度展开。"
+    },
+    {
+      "id": "coding_quality_002",
+      "scope": "coding_quality",
+      "text": "如果谈重构，先说触发原因，再说拆分边界和如何保证行为不变。"
+    },
+    {
+      "id": "project_experience_001",
+      "scope": "project_experience",
+      "text": "项目经历题不要只讲做了什么，也要讲你的角色、难点和最终结果。"
+    },
+    {
+      "id": "project_experience_002",
+      "scope": "project_experience",
+      "text": "如果项目很复杂，可以先给一张口头地图：背景、目标、你的职责、结果。"
+    },
+    {
+      "id": "communication_001",
+      "scope": "communication",
+      "text": "沟通题可以说明你如何对齐目标、同步风险，并确认对方真的理解。"
+    },
+    {
+      "id": "communication_002",
+      "scope": "communication",
+      "text": "遇到分歧时，讲清你如何把争论拉回事实、目标和可验证方案。"
+    },
+    {
+      "id": "product_thinking_001",
+      "scope": "product_thinking",
+      "text": "产品思维题可以从用户场景、核心指标、方案取舍和结果验证展开。"
+    },
+    {
+      "id": "product_thinking_002",
+      "scope": "product_thinking",
+      "text": "如果谈体验优化，尽量补充你怎么判断它真的带来了改善。"
+    },
+    {
+      "id": "leadership_001",
+      "scope": "leadership",
+      "text": "领导力题可以讲你如何设定方向、分配责任、处理风险和帮助成员成长。"
+    },
+    {
+      "id": "leadership_002",
+      "scope": "leadership",
+      "text": "带人或推进项目时，结果很重要，过程里的沟通机制同样值得讲清楚。"
+    },
+    {
+      "id": "user_insight_001",
+      "scope": "user_insight",
+      "text": "用户洞察题可以先讲清楚目标用户是谁、真实场景是什么，再说明你如何验证这个判断。"
+    },
+    {
+      "id": "requirement_analysis_001",
+      "scope": "requirement_analysis",
+      "text": "需求分析题重点是边界和取舍：哪些必须做、哪些暂缓、为什么这样拆。"
+    },
+    {
+      "id": "prioritization_001",
+      "scope": "prioritization",
+      "text": "优先级题可以围绕用户价值、业务收益、实现成本和风险四个维度组织答案。"
+    },
+    {
+      "id": "metrics_thinking_001",
+      "scope": "metrics_thinking",
+      "text": "指标题不要只说结果，补一句指标口径、观测周期和你如何排除干扰因素。"
+    },
+    {
+      "id": "stakeholder_management_001",
+      "scope": "stakeholder_management",
+      "text": "协同推进题可以讲目标对齐、分歧处理、节奏同步和最终闭环。"
+    },
+    {
+      "id": "user_growth_001",
+      "scope": "user_growth",
+      "text": "增长题可以先拆漏斗，再说明你优先优化哪一环、依据是什么。"
+    },
+    {
+      "id": "content_operations_001",
+      "scope": "content_operations",
+      "text": "内容运营题可以讲选题来源、内容标准、分发渠道和效果复盘。"
+    },
+    {
+      "id": "data_analysis_001",
+      "scope": "data_analysis",
+      "text": "数据分析题先讲问题定义，再讲指标拆解、异常定位和后续动作。"
+    },
+    {
+      "id": "campaign_execution_001",
+      "scope": "campaign_execution",
+      "text": "活动执行题可以按目标、资源、节奏、风险预案和复盘结果来展开。"
+    },
+    {
+      "id": "process_optimization_001",
+      "scope": "process_optimization",
+      "text": "流程优化题重点讲瓶颈在哪里、怎么改、改完后效率或质量提升了多少。"
+    },
+    {
+      "id": "customer_discovery_001",
+      "scope": "customer_discovery",
+      "text": "客户发现题可以讲你如何识别关键人、判断需求强度和推进下一步。"
+    },
+    {
+      "id": "solution_matching_001",
+      "scope": "solution_matching",
+      "text": "方案匹配题不要急着卖点罗列，先把客户场景和痛点对应到方案价值。"
+    },
+    {
+      "id": "objection_handling_001",
+      "scope": "objection_handling",
+      "text": "异议处理题可以先复述对方顾虑，再用事实、案例或替代方案降低阻力。"
+    },
+    {
+      "id": "negotiation_001",
+      "scope": "negotiation",
+      "text": "谈判题可以讲你的底线、可交换条件和如何让双方都保留推进空间。"
+    },
+    {
+      "id": "pipeline_management_001",
+      "scope": "pipeline_management",
+      "text": "销售漏斗题重点讲阶段定义、推进动作、风险商机识别和预测准确性。"
+    },
+    {
+      "id": "market_insight_001",
+      "scope": "market_insight",
+      "text": "市场洞察题可以从行业趋势、用户变化、竞品动作和机会判断展开。"
+    },
+    {
+      "id": "brand_strategy_001",
+      "scope": "brand_strategy",
+      "text": "品牌策略题先讲定位和目标人群，再讲传播主张如何保持一致。"
+    },
+    {
+      "id": "campaign_planning_001",
+      "scope": "campaign_planning",
+      "text": "营销策划题可以按目标、受众、创意、渠道、预算和评估指标来组织。"
+    },
+    {
+      "id": "channel_growth_001",
+      "scope": "channel_growth",
+      "text": "渠道增长题重点讲渠道选择依据、投放效率、线索质量和后续转化。"
+    },
+    {
+      "id": "content_creativity_001",
+      "scope": "content_creativity",
+      "text": "内容创意题可以讲创意从哪里来、如何贴合用户，以及如何验证效果。"
+    },
+    {
+      "id": "talent_acquisition_001",
+      "scope": "talent_acquisition",
+      "text": "招聘题可以讲岗位理解、人才画像、寻访渠道和转化瓶颈。"
+    },
+    {
+      "id": "employee_relations_001",
+      "scope": "employee_relations",
+      "text": "员工关系题先讲事实和风险边界，再讲沟通节奏和处理结果。"
+    },
+    {
+      "id": "organization_development_001",
+      "scope": "organization_development",
+      "text": "组织发展题可以围绕组织诊断、能力差距、干预动作和效果跟踪展开。"
+    },
+    {
+      "id": "policy_compliance_001",
+      "scope": "policy_compliance",
+      "text": "制度合规题重点是规则依据、执行边界、风险控制和员工体验平衡。"
+    },
+    {
+      "id": "service_orientation_001",
+      "scope": "service_orientation",
+      "text": "服务意识题可以讲你如何识别内部客户诉求、响应优先级和闭环反馈。"
+    },
+    {
+      "id": "customer_empathy_001",
+      "scope": "customer_empathy",
+      "text": "客户同理心题可以先承接情绪，再定位真实诉求和业务影响。"
+    },
+    {
+      "id": "issue_diagnosis_001",
+      "scope": "issue_diagnosis",
+      "text": "问题诊断题可以讲复现路径、信息收集、归因判断和升级边界。"
+    },
+    {
+      "id": "solution_delivery_001",
+      "scope": "solution_delivery",
+      "text": "方案交付题重点讲客户能执行什么、谁负责、何时验证结果。"
+    },
+    {
+      "id": "escalation_management_001",
+      "scope": "escalation_management",
+      "text": "升级管理题可以讲触发条件、协同对象、风险同步和客户预期管理。"
+    },
+    {
+      "id": "retention_growth_001",
+      "scope": "retention_growth",
+      "text": "留存增长题可以从客户价值实现、风险预警和续约动作三条线展开。"
+    },
+    {
+      "id": "goal_setting_001",
+      "scope": "goal_setting",
+      "text": "目标设定题可以讲目标来源、拆解方式、优先级和衡量标准。"
+    },
+    {
+      "id": "team_leadership_001",
+      "scope": "team_leadership",
+      "text": "团队领导题重点讲你如何定方向、分责任、给反馈和帮助成员成长。"
+    },
+    {
+      "id": "decision_making_001",
+      "scope": "decision_making",
+      "text": "决策判断题可以讲信息不完整时，你如何权衡收益、成本和风险。"
+    },
+    {
+      "id": "execution_management_001",
+      "scope": "execution_management",
+      "text": "执行管理题可以按目标、里程碑、阻塞处理和结果复盘来回答。"
+    },
+    {
+      "id": "cross_functional_alignment_001",
+      "scope": "cross_functional_alignment",
+      "text": "跨部门协同题可以讲共同目标、责任边界、冲突处理和同步机制。"
+    },
+    {
+      "id": "user_insight_002",
+      "scope": "user_insight",
+      "text": "如果讲调研经历，可以补充样本来源、关键发现和你如何避免只听到单一声音。"
+    },
+    {
+      "id": "requirement_analysis_002",
+      "scope": "requirement_analysis",
+      "text": "讲需求拆解时，最好说明输入来自哪里，以及你如何把模糊诉求变成可验收标准。"
+    },
+    {
+      "id": "prioritization_002",
+      "scope": "prioritization",
+      "text": "遇到资源冲突时，可以讲你如何用数据、目标和风险让排序更可解释。"
+    },
+    {
+      "id": "metrics_thinking_002",
+      "scope": "metrics_thinking",
+      "text": "指标分析可以补一句北极星指标和过程指标的关系，避免只盯单点数字。"
+    },
+    {
+      "id": "stakeholder_management_002",
+      "scope": "stakeholder_management",
+      "text": "讲跨团队推进时，可以说明你如何提前暴露风险，而不是等问题爆发后再协调。"
+    },
+    {
+      "id": "user_growth_002",
+      "scope": "user_growth",
+      "text": "增长方案最好说明目标人群、触达方式、转化路径和你预期提升的核心指标。"
+    },
+    {
+      "id": "content_operations_002",
+      "scope": "content_operations",
+      "text": "内容运营可以补充你如何判断内容质量，以及低效内容后续怎么调整。"
+    },
+    {
+      "id": "data_analysis_002",
+      "scope": "data_analysis",
+      "text": "数据题里如果有异常波动，先排口径、埋点和样本，再讨论业务原因会更稳。"
+    },
+    {
+      "id": "campaign_execution_002",
+      "scope": "campaign_execution",
+      "text": "活动复盘别只讲曝光或参与人数，也可以讲成本、转化和下次可复用的经验。"
+    },
+    {
+      "id": "process_optimization_002",
+      "scope": "process_optimization",
+      "text": "流程题可以补充改动前后的对比指标，让优化效果更具体。"
+    },
+    {
+      "id": "customer_discovery_002",
+      "scope": "customer_discovery",
+      "text": "客户开发经历可以说明线索来源、判断标准和你如何把冷启动推进成有效沟通。"
+    },
+    {
+      "id": "solution_matching_002",
+      "scope": "solution_matching",
+      "text": "讲方案时可以区分标准能力和定制部分，说明哪些价值能最快被客户感知。"
+    },
+    {
+      "id": "objection_handling_002",
+      "scope": "objection_handling",
+      "text": "客户异议不一定要立刻反驳，先判断背后是价格、信任、时机还是权限问题。"
+    },
+    {
+      "id": "negotiation_002",
+      "scope": "negotiation",
+      "text": "商务谈判可以讲你如何拆分议题，先推进共识部分，再处理分歧部分。"
+    },
+    {
+      "id": "pipeline_management_002",
+      "scope": "pipeline_management",
+      "text": "管道管理题可以补充你如何识别虚假进展，以及如何更新成交概率。"
+    },
+    {
+      "id": "market_insight_002",
+      "scope": "market_insight",
+      "text": "市场判断可以说明信息来源和推理链路，避免只给一个趋势结论。"
+    },
+    {
+      "id": "brand_strategy_002",
+      "scope": "brand_strategy",
+      "text": "品牌题可以补充差异化依据：为什么用户会记住你，而不是只听到一句口号。"
+    },
+    {
+      "id": "campaign_planning_002",
+      "scope": "campaign_planning",
+      "text": "策划题可以主动讲备选方案和风险预案，体现你不是只会写创意。"
+    },
+    {
+      "id": "channel_growth_002",
+      "scope": "channel_growth",
+      "text": "渠道题可以说明你如何判断渠道是否值得继续投入，而不是只看短期流量。"
+    },
+    {
+      "id": "content_creativity_002",
+      "scope": "content_creativity",
+      "text": "创意表达可以讲灵感、用户洞察和传播场景三者如何连接。"
+    },
+    {
+      "id": "talent_acquisition_002",
+      "scope": "talent_acquisition",
+      "text": "招聘转化题可以讲候选人顾虑、卖点匹配和各阶段流失原因。"
+    },
+    {
+      "id": "employee_relations_002",
+      "scope": "employee_relations",
+      "text": "处理员工关系时，可以说明你如何兼顾事实、公平、合规和沟通温度。"
+    },
+    {
+      "id": "organization_development_002",
+      "scope": "organization_development",
+      "text": "组织发展题可以讲你如何从业务目标反推组织能力，而不是只讲培训动作。"
+    },
+    {
+      "id": "policy_compliance_002",
+      "scope": "policy_compliance",
+      "text": "制度题可以补充落地沟通方式，让规则既能执行，也能被理解。"
+    },
+    {
+      "id": "service_orientation_002",
+      "scope": "service_orientation",
+      "text": "内部服务题可以讲响应时效、问题分级和满意度反馈如何形成闭环。"
+    },
+    {
+      "id": "customer_empathy_002",
+      "scope": "customer_empathy",
+      "text": "同理心不是只安抚情绪，也要把客户影响转成可处理、可跟踪的问题。"
+    },
+    {
+      "id": "issue_diagnosis_002",
+      "scope": "issue_diagnosis",
+      "text": "客户问题诊断可以讲你如何区分使用问题、配置问题和系统缺陷。"
+    },
+    {
+      "id": "solution_delivery_002",
+      "scope": "solution_delivery",
+      "text": "交付方案可以补充验收方式和后续跟进节点，让答案更有闭环感。"
+    },
+    {
+      "id": "escalation_management_002",
+      "scope": "escalation_management",
+      "text": "升级处理时，可以讲你如何同步内部进展，同时避免给客户过度承诺。"
+    },
+    {
+      "id": "retention_growth_002",
+      "scope": "retention_growth",
+      "text": "续约和留存题可以讲价值证明、风险账户识别和关键决策人维护。"
+    },
+    {
+      "id": "goal_setting_002",
+      "scope": "goal_setting",
+      "text": "目标拆解可以补充资源约束和阶段性检查点，让目标不只是口号。"
+    },
+    {
+      "id": "team_leadership_002",
+      "scope": "team_leadership",
+      "text": "领导力题可以补充你如何处理低绩效、冲突或新人培养这类具体场景。"
+    },
+    {
+      "id": "decision_making_002",
+      "scope": "decision_making",
+      "text": "复杂决策可以先说判断标准，再说你舍弃了什么，以及结果如何验证。"
+    },
+    {
+      "id": "execution_management_002",
+      "scope": "execution_management",
+      "text": "执行题可以补充你如何发现偏差、拉齐责任人，并把项目重新拉回节奏。"
+    },
+    {
+      "id": "cross_functional_alignment_002",
+      "scope": "cross_functional_alignment",
+      "text": "跨部门协同时，讲清信息同步机制和决策升级路径，会比只说沟通更具体。"
+    }
+  ]
+}

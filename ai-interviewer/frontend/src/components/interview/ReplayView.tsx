@@ -1,37 +1,74 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ComponentType } from "react";
 import {
   ArrowLeft,
+  BriefcaseBusiness,
   CheckCircle2,
+  Compass,
+  GitBranch,
+  FileText,
+  Layers3,
   Loader2,
   Play,
   RotateCcw,
+  Tags,
   Target,
+  UserRound,
+  Wrench,
 } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
+import { CollapsibleAnswerBubble } from "@/components/interview/CollapsibleAnswerBubble";
 import { TrainingPlanSourceBadge } from "@/components/interview/TrainingPlanSourceBadge";
 import { ApiError } from "@/lib/api/client";
 import { getReplay } from "@/lib/api/interview";
 import type { ReplayResponse, ReplayTurn, TrainingPlanStep } from "@/lib/api/types";
+import {
+  DIMENSION_LABELS,
+  formatDimensionName,
+} from "@/lib/constants/interview";
+import { upsertEntry } from "@/lib/storage/interviewHistory";
 
-const DIMENSION_LABELS: Record<string, string> = {
-  technical_depth: "技术深度",
-  problem_solving: "问题解决",
-  communication: "沟通表达",
-  system_design: "系统设计",
-  coding_quality: "代码质量",
-  project_experience: "项目经验",
-  product_thinking: "产品思维",
-  architecture: "架构能力",
-  behavioral: "行为面试",
-  leadership: "技术领导力",
+type ContextBasisTone = "selfIntro" | "resume" | "job";
+
+const CONTEXT_BASIS_GROUP_META: Record<
+  ContextBasisTone,
+  {
+    Icon: ComponentType<{ className?: string }>;
+    panelClassName: string;
+    iconClassName: string;
+  }
+> = {
+  selfIntro: {
+    Icon: UserRound,
+    panelClassName: "border-emerald-500/20 bg-emerald-500/[0.04]",
+    iconClassName: "bg-emerald-500/10 text-emerald-300",
+  },
+  resume: {
+    Icon: FileText,
+    panelClassName: "border-sky-500/20 bg-sky-500/[0.04]",
+    iconClassName: "bg-sky-500/10 text-sky-300",
+  },
+  job: {
+    Icon: BriefcaseBusiness,
+    panelClassName: "border-violet-500/20 bg-violet-500/[0.04]",
+    iconClassName: "bg-violet-500/10 text-violet-300",
+  },
 };
+
+const QUESTION_BASIS_SOURCE_CHIPS = new Set([
+  "来自自我介绍",
+  "来自简历",
+  "来自岗位要求",
+  "上一轮追问",
+]);
+const QUESTION_BASIS_DIMENSION_MARKER = "评分维度";
+const QUESTION_BASIS_DIMENSION_LABELS = new Set(Object.values(DIMENSION_LABELS));
 
 type Fetch =
   | { phase: "loading" }
@@ -46,7 +83,10 @@ export function ReplayView({ sessionId }: { sessionId: string }) {
     (async () => {
       try {
         const replay = await getReplay(sessionId);
-        if (!cancelled) setState({ phase: "ready", replay });
+        if (!cancelled) {
+          syncReplayHistory(sessionId, replay);
+          setState({ phase: "ready", replay });
+        }
       } catch (err) {
         if (cancelled) return;
         setState({
@@ -90,10 +130,11 @@ export function ReplayView({ sessionId }: { sessionId: string }) {
   }
 
   const { replay } = state;
-  const practiceHref = buildReplayPracticeHref(replay);
+  const practiceHref = buildReplayPracticeHref(replay, sessionId);
   return (
     <div className="space-y-5">
       <SummaryCard replay={replay} />
+      <ContextBasisCard basis={replay.context_basis} />
       <TimelineCard turns={replay.timeline} />
       <TrainingPlanCard
         steps={replay.training_plan?.practice_plan ?? []}
@@ -129,7 +170,10 @@ export function ReplayView({ sessionId }: { sessionId: string }) {
   );
 }
 
-function buildReplayPracticeHref(replay: ReplayResponse): string | null {
+function buildReplayPracticeHref(
+  replay: ReplayResponse,
+  sourceSessionId: string,
+): string | null {
   const focus: string[] = [];
   const add = (dimension: unknown) => {
     if (typeof dimension !== "string" || !dimension.trim()) return;
@@ -152,11 +196,37 @@ function buildReplayPracticeHref(replay: ReplayResponse): string | null {
   params.set("length", "short");
   if (replay.summary.job_title) params.set("job_title", replay.summary.job_title);
   if (replay.summary.job_level) params.set("job_level", String(replay.summary.job_level));
+  params.set("resume_from", sourceSessionId);
   return `/interview/setup?${params.toString()}`;
+}
+
+function syncReplayHistory(sessionId: string, replay: ReplayResponse): void {
+  upsertEntry({
+    sessionId,
+    createdAt: replay.created_at ?? undefined,
+    updatedAt: replay.updated_at ?? undefined,
+    status: "done",
+    overallScore:
+      typeof replay.summary.overall_score === "number"
+        ? replay.summary.overall_score
+        : undefined,
+    growthSignal:
+      typeof replay.summary.growth_signal === "string"
+        ? replay.summary.growth_signal
+        : undefined,
+    overallVerdict:
+      typeof replay.summary.overall_verdict === "string"
+        ? replay.summary.overall_verdict
+        : undefined,
+  });
 }
 
 function SummaryCard({ replay }: { replay: ReplayResponse }) {
   const summary = replay.summary;
+  const priorityGroups = groupReplayPriorityItems(summary.priority_items);
+  const hasPriorityItems =
+    priorityGroups.weakness.length > 0 ||
+    priorityGroups.coverage_limited.length > 0;
   return (
     <Card className="border-emerald-500/20 bg-emerald-500/5">
       <CardHeader>
@@ -176,7 +246,16 @@ function SummaryCard({ replay }: { replay: ReplayResponse }) {
               : "-"
           }
         />
-        {(summary.priority_weaknesses ?? []).length > 0 && (
+        {hasPriorityItems ? (
+          <div className="space-y-3 sm:col-span-3">
+            <PriorityItemGroup title="薄弱点" items={priorityGroups.weakness} />
+            <PriorityItemGroup
+              title="补充证据"
+              items={priorityGroups.coverage_limited}
+            />
+          </div>
+        ) : (
+          (summary.priority_weaknesses ?? []).length > 0 && (
           <div className="sm:col-span-3">
             <p className="mb-2 text-xs text-muted-foreground">优先补强</p>
             <div className="flex flex-wrap gap-2">
@@ -187,10 +266,124 @@ function SummaryCard({ replay }: { replay: ReplayResponse }) {
               ))}
             </div>
           </div>
+          )
         )}
       </CardContent>
     </Card>
   );
+}
+
+type ReplayPriorityItem = NonNullable<
+  ReplayResponse["summary"]["priority_items"]
+>[number];
+
+function groupReplayPriorityItems(
+  items: ReplayResponse["summary"]["priority_items"],
+): {
+  weakness: ReplayPriorityItem[];
+  coverage_limited: ReplayPriorityItem[];
+} {
+  const groups = {
+    weakness: [] as ReplayPriorityItem[],
+    coverage_limited: [] as ReplayPriorityItem[],
+  };
+  for (const item of items ?? []) {
+    if (item.category === "coverage_limited") {
+      groups.coverage_limited.push(item);
+    } else {
+      groups.weakness.push(item);
+    }
+  }
+  return groups;
+}
+
+function PriorityItemGroup({
+  title,
+  items,
+}: {
+  title: string;
+  items: ReplayPriorityItem[];
+}) {
+  if (items.length === 0) return null;
+  const titleMeta = getPriorityGroupTitleMeta(title);
+  const TitleIcon = titleMeta.Icon;
+  return (
+    <section>
+      <p className="mb-2">
+        <span
+          className={`inline-flex items-center gap-1.5 rounded-md border px-2 py-1 text-xs font-medium ${titleMeta.className}`}
+        >
+          <TitleIcon className="h-3.5 w-3.5" />
+          {title}
+        </span>
+      </p>
+      <div className="flex flex-wrap gap-2">
+        {items.map((priorityItem) => (
+          <Badge
+            key={`${priorityItem.category}-${priorityItem.display_text}`}
+            variant="secondary"
+          >
+            {priorityItem.display_text}
+          </Badge>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+function getPriorityGroupTitleMeta(title: string): {
+  Icon: ComponentType<{ className?: string }>;
+  className: string;
+} {
+  if (title === "补充证据") {
+    return {
+      Icon: FileText,
+      className:
+        "border-sky-500/15 bg-sky-500/[0.06] text-sky-200/80",
+    };
+  }
+  return {
+    Icon: Target,
+    className:
+      "border-emerald-500/15 bg-emerald-500/[0.05] text-emerald-200/75",
+  };
+}
+
+function SectionLabel({ title }: { title: string }) {
+  const meta = getSectionLabelMeta(title);
+  const LabelIcon = meta.Icon;
+  return (
+    <p className="mb-1">
+      <span
+        className={`inline-flex items-center gap-1.5 rounded-md border px-2 py-0.5 text-xs font-medium ${meta.className}`}
+      >
+        <LabelIcon className="h-3.5 w-3.5" />
+        {title}
+      </span>
+    </p>
+  );
+}
+
+function getSectionLabelMeta(title: string): {
+  Icon: ComponentType<{ className?: string }>;
+  className: string;
+} {
+  if (title === "问题") {
+    return { Icon: Tags, className: "border-border/70 bg-muted/30 text-muted-foreground/80" };
+  }
+  if (title === "你的回答") {
+    return { Icon: UserRound, className: "border-border/70 bg-muted/30 text-muted-foreground/80" };
+  }
+  if (title === "评分依据") {
+    return { Icon: FileText, className: "border-border/70 bg-muted/30 text-muted-foreground/80" };
+  }
+  if (title === "亮点") {
+    return { Icon: CheckCircle2, className: "border-border/70 bg-muted/30 text-muted-foreground/80" };
+  }
+  if (title === "可提升") {
+    return { Icon: Target, className: "border-border/70 bg-muted/30 text-muted-foreground/80" };
+  }
+  return { Icon: Tags, className: "border-border/70 bg-muted/30 text-muted-foreground/80" };
 }
 
 function Metric({ label, value }: { label: string; value: string }) {
@@ -200,6 +393,151 @@ function Metric({ label, value }: { label: string; value: string }) {
       <p className="mt-1 font-medium">{value}</p>
     </div>
   );
+}
+
+function ContextBasisCard({
+  basis,
+}: {
+  basis?: ReplayResponse["context_basis"];
+}) {
+  if (!basis) return null;
+  const selfIntroRows = [
+    { label: "项目线索", values: basis.self_intro?.emphasized_projects ?? [] },
+    { label: "技能线索", values: basis.self_intro?.emphasized_skills ?? [] },
+    { label: "关注方向", values: basis.self_intro?.preferred_focus ?? [] },
+  ];
+  const resumeRows = [
+    { label: "项目线索", values: basis.resume?.projects ?? [] },
+    { label: "重点方向", values: basis.resume?.focus_areas ?? [] },
+    { label: "技能线索", values: basis.resume?.skills ?? [] },
+  ];
+  const dimensionLabel =
+    basis.job_spec?.dimension_source_label === "默认评分标准"
+      ? "评分维度（默认评分标准）"
+      : "评分维度";
+  const jobRows = [
+    { label: "岗位技能", values: basis.job_spec?.required_skills ?? [] },
+    {
+      label: dimensionLabel,
+      values: (basis.job_spec?.dimensions ?? []).map(formatDimension),
+    },
+  ];
+  return (
+    <Card>
+      <details className="group">
+        <summary className="cursor-pointer list-none px-6 py-4">
+          <div className="flex items-center justify-between gap-3">
+            <CardTitle className="text-base">{basis.title}</CardTitle>
+            <span className="text-xs text-muted-foreground group-open:hidden">
+              展开
+            </span>
+            <span className="hidden text-xs text-muted-foreground group-open:inline">
+              收起
+            </span>
+          </div>
+          <ContextBasisOverview basis={basis} />
+        </summary>
+        <CardContent className="grid gap-4 pt-0 text-sm md:grid-cols-3">
+          <ContextBasisGroup title="自我介绍" tone="selfIntro" rows={selfIntroRows} />
+          <ContextBasisGroup title="简历" tone="resume" rows={resumeRows} />
+          <ContextBasisGroup title="岗位要求" tone="job" rows={jobRows} />
+        </CardContent>
+      </details>
+    </Card>
+  );
+}
+
+function ContextBasisOverview({
+  basis,
+}: {
+  basis: NonNullable<ReplayResponse["context_basis"]>;
+}) {
+  return (
+    <div className="mt-3 space-y-3 text-sm">
+      {basis.summary && (
+        <p className="max-w-[72ch] leading-relaxed text-muted-foreground">
+          {basis.summary}
+        </p>
+      )}
+      {basis.chips.length > 0 && (
+        <div className="flex flex-wrap gap-1.5">
+          {basis.chips.map((chip) => (
+            <Badge key={chip} variant="secondary" className="text-xs">
+              {chip}
+            </Badge>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function ContextBasisGroup({
+  title,
+  tone,
+  rows,
+}: {
+  title: string;
+  tone: ContextBasisTone;
+  rows: Array<{ label: string; values: string[] }>;
+}) {
+  const visibleRows = rows.filter((row) => row.values.length > 0);
+  if (visibleRows.length === 0) return null;
+  const meta = CONTEXT_BASIS_GROUP_META[tone];
+  const GroupIcon = meta.Icon;
+  return (
+    <div
+      className={`space-y-3 rounded-md border p-3 transition-colors ${meta.panelClassName}`}
+    >
+      <div className="flex items-center gap-2">
+        <span
+          className={`grid h-6 w-6 shrink-0 place-items-center rounded-md ${meta.iconClassName}`}
+        >
+          <GroupIcon className="h-3.5 w-3.5" />
+        </span>
+        <p className="text-sm font-semibold text-foreground">{title}</p>
+      </div>
+      {visibleRows.map((row) => (
+        <ContextBasisRow key={row.label} label={row.label} values={row.values} />
+      ))}
+    </div>
+  );
+}
+
+function ContextBasisRow({
+  label,
+  values,
+}: {
+  label: string;
+  values: string[];
+}) {
+  const LabelIcon = getContextBasisRowIcon(label);
+  return (
+    <div className="space-y-1.5">
+      <p className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
+        <LabelIcon className="h-3.5 w-3.5 text-muted-foreground/80" />
+        {label}
+      </p>
+      <div className="flex flex-wrap gap-1.5">
+        {values.map((value) => (
+          <Badge
+            key={`${label}-${value}`}
+            variant="outline"
+            className="text-xs transition-colors hover:border-emerald-400/50 hover:bg-emerald-500/5"
+          >
+            {value}
+          </Badge>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function getContextBasisRowIcon(label: string) {
+  if (label.includes("技能")) return Wrench;
+  if (label.includes("方向")) return Compass;
+  if (label.includes("维度")) return Layers3;
+  return Tags;
 }
 
 function TimelineCard({ turns }: { turns: ReplayTurn[] }) {
@@ -231,10 +569,27 @@ function TimelineCard({ turns }: { turns: ReplayTurn[] }) {
           </CardHeader>
           <CardContent className="space-y-4 text-sm">
             <Block title="问题" value={turn.question} />
-            <Block title="你的回答" value={turn.answer} />
-            <Block title="评分依据" value={turn.rationale} />
+            <QuestionBasisBlock basis={turn.question_basis} />
+            {turn.answer && (
+              <div>
+                <SectionLabel title="你的回答" />
+                <CollapsibleAnswerBubble
+                  text={turn.answer}
+                  label="你"
+                  contentId={`replay-answer-content-${turn.turn_idx ?? index}`}
+                />
+              </div>
+            )}
+            <ScoringRationaleBlock
+              rationale={turn.rationale}
+              followupReason={turn.followup_reason}
+            />
             <ListBlock title="亮点" values={turn.strengths ?? []} />
-            <ListBlock title="可提升" values={turn.weaknesses ?? []} />
+            <ListBlock
+              title="可提升"
+              values={turn.weaknesses ?? []}
+              emptyText="本轮没有明确短板记录，可结合评分依据继续复盘。"
+            />
             {turn.next_step && (
               <div className="rounded-lg border border-emerald-500/20 bg-emerald-500/5 p-3">
                 <p className="mb-1 flex items-center gap-1.5 text-xs font-medium text-emerald-400">
@@ -251,6 +606,93 @@ function TimelineCard({ turns }: { turns: ReplayTurn[] }) {
   );
 }
 
+function QuestionBasisBlock({
+  basis,
+}: {
+  basis?: ReplayTurn["question_basis"];
+}) {
+  if (!basis) return null;
+  const chipGroups = splitQuestionBasisChips(basis.chips);
+  return (
+    <div className="rounded-md border border-sky-500/20 bg-sky-500/5 p-3">
+      <p className="mb-1 text-xs font-medium text-sky-400">{basis.title}</p>
+      <p className="text-muted-foreground">{basis.summary}</p>
+      {basis.chips.length > 0 && (
+        <div className="mt-3 grid gap-2 sm:grid-cols-3">
+          <QuestionBasisChipGroup label="依据来源" chips={chipGroups.sources} />
+          <QuestionBasisChipGroup
+            label="匹配维度"
+            chips={chipGroups.dimensions}
+          />
+          <QuestionBasisChipGroup label="具体线索" chips={chipGroups.details} />
+        </div>
+      )}
+    </div>
+  );
+}
+
+function QuestionBasisChipGroup({
+  label,
+  chips,
+}: {
+  label: string;
+  chips: string[];
+}) {
+  if (chips.length === 0) return null;
+  const LabelIcon = getQuestionBasisGroupIcon(label);
+  return (
+    <div className="space-y-1.5">
+      <p className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
+        <span className="grid h-5 w-5 shrink-0 place-items-center rounded-md bg-sky-500/10 text-sky-300/80">
+          <LabelIcon className="h-3.5 w-3.5" />
+        </span>
+        {label}
+      </p>
+      <div className="flex flex-wrap gap-1.5">
+        {chips.map((chip) => (
+          <Badge key={`${label}-${chip}`} variant="outline" className="text-xs">
+            {chip}
+          </Badge>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function getQuestionBasisGroupIcon(label: string) {
+  if (label === "依据来源") return GitBranch;
+  if (label === "匹配维度") return Layers3;
+  return Tags;
+}
+
+function splitQuestionBasisChips(chips: string[]) {
+  const groups = {
+    sources: [] as string[],
+    dimensions: [] as string[],
+    details: [] as string[],
+  };
+  let nextChipIsDimension = false;
+  for (const chip of chips) {
+    if (QUESTION_BASIS_SOURCE_CHIPS.has(chip)) {
+      groups.sources.push(chip);
+      nextChipIsDimension = false;
+      continue;
+    }
+    if (chip === QUESTION_BASIS_DIMENSION_MARKER) {
+      nextChipIsDimension = true;
+      continue;
+    }
+    if (nextChipIsDimension || QUESTION_BASIS_DIMENSION_LABELS.has(chip)) {
+      groups.dimensions.push(chip);
+      nextChipIsDimension = false;
+      continue;
+    }
+    groups.details.push(chip);
+    nextChipIsDimension = false;
+  }
+  return groups;
+}
+
 function TrainingPlanCard({
   steps,
   source,
@@ -263,7 +705,7 @@ function TrainingPlanCard({
     <Card>
       <CardHeader>
         <CardTitle className="flex items-center gap-2 text-base">
-          <span>后续训练建议</span>
+          <span>后续练习任务</span>
           <TrainingPlanSourceBadge source={source} />
         </CardTitle>
       </CardHeader>
@@ -287,28 +729,75 @@ function Block({ title, value }: { title: string; value?: string | null }) {
   if (!value) return null;
   return (
     <div>
-      <p className="mb-1 text-xs font-medium text-muted-foreground">{title}</p>
+      <SectionLabel title={title} />
       <p className="leading-relaxed">{value}</p>
     </div>
   );
 }
 
-function ListBlock({ title, values }: { title: string; values: string[] }) {
-  if (values.length === 0) return null;
+function ScoringRationaleBlock({
+  rationale,
+  followupReason,
+}: {
+  rationale?: string | null;
+  followupReason?: ReplayTurn["followup_reason"];
+}) {
+  if (!rationale && !followupReason) return null;
   return (
     <div>
-      <p className="mb-1 text-xs font-medium text-muted-foreground">{title}</p>
-      <ul className="list-disc space-y-1 pl-5 text-muted-foreground">
-        {values.map((item) => (
-          <li key={item}>{item}</li>
-        ))}
-      </ul>
+      <SectionLabel title="评分依据" />
+      <div className="space-y-2">
+        {rationale && <p className="leading-relaxed">{rationale}</p>}
+        {followupReason && (
+          <div className="rounded-md border border-emerald-500/20 bg-emerald-500/5 p-3">
+            <p className="mb-1 text-xs font-medium text-emerald-400">
+              {followupReason.title}
+            </p>
+            <p className="text-muted-foreground">{followupReason.summary}</p>
+            {followupReason.chips.length > 0 && (
+              <div className="mt-2 flex flex-wrap gap-1.5">
+                {followupReason.chips.map((chip) => (
+                  <Badge key={chip} variant="secondary" className="text-xs">
+                    {chip}
+                  </Badge>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function ListBlock({
+  title,
+  values,
+  emptyText,
+}: {
+  title: string;
+  values: string[];
+  emptyText?: string;
+}) {
+  if (values.length === 0 && !emptyText) return null;
+  return (
+    <div>
+      <SectionLabel title={title} />
+      {values.length === 0 && emptyText ? (
+        <p className="text-sm italic text-muted-foreground/70">{emptyText}</p>
+      ) : (
+        <ul className="list-disc space-y-1 pl-5 text-muted-foreground">
+          {values.map((item) => (
+            <li key={item}>{item}</li>
+          ))}
+        </ul>
+      )}
     </div>
   );
 }
 
 function formatDimension(id: string): string {
-  return DIMENSION_LABELS[id] ?? id.replaceAll("_", " ");
+  return formatDimensionName(id);
 }
 
 function friendlyReplayError(err: unknown): string {

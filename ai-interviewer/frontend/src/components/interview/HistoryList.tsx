@@ -4,7 +4,9 @@ import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   AlertTriangle,
+  ArrowDownAZ,
   ArrowRight,
+  ArrowUpAZ,
   CheckCircle2,
   ClipboardList,
   Loader2,
@@ -22,6 +24,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ProgressChart } from "@/components/interview/ProgressChart";
+import { SessionIdTooltip } from "@/components/interview/SessionIdTooltip";
 import {
   ContextMenu,
   ContextMenuContent,
@@ -36,47 +39,64 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { deleteSession, resumeSession, getReport } from "@/lib/api/interview";
+import {
+  deleteSession,
+  getReport,
+  getSessionMetadata,
+  resumeSession,
+} from "@/lib/api/interview";
 import type { DeleteSessionResponse } from "@/lib/api/types";
 import {
-  DEFAULT_SORT,
+  DEFAULT_SORT_DIRECTION,
+  DEFAULT_SORT_FIELD,
   jobLevelShortLabel,
   mapPollStatusToLocal,
-  SORT_OPTIONS,
+  SORT_FIELD_OPTIONS,
   STATUS_FILTER_OPTIONS,
   verdictShortLabel,
-  type SortOption,
+  type SortDirection,
+  type SortField,
   type StatusFilterOption,
 } from "@/lib/constants";
 import { useToast } from "@/lib/hooks/useToast";
 import {
-  clearAll,
   getHistory,
+  mergeServerEntryMetadata,
   removeEntry,
   upsertEntry,
   type InterviewHistoryEntry,
   type InterviewHistoryStatus,
 } from "@/lib/storage/interviewHistory";
+import {
+  getSetupDrafts,
+  removeSetupDraft,
+  type SetupDraft,
+} from "@/lib/storage/setupDrafts";
 
 export function HistoryList() {
   const [entries, setEntries] = useState<InterviewHistoryEntry[] | null>(null);
+  const [setupDrafts, setSetupDrafts] = useState<SetupDraft[]>([]);
   const [refreshing, setRefreshing] = useState(false);
   const [deletingSessionId, setDeletingSessionId] = useState<string | null>(null);
   const [deleteTarget, setDeleteTarget] =
     useState<InterviewHistoryEntry | null>(null);
   const [activeFilter, setActiveFilter] = useState<StatusFilterOption["id"]>("all");
-  const [activeSort, setActiveSort] = useState<SortOption>(DEFAULT_SORT);
+  const [activeSortField, setActiveSortField] =
+    useState<SortField>(DEFAULT_SORT_FIELD);
+  const [activeSortDirection, setActiveSortDirection] =
+    useState<SortDirection>(DEFAULT_SORT_DIRECTION);
   const { toast } = useToast();
 
   const reload = useCallback(() => {
     setEntries(getHistory());
+    setSetupDrafts(getSetupDrafts());
   }, []);
 
   useEffect(() => {
     reload();
     let timeoutId: ReturnType<typeof setTimeout> | null = null;
     const onStorage = (e: StorageEvent) => {
-      if (e.key === "interviewHistory" || e.key === null) {
+      if (e.key === "interviewHistory" || e.key === "setupDrafts" || e.key === null) {
         if (timeoutId) clearTimeout(timeoutId);
         timeoutId = setTimeout(() => reload(), 500);
       }
@@ -88,6 +108,47 @@ export function HistoryList() {
     };
   }, [reload]);
 
+  useEffect(() => {
+    if (!entries) return;
+    const targets = entries.filter((entry) => !entry.updatedAt);
+    if (targets.length === 0) return;
+
+    let cancelled = false;
+    void (async () => {
+      let changed = false;
+      await Promise.all(
+        targets.map(async (entry) => {
+          try {
+            const meta = await getSessionMetadata(entry.sessionId);
+            const merged = mergeServerEntryMetadata({
+              sessionId: entry.sessionId,
+              createdAt: meta.created_at,
+              updatedAt: meta.updated_at,
+              jdTitle: meta.job_title,
+              candidateName: meta.candidate_name,
+              jobLevel: meta.job_level,
+              status: mapBackendStatusToLocal(meta.status),
+              overallScore: meta.overall_score ?? undefined,
+              dimensionScores: meta.dimension_scores,
+              growthSignal: meta.growth_signal,
+              overallVerdict: meta.overall_verdict,
+            });
+            if (merged) changed = true;
+          } catch {
+            // Keep the local fallback when a historical row cannot be refreshed.
+          }
+        }),
+      );
+      if (!cancelled && changed) {
+        reload();
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [entries, reload]);
+
   const runningCount = useMemo(
     () => (entries ?? []).filter((e) => e.status === "running").length,
     [entries],
@@ -98,28 +159,34 @@ export function HistoryList() {
     if (activeFilter !== "all") {
       list = list.filter((e) => e.status === activeFilter);
     }
-    const { field, direction } = activeSort;
-    const dir = direction === "asc" ? 1 : -1;
+    const dir = activeSortDirection === "asc" ? 1 : -1;
     return [...list].sort((a, b) => {
-      switch (field) {
+      switch (activeSortField) {
         case "overallScore":
-          return compareScoreEntries(a, b, direction);
+          return compareScoreEntries(a, b, activeSortDirection);
         case "lastVisitedAt":
           return dir * a.lastVisitedAt.localeCompare(b.lastVisitedAt);
-        case "status":
-          return dir * a.status.localeCompare(b.status);
         case "createdAt":
         default:
           return dir * a.createdAt.localeCompare(b.createdAt);
       }
     });
-  }, [entries, activeFilter, activeSort]);
+  }, [entries, activeFilter, activeSortField, activeSortDirection]);
 
   const handleRemoveLocal = useCallback(
     (sessionId: string) => {
       removeEntry(sessionId);
       reload();
       toast({ title: "已从我的列表中移除" });
+    },
+    [reload, toast],
+  );
+
+  const handleRemoveSetupDraft = useCallback(
+    (draftId: string) => {
+      removeSetupDraft(draftId);
+      reload();
+      toast({ title: "已放弃草稿" });
     },
     [reload, toast],
   );
@@ -151,20 +218,6 @@ export function HistoryList() {
     [deleteTarget, reload, toast],
   );
 
-  const handleClearAll = useCallback(() => {
-    if (!entries || entries.length === 0) return;
-    if (
-      !window.confirm(
-        `确认清空全部 ${entries.length} 条记录吗？\n\n仅会清空当前浏览器看到的列表，已完成面试的评分数据不会丢失。`,
-      )
-    ) {
-      return;
-    }
-    clearAll();
-    reload();
-    toast({ title: "列表已清空" });
-  }, [entries, reload, toast]);
-
   const handleRefresh = useCallback(async () => {
     if (!entries) return;
     const targets = entries.filter((e) => e.status === "running");
@@ -187,6 +240,8 @@ export function HistoryList() {
               const rep = await getReport(entry.sessionId);
               upsertEntry({
                 sessionId: entry.sessionId,
+                createdAt: rep.created_at ?? r.created_at ?? undefined,
+                updatedAt: rep.updated_at ?? r.updated_at ?? undefined,
                 status: "done",
                 overallScore:
                   typeof rep.final_report?.overall_score === "number"
@@ -207,15 +262,27 @@ export function HistoryList() {
                     : undefined,
               });
             } catch {
-              upsertEntry({ sessionId: entry.sessionId, status: "done" });
+              upsertEntry({
+                sessionId: entry.sessionId,
+                createdAt: r.created_at ?? undefined,
+                updatedAt: r.updated_at ?? undefined,
+                status: "done",
+              });
             }
             updated += 1;
           } else if (next === "cancelled") {
-            upsertEntry({ sessionId: entry.sessionId, status: "cancelled" });
+            upsertEntry({
+              sessionId: entry.sessionId,
+              createdAt: r.created_at ?? undefined,
+              updatedAt: r.updated_at ?? undefined,
+              status: "cancelled",
+            });
             updated += 1;
           } else {
             upsertEntry({
               sessionId: entry.sessionId,
+              createdAt: r.created_at ?? undefined,
+              updatedAt: r.updated_at ?? undefined,
               maxTurns: typeof r.max_turns === "number" ? r.max_turns : undefined,
             });
           }
@@ -243,7 +310,7 @@ export function HistoryList() {
     return <SkeletonList />;
   }
 
-  if (entries.length === 0) {
+  if (entries.length === 0 && setupDrafts.length === 0) {
     return <EmptyState />;
   }
 
@@ -262,8 +329,15 @@ export function HistoryList() {
         onConfirm={handleDeleteData}
       />
 
+      {setupDrafts.length > 0 && (
+        <SetupDraftSection
+          drafts={setupDrafts}
+          onRemoveDraft={handleRemoveSetupDraft}
+        />
+      )}
+
       <div className="space-y-3">
-        <ProgressChart entries={entries} />
+        {entries.length > 0 && <ProgressChart entries={entries} />}
 
         <div className="flex flex-wrap items-center justify-between gap-3">
           <p className="text-sm text-muted-foreground">
@@ -283,42 +357,31 @@ export function HistoryList() {
               </>
             )}
           </p>
-          <div className="flex items-center gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={handleRefresh}
-              disabled={refreshing || runningCount === 0}
-              className="gap-1.5"
-              aria-label={
-                runningCount === 0
-                  ? "当前没有进行中的面试"
-                  : "同步进行中面试的最新状态"
-              }
-            >
-              {refreshing ? (
-                <Loader2 className="h-3.5 w-3.5 animate-spin" />
-              ) : (
-                <RefreshCcw className="h-3.5 w-3.5" />
-              )}
-              刷新状态
-            </Button>
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={handleClearAll}
-              className="gap-1.5 text-muted-foreground hover:text-destructive"
-            >
-              <Trash2 className="h-3.5 w-3.5" />
-              清空
-            </Button>
-          </div>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleRefresh}
+            disabled={refreshing || runningCount === 0}
+            className="gap-1.5"
+            aria-label={
+              runningCount === 0
+                ? "当前没有进行中的面试"
+                : "同步进行中面试的最新状态"
+            }
+          >
+            {refreshing ? (
+              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+            ) : (
+              <RefreshCcw className="h-3.5 w-3.5" />
+            )}
+            刷新状态
+          </Button>
         </div>
 
         <div className="flex items-start gap-2 rounded-md border border-amber-500/30 bg-amber-500/[0.04] p-3 text-xs text-muted-foreground">
           <AlertCircle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-amber-400" />
           <p>
-            会话继续访问凭证仅保存在当前标签页会话中；导出历史不会包含 token。
+            导出历史只包含面试记录，不会包含继续访问会话的临时凭证。
           </p>
         </div>
 
@@ -340,27 +403,47 @@ export function HistoryList() {
             ))}
           </div>
 
-          <select
-            value={`${activeSort.field}:${activeSort.direction}`}
-            onChange={(e) => {
-              const found = SORT_OPTIONS.find(
-                (o) => `${o.field}:${o.direction}` === e.target.value,
-              );
-              if (found) setActiveSort(found);
-            }}
+          <div className="flex items-center gap-1.5">
+            <select
+            value={activeSortField}
+            onChange={(e) => setActiveSortField(e.target.value as SortField)}
             className="h-8 rounded-md border border-input bg-background px-2 text-xs text-foreground shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
             aria-label="排序方式"
           >
-            {SORT_OPTIONS.map((opt) => (
+            {SORT_FIELD_OPTIONS.map((opt) => (
               <option
-                key={`${opt.field}:${opt.direction}`}
-                value={`${opt.field}:${opt.direction}`}
+                key={opt.field}
+                value={opt.field}
                 className="bg-background text-foreground"
               >
                 {opt.label}
               </option>
             ))}
-          </select>
+            </select>
+            <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="h-8 gap-1.5 px-2 text-xs"
+            onClick={() =>
+              setActiveSortDirection((direction) =>
+                direction === "asc" ? "desc" : "asc",
+              )
+            }
+            aria-label={
+              activeSortDirection === "desc"
+                ? "当前为降序，点击改为升序"
+                : "当前为升序，点击改为降序"
+            }
+          >
+            {activeSortDirection === "desc" ? (
+              <ArrowDownAZ className="h-3.5 w-3.5" />
+            ) : (
+              <ArrowUpAZ className="h-3.5 w-3.5" />
+            )}
+            {activeSortDirection === "desc" ? "降序" : "升序"}
+            </Button>
+          </div>
         </div>
       </div>
 
@@ -400,6 +483,8 @@ export function HistoryList() {
                         const safeEntry = { ...entry };
                         delete safeEntry.sessionToken;
                         delete safeEntry.sessionTokenExpiresAt;
+                        delete safeEntry.recoveryToken;
+                        delete safeEntry.recoveryTokenExpiresAt;
                         const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(safeEntry, null, 2));
                         const dlAnchorElem = document.createElement("a");
                         dlAnchorElem.setAttribute("href", dataStr);
@@ -420,6 +505,97 @@ export function HistoryList() {
   );
 }
 
+function SetupDraftSection({
+  drafts,
+  onRemoveDraft,
+}: {
+  drafts: SetupDraft[];
+  onRemoveDraft: (draftId: string) => void;
+}) {
+  return (
+    <section className="space-y-3">
+      <div className="flex items-center justify-between gap-3">
+        <div>
+          <h2 className="text-base font-semibold">准备中的面试</h2>
+          <p className="text-xs text-muted-foreground">
+            这些只是本浏览器里的填写草稿，还没有生成正式面试记录。
+          </p>
+        </div>
+      </div>
+      <div className="grid gap-3">
+        {drafts.map((draft) => (
+          <SetupDraftCard
+            key={draft.draftId}
+            draft={draft}
+            onRemove={() => onRemoveDraft(draft.draftId)}
+          />
+        ))}
+      </div>
+    </section>
+  );
+}
+
+function SetupDraftCard({
+  draft,
+  onRemove,
+}: {
+  draft: SetupDraft;
+  onRemove: () => void;
+}) {
+  return (
+    <Card className="border-emerald-500/20 bg-emerald-500/[0.03]">
+      <CardContent className="flex flex-col gap-3 py-4 sm:flex-row sm:items-center sm:justify-between">
+        <div className="min-w-0 space-y-1">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="truncate text-sm font-medium">{draft.filename}</span>
+            <Badge variant="outline" className="border-emerald-500/30 text-emerald-200">
+              {setupDraftStatusLabel(draft.status)}
+            </Badge>
+          </div>
+          <p className="text-xs text-muted-foreground">
+            最近更新 {formatRelative(draft.updatedAt)}
+          </p>
+        </div>
+        <div className="flex shrink-0 items-center gap-2">
+          <Button asChild size="sm" className="gap-1 bg-emerald-600 text-white hover:bg-emerald-500">
+            <Link href={`/interview/setup?draft_id=${encodeURIComponent(draft.draftId)}`}>
+              继续填写
+              <ArrowRight className="h-3 w-3" />
+            </Link>
+          </Button>
+          <Button
+            type="button"
+            size="sm"
+            variant="ghost"
+            className="gap-1 text-muted-foreground"
+            onClick={onRemove}
+          >
+            <Trash2 className="h-3.5 w-3.5" />
+            放弃草稿
+          </Button>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+function setupDraftStatusLabel(status: SetupDraft["status"]): string {
+  switch (status) {
+    case "parsing":
+      return "解析中";
+    case "ready":
+      return "已解析待确认";
+    case "basic_ready":
+      return "基础解析待确认";
+    case "failed":
+      return "解析失败";
+    case "expired":
+      return "已过期";
+    default:
+      return "准备中";
+  }
+}
+
 function compareScoreEntries(
   a: InterviewHistoryEntry,
   b: InterviewHistoryEntry,
@@ -433,7 +609,7 @@ function compareScoreEntries(
       ? a.overallScore! - b.overallScore!
       : b.overallScore! - a.overallScore!;
   }
-  return b.createdAt.localeCompare(a.createdAt);
+  return b.lastVisitedAt.localeCompare(a.lastVisitedAt);
 }
 
 function describeDeleteSessionResult(result: DeleteSessionResponse): string {
@@ -515,11 +691,9 @@ function HistoryCard({
                 {" · "}
               </>
             ) : null}
-            <span className="font-mono">{shortId(entry.sessionId)}</span>
+            <SessionIdTooltip sessionId={entry.sessionId} />
             <span className="mx-1 text-muted-foreground/40">·</span>
-            <span aria-label={new Date(entry.createdAt).toLocaleString()}>
-              {formatRelative(entry.createdAt)}
-            </span>
+            <HistoryTimeMeta entry={entry} />
           </p>
         </div>
 
@@ -611,6 +785,35 @@ function HistoryCard({
   );
 }
 
+function HistoryTimeMeta({ entry }: { entry: InterviewHistoryEntry }) {
+  const accessLabel = entry.status === "running" ? "最近继续" : "最近访问";
+  const createdLabel = entry.updatedAt ? "创建于" : "加入列表";
+  const createdText = entry.updatedAt
+    ? formatDateTimeShort(entry.createdAt)
+    : formatRelative(entry.createdAt);
+
+  return (
+    <>
+      <span aria-label={`${accessLabel} ${formatDateTimeFull(entry.lastVisitedAt)}`}>
+        {accessLabel} {formatRelative(entry.lastVisitedAt)}
+      </span>
+      <span className="mx-1 text-muted-foreground/40">·</span>
+      <span aria-label={`${createdLabel} ${formatDateTimeFull(entry.createdAt)}`}>
+        {createdLabel} {createdText}
+      </span>
+    </>
+  );
+}
+
+function historyTimeSummary(entry: InterviewHistoryEntry): string {
+  const accessLabel = entry.status === "running" ? "最近继续" : "最近访问";
+  const createdLabel = entry.updatedAt ? "创建于" : "加入列表";
+  const createdText = entry.updatedAt
+    ? formatDateTimeShort(entry.createdAt)
+    : formatRelative(entry.createdAt);
+  return `${accessLabel} ${formatRelative(entry.lastVisitedAt)} · ${createdLabel} ${createdText}`;
+}
+
 function DeleteSessionDialog({
   entry,
   deleting,
@@ -644,9 +847,9 @@ function DeleteSessionDialog({
               <p className="mt-1 text-xs text-muted-foreground">
                 {entry.candidateName ? `${entry.candidateName} · ` : ""}
                 {entry.jobLevel ? `${jobLevelLabel(entry.jobLevel)} · ` : ""}
-                <span className="font-mono">{shortId(entry.sessionId)}</span>
+                <SessionIdTooltip sessionId={entry.sessionId} />
                 <span className="mx-1 text-muted-foreground/40">·</span>
-                {formatRelative(entry.createdAt)}
+                {historyTimeSummary(entry)}
               </p>
             </div>
 
@@ -766,11 +969,6 @@ function SkeletonList() {
   );
 }
 
-function shortId(id: string): string {
-  if (id.length <= 12) return id;
-  return `${id.slice(0, 4)}…${id.slice(-4)}`;
-}
-
 const jobLevelLabel = jobLevelShortLabel;
 
 function compactDimensionScores(
@@ -803,6 +1001,27 @@ function formatRelative(iso: string): string {
   const day = Math.round(hr / 24);
   if (day < 30) return `${day} 天前`;
   return d.toLocaleDateString();
+}
+
+function formatDateTimeShort(iso: string): string {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "未知时间";
+  const now = new Date();
+  return d.toLocaleString(undefined, {
+    ...(d.getFullYear() !== now.getFullYear()
+      ? { year: "numeric" as const }
+      : {}),
+    month: "numeric",
+    day: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+
+function formatDateTimeFull(iso: string): string {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "未知时间";
+  return d.toLocaleString();
 }
 
 const formatVerdictShort = verdictShortLabel;

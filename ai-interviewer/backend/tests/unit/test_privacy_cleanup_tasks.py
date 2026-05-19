@@ -10,7 +10,7 @@ def test_privacy_cleanup_scheduler_settings_default_disabled() -> None:
     settings = Settings()
 
     assert settings.enable_privacy_cleanup is False
-    assert settings.privacy_cleanup_interval_minutes == 60
+    assert settings.privacy_cleanup_interval_hours == 24
 
 
 def test_run_privacy_cleanup_now_applies_cleanup(monkeypatch) -> None:
@@ -22,11 +22,7 @@ def test_run_privacy_cleanup_now_applies_cleanup(monkeypatch) -> None:
         calls.append({"dry_run": dry_run, "batch_size": batch_size})
         return {"dry_run": dry_run, "batch_size": batch_size}
 
-    monkeypatch.setattr(
-        privacy_cleanup_tasks,
-        "cleanup_expired_data",
-        cleanup_expired_data,
-    )
+    monkeypatch.setattr("app.services.privacy_cleanup.cleanup_expired_data", cleanup_expired_data)
 
     result = privacy_cleanup_tasks.run_privacy_cleanup_now(batch_size=25)
 
@@ -38,19 +34,22 @@ def test_start_privacy_cleanup_scheduler_registers_interval_job(monkeypatch) -> 
     from app.tasks import privacy_cleanup_tasks
 
     monkeypatch.setattr(
-        privacy_cleanup_tasks,
-        "cleanup_expired_data",
+        "app.services.privacy_cleanup.cleanup_expired_data",
         lambda *, dry_run, batch_size=None: {"dry_run": dry_run, "batch_size": batch_size},
+    )
+    monkeypatch.setattr(
+        "app.scripts.cleanup_session_anchor_chunks.run_cleanup",
+        lambda: {"total_deleted": 0},
     )
 
     scheduler = privacy_cleanup_tasks.start_privacy_cleanup_scheduler(
-        interval_minutes=7,
+        interval_hours=7,
         batch_size=11,
     )
     try:
         jobs = scheduler.get_jobs()
         assert [job.id for job in jobs] == ["privacy_cleanup"]
-        assert "0:07:00" in str(jobs[0].trigger)
+        assert "7:00:00" in str(jobs[0].trigger)
     finally:
         scheduler.shutdown(wait=False)
 
@@ -69,10 +68,10 @@ def test_fastapi_lifecycle_starts_and_stops_privacy_cleanup_scheduler(monkeypatc
 
     def start_privacy_cleanup_scheduler(
         *,
-        interval_minutes: int,
+        interval_hours: int,
         batch_size: int,
     ):
-        calls.append((interval_minutes, batch_size))
+        calls.append((interval_hours, batch_size))
         return scheduler
 
     monkeypatch.setattr(app_main, "run_preflight", lambda settings: {})
@@ -94,8 +93,9 @@ def test_fastapi_lifecycle_starts_and_stops_privacy_cleanup_scheduler(monkeypatc
         enable_outcome_sync=False,
         enable_bandit_decay=False,
         enable_strategy_dream=False,
+        enable_drift_maintenance_scheduler=False,
         enable_privacy_cleanup=True,
-        privacy_cleanup_interval_minutes=7,
+        privacy_cleanup_interval_hours=7,
         privacy_cleanup_batch_size=11,
     )
 

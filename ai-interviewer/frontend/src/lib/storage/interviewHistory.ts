@@ -17,6 +17,8 @@ const SESSION_TOKEN_TTL_MS = SESSION_TOKEN_TTL_DAYS * 24 * 60 * 60 * 1000;
 const MAX_TEXT_FIELD_LENGTH = 256;
 const MAX_DIMENSION_COUNT = 20;
 const MAX_DIMENSION_LENGTH = 80;
+const MAX_RESUME_TEXT_LENGTH = 20_000;
+const MAX_RESUME_ARRAY_LENGTH = 40;
 
 export type InterviewHistoryStatus = "running" | "done" | "cancelled" | "failed";
 
@@ -24,12 +26,15 @@ export interface InterviewHistoryEntry {
   sessionId: string;
   sessionToken?: string;
   sessionTokenExpiresAt?: string;
+  recoveryToken?: string;
+  recoveryTokenExpiresAt?: string;
   jdTitle: string;
   candidateName?: string;
   jobLevel?: string;
   rubricDimensions?: string[];
   createdAt: string;
   lastVisitedAt: string;
+  updatedAt?: string;
   status: InterviewHistoryStatus;
   overallScore?: number;
   dimensionScores?: Record<string, number>;
@@ -37,6 +42,18 @@ export interface InterviewHistoryEntry {
   growthSignal?: string;
   overallVerdict?: string;
   feedbackSubmitted?: boolean;
+  resumeSetupSnapshot?: ResumeSetupSnapshot;
+}
+
+export interface ResumeSetupSnapshot {
+  candidate_name?: string;
+  candidate_summary?: string;
+  candidate_skills?: string;
+  candidate_highlights?: string;
+  resumeProjects?: Record<string, unknown>[];
+  resumeFocusAreas?: Record<string, unknown>[];
+  resumeConcerns?: string[];
+  resumeCandidateProfile?: Record<string, unknown>;
 }
 
 interface StoredShape {
@@ -56,7 +73,7 @@ function sessionTokenKey(sessionId: string): string {
   return `${SESSION_TOKEN_KEY_PREFIX}${sessionId}`;
 }
 
-function writeSessionToken(
+export function writeSessionToken(
   sessionId: string,
   token: string,
   expiresAt: string,
@@ -161,6 +178,9 @@ function isValidEntry(x: unknown): x is InterviewHistoryEntry {
     (e.sessionToken === undefined || typeof e.sessionToken === "string") &&
     (e.sessionTokenExpiresAt === undefined ||
       typeof e.sessionTokenExpiresAt === "string") &&
+    (e.recoveryToken === undefined || typeof e.recoveryToken === "string") &&
+    (e.recoveryTokenExpiresAt === undefined ||
+      typeof e.recoveryTokenExpiresAt === "string") &&
     isTextField(e.jdTitle) &&
     (e.candidateName === undefined || isTextField(e.candidateName)) &&
     (e.jobLevel === undefined || isTextField(e.jobLevel)) &&
@@ -168,10 +188,12 @@ function isValidEntry(x: unknown): x is InterviewHistoryEntry {
     (e.overallVerdict === undefined || isTextField(e.overallVerdict)) &&
     isValidIsoDate(e.createdAt) &&
     isValidIsoDate(e.lastVisitedAt) &&
+    (e.updatedAt === undefined || isValidIsoDate(e.updatedAt)) &&
     isValidScore(e.overallScore) &&
     isDimensionScoreMap(e.dimensionScores) &&
     isValidPositiveInt(e.maxTurns) &&
     isStringList(e.rubricDimensions) &&
+    isResumeSetupSnapshot(e.resumeSetupSnapshot) &&
     (e.status === "running" ||
       e.status === "done" ||
       e.status === "cancelled" ||
@@ -187,6 +209,10 @@ function isTextField(value: unknown): value is string {
 function isValidIsoDate(value: unknown): value is string {
   if (typeof value !== "string") return false;
   return Number.isFinite(Date.parse(value));
+}
+
+function isoOrUndefined(value: unknown): string | undefined {
+  return isValidIsoDate(value) ? value : undefined;
 }
 
 function isValidScore(value: unknown): value is number | undefined {
@@ -225,6 +251,56 @@ function isStringList(value: unknown): value is string[] | undefined {
   );
 }
 
+function isResumeText(value: unknown): value is string | undefined {
+  return (
+    value === undefined ||
+    (typeof value === "string" && value.length <= MAX_RESUME_TEXT_LENGTH)
+  );
+}
+
+function isPlainObject(value: unknown): value is Record<string, unknown> {
+  return Boolean(value) && typeof value === "object" && !Array.isArray(value);
+}
+
+function isRecordList(value: unknown): value is Record<string, unknown>[] | undefined {
+  if (value === undefined) return true;
+  return (
+    Array.isArray(value) &&
+    value.length <= MAX_RESUME_ARRAY_LENGTH &&
+    value.every(isPlainObject)
+  );
+}
+
+function isResumeConcernList(value: unknown): value is string[] | undefined {
+  if (value === undefined) return true;
+  return (
+    Array.isArray(value) &&
+    value.length <= MAX_RESUME_ARRAY_LENGTH &&
+    value.every(
+      (item) =>
+        typeof item === "string" && item.length <= MAX_RESUME_TEXT_LENGTH,
+    )
+  );
+}
+
+function isResumeSetupSnapshot(
+  value: unknown,
+): value is ResumeSetupSnapshot | undefined {
+  if (value === undefined) return true;
+  if (!isPlainObject(value)) return false;
+  return (
+    isResumeText(value.candidate_summary) &&
+    isResumeText(value.candidate_name) &&
+    isResumeText(value.candidate_skills) &&
+    isResumeText(value.candidate_highlights) &&
+    isRecordList(value.resumeProjects) &&
+    isRecordList(value.resumeFocusAreas) &&
+    isResumeConcernList(value.resumeConcerns) &&
+    (value.resumeCandidateProfile === undefined ||
+      isPlainObject(value.resumeCandidateProfile))
+  );
+}
+
 function sortByCreatedAtDesc(entries: InterviewHistoryEntry[]): InterviewHistoryEntry[] {
   return [...entries].sort((a, b) => b.createdAt.localeCompare(a.createdAt));
 }
@@ -235,6 +311,12 @@ function isExpiredToken(entry: InterviewHistoryEntry, now = Date.now()): boolean
   return !Number.isFinite(expiresAt) || expiresAt <= now;
 }
 
+function isExpiredRecoveryToken(entry: InterviewHistoryEntry, now = Date.now()): boolean {
+  if (!entry.recoveryToken || !entry.recoveryTokenExpiresAt) return false;
+  const expiresAt = Date.parse(entry.recoveryTokenExpiresAt);
+  return !Number.isFinite(expiresAt) || expiresAt <= now;
+}
+
 function withoutSessionToken(entry: InterviewHistoryEntry): InterviewHistoryEntry {
   const next = { ...entry };
   delete next.sessionToken;
@@ -242,21 +324,35 @@ function withoutSessionToken(entry: InterviewHistoryEntry): InterviewHistoryEntr
   return next;
 }
 
+function withoutRecoveryToken(entry: InterviewHistoryEntry): InterviewHistoryEntry {
+  const next = { ...entry };
+  delete next.recoveryToken;
+  delete next.recoveryTokenExpiresAt;
+  return next;
+}
+
 function pruneExpiredSessionTokens(shape: StoredShape): StoredShape {
   let changed = false;
   const now = Date.now();
   const entries = shape.entries.map((entry) => {
-    if (!entry.sessionToken) return entry;
-    if (!isExpiredToken(entry, now)) {
-      const expiresAt =
-        entry.sessionTokenExpiresAt ??
-        new Date(now + SESSION_TOKEN_TTL_MS).toISOString();
-      writeSessionToken(entry.sessionId, entry.sessionToken, expiresAt);
-    } else {
-      removeSessionToken(entry.sessionId);
+    let next = entry;
+    if (next.sessionToken) {
+      if (!isExpiredToken(next, now)) {
+        const expiresAt =
+          next.sessionTokenExpiresAt ??
+          new Date(now + SESSION_TOKEN_TTL_MS).toISOString();
+        writeSessionToken(next.sessionId, next.sessionToken, expiresAt);
+      } else {
+        removeSessionToken(next.sessionId);
+      }
+      changed = true;
+      next = withoutSessionToken(next);
     }
-    changed = true;
-    return withoutSessionToken(entry);
+    if (next.recoveryToken && isExpiredRecoveryToken(next, now)) {
+      changed = true;
+      next = withoutRecoveryToken(next);
+    }
+    return next;
   });
   const next = changed ? { version: SCHEMA_VERSION, entries } : shape;
   if (changed) writeRaw(next);
@@ -278,13 +374,32 @@ export function getSessionToken(sessionId: string): string | undefined {
   return readSessionToken(sessionId);
 }
 
+export function getRecoveryToken(sessionId: string): string | undefined {
+  const entry = getEntry(sessionId);
+  if (!entry?.recoveryToken || isExpiredRecoveryToken(entry)) {
+    return undefined;
+  }
+  return entry.recoveryToken;
+}
+
+export function getResumeSetupSnapshot(
+  sessionId: string,
+): ResumeSetupSnapshot | null {
+  return getEntry(sessionId)?.resumeSetupSnapshot ?? null;
+}
+
 export interface UpsertInput {
   sessionId: string;
   sessionToken?: string;
+  sessionTokenExpiresAt?: string;
+  recoveryToken?: string;
+  recoveryTokenExpiresAt?: string;
   jdTitle?: string;
   candidateName?: string;
   jobLevel?: string;
   rubricDimensions?: string[];
+  createdAt?: string;
+  updatedAt?: string;
   status?: InterviewHistoryStatus;
   overallScore?: number;
   dimensionScores?: Record<string, number>;
@@ -292,6 +407,7 @@ export interface UpsertInput {
   growthSignal?: string;
   overallVerdict?: string;
   feedbackSubmitted?: boolean;
+  resumeSetupSnapshot?: ResumeSetupSnapshot;
 }
 
 /**
@@ -303,7 +419,7 @@ export function upsertEntry(input: UpsertInput): InterviewHistoryEntry {
   const shape = pruneExpiredSessionTokens(readRaw());
   const existingIdx = shape.entries.findIndex((e) => e.sessionId === input.sessionId);
   const sessionTokenExpiresAt = input.sessionToken
-    ? new Date(Date.now() + SESSION_TOKEN_TTL_MS).toISOString()
+    ? input.sessionTokenExpiresAt ?? new Date(Date.now() + SESSION_TOKEN_TTL_MS).toISOString()
     : undefined;
   if (input.sessionToken && sessionTokenExpiresAt) {
     writeSessionToken(input.sessionId, input.sessionToken, sessionTokenExpiresAt);
@@ -319,6 +435,10 @@ export function upsertEntry(input: UpsertInput): InterviewHistoryEntry {
         candidateName: input.candidateName,
         jobLevel: input.jobLevel,
         rubricDimensions: input.rubricDimensions,
+        createdAt: isoOrUndefined(input.createdAt),
+        updatedAt: isoOrUndefined(input.updatedAt),
+        recoveryToken: input.recoveryToken,
+        recoveryTokenExpiresAt: input.recoveryTokenExpiresAt,
         status: input.status,
         overallScore: input.overallScore,
         dimensionScores: input.dimensionScores,
@@ -326,6 +446,7 @@ export function upsertEntry(input: UpsertInput): InterviewHistoryEntry {
         growthSignal: input.growthSignal,
         overallVerdict: input.overallVerdict,
         feedbackSubmitted: input.feedbackSubmitted,
+        resumeSetupSnapshot: input.resumeSetupSnapshot,
       }),
       lastVisitedAt: now,
     };
@@ -337,7 +458,10 @@ export function upsertEntry(input: UpsertInput): InterviewHistoryEntry {
       candidateName: input.candidateName,
       jobLevel: input.jobLevel,
       rubricDimensions: input.rubricDimensions,
-      createdAt: now,
+      recoveryToken: input.recoveryToken,
+      recoveryTokenExpiresAt: input.recoveryTokenExpiresAt,
+      createdAt: isoOrUndefined(input.createdAt) ?? now,
+      updatedAt: isoOrUndefined(input.updatedAt),
       lastVisitedAt: now,
       status: input.status ?? "running",
       overallScore: input.overallScore,
@@ -345,6 +469,7 @@ export function upsertEntry(input: UpsertInput): InterviewHistoryEntry {
       maxTurns: input.maxTurns,
       growthSignal: input.growthSignal,
       overallVerdict: input.overallVerdict,
+      resumeSetupSnapshot: input.resumeSetupSnapshot,
     };
     shape.entries.push(next);
   }
@@ -360,6 +485,49 @@ export function upsertEntry(input: UpsertInput): InterviewHistoryEntry {
     }
   }
 
+  return next;
+}
+
+export interface ServerEntryMetadataInput {
+  sessionId: string;
+  createdAt?: string;
+  updatedAt?: string;
+  jdTitle?: string | null;
+  candidateName?: string | null;
+  jobLevel?: string | null;
+  status?: InterviewHistoryStatus;
+  overallScore?: number | null;
+  dimensionScores?: Record<string, number>;
+  growthSignal?: string | null;
+  overallVerdict?: string | null;
+}
+
+export function mergeServerEntryMetadata(
+  input: ServerEntryMetadataInput,
+): InterviewHistoryEntry | null {
+  const shape = pruneExpiredSessionTokens(readRaw());
+  const idx = shape.entries.findIndex((e) => e.sessionId === input.sessionId);
+  if (idx < 0) return null;
+
+  const prev = shape.entries[idx];
+  const next: InterviewHistoryEntry = {
+    ...prev,
+    ...stripUndefined({
+      createdAt: isoOrUndefined(input.createdAt),
+      updatedAt: isoOrUndefined(input.updatedAt),
+      jdTitle: normaliseTextInput(input.jdTitle),
+      candidateName: normaliseTextInput(input.candidateName),
+      jobLevel: normaliseTextInput(input.jobLevel),
+      status: input.status,
+      overallScore:
+        typeof input.overallScore === "number" ? input.overallScore : undefined,
+      dimensionScores: input.dimensionScores,
+      growthSignal: normaliseTextInput(input.growthSignal),
+      overallVerdict: normaliseTextInput(input.overallVerdict),
+    }),
+  };
+  shape.entries[idx] = next;
+  writeRaw(shape);
   return next;
 }
 
@@ -452,4 +620,10 @@ function stripUndefined<T extends Record<string, unknown>>(obj: T): Partial<T> {
     if (v !== undefined) (out as Record<string, unknown>)[k] = v;
   }
   return out;
+}
+
+function normaliseTextInput(value: string | null | undefined): string | undefined {
+  if (typeof value !== "string") return undefined;
+  const trimmed = value.trim();
+  return trimmed ? trimmed : undefined;
 }

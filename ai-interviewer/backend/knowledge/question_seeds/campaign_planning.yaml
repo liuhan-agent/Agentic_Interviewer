@@ -1,0 +1,52 @@
+dimension: campaign_planning
+seeds:
+  - id: campaign_planning.integrated_launch_plan
+    version: 1
+    title: 整合营销 Campaign 策划与落地
+    dimension: campaign_planning
+    job_levels: [junior, mid, senior]
+    skill_tags: [marketing_brand, campaign_planning, message, creative_brief, launch]
+    direction_tags: [business]
+    role_tags: [marketing_brand]
+    rubric:
+      must_cover: [营销目标, 目标受众, 核心 message, 渠道节奏]
+      minimum_bar: 能把 campaign 从目标、受众、创意和资源拆成可执行计划。
+      stretch: 能协调产品、销售、客服等团队，并处理节奏冲突和创意偏差。
+    priority: 28
+    status: active
+    source: manual_yaml
+    scope: global
+    language: zh-CN
+    variants:
+      - id: campaign_planning.integrated_launch_plan.message_brief
+        version: 1
+        intent: opening
+        difficulty: standard
+        scenario_brief: 新产品发布需要同时覆盖品牌曝光、线索获取和老用户唤醒，团队对核心 message 没有共识。
+        question_stem: 你会如何制定 campaign brief，并把核心 message 对齐到不同团队？
+        prompt_template: 生成一道营销策划题，要求候选人说明目标、受众、message、创意 brief 和协同方式。
+        scenario_skill_tags: [marketing_brand, campaign_planning, creative_brief, message]
+        resume_anchor_hints: [campaign, launch, brief, marketing, message]
+        failure_categories: [unclear_goal, weak_stakeholder_alignment, missing_evidence]
+        rubric_additions: [说明 campaign 目标, 说明受众与 message, 说明 brief 和协同]
+        expected_signals: [能把目标分层, 能写清创意约束和自由度, 能让多团队对齐]
+        anti_patterns: [只写活动主题, 目标混在一起, brief 不可执行]
+        good_answer_hints: [先定目标和受众, 再写 message, 最后形成 brief 和节奏]
+        priority: 17
+        status: active
+      - id: campaign_planning.integrated_launch_plan.cross_function_timeline
+        version: 1
+        intent: deep_probe
+        difficulty: deep_probe
+        scenario_brief: Campaign 需要产品页、销售物料、客服话术和投放素材同时上线，其中一个团队延期。
+        question_stem: 跨团队 campaign 节奏被打乱时，你会如何重新排期和控制影响？
+        prompt_template: 生成一道 campaign 落地追问，要求候选人说明依赖关系、延期影响、替代方案和沟通机制。
+        scenario_skill_tags: [marketing_brand, campaign_planning, cross_function, launch]
+        resume_anchor_hints: [campaign, launch, cross_function, marketing, timeline]
+        failure_categories: [missing_risk, weak_stakeholder_alignment, unclear_owner]
+        rubric_additions: [说明依赖和关键路径, 说明替代方案, 说明同步和升级机制]
+        expected_signals: [能识别关键路径, 能控制延期影响, 能同步销售和客服风险]
+        anti_patterns: [一延期就全盘推迟, 不区分关键依赖, 不通知相关方]
+        good_answer_hints: [先拆关键路径, 再找替代方案, 最后同步风险]
+        priority: 16
+        status: active

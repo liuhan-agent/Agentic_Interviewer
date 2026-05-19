@@ -587,6 +587,10 @@ function TraceNodeCard({
 
       <NodeTimingBar payload={node.payload} />
 
+      {node.node === "ask_question" && (
+        <SkillSelectionPanel payload={node.payload} />
+      )}
+
       <div className="mt-3 flex items-center gap-2">
         <details className="flex-1 rounded-md border bg-background/60 p-2 text-xs">
           <summary className="cursor-pointer select-none text-muted-foreground">
@@ -708,6 +712,196 @@ function recordFromUnknown(value: unknown): Record<string, unknown> {
   return value && typeof value === "object" && !Array.isArray(value)
     ? (value as Record<string, unknown>)
     : {};
+}
+
+// Phase A observability of the evaluator skill-injection roadmap.
+// ``ask_question`` records ``selection_artifacts.skills`` in its trace
+// payload; this panel surfaces every hit with a clear "evaluator could
+// see this" indicator, so reviewers can audit which skill rubric hints
+// would land on the Evaluator side once shadow injection (Phase B)
+// flips on. Cards without ``evaluator_visibility: true`` render only
+// the generator-side fields and clearly mark themselves as
+// generator-only.
+function SkillSelectionPanel({ payload }: { payload?: Record<string, unknown> | null }) {
+  const record = recordFromUnknown(payload);
+  const artifacts = recordFromUnknown(record.selection_artifacts);
+  const skills = recordFromUnknown(artifacts.skills);
+  const enabled = skills.enabled === true;
+  const refs = Array.isArray(skills.refs) ? (skills.refs as Record<string, unknown>[]) : [];
+
+  if (!enabled && refs.length === 0) {
+    return null;
+  }
+
+  const evaluatorVisibleCount = refs.filter(
+    (ref) => ref.evaluator_visibility === true,
+  ).length;
+
+  return (
+    <div className="mt-3 rounded-md border bg-background/60 p-3 text-xs">
+      <div className="flex flex-wrap items-center gap-2">
+        <span className="font-mono text-[10px] uppercase tracking-wider text-muted-foreground">
+          Skills 命中
+        </span>
+        <Badge variant="outline" className="text-[10px]">
+          {refs.length} 张
+        </Badge>
+        {enabled ? (
+          <Badge variant="secondary" className="text-[10px]">
+            injection enabled
+          </Badge>
+        ) : (
+          <Badge variant="warn" className="text-[10px]">
+            injection disabled
+          </Badge>
+        )}
+        {evaluatorVisibleCount > 0 && (
+          <Badge variant="success" className="text-[10px]">
+            evaluator-visible {evaluatorVisibleCount}/{refs.length}
+          </Badge>
+        )}
+      </div>
+
+      {refs.length === 0 ? (
+        <p className="mt-2 text-muted-foreground">
+          本轮启用 skill 注入但没有匹配的卡片。
+        </p>
+      ) : (
+        <ul className="mt-2 flex flex-col gap-2">
+          {refs.map((ref, idx) => (
+            <SkillSelectionRef key={`${String(ref.id ?? "")}-${idx}`} ref_={ref} />
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+
+function SkillSelectionRef({ ref_ }: { ref_: Record<string, unknown> }) {
+  const id = typeof ref_.id === "string" ? ref_.id : "";
+  const name = typeof ref_.name === "string" ? ref_.name : id || "(unnamed)";
+  const description = typeof ref_.description === "string" ? ref_.description : "";
+  const priority = typeof ref_.priority === "number" ? ref_.priority : null;
+  const matchScore = typeof ref_.match_score === "number" ? ref_.match_score : null;
+  const matchReasons = Array.isArray(ref_.match_reasons)
+    ? (ref_.match_reasons as unknown[]).map((r) => String(r))
+    : [];
+  const dimensions = stringList(ref_.dimensions);
+  const jobLevels = stringList(ref_.job_levels);
+  const roleTags = stringList(ref_.role_tags);
+  const evaluatorVisibility = ref_.evaluator_visibility === true;
+  const evaluatorPayload = evaluatorVisibility
+    ? recordFromUnknown(ref_.evaluator_payload)
+    : null;
+
+  return (
+    <li className="rounded-md border bg-card/40 p-2">
+      <div className="flex flex-wrap items-start justify-between gap-2">
+        <div className="min-w-0">
+          <p className="font-medium leading-tight">{name}</p>
+          {description && (
+            <p className="mt-1 text-[11px] leading-snug text-muted-foreground">
+              {description}
+            </p>
+          )}
+          {id && (
+            <p className="mt-1 font-mono text-[10px] text-muted-foreground">{id}</p>
+          )}
+        </div>
+        <div className="flex flex-wrap items-center gap-1">
+          {priority !== null && (
+            <Badge variant="outline" className="text-[10px]">
+              p{priority}
+            </Badge>
+          )}
+          {matchScore !== null && (
+            <Badge variant="outline" className="text-[10px]">
+              score {matchScore.toFixed(1)}
+            </Badge>
+          )}
+          {evaluatorVisibility ? (
+            <Badge variant="success" className="text-[10px]">
+              evaluator-visible
+            </Badge>
+          ) : (
+            <Badge variant="outline" className="text-[10px]">
+              generator-only
+            </Badge>
+          )}
+        </div>
+      </div>
+
+      {(dimensions.length || jobLevels.length || roleTags.length) > 0 && (
+        <div className="mt-2 grid grid-cols-3 gap-1 text-[10px] text-muted-foreground">
+          <SkillFact label="dim" values={dimensions} />
+          <SkillFact label="lvl" values={jobLevels} />
+          <SkillFact label="role" values={roleTags} />
+        </div>
+      )}
+
+      {matchReasons.length > 0 && (
+        <p className="mt-2 font-mono text-[10px] text-muted-foreground">
+          why: {matchReasons.join(" · ")}
+        </p>
+      )}
+
+      {evaluatorPayload && (
+        <details className="mt-2 rounded border bg-background/40 p-2 text-[11px]">
+          <summary className="cursor-pointer select-none text-muted-foreground">
+            Evaluator 可见提示
+          </summary>
+          <div className="mt-2 flex flex-col gap-1.5">
+            <SkillPayloadList
+              label="rubric_hints"
+              values={stringList(evaluatorPayload.rubric_hints)}
+            />
+            <SkillPayloadList
+              label="positive_signals"
+              values={stringList(evaluatorPayload.positive_signals)}
+            />
+            <SkillPayloadList
+              label="negative_signals"
+              values={stringList(evaluatorPayload.negative_signals)}
+            />
+            <SkillPayloadList
+              label="score_bias_rules"
+              values={stringList(evaluatorPayload.score_bias_rules)}
+            />
+          </div>
+        </details>
+      )}
+    </li>
+  );
+}
+
+function SkillFact({ label, values }: { label: string; values: string[] }) {
+  return (
+    <div>
+      <span className="font-mono uppercase tracking-wider">{label}</span>
+      <p className="mt-0.5 break-words font-mono">{values.length ? values.join(", ") : "—"}</p>
+    </div>
+  );
+}
+
+function SkillPayloadList({ label, values }: { label: string; values: string[] }) {
+  if (!values.length) return null;
+  return (
+    <div>
+      <p className="font-mono text-[10px] uppercase tracking-wider text-muted-foreground">
+        {label}
+      </p>
+      <ul className="mt-0.5 list-disc space-y-0.5 pl-4 text-[11px]">
+        {values.map((value, idx) => (
+          <li key={idx}>{value}</li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
+function stringList(value: unknown): string[] {
+  if (!Array.isArray(value)) return [];
+  return value.map((item) => String(item ?? "")).filter((item) => item.length > 0);
 }
 
 // Defensive ordering: do not rely on Map insertion order to match the

@@ -22,6 +22,7 @@ from typing import Any
 
 from app.core.logging import get_logger
 
+from .ingestion import is_rag_source_allowed
 from .vectorstore import RetrievedDoc, get_vectorstore
 
 log = get_logger(__name__)
@@ -101,6 +102,15 @@ def _blend(
         blended.append(RetrievedDoc(text=doc.text, metadata=dict(doc.metadata), score=final))
     blended.sort(key=lambda d: d.score, reverse=True)
     return blended
+
+
+def _filter_rag_docs(docs: list[RetrievedDoc], *, top_k: int) -> list[RetrievedDoc]:
+    allowed = [
+        doc
+        for doc in docs
+        if is_rag_source_allowed(str((doc.metadata or {}).get("source") or ""))
+    ]
+    return allowed[:top_k]
 
 
 def _clamp_alpha(value: float) -> float:
@@ -224,7 +234,9 @@ def retrieve_for_question(
     query = " ".join(p for p in parts if p).strip()
 
     store = get_vectorstore()
-    docs = store.similarity_search(query, k=top_k * 2 if mode == "hybrid" else top_k)
+    search_k = top_k * 4 if mode == "hybrid" else top_k * 3
+    docs = store.similarity_search(query, k=search_k)
+    docs = _filter_rag_docs(docs, top_k=search_k)
 
     if mode == "hybrid" and docs:
         # ``get_settings`` is imported lazily so the unit tests that
@@ -241,6 +253,8 @@ def retrieve_for_question(
         )
         bm25 = _bm25_scores(query, docs)
         docs = _blend(docs, bm25, alpha=resolved_alpha)[:top_k]
+    else:
+        docs = docs[:top_k]
 
     if not docs:
         log.info("retriever returned no docs for query=%r", query)

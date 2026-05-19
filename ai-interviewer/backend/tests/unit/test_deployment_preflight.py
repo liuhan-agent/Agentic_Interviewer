@@ -32,6 +32,10 @@ class _StubSettings:
             "llm_model": "gpt-4o-mini",
             "use_stub_llm": True,
             "embedding_provider": "openai",
+            "resume_rag_mode": "off",
+            "resume_rag_embedding_model": "text-embedding-3-small",
+            "resume_rag_embedding_dimension": 1536,
+            "resume_rag_session_sample_rate": 1.0,
             "allow_stub_embeddings_in_prod": False,
             "resume_parse_cache_backend": "redis",
             "asr_provider": "openai",
@@ -42,6 +46,7 @@ class _StubSettings:
             "default_guard_mode": "regex_only",
             "redact_answer_pii": True,
             "enable_skill_injection": False,
+            "skill_playbook_backend": "db_with_file_fallback",
             "enable_probe_intent": True,
             "policy_mode": "template",
             "verifier_drift_backend": "memory",
@@ -71,6 +76,10 @@ class TestBuildConfigSummary:
             "llm_model",
             "stub_mode",
             "embedding_provider",
+            "resume_rag_mode",
+            "resume_rag_embedding_model",
+            "resume_rag_embedding_dimension",
+            "resume_rag_session_sample_rate",
             "resume_parse_cache_backend",
             "asr_provider",
             "tts_provider",
@@ -81,6 +90,7 @@ class TestBuildConfigSummary:
             "default_guard_mode",
             "redact_answer_pii",
             "enable_skill_injection",
+            "skill_playbook_backend",
             "enable_probe_intent",
             "policy_mode",
         }
@@ -98,6 +108,11 @@ class TestBuildConfigSummary:
         s = _StubSettings(api_token=None)
         summary = build_config_summary(s)
         assert summary["api_token_configured"] is False
+
+    def test_skill_playbook_backend_included(self):
+        s = _StubSettings(skill_playbook_backend="db")
+        summary = build_config_summary(s)
+        assert summary["skill_playbook_backend"] == "db"
 
     def test_database_url_masked(self):
         s = _StubSettings(database_url="postgresql+psycopg2://user:pass@host/db")

@@ -126,7 +126,7 @@ def test_extract_last_turn_evaluation_projects_minimal_summary() -> None:
         "dimension": "system_design",
         "score": 7.5,
         "passed": True,
-        "strengths": ["架构层次清晰", "对取舍解释具体"],
+        "strengths": ["架构层次清晰", "对取舍解释具体", "命中关键约束"],
         "weaknesses": ["容量估算不够量化", "缓存失效场景没展开"],
         "rubric_coverage": {
             "system_design": "covered",
@@ -135,7 +135,7 @@ def test_extract_last_turn_evaluation_projects_minimal_summary() -> None:
     }
 
 
-def test_extract_last_turn_evaluation_skips_fallback_evaluator() -> None:
+def test_extract_last_turn_evaluation_surfaces_fallback_notice() -> None:
     qa_history = [
         {
             "turn_idx": 1,
@@ -146,10 +146,25 @@ def test_extract_last_turn_evaluation_skips_fallback_evaluator() -> None:
                 "passed": False,
                 "source": "fallback",
                 "fallback_reason": "evaluator_llm_timeout",
+                "strengths": ["本轮回答已记录到面试 transcript 中。"],
+                "weaknesses": [],
+                "system_warnings": ["评估模型暂时不可用，已使用保守兜底评价。"],
             },
         },
     ]
-    assert _extract_last_turn_evaluation(qa_history) is None
+    summary = _extract_last_turn_evaluation(qa_history)
+    assert summary == {
+        "turn_idx": 1,
+        "dimension": "system_design",
+        "score": None,
+        "passed": False,
+        "source": "fallback",
+        "fallback_reason": "evaluator_llm_timeout",
+        "strengths": [],
+        "weaknesses": [],
+        "system_warnings": ["评估模型暂时不可用，已使用保守兜底评价。"],
+        "rubric_coverage": {},
+    }
 
 
 def test_extract_last_turn_evaluation_skips_non_scoring_intents() -> None:
@@ -187,9 +202,9 @@ def test_extract_last_turn_evaluation_skips_explicitly_skipped_turn() -> None:
     assert _extract_last_turn_evaluation(qa_history) is None
 
 
-def test_extract_last_turn_evaluation_caps_lists_at_two_items() -> None:
-    """The polling response shouldn't carry more than 2 strengths/weaknesses;
-    those are summary signals, not the full rubric breakdown."""
+def test_extract_last_turn_evaluation_keeps_all_feedback_items() -> None:
+    """The polling response carries all feedback items; the UI decides how
+    many to preview and can expand without needing a second backend path."""
     qa_history = [
         {
             "turn_idx": 3,
@@ -205,8 +220,8 @@ def test_extract_last_turn_evaluation_caps_lists_at_two_items() -> None:
     ]
     summary = _extract_last_turn_evaluation(qa_history)
     assert summary is not None
-    assert summary["strengths"] == ["s1", "s2"]
-    assert summary["weaknesses"] == ["w1", "w2"]
+    assert summary["strengths"] == ["s1", "s2", "s3", "s4"]
+    assert summary["weaknesses"] == ["w1", "w2", "w3", "w4", "w5"]
 
 
 def test_recover_waiting_session_rebuilds_last_turn_evaluation_from_checkpoint() -> None:

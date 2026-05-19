@@ -1,0 +1,52 @@
+dimension: user_insight
+seeds:
+  - id: user_insight.user_journey_pain_point
+    version: 1
+    title: 用户旅程与真实痛点识别
+    dimension: user_insight
+    job_levels: [junior, mid, senior]
+    skill_tags: [product_manager, user_insight, user_research, journey_mapping, pain_point]
+    direction_tags: [business]
+    role_tags: [product_manager]
+    rubric:
+      must_cover: [目标用户, 使用场景, 真实痛点, 证据来源]
+      minimum_bar: 能从真实项目中说明用户是谁、在什么场景下遇到什么问题，以及如何验证。
+      stretch: 能识别表层诉求和真实痛点的差异，并说明错误洞察会带来的产品风险。
+    priority: 30
+    status: active
+    source: manual_yaml
+    scope: global
+    language: zh-CN
+    variants:
+      - id: user_insight.user_journey_pain_point.cross_channel_onboarding
+        version: 1
+        intent: opening
+        difficulty: standard
+        scenario_brief: 新用户来自小程序、App 和社群三个入口，激活率差异很大，团队怀疑首日体验没有击中真实场景。
+        question_stem: 你会如何还原不同入口用户的完整旅程，并判断真正阻碍激活的痛点是什么？
+        prompt_template: 围绕候选人的产品项目，生成一道用户洞察题，要求说明用户分层、场景还原、证据来源和痛点判断。
+        scenario_skill_tags: [product_manager, user_insight, onboarding, journey_mapping]
+        resume_anchor_hints: [product, onboarding, user_research, activation, user_journey]
+        failure_categories: [missing_evidence, vague_user, shallow_analysis]
+        rubric_additions: [说明不同入口用户的任务和动机, 说明访谈或数据证据, 说明痛点优先级判断]
+        expected_signals: [能分清用户表述和真实任务, 能结合行为数据与访谈, 能指出误判痛点的后果]
+        anti_patterns: [只描述功能流程, 用自己想象替代用户证据, 不区分用户分层]
+        good_answer_hints: [先拆用户与场景, 再收集证据, 最后判断关键痛点]
+        priority: 18
+        status: active
+      - id: user_insight.user_journey_pain_point.segment_noise
+        version: 1
+        intent: deep_probe
+        difficulty: deep_probe
+        scenario_brief: 一小部分高频用户声音很大，希望增加复杂能力，但大盘新用户仍在基础路径上流失。
+        question_stem: 面对高声量用户诉求和大盘用户痛点冲突时，你会如何判断该听谁、为什么？
+        prompt_template: 生成一道产品用户分层追问，要求候选人说明用户价值、样本偏差、数据证据和取舍方式。
+        scenario_skill_tags: [product_manager, user_segmentation, user_insight, prioritization]
+        resume_anchor_hints: [user_research, segmentation, product, feedback, activation]
+        failure_categories: [weak_prioritization, missing_tradeoff, missing_evidence]
+        rubric_additions: [说明样本偏差风险, 说明用户价值和规模判断, 说明最终取舍与验证]
+        expected_signals: [能识别高声量不等于高价值, 能用数据校准反馈, 能说明取舍后的验证方式]
+        anti_patterns: [谁声音大听谁, 完全忽略核心用户, 没有后续验证]
+        good_answer_hints: [先判断用户价值, 再看诉求代表性, 最后设计低成本验证]
+        priority: 16
+        status: active
