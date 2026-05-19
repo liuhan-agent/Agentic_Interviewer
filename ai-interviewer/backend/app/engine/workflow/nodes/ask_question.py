@@ -179,8 +179,7 @@ def _step_retrieve_strategy(state: InterviewState, ctx: dict[str, Any]) -> None:
     job_level = (state.get("job_spec") or {}).get("level", "mid")
     settings = get_settings()
     # PLAN_LLM_MEMORY_SELECTOR: opt-in second-pass LLM selector runs
-    # on the keyword-filtered top-N for both memory layers. Pass the
-    # same flag through so skill + strategy retrieval stay symmetric.
+    # on the keyword-filtered top-N for strategy memories.
     use_llm_selector = bool(
         getattr(settings, "enable_llm_memory_selector", False)
     )
@@ -196,59 +195,6 @@ def _step_retrieve_strategy(state: InterviewState, ctx: dict[str, Any]) -> None:
     refs = [_strategy_memory_ref(entry) for entry in strategies]
     ctx["strategy_memory_refs"] = [ref for ref in refs if ref]
     ctx["strategy_block"] = format_strategies_for_prompt(strategies)
-    skill_enabled = bool(getattr(settings, "enable_skill_injection", False))
-    ctx["skill_artifact"] = {
-        "enabled": skill_enabled,
-        "refs": [],
-    }
-
-    # Skill injection is a sibling signal to strategy memory: strategies
-    # are reward-driven (maintained by ``strategy_dream``), skills are
-    # hand-authored by humans (``knowledge/skills/``). We retrieve both
-    # off the same ``(dimension, job_level)`` key so they appear
-    # side-by-side in the Generator prompt's independent slots. Opt-in
-    # via ``enable_skill_injection`` because an empty
-    # ``knowledge/skills/`` directory would inject only the
-    # no-match placeholder on every turn.
-    # ``getattr`` form lets test fixtures stub settings with a trimmed
-    # ``SimpleNamespace`` that only declares the knobs the test cares
-    # about — same defensive pattern we use for the evidence-span and
-    # drift-feedback knobs in ``evaluator_agent``.
-    if skill_enabled:
-        direction_tags = ctx.get("question_direction_tags")
-        role_tags = ctx.get("question_role_tags")
-        if direction_tags is None or role_tags is None:
-            direction_tags, role_tags = resolve_question_bank_tags(
-                job_spec=state.get("job_spec", {}),
-                runtime_config=state.get("runtime_config") or {},
-            )
-            ctx["question_direction_tags"] = direction_tags
-            ctx["question_role_tags"] = role_tags
-        skills = retrieve_skills(
-            dimension=ctx["dimension"],
-            job_level=job_level,
-            limit=int(getattr(settings, "skill_retrieval_limit", 3)),
-            backend=str(
-                getattr(
-                    settings,
-                    "skill_playbook_backend",
-                    "db_with_file_fallback",
-                )
-            ),
-            use_llm_selector=use_llm_selector,
-            recent_qa_summary=recent_qa_summary,
-            direction_tags=list(direction_tags or []),
-            role_tags=list(role_tags or []),
-            probe_intent=ctx.get("probe_intent"),
-            failure_categories=_failure_categories_from_hints(
-                ctx.get("contract_hints"),
-            ),
-        )
-        ctx["skill_artifact"]["refs"] = [
-            _skill_card_ref(skill)
-            for skill in skills
-        ]
-        ctx["skill_block"] = build_skills_block(skills)
 
     # PLAN_DRIFT_RAG_FEEDBACK: same ``overruled_patterns`` snapshot
     # that feeds the Evaluator negatives (``PLAN_DRIFT_FEEDBACK``),
@@ -291,6 +237,66 @@ def _step_retrieve_strategy(state: InterviewState, ctx: dict[str, Any]) -> None:
                 ctx["avoid_pattern_artifact"]["rendered"] = True
         except Exception as e:  # pragma: no cover - feedback is non-critical
             log.debug("generator avoid-patterns render failed: %s", e)
+
+
+def _step_retrieve_skills(state: InterviewState, ctx: dict[str, Any]) -> None:
+    settings = get_settings()
+    skill_enabled = bool(getattr(settings, "enable_skill_injection", False))
+    ctx["skill_artifact"] = {
+        "enabled": skill_enabled,
+        "refs": [],
+    }
+    if not skill_enabled:
+        return
+
+    job_level = (state.get("job_spec") or {}).get("level", "mid")
+    use_llm_selector = bool(
+        getattr(settings, "enable_llm_memory_selector", False)
+    )
+    recent_qa_summary = str(state.get("qa_summary") or "")
+    direction_tags = ctx.get("question_direction_tags")
+    role_tags = ctx.get("question_role_tags")
+    if direction_tags is None or role_tags is None:
+        direction_tags, role_tags = resolve_question_bank_tags(
+            job_spec=state.get("job_spec", {}),
+            runtime_config=state.get("runtime_config") or {},
+        )
+        ctx["question_direction_tags"] = direction_tags
+        ctx["question_role_tags"] = role_tags
+
+    try:
+        skills = retrieve_skills(
+            dimension=ctx["dimension"],
+            job_level=job_level,
+            limit=int(getattr(settings, "skill_retrieval_limit", 3)),
+            backend=str(
+                getattr(
+                    settings,
+                    "skill_playbook_backend",
+                    "db_with_file_fallback",
+                )
+            ),
+            use_llm_selector=use_llm_selector,
+            recent_qa_summary=recent_qa_summary,
+            direction_tags=list(direction_tags or []),
+            role_tags=list(role_tags or []),
+            probe_intent=ctx.get("probe_intent"),
+            failure_categories=_failure_categories_from_hints(
+                ctx.get("contract_hints"),
+            ),
+        )
+        ctx["skill_artifact"]["refs"] = [
+            _skill_card_ref(skill)
+            for skill in skills
+        ]
+        ctx["skill_block"] = build_skills_block(skills)
+    except Exception as e:  # pragma: no cover - defensive degradation
+        log.warning("skill retrieval failed; continuing without skills: %s", e)
+        ctx.setdefault("skill_block", "(no relevant interview skills)")
+        ctx["skill_artifact"].update({
+            "error": "retrieval_failed",
+            "error_type": type(e).__name__,
+        })
 
 
 def _strategy_policy_context_keys(
@@ -902,6 +908,7 @@ def _step_guardrail_check(state: InterviewState, ctx: dict[str, Any]) -> None:
 _STEP_DISPATCH = {
     "retrieve_rag": _step_retrieve_rag,
     "retrieve_strategy": _step_retrieve_strategy,
+    "retrieve_skills": _step_retrieve_skills,
     "retrieve_candidate_anchors": _step_retrieve_candidate_anchors,
     "draft_question": _step_draft_question,
     "negotiate_contract": _step_negotiate_contract,
@@ -929,6 +936,96 @@ def _run_plan(plan: AskPlan, state: InterviewState, ctx: dict[str, Any]) -> None
                 continue
             log.exception("ask_plan: step %s failed", kind)
             raise
+
+
+def _retrieve_skills_plan_step(dependencies: list[int]) -> dict[str, Any]:
+    return {
+        "step_id": 0,
+        "kind": "retrieve_skills",
+        "goal": "Surface playbook cards matching the current turn before drafting.",
+        "success_criteria": (
+            "skill_block is set (possibly the no-match placeholder)."
+        ),
+        "produced_keys": ["skill_block", "skill_artifact"],
+        "dependencies": list(dependencies),
+        "optional": True,
+    }
+
+
+def _ensure_retrieve_skills_step(plan: AskPlan) -> AskPlan:
+    steps = [dict(step) for step in plan.get("steps", [])]
+    if any(step.get("kind") == "retrieve_skills" for step in steps):
+        return plan
+
+    draft_idx = next(
+        (
+            idx
+            for idx, step in enumerate(steps)
+            if step.get("kind") == "draft_question"
+        ),
+        None,
+    )
+    if draft_idx is None:
+        return plan
+
+    insert_idx = draft_idx
+    for idx, step in enumerate(steps[:draft_idx]):
+        if step.get("kind") == "retrieve_candidate_anchors":
+            insert_idx = idx
+            break
+
+    dependencies = [
+        int(step.get("step_id") or idx + 1)
+        for idx, step in enumerate(steps[:insert_idx])
+    ]
+    steps.insert(insert_idx, _retrieve_skills_plan_step(dependencies))
+    return _renumber_plan_steps(plan, steps)
+
+
+def _renumber_plan_steps(plan: AskPlan, steps: list[dict[str, Any]]) -> AskPlan:
+    old_to_new: dict[int, int] = {}
+    for new_id, step in enumerate(steps, start=1):
+        try:
+            old_id = int(step.get("step_id", new_id))
+        except (TypeError, ValueError):
+            old_id = new_id
+        if old_id > 0:
+            old_to_new[old_id] = new_id
+
+    normalised: list[dict[str, Any]] = []
+    skill_step_id: int | None = None
+    for new_id, step in enumerate(steps, start=1):
+        next_step = dict(step)
+        next_step["step_id"] = new_id
+        dependencies: list[int] = []
+        for dep in step.get("dependencies") or []:
+            try:
+                dep_id = int(dep)
+            except (TypeError, ValueError):
+                continue
+            mapped = old_to_new.get(dep_id)
+            if mapped is not None and mapped < new_id and mapped not in dependencies:
+                dependencies.append(mapped)
+        next_step["dependencies"] = dependencies
+        if next_step.get("kind") == "retrieve_skills":
+            skill_step_id = new_id
+        normalised.append(next_step)
+
+    if skill_step_id is not None:
+        for step in normalised:
+            if step.get("kind") != "draft_question":
+                continue
+            draft_id = int(step.get("step_id", 0) or 0)
+            dependencies = list(step.get("dependencies") or [])
+            if skill_step_id < draft_id and skill_step_id not in dependencies:
+                dependencies.append(skill_step_id)
+                step["dependencies"] = sorted(dependencies)
+            break
+
+    return {
+        **plan,
+        "steps": normalised,  # type: ignore[typeddict-item]
+    }
 
 
 def _has_coverage_pressure(
@@ -1189,10 +1286,10 @@ def _resolve_plan(
                     llm_plan.get("template"),
                     len(llm_plan.get("steps", [])),
                 )
-                return llm_plan
+                return _ensure_retrieve_skills_step(llm_plan)
             log.info("ask_plan: llm planner returned None; falling back to default")
 
-    return resolve_ask_plan(
+    plan = resolve_ask_plan(
         selected_action=selected_action,
         refine_mode=refine_mode,
         pending_plan_template=pending_plan_template,
@@ -1201,6 +1298,7 @@ def _resolve_plan(
         uncovered_dimensions=uncovered_dimensions,
         job_level=job_level,
     )
+    return _ensure_retrieve_skills_step(plan)
 
 
 def ask_question_node(state: InterviewState) -> dict[str, Any]:

@@ -7,7 +7,7 @@ priority: 8
 direction_tags: [internet_tech]
 role_tags: [frontend_web, mobile, ai_fullstack]
 dimensions: [technical_depth, system_design, problem_solving]
-job_levels: [mid, senior, staff]
+job_levels: [junior, mid, senior, staff]
 probe_intents: [performance_probe, tradeoff_probe, evidence_probe]
 failure_categories: [missing_evidence, shallow_analysis, weak_attribution]
 generator_moves:

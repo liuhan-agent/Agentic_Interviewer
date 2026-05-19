@@ -7,7 +7,7 @@ priority: 7
 direction_tags: [internet_tech]
 role_tags: [qa_engineer]
 dimensions: [coding_quality, problem_solving, project_experience, technical_depth]
-job_levels: [mid, senior, staff]
+job_levels: [junior, mid, senior, staff]
 probe_intents: [evidence_probe, tradeoff_probe, rollout_probe]
 failure_categories: [missing_evidence, vague_process, weak_risk_boundary]
 generator_moves:

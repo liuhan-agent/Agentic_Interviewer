@@ -53,6 +53,7 @@ class QATurn(TypedDict, total=False):
     selected_action: str
     evaluation: dict[str, Any]
     timestamp: str
+    selection_artifacts: dict[str, Any]
     # ``answer_intent`` is classified by ``wait_answer_node`` from the
     # raw candidate answer (empty / too_short / clarification / repeat /
     # skipped / normal). Persisting it on the turn record lets the final
@@ -117,6 +118,7 @@ BarLevel = Literal["intro", "standard", "deep_probe"]
 PlanStepKind = Literal[
     "retrieve_rag",
     "retrieve_strategy",
+    "retrieve_skills",
     "retrieve_candidate_anchors",
     "draft_question",
     "negotiate_contract",

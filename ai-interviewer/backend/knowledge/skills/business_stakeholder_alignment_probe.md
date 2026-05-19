@@ -7,7 +7,7 @@ priority: 6
 direction_tags: [business]
 role_tags: [product_manager, operations, marketing_brand, general_management]
 dimensions: [stakeholder_management, prioritization, communication, team_leadership, decision_making, goal_setting]
-job_levels: [mid, senior, staff]
+job_levels: [junior, mid, senior, staff]
 probe_intents: [stakeholder_pushback_probe, prioritization_probe, process_design_probe]
 failure_categories: [weak_stakeholder_alignment, poor_communication, weak_prioritization]
 generator_moves:

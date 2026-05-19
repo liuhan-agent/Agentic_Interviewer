@@ -12,22 +12,23 @@
 
 - **手写 vs 自动 分层**：skills 是人写的，strategy 是机器写的；两层
   语义不同、生命周期不同、治理方式不同——**不强制合并**。
-- **Zero friction for existing deployments**：默认 `ENABLE_SKILL_INJECTION=false`，
-  不存在 skill 文件的部署看不到任何行为变化。
+- **Zero friction for existing deployments**：`ENABLE_SKILL_INJECTION` 可关；
+  当前 playbook cards 已成为主链路默认能力，空结果会退回占位符继续出题。
 - **Prompt slot 独立**：Generator 的 `generator_task.md` 增加一个 `{skills}`
   变量和 `INTERVIEW_SKILLS = …` 块，与 `STRATEGY_MEMORY` 平行独立。
-- **Minimal plan changes**：不加新的 `AskPlanStep`、不改 state schema。
-  复用现有 `_step_retrieve_strategy` 的 step，在同一步 opt-in 地拼入
-  skills（跟 strategy 一起检索，一起注入）。
+- **Main-chain skill retrieval**：`retrieve_skills` 已经是独立
+  `AskPlanStep`，所有默认 ask plan（包括首题常用的 `simple` /
+  `quick_review`）都会在 `draft_question` 前加载 playbook cards。
 - **Frontmatter 对齐**：skill 卡用与 strategy 一致的 `name` /
   `description` / `dimensions` / `job_levels` 字段，降低 cognitive
   switching cost。
 
 **不做**（延后钩子见 §6）：
 
-- **不加 `load_skill` 作为独立 `PlanStepKind`**。现在的最小路径就是在
-  `_step_retrieve_strategy` 并联 retrieve；未来如果需要"只加载 skill
-  不加载 strategy"的 plan template，再单独升级成独立 step。
+- **不拆 generator avoid-patterns**。当前只把 playbook cards 从
+  `_step_retrieve_strategy` 拆到 `_step_retrieve_skills`；历史浅层回答
+  avoid patterns 仍留在 strategy step 中，后续如需覆盖 simple/quick
+  plan 再单独设计。
 - **不做 Tier-1 + Tier-2 分层加载**（Claude Code MEMORY.md 的完整模式）。
   当前 skill 数量少，全量渲染前 3 张卡足够；`build_skills_index` 函数
   已经写好作为未来升级钩子。
@@ -62,8 +63,9 @@ app/memory/
 └── strategy_store.py                (unchanged)
 
 ask_question_node
-  └─ _step_retrieve_strategy
-       ├─ retrieve_strategies + format_strategies_for_prompt   (strategy)
+  ├─ _step_retrieve_strategy
+  │    └─ retrieve_strategies + format_strategies_for_prompt   (strategy)
+  └─ _step_retrieve_skills
        └─ if settings.enable_skill_injection:
             retrieve_skills + build_skills_block               (skill)
 
@@ -87,12 +89,12 @@ generator_task.md
 | `knowledge/skills/SKILL.md` | 新增 | Hermes-style index，列出两张示例卡 |
 | `knowledge/skills/senior_backend_ownership_probe.md` | 新增 | 示例 skill：高级后端岗位的 ownership 追问 |
 | `knowledge/skills/system_design_scale_reasoning.md` | 新增 | 示例 skill：system_design 维度必须给出失败模式 + 量化缩放论证 |
-| `app/core/settings.py` | 扩展 | +2 字段：`enable_skill_injection: bool = False`、`skill_retrieval_limit: int = 3` |
+| `app/core/settings.py` | 扩展 | +3 字段：`enable_skill_injection: bool = True`、`skill_retrieval_limit: int = 3`、`skill_playbook_backend: str = "db_with_file_fallback"` |
 | `app/engine/agents/prompts/generator_task.md` | 小改 | frontmatter 加 `skills` 变量；正文加 `INTERVIEW_SKILLS = {skills}` 块 |
 | `app/engine/context/builder.py` | 小改 | `build_context_frame_for_generator` 加 `skill_block: str = "(no relevant interview skills)"` kwarg；payload 加 `skills` key |
 | `app/engine/context/renderer.py` | 小改 | `_GENERATOR_PAYLOAD_KEYS` 加 `"skills"` |
 | `app/engine/agents/generator.py` | 小改 | `generate_question` 加 `skill_block` kwarg，透传给 builder |
-| `app/engine/workflow/nodes/ask_question.py` | 小改 | `_step_retrieve_strategy` 在 strategy retrieval 后按 flag 调 `retrieve_skills` + `build_skills_block`；`_step_draft_question` 透传 `skill_block`；`ctx` 初始化新增占位符 |
+| `app/engine/workflow/nodes/ask_question.py` | 小改 | 新增 `_step_retrieve_skills` 并注册 `retrieve_skills` plan step；`_step_draft_question` 透传 `skill_block`；`ctx` 初始化新增占位符 |
 | `tests/unit/test_skill_store.py` | 新增 | 11 case：list / retrieve / build / index |
 | `tests/unit/test_ask_question_skill_injection.py` | 新增 | 4 case：flag OFF / flag ON 空目录 / flag ON 匹配 skill / flag ON 尊重 limit |
 | `tests/unit/test_context_builder.py` | 小改 | 在 payload 断言里加 `skills` 默认占位符 |
@@ -125,7 +127,8 @@ Frontmatter 字段严格跟 `strategy_store` 对齐。
 
 ### Step 3 · Settings + prompt + builder
 
-- `ENABLE_SKILL_INJECTION=false` / `SKILL_RETRIEVAL_LIMIT=3` 入 Settings。
+- `ENABLE_SKILL_INJECTION=true` / `SKILL_RETRIEVAL_LIMIT=3` /
+  `SKILL_PLAYBOOK_BACKEND=db_with_file_fallback` 入 Settings。
 - `generator_task.md` frontmatter 和正文加 `skills` 变量 + 块。
 - `build_context_frame_for_generator` 加 `skill_block` kwarg，payload
   新增 `skills` key。
@@ -134,11 +137,13 @@ Frontmatter 字段严格跟 `strategy_store` 对齐。
 
 ### Step 4 · ask_question 节点接入
 
-在 `_step_retrieve_strategy` 里 strategy retrieval 之后 opt-in 做
-skill retrieval。用 `getattr(settings, "enable_skill_injection", False)`
-读 flag 保持对 stub settings 的容忍（与 evidence-span / drift-feedback
-同款）。`_step_draft_question` 接上 `skill_block`；`ctx` 初始化时
-seed 占位符 `"(no relevant interview skills)"`。
+新增 `_step_retrieve_skills` 作为独立 plan step，在所有默认 ask plan
+中排在 `draft_question` 之前；`simple` / `quick_review` 因此也会加载
+playbook cards，但仍不加载 strategy memory。用
+`getattr(settings, "enable_skill_injection", False)` 读 flag 保持对 stub
+settings 的容忍（与 evidence-span / drift-feedback 同款）。`_step_draft_question`
+接上 `skill_block`；`ctx` 初始化时 seed 占位符
+`"(no relevant interview skills)"`。
 
 ### Step 5 · 测试 + 文档
 
@@ -154,7 +159,7 @@ seed 占位符 `"(no relevant interview skills)"`。
 | 风险 | 位置 | 缓解 | 回滚 |
 |---|---|---|---|
 | 现有部署 prompt 结构悄然变长 | generator_task.md | flag OFF 时 `{skills}` 被占位符字符串替换，长度固定；token 增量 < 80 chars | 关 flag |
-| skill retrieval 读盘失败打断图 | ask_question node | `retrieve_skills` 在 store 层对 OSError 做 skip；`build_skills_block` 对空输入返回占位符 | 无需回滚；flag 关掉即可 |
+| skill retrieval 读盘/DB 失败打断图 | ask_question node | `_step_retrieve_skills` 捕获异常，记录 `skill_artifact.error`，并保留 no-match 占位符继续出题 | 无需回滚；flag 关掉即可 |
 | 与 strategy 混淆造成 Generator 误用 | generator_task | prompt 两个块分别命名 `STRATEGY_MEMORY` / `INTERVIEW_SKILLS`，语义由名称区分 | 人工审 prompt |
 | 将来 `strategy_store` 接入新的 frontmatter 字段，两边 schema drift | both | 两个 store 模块各自独立解析，drift 是局部的；新字段只需要在相关模块加解析 | 同步升级两边 |
 | skill cards 数目超过 `skill_retrieval_limit` 时遗漏重要 skill | retrieve_skills | `limit=3` 默认够 MVP；后续有 tier-1 index 作为补救 | 调大 limit |
@@ -176,10 +181,9 @@ seed 占位符 `"(no relevant interview skills)"`。
 
 ## 6. 后续钩子（本 plan 不做）
 
-1. **`load_skill` 独立 PlanStep**：当不同 plan template 想各自决定
-   是否加载 skills（例如 `simple` 跳过 / `deep_probe` 强制加载）时，
-   把 retrieval 逻辑从 `_step_retrieve_strategy` 拆到新的
-   `_step_retrieve_skills` + 新 `PlanStepKind="retrieve_skills"`。
+1. **Generator avoid-pattern 独立 PlanStep**：当前 avoid patterns 仍在
+   `_step_retrieve_strategy` 中，所以只覆盖带 strategy 的 plan；如果
+   simple/quick 也要用历史浅层回答负样本，应单独拆 step。
 2. **Tier-1 index 进 dynamic_system**：`build_skills_index` 已经写
    好；当 skill 数量 > 10 张时，把 index（只有 name+description）常
    驻 `dynamic_system`，full body 只在 top-N 命中时进 `skills` 槽。
