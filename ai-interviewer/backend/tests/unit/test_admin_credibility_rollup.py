@@ -23,6 +23,15 @@ def _settings_with_open_admin() -> Any:
     return Settings(api_token="")
 
 
+def _patch_open_admin(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(
+        "app.core.settings.get_settings", lambda: _settings_with_open_admin()
+    )
+    monkeypatch.setattr(
+        "app.api.v1.admin.get_settings", lambda: _settings_with_open_admin()
+    )
+
+
 class _FakeTraceRow:
     def __init__(
         self,
@@ -74,9 +83,7 @@ def test_credibility_rollup_with_precomputed_summary(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """Sessions that already have credibility_summary in the trace."""
-    monkeypatch.setattr(
-        "app.core.settings.get_settings", lambda: _settings_with_open_admin()
-    )
+    _patch_open_admin(monkeypatch)
     rows = [
         _FakeTraceRow(
             session_id="sess-high",
@@ -120,9 +127,7 @@ def test_credibility_rollup_computes_from_raw_data(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """Sessions without credibility_summary fall back to computation."""
-    monkeypatch.setattr(
-        "app.core.settings.get_settings", lambda: _settings_with_open_admin()
-    )
+    _patch_open_admin(monkeypatch)
     rows = [
         _FakeTraceRow(
             session_id="sess-computed",
@@ -161,9 +166,7 @@ def test_credibility_rollup_reads_actual_final_report_trace_shape(
     The generic node payload only stores a compact event summary, so the
     rollup must not rely solely on state_snapshot.payload.
     """
-    monkeypatch.setattr(
-        "app.core.settings.get_settings", lambda: _settings_with_open_admin()
-    )
+    _patch_open_admin(monkeypatch)
     rows = [
         _FakeTraceRow(
             session_id="sess-real-shape",
@@ -197,9 +200,7 @@ def test_credibility_rollup_skips_zero_turn_sessions(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """Sessions with total_turns=0 and no precomputed summary are skipped."""
-    monkeypatch.setattr(
-        "app.core.settings.get_settings", lambda: _settings_with_open_admin()
-    )
+    _patch_open_admin(monkeypatch)
     rows = [
         _FakeTraceRow(
             session_id="sess-empty",
@@ -218,9 +219,7 @@ def test_credibility_rollup_skips_zero_turn_sessions(
 def test_credibility_rollup_empty_db(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    monkeypatch.setattr(
-        "app.core.settings.get_settings", lambda: _settings_with_open_admin()
-    )
+    _patch_open_admin(monkeypatch)
     _patch_db(monkeypatch, [])
 
     resp = _client().get("/admin/credibility-rollup")
@@ -236,9 +235,7 @@ def test_credibility_rollup_mixed_precomputed_and_raw(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """Mixed old (raw) and new (precomputed) sessions in same result."""
-    monkeypatch.setattr(
-        "app.core.settings.get_settings", lambda: _settings_with_open_admin()
-    )
+    _patch_open_admin(monkeypatch)
     rows = [
         _FakeTraceRow(
             session_id="sess-new",
