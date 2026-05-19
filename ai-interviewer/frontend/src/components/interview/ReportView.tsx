@@ -1839,6 +1839,15 @@ function TrainingPlanCard({
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-5">
+        {weakPracticeHref && (
+          <Button asChild className="gap-2 bg-emerald-600 hover:bg-emerald-500 text-white">
+            <Link href={weakPracticeHref}>
+              <Target className="h-4 w-4" />
+              针对本次弱项再来一场
+            </Link>
+          </Button>
+        )}
+
         {diagnosis && (diagnosis.overall_readiness || diagnosis.target_level_gap) && (
           <section className="rounded-lg border bg-gradient-to-br from-blue-500/5 to-transparent p-4">
             <h4 className="mb-2 flex items-center gap-2 text-sm font-medium">
