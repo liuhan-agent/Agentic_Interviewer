@@ -5,6 +5,7 @@ from typing import Any
 
 from app.core.logging import get_logger
 from app.engine.workflow.state import InterviewState
+from app.services.question_selector import build_question_history_selection_artifacts
 
 log = get_logger(__name__)
 
@@ -61,6 +62,9 @@ def skip_question_node(state: InterviewState) -> dict[str, Any]:
         },
         "current_question": question,
     }
+    history_selection_artifacts = build_question_history_selection_artifacts(question)
+    if history_selection_artifacts:
+        qa_entry["selection_artifacts"] = history_selection_artifacts
 
     log.info(
         "skip_question turn=%d formal=%d dimension=%s",

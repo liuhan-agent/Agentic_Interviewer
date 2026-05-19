@@ -7,6 +7,7 @@ from sqlalchemy.orm import sessionmaker
 
 from app.models.base import Base
 from app.models.question_bank import QuestionSeed, QuestionVariant
+from app.services import question_selector
 from app.services.question_fit_profile import build_question_fit_profile
 from app.services.question_seed_import import import_question_seed_dir
 from app.services.question_selector import select_question_candidates
@@ -552,6 +553,111 @@ def test_selector_opening_deduplicates_seed_but_followup_reuses_different_varian
     assert [candidate.variant_id for candidate in opening_result.candidates] == [followup]
     assert followup_result.candidates[0].seed_id == "system_design.cache"
     assert followup_result.candidates[0].variant_id == "system_design.cache.followup"
+
+
+def test_selector_history_dedupe_ignores_non_injected_shadow_candidates() -> None:
+    session_local = _session_factory()
+    with session_local() as sess:
+        injected = _add_seed(
+            sess,
+            "system_design.cache",
+            skill_tags=["redis"],
+            intent="opening",
+            seed_priority=100,
+            variant_priority=10,
+            variant_id="system_design.cache.opening",
+        )
+        shadow = _add_seed(
+            sess,
+            "system_design.queue",
+            skill_tags=["queue"],
+            intent="opening",
+            seed_priority=90,
+            variant_priority=10,
+            variant_id="system_design.queue.opening",
+        )
+        fallback = _add_seed(
+            sess,
+            "system_design.slo",
+            skill_tags=["slo"],
+            intent="opening",
+            seed_priority=80,
+            variant_priority=10,
+            variant_id="system_design.slo.opening",
+        )
+        sess.commit()
+
+        result = select_question_candidates(
+            sess,
+            dimension="system_design",
+            job_level="senior",
+            probe_intent="opening",
+            qa_history=[
+                {
+                    "selection_artifacts": {
+                        "question_items": [
+                            {
+                                "seed_id": "system_design.cache",
+                                "variant_id": injected,
+                                "rank": 1,
+                                "injected": True,
+                            },
+                            {
+                                "seed_id": "system_design.queue",
+                                "variant_id": shadow,
+                                "rank": 2,
+                                "injected": False,
+                            },
+                        ]
+                    }
+                }
+            ],
+            top_k=3,
+        )
+
+    variant_ids = [candidate.variant_id for candidate in result.candidates]
+    assert injected not in variant_ids
+    assert variant_ids == [shadow, fallback]
+
+
+def test_history_selection_artifacts_keep_only_injected_rank_one_refs() -> None:
+    artifacts = question_selector.build_question_history_selection_artifacts(
+        {
+            "selection_artifacts": {
+                "rag": {"doc_refs": [{"source": "kb.md"}]},
+                "question_items": [
+                    {
+                        "seed_id": "system_design.cache",
+                        "variant_id": "system_design.cache.opening",
+                        "rank": 1,
+                        "injected": True,
+                        "scenario_brief": "do not persist",
+                        "match_reasons": ["priority:100"],
+                    },
+                    {
+                        "seed_id": "system_design.queue",
+                        "variant_id": "system_design.queue.opening",
+                        "rank": 2,
+                        "injected": False,
+                    },
+                ],
+            }
+        }
+    )
+
+    assert artifacts == {
+        "question_items": [
+            {
+                "seed_id": "system_design.cache",
+                "variant_id": "system_design.cache.opening",
+                "rank": 1,
+                "injected": True,
+            }
+        ]
+    }
+    assert "rag" not in artifacts
+    assert "scenario_brief" not in artifacts["question_items"][0]
+    assert "match_reasons" not in artifacts["question_items"][0]
 
 
 def test_bundled_java_backend_junior_mainline_dimensions_return_structured_candidates() -> None:

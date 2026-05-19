@@ -116,10 +116,10 @@ export function CandidateAnchorRagCard() {
             <div>
               <CardTitle className="flex items-center gap-2 text-base">
                 <Database className="h-4 w-4 text-emerald-400" />
-                候选人锚点 RAG
+                资料理解 RAG
               </CardTitle>
               <CardDescription className="mt-1">
-                观察 PgVector 中的 session-scoped 简历与自我介绍锚点召回，不与知识 RAG 合并。
+                观察简历与自我介绍资料召回，不与知识 RAG 合并。
               </CardDescription>
             </div>
             <div className="flex items-center gap-2">
@@ -129,7 +129,7 @@ export function CandidateAnchorRagCard() {
               <Button
                 size="icon"
                 variant="outline"
-                aria-label="刷新候选人锚点 RAG"
+                aria-label="刷新资料理解 RAG"
                 onClick={() => setRefreshKey((v) => v + 1)}
               >
                 <RefreshCw className="h-4 w-4" />
@@ -179,7 +179,7 @@ export function CandidateAnchorRagCard() {
                 }}
               >
                 <Trash2 className="h-4 w-4" />
-                删除锚点数据
+                删除资料数据
               </Button>
             </div>
             {deleteResult && (
@@ -197,10 +197,10 @@ export function CandidateAnchorRagCard() {
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <ShieldCheck className="h-4 w-4 text-red-400" />
-              删除候选人锚点数据？
+              删除候选人资料数据？
             </DialogTitle>
             <DialogDescription>
-              这会删除该 session 的简历 / 自我介绍向量块、关联解析 artifact，并清理持久化 trace 中的锚点片段。
+              这会删除该 session 的简历 / 自我介绍检索资料、关联解析 artifact，并清理持久化 trace 中的相关片段。
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-2">
@@ -263,6 +263,12 @@ function CandidateAnchorRagBody({
     counts: summary.by_mode[mode],
     metrics: metrics.by_mode[mode],
   })).filter((row) => row.counts || row.metrics);
+  const storedEmbeddingVersions = Object.entries(
+    summary.by_embedding_model_version || {},
+  )
+    .sort((a, b) => (b[1]?.chunks || 0) - (a[1]?.chunks || 0))
+    .map(([version, bucket]) => `${version} (${bucket.chunks})`)
+    .join(" / ");
 
   return (
     <div className="space-y-4">
@@ -271,7 +277,7 @@ function CandidateAnchorRagBody({
         <MetricTile label="sessions" value={String(summary.total_sessions)} />
         <MetricTile
           label="embedding"
-          value={summary.embedding_model_version || "unknown"}
+          value={storedEmbeddingVersions || summary.embedding_model_version || "unknown"}
           compact
         />
       </div>

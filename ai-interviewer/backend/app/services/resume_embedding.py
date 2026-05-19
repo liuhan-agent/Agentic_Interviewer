@@ -5,11 +5,18 @@ import logging
 import threading
 import time
 from collections import OrderedDict
+from dataclasses import dataclass
+from hashlib import sha1
 from typing import Any
 
 import httpx
 
 from app.core.settings import get_settings
+from app.services.embedding_providers import (
+    UnsupportedEmbeddingProviderError,
+    browser_embedding_provider_spec,
+    embedding_provider_from_endpoint,
+)
 
 log = logging.getLogger(__name__)
 
@@ -27,25 +34,61 @@ class ResumeEmbeddingError(RuntimeError):
     """Raised when chunk embedding fails after the configured retries."""
 
 
+@dataclass(frozen=True)
+class EmbeddingConfig:
+    provider: str
+    endpoint: str
+    model: str
+    api_key: str
+    dimensions: int
+
+    @property
+    def model_version(self) -> str:
+        provider = self.provider
+        if provider == "openai_compatible":
+            provider = f"openai_compatible:{sha1(self.endpoint.encode('utf-8')).hexdigest()[:10]}"
+        return f"{provider}:{self.model}:{self.dimensions}@v1"
+
+    def as_secret_config(self) -> dict[str, Any]:
+        return {
+            "embedding_override": {
+                "provider": self.provider,
+                "api_key": self.api_key,
+                "model": self.model,
+                "base_url": self.endpoint,
+                "dimensions": self.dimensions,
+            }
+        }
+
+
 def embed_chunks(
     texts: list[str],
     *,
     model: str | None = None,
     timeout_ms: int | None = None,
+    embedding_override: dict[str, Any] | None = None,
 ) -> list[list[float]]:
     """Batch-embed chunk texts and raise on failure."""
 
     if not texts:
         return []
     clean_texts = [str(text or "") for text in texts]
-    selected_model = model or get_settings().resume_rag_embedding_model
+    config = resolve_embedding_config(embedding_override)
+    if model:
+        config = EmbeddingConfig(
+            provider=config.provider,
+            endpoint=config.endpoint,
+            model=model,
+            api_key=config.api_key,
+            dimensions=config.dimensions,
+        )
     vectors: list[list[float]] = []
     for start in range(0, len(clean_texts), _MAX_BATCH_SIZE):
         batch = clean_texts[start : start + _MAX_BATCH_SIZE]
         vectors.extend(
             _embed_batch_with_retries(
                 batch,
-                model=selected_model,
+                config=config,
                 timeout_ms=timeout_ms,
             )
         )
@@ -58,40 +101,120 @@ def embed_query(
     model: str | None = None,
     timeout_ms: int | None = None,
     cache_key: str | None = None,
+    embedding_override: dict[str, Any] | None = None,
+    raise_errors: bool = False,
 ) -> list[float] | None:
     """Embed a single query string, returning ``None`` on timeout/failure."""
 
-    selected_model = model or get_settings().resume_rag_embedding_model
+    config = resolve_embedding_config(embedding_override)
+    if model:
+        config = EmbeddingConfig(
+            provider=config.provider,
+            endpoint=config.endpoint,
+            model=model,
+            api_key=config.api_key,
+            dimensions=config.dimensions,
+        )
+    model_version = config.model_version
     cache_token = str(cache_key or "").strip()
     if cache_token:
-        cached = _cache_get((selected_model, cache_token))
+        cached = _cache_get((model_version, cache_token))
         if cached is not None:
             return cached
     try:
         vectors = _embed_batch_with_retries(
             [str(text or "")],
-            model=selected_model,
+            config=config,
             timeout_ms=timeout_ms,
         )
     except ResumeEmbeddingError as e:
-        log.warning("resume query embedding failed: %s", e)
+        if raise_errors:
+            raise
+        log.warning(
+            "resume query embedding failed: %s",
+            _redact_embedding_error(e, config),
+        )
         return None
     vector = vectors[0] if vectors else None
     if vector is not None and cache_token:
-        _cache_put((selected_model, cache_token), vector)
+        _cache_put((model_version, cache_token), vector)
     return vector
 
 
-def current_embedding_model_version() -> str:
+def current_embedding_model_version(
+    embedding_override: dict[str, Any] | None = None,
+) -> str:
     """Return the canonical model version string written to anchor rows."""
 
-    return f"{get_settings().resume_rag_embedding_model}@v1"
+    return resolve_embedding_config(embedding_override).model_version
+
+
+def resolve_embedding_config(
+    embedding_override: dict[str, Any] | None = None,
+) -> EmbeddingConfig:
+    """Resolve per-session embedding config, falling back to server settings."""
+
+    settings = get_settings()
+    override = embedding_override or _runtime_embedding_override()
+    expected_dim = int(settings.resume_rag_embedding_dimension or 1536)
+    if isinstance(override, dict) and str(override.get("api_key") or "").strip():
+        try:
+            provider_spec = browser_embedding_provider_spec(
+                str(override.get("provider") or "qwen")
+            )
+        except UnsupportedEmbeddingProviderError as e:
+            raise ResumeEmbeddingError(str(e)) from e
+        provider = provider_spec.id
+        endpoint = str(
+            override.get("base_url")
+            or override.get("endpoint")
+            or provider_spec.default_base_url
+        ).strip()
+        model = str(
+            override.get("model") or provider_spec.default_model
+        ).strip()
+        dimensions = int(override.get("dimensions") or expected_dim)
+        if dimensions != expected_dim:
+            raise ResumeEmbeddingError(
+                f"embedding dimension mismatch: expected {expected_dim}, got {dimensions}"
+            )
+        if dimensions not in provider_spec.supported_dimensions:
+            supported = ", ".join(str(dim) for dim in sorted(provider_spec.supported_dimensions))
+            raise ResumeEmbeddingError(
+                f"embedding dimension unsupported for {provider}: {dimensions}; supported: {supported}"
+            )
+        if provider_spec.requires_base_url and not endpoint:
+            raise ResumeEmbeddingError("embedding base_url required for openai_compatible")
+        if not model:
+            raise ResumeEmbeddingError("embedding model required")
+        return EmbeddingConfig(
+            provider=provider,
+            endpoint=endpoint,
+            model=model,
+            api_key=str(override.get("api_key") or "").strip(),
+            dimensions=dimensions,
+        )
+
+    endpoint = str(settings.resume_rag_embedding_endpoint or "").strip()
+    model = str(settings.resume_rag_embedding_model or "").strip()
+    api_key = (
+        settings.resume_rag_embedding_api_key
+        or settings.openai_api_key
+        or ""
+    ).strip()
+    return EmbeddingConfig(
+        provider=embedding_provider_from_endpoint(endpoint),
+        endpoint=endpoint,
+        model=model,
+        api_key=api_key,
+        dimensions=expected_dim,
+    )
 
 
 def _embed_batch_with_retries(
     texts: list[str],
     *,
-    model: str,
+    config: EmbeddingConfig,
     timeout_ms: int | None,
 ) -> list[list[float]]:
     settings = get_settings()
@@ -100,7 +223,7 @@ def _embed_batch_with_retries(
     attempt = 0
     while True:
         try:
-            return _embed_batch_once(texts, model=model, timeout_ms=timeout_ms)
+            return _embed_batch_once(texts, config=config, timeout_ms=timeout_ms)
         except Exception as e:
             retryable = _is_retryable_embedding_error(e)
             if not retryable or attempt >= max_retries:
@@ -112,29 +235,25 @@ def _embed_batch_with_retries(
 def _embed_batch_once(
     texts: list[str],
     *,
-    model: str,
+    config: EmbeddingConfig,
     timeout_ms: int | None,
 ) -> list[list[float]]:
     settings = get_settings()
     timeout_seconds = (timeout_ms or settings.resume_rag_timeout_ms) / 1000.0
     payload = {
-        "model": model,
+        "model": config.model,
         "input": texts,
+        "dimensions": config.dimensions,
     }
     headers = {
         "Content-Type": "application/json",
     }
-    api_key = (
-        settings.resume_rag_embedding_api_key
-        or settings.openai_api_key
-        or ""
-    ).strip()
-    if api_key:
-        headers["Authorization"] = f"Bearer {api_key}"
+    if config.api_key:
+        headers["Authorization"] = f"Bearer {config.api_key}"
 
     with _embed_semaphore:
         response = httpx.post(
-            _embedding_url(settings.resume_rag_embedding_endpoint),
+            _embedding_url(config.endpoint),
             json=payload,
             headers=headers,
             timeout=timeout_seconds,
@@ -145,6 +264,28 @@ def _embed_batch_once(
 
 def _embedding_url(endpoint: str) -> str:
     return f"{str(endpoint or '').rstrip('/')}/embeddings"
+
+
+def _runtime_embedding_override() -> dict[str, Any] | None:
+    try:
+        from app.services.session_manager import get_llm_override
+
+        llm_config = get_llm_override()
+    except Exception:
+        return None
+    if not isinstance(llm_config, dict):
+        return None
+    override = llm_config.get("embedding_override")
+    return override if isinstance(override, dict) else None
+
+
+def _redact_embedding_error(error: Exception, config: EmbeddingConfig) -> str:
+    try:
+        from app.engine.agents.llm_client import redact_llm_secrets
+
+        return redact_llm_secrets(str(error), config.as_secret_config())
+    except Exception:
+        return str(error)
 
 
 def _vectors_from_response(body: dict[str, Any], *, expected_count: int) -> list[list[float]]:

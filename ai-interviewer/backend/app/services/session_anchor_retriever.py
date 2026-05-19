@@ -94,6 +94,7 @@ def retrieve_candidate_anchors(
     self_intro_profile: dict | None,
     db_session: Session | None = None,
     used_project_names: list[str] | None = None,
+    embedding_override: dict[str, Any] | None = None,
 ) -> CandidateAnchorRagResult:
     started = time.perf_counter()
     if not session_id or not (resume_revision_id or self_intro_revision_id):
@@ -111,14 +112,24 @@ def retrieve_candidate_anchors(
         self_intro_profile=self_intro_profile,
     )
     settings = get_settings()
+    try:
+        model_version = current_embedding_model_version(embedding_override)
+    except Exception:
+        return _result(
+            started,
+            fallback_reason="misconfig",
+            query_terms=query_terms,
+        )
     vector = embed_query(
         " ".join(query_terms),
         timeout_ms=int(settings.resume_rag_timeout_ms or 300),
+        embedding_override=embedding_override,
         cache_key=_query_cache_key(
             dimension=dimension,
             seed=seed,
             target_skills=target_skills or [],
             query_terms=query_terms,
+            embedding_model_version=model_version,
         ),
     )
     if vector is None:
@@ -135,7 +146,7 @@ def retrieve_candidate_anchors(
             session_id=session_id,
             resume_revision_id=resume_revision_id,
             self_intro_revision_id=self_intro_revision_id,
-            embedding_model_version=current_embedding_model_version(),
+            embedding_model_version=model_version,
         ),
     )
     threshold = float(settings.resume_rag_distance_threshold or 0.45)
@@ -346,6 +357,7 @@ def _query_cache_key(
     seed: dict | None,
     target_skills: list[str],
     query_terms: list[str],
+    embedding_model_version: str,
 ) -> str:
     seed_id = ""
     if isinstance(seed, dict):
@@ -353,7 +365,10 @@ def _query_cache_key(
     self_intro_terms_sha = hashlib.sha1(
         "\n".join(query_terms).encode("utf-8")
     ).hexdigest()[:12]
-    return f"{dimension}|{seed_id}|{','.join(target_skills)}|{self_intro_terms_sha}"
+    return (
+        f"{embedding_model_version}|{dimension}|{seed_id}|"
+        f"{','.join(target_skills)}|{self_intro_terms_sha}"
+    )
 
 
 def _dedupe_texts(values: list[str]) -> list[str]:

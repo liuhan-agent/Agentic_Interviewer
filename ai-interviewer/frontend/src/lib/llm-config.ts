@@ -32,6 +32,7 @@ export interface LLMConfig {
   baseUrl: string;
   roleOverrides: Partial<Record<LLMRoleGroupId, LLMRoleOverrideConfig>>;
   voiceOverrides: Partial<Record<LLMVoiceRouteId, LLMVoiceOverrideConfig>>;
+  embeddingOverride: LLMEmbeddingOverrideConfig;
   storageMode?: "local" | "session" | "memory";
 }
 
@@ -68,6 +69,8 @@ export interface LLMRoleOverrideConfig {
 
 export type LLMVoiceRouteId = "asr" | "tts";
 export type LLMVoiceProviderId = "qwen" | "openai";
+export type LLMEmbeddingRouteId = "session_anchor";
+export type LLMEmbeddingProviderId = "qwen" | "openai" | "openai_compatible";
 
 export interface LLMVoiceOverrideConfig {
   enabled?: boolean;
@@ -76,6 +79,15 @@ export interface LLMVoiceOverrideConfig {
   model: string;
   baseUrl: string;
   voice?: string;
+}
+
+export interface LLMEmbeddingOverrideConfig {
+  enabled?: boolean;
+  provider: LLMEmbeddingProviderId;
+  apiKey: string;
+  model: string;
+  baseUrl: string;
+  dimensions: number;
 }
 
 export interface VoiceProviderInfo {
@@ -87,6 +99,15 @@ export interface VoiceProviderInfo {
   ttsVoices: readonly string[];
   baseUrl: string;
   keyPlaceholder: string;
+}
+
+export interface EmbeddingProviderInfo {
+  id: LLMEmbeddingProviderId;
+  label: string;
+  model: string;
+  baseUrl: string;
+  keyPlaceholder: string;
+  baseUrlMode: "optional" | "required";
 }
 
 export type LLMErrorKind = ApiLLMErrorKind;
@@ -189,6 +210,19 @@ export const VOICE_PROVIDERS = [
     keyPlaceholder: "sk-...",
   },
 ] as const satisfies readonly VoiceProviderInfo[];
+
+export const EMBEDDING_DIMENSIONS = 1536;
+
+export const EMBEDDING_PROVIDERS = [
+  {
+    id: "qwen",
+    label: "通义千问 Qwen",
+    model: "text-embedding-v4",
+    baseUrl: "https://dashscope.aliyuncs.com/compatible-mode/v1",
+    keyPlaceholder: "sk-...",
+    baseUrlMode: "optional",
+  },
+] as const satisfies readonly EmbeddingProviderInfo[];
 
 export interface LLMRecommendation {
   provider: string;
@@ -303,10 +337,38 @@ const DEFAULTS: LLMConfig = {
       baseUrl: "wss://dashscope.aliyuncs.com/api-ws/v1/realtime",
     },
   },
+  embeddingOverride: {
+    enabled: false,
+    provider: "qwen",
+    apiKey: "",
+    model: "text-embedding-v4",
+    baseUrl: "https://dashscope.aliyuncs.com/compatible-mode/v1",
+    dimensions: 1536,
+  },
   storageMode: "session",
 };
 
 let memoryConfig: LLMConfig | null = null;
+
+function normalizeEmbeddingOverride(
+  override?: Partial<LLMEmbeddingOverrideConfig>,
+): LLMEmbeddingOverrideConfig {
+  const provider = embeddingProviderInfo(override?.provider ?? "qwen");
+  if (!override || !isSupportedEmbeddingProvider(override.provider ?? "")) {
+    return {
+      ...DEFAULTS.embeddingOverride,
+      enabled: Boolean(override?.enabled),
+      provider: provider.id,
+      dimensions: EMBEDDING_DIMENSIONS,
+    };
+  }
+  return {
+    ...DEFAULTS.embeddingOverride,
+    ...override,
+    provider: provider.id,
+    dimensions: EMBEDDING_DIMENSIONS,
+  };
+}
 
 export function loadLLMConfig(): LLMConfig {
   if (memoryConfig) return memoryConfig;
@@ -327,6 +389,7 @@ export function loadLLMConfig(): LLMConfig {
         ...DEFAULTS.voiceOverrides,
         ...(parsed.voiceOverrides ?? {}),
       },
+      embeddingOverride: normalizeEmbeddingOverride(parsed.embeddingOverride),
       storageMode: parsed.storageMode ?? defaultStorageMode,
     };
   } catch {
@@ -376,7 +439,8 @@ export function hasCustomApiKey(config: LLMConfig = loadLLMConfig()): boolean {
       (routeId) =>
         config.voiceOverrides[routeId]?.enabled &&
         config.voiceOverrides[routeId]?.apiKey.trim(),
-    )
+    ) ||
+    Boolean(config.embeddingOverride?.enabled && config.embeddingOverride.apiKey.trim())
   );
 }
 
@@ -390,6 +454,16 @@ export function voiceProviderInfo(provider: string): VoiceProviderInfo {
   );
 }
 
+export function embeddingProviderInfo(provider: string): EmbeddingProviderInfo {
+  return (
+    EMBEDDING_PROVIDERS.find((p) => p.id === provider) ?? EMBEDDING_PROVIDERS[0]
+  );
+}
+
+function isSupportedEmbeddingProvider(provider: string): provider is LLMEmbeddingProviderId {
+  return EMBEDDING_PROVIDERS.some((p) => p.id === provider);
+}
+
 function normalizeVoiceProvider(provider: string): LLMVoiceProviderId | null {
   if (provider === "dashscope") return "qwen";
   if (provider === "qwen" || provider === "openai") return provider;
@@ -398,6 +472,18 @@ function normalizeVoiceProvider(provider: string): LLMVoiceProviderId | null {
 
 function sameVoiceProvider(a: string, b: string): boolean {
   return normalizeVoiceProvider(a) === normalizeVoiceProvider(b);
+}
+
+function normalizeEmbeddingProvider(provider: string): LLMEmbeddingProviderId | null {
+  if (provider === "dashscope") return "qwen";
+  if (provider === "qwen" || provider === "openai" || provider === "openai_compatible") {
+    return provider;
+  }
+  return null;
+}
+
+function sameEmbeddingProvider(a: string, b: string): boolean {
+  return normalizeEmbeddingProvider(a) === normalizeEmbeddingProvider(b);
 }
 
 export function providerShowsBaseUrl(provider: string): boolean {
@@ -484,6 +570,42 @@ export function effectiveVoiceConfig(
   };
 }
 
+export function defaultEmbeddingOverride(
+  providerId: LLMEmbeddingProviderId = "qwen",
+): LLMEmbeddingOverrideConfig {
+  const provider = embeddingProviderInfo(providerId);
+  return {
+    enabled: true,
+    provider: provider.id,
+    apiKey: "",
+    model: provider.model,
+    baseUrl: provider.baseUrl,
+    dimensions: EMBEDDING_DIMENSIONS,
+  };
+}
+
+export function effectiveEmbeddingConfig(
+  config: LLMConfig,
+): LLMEmbeddingOverrideConfig {
+  const override = normalizeEmbeddingOverride(
+    config.embeddingOverride ?? defaultEmbeddingOverride(),
+  );
+  const provider = embeddingProviderInfo(override.enabled ? override.provider : "qwen");
+  const defaults = defaultEmbeddingOverride(provider.id);
+  const effective = override.enabled
+    ? { ...defaults, ...override, provider: provider.id }
+    : defaults;
+  return {
+    ...effective,
+    dimensions: EMBEDDING_DIMENSIONS,
+    apiKey:
+      (override.enabled ? override.apiKey.trim() : "") ||
+      (sameEmbeddingProvider(config.provider, effective.provider)
+        ? config.apiKey.trim()
+        : ""),
+  };
+}
+
 /**
  * Build the `llm_config` payload to send with session creation requests.
  * Returns `undefined` if no API key is configured (backend will use its own).
@@ -521,6 +643,13 @@ export function buildLLMPayload():
           base_url?: string;
         };
       };
+      embedding_override?: {
+        provider?: LLMEmbeddingProviderId;
+        api_key?: string;
+        model?: string;
+        base_url?: string;
+        dimensions?: number;
+      };
     }
   | undefined {
   const c = loadLLMConfig();
@@ -555,6 +684,13 @@ export function buildLLMPayload():
         voice?: string;
         base_url?: string;
       };
+    };
+    embedding_override?: {
+      provider?: LLMEmbeddingProviderId;
+      api_key?: string;
+      model?: string;
+      base_url?: string;
+      dimensions?: number;
     };
   } = {};
   const defaultApiKey = c.apiKey.trim();
@@ -614,7 +750,23 @@ export function buildLLMPayload():
     payload.voice_overrides = voiceOverrides;
   }
 
-  if (!payload.api_key && !payload.role_overrides && !payload.voice_overrides) {
+  const embedding = effectiveEmbeddingConfig(c);
+  if (embedding.apiKey.trim()) {
+    payload.embedding_override = {
+      provider: embedding.provider,
+      api_key: embedding.apiKey.trim(),
+      model: embedding.model || embeddingProviderInfo(embedding.provider).model,
+      dimensions: embedding.dimensions,
+      ...(embedding.baseUrl.trim() ? { base_url: embedding.baseUrl.trim() } : {}),
+    };
+  }
+
+  if (
+    !payload.api_key &&
+    !payload.role_overrides &&
+    !payload.voice_overrides &&
+    !payload.embedding_override
+  ) {
     return undefined;
   }
   return payload;
@@ -651,8 +803,12 @@ export type LLMConfigStatus =
   | "transient"
   | "misconfig"
   | "error";
-export type LLMTestTargetId = "default" | LLMRoleGroupId | `voice:${LLMVoiceRouteId}`;
-export type LLMTestTargetKind = "chat" | "asr" | "tts";
+export type LLMTestTargetId =
+  | "default"
+  | LLMRoleGroupId
+  | `voice:${LLMVoiceRouteId}`
+  | "embedding:session_anchor";
+export type LLMTestTargetKind = "chat" | "asr" | "tts" | "embedding";
 
 export interface LLMTestTargetStatus {
   fingerprint: string;
@@ -879,6 +1035,13 @@ export function configFingerprint(config: LLMConfig = loadLLMConfig()): string {
         hashString(voice.apiKey.trim()),
       ];
     }),
+    "embedding:session_anchor",
+    String(Boolean(config.embeddingOverride?.enabled)),
+    config.embeddingOverride?.provider ?? "qwen",
+    config.embeddingOverride?.model?.trim() ?? "",
+    config.embeddingOverride?.baseUrl?.trim() ?? "",
+    String(EMBEDDING_DIMENSIONS),
+    hashString(config.embeddingOverride?.apiKey?.trim() ?? ""),
   ].join("|");
 }
 
@@ -896,6 +1059,17 @@ export function targetFingerprint(
       voice.baseUrl.trim(),
       voice.voice?.trim() ?? "",
       hashString(voice.apiKey.trim()),
+    ].join("|");
+  }
+  if (targetId === "embedding:session_anchor") {
+    const embedding = effectiveEmbeddingConfig(config);
+    return [
+      targetId,
+      embedding.provider,
+      embedding.model.trim(),
+      embedding.baseUrl.trim(),
+      String(embedding.dimensions),
+      hashString(embedding.apiKey.trim()),
     ].join("|");
   }
   const targetConfig =
@@ -979,6 +1153,7 @@ export function testTargets(
   kind: LLMTestTargetKind;
   config?: LLMConfig;
   voice?: LLMVoiceOverrideConfig;
+  embedding?: LLMEmbeddingOverrideConfig;
 }> {
   const targets: Array<{
     id: LLMTestTargetId;
@@ -986,6 +1161,7 @@ export function testTargets(
     kind: LLMTestTargetKind;
     config?: LLMConfig;
     voice?: LLMVoiceOverrideConfig;
+    embedding?: LLMEmbeddingOverrideConfig;
   }> = [];
   if (config.apiKey.trim()) {
     targets.push({ id: "default", label: "默认配置", kind: "chat", config });
@@ -1016,6 +1192,15 @@ export function testTargets(
       label: "语音合成",
       kind: "tts",
       voice: ttsVoice,
+    });
+  }
+  const embedding = effectiveEmbeddingConfig(config);
+  if (embedding.apiKey.trim()) {
+    targets.push({
+      id: "embedding:session_anchor",
+      label: "资料理解能力",
+      kind: "embedding",
+      embedding,
     });
   }
   return targets;
@@ -1081,6 +1266,15 @@ export async function testConnection(
         voice: target.voice.voice?.trim(),
       }
     : null;
+  const trimmedEmbedding = target.embedding
+    ? {
+        ...target.embedding,
+        apiKey: target.embedding.apiKey.trim(),
+        model: target.embedding.model.trim(),
+        baseUrl: target.embedding.baseUrl.trim(),
+        dimensions: EMBEDDING_DIMENSIONS,
+      }
+    : null;
   let targetStatus: LLMTestTargetStatus;
   try {
     const result = await request<LLMTestResponse>("/api/v1/llm/test", {
@@ -1095,6 +1289,17 @@ export async function testConnection(
               temperature: trimmed.temperature,
               ...(trimmed.baseUrl ? { base_url: trimmed.baseUrl } : {}),
             }
+          : target.kind === "embedding" && trimmedEmbedding
+            ? {
+                kind: target.kind,
+                provider: trimmedEmbedding.provider,
+                api_key: trimmedEmbedding.apiKey,
+                model: trimmedEmbedding.model,
+                dimensions: trimmedEmbedding.dimensions,
+                ...(trimmedEmbedding.baseUrl
+                  ? { base_url: trimmedEmbedding.baseUrl }
+                  : {}),
+              }
           : {
               kind: target.kind,
               provider: trimmedVoice?.provider,
@@ -1128,8 +1333,9 @@ export async function testConnection(
       testedAt: new Date().toISOString(),
       ok: false,
       latencyMs: 0,
-      provider: trimmed?.provider ?? trimmedVoice?.provider ?? "",
-      model: trimmed?.model ?? trimmedVoice?.model ?? "",
+      provider:
+        trimmed?.provider ?? trimmedVoice?.provider ?? trimmedEmbedding?.provider ?? "",
+      model: trimmed?.model ?? trimmedVoice?.model ?? trimmedEmbedding?.model ?? "",
       label: target.label,
       kind: target.kind,
       errorKind: inferLLMErrorKind(err),
@@ -1156,8 +1362,12 @@ export async function testAllConnections(
         testedAt: now,
         ok: false,
         latencyMs: 0,
-        provider: target.config?.provider ?? target.voice?.provider ?? "",
-        model: target.config?.model ?? target.voice?.model ?? "",
+        provider:
+          target.config?.provider ??
+          target.voice?.provider ??
+          target.embedding?.provider ??
+          "",
+        model: target.config?.model ?? target.voice?.model ?? target.embedding?.model ?? "",
         label: target.label,
         kind: target.kind,
         errorKind: inferLLMErrorKind(err),

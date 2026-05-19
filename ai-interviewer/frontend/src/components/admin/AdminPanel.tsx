@@ -3819,7 +3819,7 @@ function RagEvalSection() {
       <div>
         <h2 className="text-sm font-semibold">RAG 观察</h2>
         <p className="mt-1 text-xs text-muted-foreground">
-          知识库 Chroma 与候选人锚点 PgVector 分开观测，避免把两类检索质量混成一个指标。
+          知识库 RAG 与资料理解 RAG 分开观测，避免把两类检索质量混成一个指标。
         </p>
       </div>
       <div className="grid gap-6 xl:grid-cols-2">

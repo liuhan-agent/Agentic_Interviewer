@@ -35,15 +35,32 @@ def vectorize_resume(
     raw_text: str,
     parsed: dict | None,
     db_session: Session | None = None,
+    embedding_override: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Normalize, chunk, redact, embed, and persist resume anchor rows."""
 
     mode, chunks = chunk_resume(raw_text or "", parsed if isinstance(parsed, dict) else None)
+    try:
+        model_version = current_embedding_model_version(embedding_override)
+    except Exception as e:
+        safe_error = _safe_embedding_error(e, embedding_override)
+        return {
+            "source_type": "resume",
+            "resume_revision_id": resume_revision_id,
+            "source_artifact_id": source_artifact_id,
+            "embedding_model_version": "",
+            "mode": mode.value,
+            "chunk_count": 0,
+            "skipped_reason": None,
+            "error": safe_error,
+            "text_sha256": _sha256(raw_text or ""),
+            "status": "failed",
+        }
     base_status = {
         "source_type": "resume",
         "resume_revision_id": resume_revision_id,
         "source_artifact_id": source_artifact_id,
-        "embedding_model_version": current_embedding_model_version(),
+        "embedding_model_version": model_version,
         "mode": mode.value,
         "chunk_count": 0,
         "skipped_reason": None,
@@ -65,7 +82,7 @@ def vectorize_resume(
         }
     try:
         texts = [chunk.text for chunk in redacted_chunks]
-        vectors = embed_chunks(texts)
+        vectors = embed_chunks(texts, embedding_override=embedding_override)
         expires_at = _expires_at()
 
         def write(session: Session) -> None:
@@ -87,7 +104,7 @@ def vectorize_resume(
                             tech_keywords=list(chunk.tech_keywords),
                             dimensions_hint=list(chunk.dimensions_hint),
                             chunker_mode=mode.value,
-                            embedding_model_version=current_embedding_model_version(),
+                            embedding_model_version=model_version,
                             embedding=vector,
                             expires_at=expires_at,
                         )
@@ -102,11 +119,12 @@ def vectorize_resume(
             "expires_at": expires_at.isoformat(),
         }
     except Exception as e:
-        log.warning("vectorize_resume failed: session=%s error=%s", session_id, e)
+        safe_error = _safe_embedding_error(e, embedding_override)
+        log.warning("vectorize_resume failed: session=%s error=%s", session_id, safe_error)
         return {
             **base_status,
             "status": "failed",
-            "error": str(e) or e.__class__.__name__,
+            "error": safe_error,
         }
 
 
@@ -119,10 +137,25 @@ def vectorize_self_intro_anchor_cards(
     anchor_cards: list[dict[str, Any]],
     db_session: Session | None = None,
     profile: dict[str, Any] | None = None,
+    embedding_override: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Clean, redact, embed, and persist opening self-intro anchor cards."""
 
-    model_version = current_embedding_model_version()
+    try:
+        model_version = current_embedding_model_version(embedding_override)
+    except Exception as e:
+        safe_error = _safe_embedding_error(e, embedding_override)
+        return {
+            "source_type": "self_intro",
+            "self_intro_revision_id": self_intro_revision_id,
+            "embedding_model_version": "",
+            "mode": "SI",
+            "chunk_count": 0,
+            "skipped_reason": None,
+            "error": safe_error,
+            "text_sha256": _sha256(sanitized_answer or ""),
+            "status": "failed",
+        }
     base_status = {
         "source_type": "self_intro",
         "self_intro_revision_id": self_intro_revision_id,
@@ -154,7 +187,10 @@ def vectorize_self_intro_anchor_cards(
 
     redacted_cards = [_redacted_card(card, index) for index, card in enumerate(cards)]
     try:
-        vectors = embed_chunks([card["text"] for card in redacted_cards])
+        vectors = embed_chunks(
+            [card["text"] for card in redacted_cards],
+            embedding_override=embedding_override,
+        )
         expires_at = _expires_at()
 
         def write(session: Session) -> None:
@@ -194,11 +230,12 @@ def vectorize_self_intro_anchor_cards(
             "expires_at": expires_at.isoformat(),
         }
     except Exception as e:
-        log.warning("vectorize_self_intro failed: session=%s error=%s", session_id, e)
+        safe_error = _safe_embedding_error(e, embedding_override)
+        log.warning("vectorize_self_intro failed: session=%s error=%s", session_id, safe_error)
         return {
             **base_status,
             "status": "failed",
-            "error": str(e) or e.__class__.__name__,
+            "error": safe_error,
         }
 
 
@@ -317,6 +354,24 @@ def _expires_at() -> datetime:
 
 def _sha256(text: str) -> str:
     return hashlib.sha256(str(text or "").encode("utf-8")).hexdigest()
+
+
+def _safe_embedding_error(
+    error: Exception,
+    embedding_override: dict[str, Any] | None,
+) -> str:
+    try:
+        from app.engine.agents.llm_client import redact_llm_secrets
+        from app.services.session_manager import get_llm_override
+
+        config = (
+            {"embedding_override": embedding_override}
+            if embedding_override
+            else get_llm_override()
+        )
+        return redact_llm_secrets(str(error) or error.__class__.__name__, config)
+    except Exception:
+        return str(error) or error.__class__.__name__
 
 
 def _with_session(db_session: Session | None, fn):
