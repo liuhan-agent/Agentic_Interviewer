@@ -22,11 +22,39 @@ class _Handle:
     current_question = {"question": "Q", "dimension": "technical_depth"}
     turn_idx = 2
     max_turns = 8
+    enable_video_analysis = True
 
     def __init__(self) -> None:
         self.done_event = threading.Event()
         self.final_state = None
         self.session_token_hash = hash_session_token("session-secret")
+        self.setup_snapshot = {
+            "candidate": {
+                "name": "Alex Chen",
+                "resume_parsed": {
+                    "summary": "Backend engineer.",
+                    "skills": ["Python"],
+                    "highlights": ["Built streaming systems."],
+                    "projects": [],
+                    "focus_areas": [],
+                    "concerns": [],
+                    "candidate_profile": {
+                        "education_level": "本科",
+                        "school": "Example University",
+                    },
+                },
+            },
+            "job_spec": {
+                "title": "Backend Engineer",
+                "level": "senior",
+                "required_skills": ["Python"],
+                "rubric_dimensions": ["system_design"],
+                "rubric": {},
+                "interview_industry": "internet",
+                "interview_direction": "python_backend",
+                "interview_direction_label": "Python 后端",
+            },
+        }
 
 
 class _Manager:
@@ -105,6 +133,36 @@ class _Manager:
             "hint": "可以先从目标、约束和验证方式三个角度组织回答。",
             "source": "contract",
         }
+
+
+def test_compact_dimension_scores_ignores_null_unscored_values() -> None:
+    assert interview_api._compact_dimension_scores(
+        {
+            "technical_depth": {"score": 8.5},
+            "project_experience": {"score": None},
+            "legacy_zero": {"score": 0.0},
+            "raw_number": 7,
+        }
+    ) == {
+        "technical_depth": 8.5,
+        "legacy_zero": 0.0,
+        "raw_number": 7.0,
+    }
+
+
+class _StubTTS:
+    def __init__(self) -> None:
+        self.calls: list[dict[str, Any]] = []
+
+    async def synth(
+        self,
+        text: str,
+        *,
+        llm_config: dict[str, Any] | None = None,
+    ):
+        self.calls.append({"text": text, "llm_config": llm_config})
+        yield b"audio-1"
+        yield b"audio-2"
 
 
 @pytest.fixture()
@@ -193,6 +251,7 @@ def test_session_endpoint_accepts_correct_token(
     assert resp.status_code == 200
     assert resp.json()["question"] == {"question": "Q", "dimension": "technical_depth"}
     assert resp.json()["max_turns"] == 8
+    assert resp.json()["enable_video_analysis"] is True
 
 
 def test_resume_endpoint_includes_max_turns(
@@ -207,6 +266,51 @@ def test_resume_endpoint_includes_max_turns(
 
     assert resp.status_code == 200
     assert resp.json()["max_turns"] == 8
+    assert resp.json()["enable_video_analysis"] is True
+
+
+def test_setup_snapshot_endpoint_returns_live_snapshot(
+    client: tuple[TestClient, _Manager],
+) -> None:
+    http, manager = client
+
+    resp = http.get(
+        "/api/v1/interview/sessions/sess-auth/setup-snapshot",
+        headers={"X-Session-Token": "session-secret"},
+    )
+
+    assert resp.status_code == 200
+    assert resp.json() == {
+        "session_id": "sess-auth",
+        **manager.handle.setup_snapshot,
+    }
+
+
+def test_setup_snapshot_endpoint_rejects_wrong_token(
+    client: tuple[TestClient, _Manager],
+) -> None:
+    http, _manager = client
+
+    resp = http.get(
+        "/api/v1/interview/sessions/sess-auth/setup-snapshot",
+        headers={"X-Session-Token": "wrong"},
+    )
+
+    assert resp.status_code == 403
+
+
+def test_setup_snapshot_endpoint_returns_404_when_missing_snapshot(
+    client: tuple[TestClient, _Manager],
+) -> None:
+    http, manager = client
+    manager.handle.setup_snapshot = None
+
+    resp = http.get(
+        "/api/v1/interview/sessions/sess-auth/setup-snapshot",
+        headers={"X-Session-Token": "session-secret"},
+    )
+
+    assert resp.status_code == 404
 
 
 def test_voice_ticket_endpoint_requires_session_token(
@@ -502,6 +606,115 @@ def test_submit_answer_accepts_answer_at_max_length(
     assert manager.submitted[0]["video_signals"] is None
 
 
+def test_submit_answer_accepts_qwen_voice_realtime_overrides(
+    client: tuple[TestClient, _Manager],
+) -> None:
+    http, manager = client
+
+    resp = http.post(
+        "/api/v1/interview/sessions/sess-auth/answer",
+        headers={"X-Session-Token": "session-secret"},
+        json={
+            "answer": "ok",
+            "turn_idx": 2,
+            "llm_config": {
+                "provider": "qwen",
+                "api_key": "dashscope-key",
+                "model": "qwen-plus",
+                "base_url": "https://dashscope.aliyuncs.com/compatible-mode/v1",
+                "voice_overrides": {
+                    "asr": {
+                        "provider": "qwen",
+                        "api_key": "dashscope-key",
+                        "model": "qwen3-asr-flash-realtime",
+                        "base_url": "wss://dashscope.aliyuncs.com/api-ws/v1/realtime",
+                    },
+                    "tts": {
+                        "provider": "qwen",
+                        "api_key": "dashscope-key",
+                        "model": "qwen3-tts-flash-realtime",
+                        "voice": "Cherry",
+                        "base_url": "wss://dashscope.aliyuncs.com/api-ws/v1/realtime",
+                    },
+                },
+            },
+        },
+    )
+
+    assert resp.status_code == 200
+    assert manager.submitted[-1]["llm_config"]["voice_overrides"]["asr"][
+        "base_url"
+    ] == "wss://dashscope.aliyuncs.com/api-ws/v1/realtime"
+
+
+def test_question_audio_uses_tts_voice_override_for_current_turn(
+    client: tuple[TestClient, _Manager],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    http, _manager = client
+    tts = _StubTTS()
+    monkeypatch.setattr(interview_api, "get_tts", lambda: tts)
+
+    resp = http.post(
+        "/api/v1/interview/sessions/sess-auth/question-audio",
+        headers={"X-Session-Token": "session-secret"},
+        json={
+            "turn_idx": 2,
+            "llm_config": {
+                "provider": "qwen",
+                "api_key": "dashscope-key",
+                "model": "qwen-plus",
+                "voice_overrides": {
+                    "tts": {
+                        "provider": "qwen",
+                        "api_key": "dashscope-key",
+                        "model": "qwen3-tts-flash-realtime",
+                        "voice": "Cherry",
+                        "base_url": "wss://dashscope.aliyuncs.com/api-ws/v1/realtime",
+                    },
+                },
+            },
+        },
+    )
+
+    assert resp.status_code == 200
+    assert resp.content == b"audio-1audio-2"
+    assert resp.headers["content-type"].startswith("audio/mpeg")
+    assert tts.calls == [
+        {
+            "text": "Q",
+            "llm_config": {
+                "provider": "qwen",
+                "api_key": "dashscope-key",
+                "model": "qwen-plus",
+                "voice_overrides": {
+                    "tts": {
+                        "provider": "qwen",
+                        "api_key": "dashscope-key",
+                        "model": "qwen3-tts-flash-realtime",
+                        "voice": "Cherry",
+                        "base_url": "wss://dashscope.aliyuncs.com/api-ws/v1/realtime",
+                    }
+                },
+            },
+        }
+    ]
+
+
+def test_question_audio_rejects_stale_turn(
+    client: tuple[TestClient, _Manager],
+) -> None:
+    http, _manager = client
+
+    resp = http.post(
+        "/api/v1/interview/sessions/sess-auth/question-audio",
+        headers={"X-Session-Token": "session-secret"},
+        json={"turn_idx": 1},
+    )
+
+    assert resp.status_code == 409
+
+
 def test_submit_answer_accepts_valid_video_signals(
     client: tuple[TestClient, _Manager],
 ) -> None:
@@ -571,7 +784,7 @@ def test_submit_answer_accepts_valid_video_signals(
         },
     ],
 )
-def test_submit_answer_rejects_invalid_video_signals(
+def test_submit_answer_drops_invalid_video_signals(
     client: tuple[TestClient, _Manager],
     video_signals: dict[str, Any],
 ) -> None:
@@ -587,8 +800,9 @@ def test_submit_answer_rejects_invalid_video_signals(
         },
     )
 
-    assert resp.status_code == 422
-    assert manager.submitted == []
+    assert resp.status_code == 200
+    assert manager.submitted[-1]["answer"] == "ok"
+    assert manager.submitted[-1]["video_signals"] is None
 
 
 _IDEM_KEY = "idem-550e8400-e29b-41d4-a716-446655440000"
@@ -737,6 +951,13 @@ _SESSION_ROUTE_AUTH_CASES: list[dict[str, Any]] = [
         "params": None,
     },
     {
+        "id": "POST /question-audio",
+        "method": "post",
+        "url": "/api/v1/interview/sessions/sess-auth/question-audio",
+        "json": {"turn_idx": 2},
+        "params": None,
+    },
+    {
         "id": "POST /answer",
         "method": "post",
         "url": "/api/v1/interview/sessions/sess-auth/answer",
@@ -799,6 +1020,20 @@ _SESSION_ROUTE_AUTH_CASES: list[dict[str, Any]] = [
         "json": None,
         "params": None,
     },
+    {
+        "id": "GET /metadata",
+        "method": "get",
+        "url": "/api/v1/interview/sessions/sess-auth/metadata",
+        "json": None,
+        "params": None,
+    },
+    {
+        "id": "GET /setup-snapshot",
+        "method": "get",
+        "url": "/api/v1/interview/sessions/sess-auth/setup-snapshot",
+        "json": None,
+        "params": None,
+    },
 ]
 
 
@@ -845,6 +1080,12 @@ def test_session_route_auth_scan_includes_all_session_id_routes() -> None:
         for method in getattr(route, "methods", set()) or set():
             method_normalised = method.lower()
             if method_normalised in {"head", "options"}:
+                continue
+            if path.endswith("/recover"):
+                # Recovery intentionally cannot require the short
+                # X-Session-Token because it exists to mint a fresh one
+                # after the browser lost sessionStorage. Dedicated
+                # recovery-token tests cover that auth boundary.
                 continue
             session_id_routes.add((method_normalised, path))
 

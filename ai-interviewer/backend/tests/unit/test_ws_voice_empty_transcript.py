@@ -58,6 +58,7 @@ class _FakeSessionManager:
         self._handle = handle
         self.submit_calls: list[tuple[str, str]] = []
         self.cancel_calls: list[str] = []
+        self.wait_calls: list[tuple[str, float]] = []
         self._served_first = False
         self.recover_calls: list[str] = []
         self.return_none_from_get = False
@@ -79,6 +80,7 @@ class _FakeSessionManager:
     def wait_for_next_question(
         self, session_id: str, timeout: float
     ) -> dict[str, Any] | None:
+        self.wait_calls.append((session_id, timeout))
         # First call: hand back the canned question so the handler
         # enters its ``receive`` loop. Later calls (after an answer
         # was accepted) would normally return the *next* question;
@@ -111,7 +113,11 @@ class _EmptyASR:
 
 
 class _TranscriptASR:
+    def __init__(self) -> None:
+        self.calls: list[dict[str, Any]] = []
+
     def transcribe(self, audio: bytes, **_: Any) -> str:
+        self.calls.append({"audio": audio, **_})
         return "candidate answer"
 
 
@@ -208,6 +214,149 @@ def test_empty_transcription_is_not_submitted_and_error_is_sent(
     assert manager.cancel_calls == []
 
 
+def test_stop_returns_draft_transcript_without_submitting(
+    ws_client: tuple[TestClient, _FakeSessionManager],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    client, manager = ws_client
+    monkeypatch.setattr(ws_voice_module, "get_asr", lambda: _TranscriptASR())
+
+    with client.websocket_connect("/ws/voice/sess-empty") as ws:
+        assert json.loads(ws.receive_text())["type"] == "question"
+        assert ws.receive_bytes().startswith(b"[stub-tts]")
+        assert json.loads(ws.receive_text()) == {"type": "tts_end", "turn_idx": 0}
+
+        ws.send_bytes(b"\x00\x01\x02\x03")
+        ws.send_text(json.dumps({"type": "stop", "turn_idx": 0}))
+
+        assert json.loads(ws.receive_text()) == {
+            "type": "draft_transcript",
+            "turn_idx": 0,
+            "content": "candidate answer",
+        }
+        ws.close()
+
+    assert manager.submit_calls == []
+
+
+def test_asr_only_mode_skips_question_tts_and_returns_draft(
+    ws_client: tuple[TestClient, _FakeSessionManager],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    client, manager = ws_client
+    monkeypatch.setattr(ws_voice_module, "get_asr", lambda: _TranscriptASR())
+
+    with client.websocket_connect("/ws/voice/sess-empty") as ws:
+        ws.send_text(json.dumps({"type": "auth", "mode": "asr_only"}))
+        ws.send_bytes(b"\x00\x01\x02\x03")
+        ws.send_text(json.dumps({"type": "stop", "turn_idx": 0}))
+
+        assert json.loads(ws.receive_text()) == {
+            "type": "draft_transcript",
+            "turn_idx": 0,
+            "content": "candidate answer",
+        }
+        ws.close()
+
+    assert manager.wait_calls == []
+    assert manager.submit_calls == []
+
+
+def test_asr_only_mode_rejects_submit_transcript(
+    ws_client: tuple[TestClient, _FakeSessionManager],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    client, manager = ws_client
+    monkeypatch.setattr(ws_voice_module, "get_asr", lambda: _TranscriptASR())
+
+    with client.websocket_connect("/ws/voice/sess-empty") as ws:
+        ws.send_text(json.dumps({"type": "auth", "mode": "asr_only"}))
+        ws.send_text(
+            json.dumps(
+                {
+                    "type": "submit_transcript",
+                    "turn_idx": 0,
+                    "content": "must not submit over voice ws",
+                }
+            )
+        )
+
+        assert json.loads(ws.receive_text()) == {
+            "type": "error",
+            "error": "unsupported_frame",
+            "message": "ASR-only voice connections cannot submit answers.",
+        }
+        ws.close()
+
+    assert manager.wait_calls == []
+    assert manager.submit_calls == []
+
+
+def test_stop_passes_recording_mime_type_to_asr(
+    ws_client: tuple[TestClient, _FakeSessionManager],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    client, _manager = ws_client
+    asr = _TranscriptASR()
+    monkeypatch.setattr(ws_voice_module, "get_asr", lambda: asr)
+
+    with client.websocket_connect("/ws/voice/sess-empty") as ws:
+        assert json.loads(ws.receive_text())["type"] == "question"
+        assert ws.receive_bytes().startswith(b"[stub-tts]")
+        assert json.loads(ws.receive_text()) == {"type": "tts_end", "turn_idx": 0}
+
+        ws.send_bytes(b"\x00\x01\x02\x03")
+        ws.send_text(
+            json.dumps(
+                {
+                    "type": "stop",
+                    "turn_idx": 0,
+                    "mime_type": "audio/wav",
+                }
+            )
+        )
+
+        assert json.loads(ws.receive_text())["type"] == "draft_transcript"
+        ws.close()
+
+    assert asr.calls[0]["mime_type"] == "audio/wav"
+
+
+def test_submit_transcript_accepts_edited_draft_and_pushes_next_question(
+    ws_client: tuple[TestClient, _FakeSessionManager],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    client, manager = ws_client
+    monkeypatch.setattr(ws_voice_module, "get_asr", lambda: _TranscriptASR())
+
+    with client.websocket_connect("/ws/voice/sess-empty") as ws:
+        assert json.loads(ws.receive_text())["type"] == "question"
+        assert ws.receive_bytes().startswith(b"[stub-tts]")
+        assert json.loads(ws.receive_text()) == {"type": "tts_end", "turn_idx": 0}
+
+        ws.send_bytes(b"\x00\x01\x02\x03")
+        ws.send_text(json.dumps({"type": "stop", "turn_idx": 0}))
+        assert json.loads(ws.receive_text())["type"] == "draft_transcript"
+
+        ws.send_text(
+            json.dumps(
+                {
+                    "type": "submit_transcript",
+                    "turn_idx": 0,
+                    "content": "edited candidate answer",
+                }
+            )
+        )
+
+        assert json.loads(ws.receive_text()) == {
+            "type": "transcript",
+            "content": "edited candidate answer",
+        }
+        ws.close()
+
+    assert manager.submit_calls == [("sess-empty", "edited candidate answer")]
+
+
 def test_invalid_turn_idx_sends_error_without_submitting(
     ws_client: tuple[TestClient, _FakeSessionManager],
     monkeypatch: pytest.MonkeyPatch,
@@ -276,6 +425,17 @@ def test_turn_mismatch_sends_structured_error(
         ws.send_bytes(b"\x00\x01\x02\x03")
         ws.send_text(json.dumps({"type": "stop", "turn_idx": 1}))
 
+        assert json.loads(ws.receive_text())["type"] == "draft_transcript"
+        ws.send_text(
+            json.dumps(
+                {
+                    "type": "submit_transcript",
+                    "turn_idx": 1,
+                    "content": "candidate answer",
+                }
+            )
+        )
+
         assert json.loads(ws.receive_text()) == {
             "type": "error",
             "error": "turn_mismatch",
@@ -302,7 +462,7 @@ def test_parse_text_rejects_unknown_frame_type() -> None:
     }
 
 
-def test_parse_text_rejects_invalid_video_signals() -> None:
+def test_parse_text_drops_invalid_video_signals() -> None:
     payload = {
         "type": "stop",
         "turn_idx": 0,
@@ -315,8 +475,8 @@ def test_parse_text_rejects_invalid_video_signals() -> None:
     }
 
     assert ws_voice_module._parse_text(json.dumps(payload)) == {
-        "type": "invalid",
-        "error": "invalid_video_signals",
+        "type": "stop",
+        "turn_idx": 0,
     }
 
 

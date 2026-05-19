@@ -106,8 +106,14 @@ def __getattr__(name: str) -> Engine:
 _SQLITE_UPGRADES: dict[str, dict[str, str]] = {
     "interview_sessions": {
         "session_token_hash": "VARCHAR(128)",
+        "session_token_expires_at": "DATETIME",
+        "recovery_token_hash": "VARCHAR(128)",
+        "recovery_token_expires_at": "DATETIME",
+        "recovery_token_revoked_at": "DATETIME",
         "current_question": "JSON",
         "llm_config_meta": "JSON",
+        "setup_snapshot": "JSON",
+        "enable_video_analysis": "BOOLEAN DEFAULT 0",
         "turn_idx": "INTEGER DEFAULT 0",
         "asked_turn": "INTEGER DEFAULT -1",
         "error": "TEXT",
@@ -127,13 +133,32 @@ _SQLITE_UPGRADES: dict[str, dict[str, str]] = {
         "source": "VARCHAR(32) DEFAULT 'ats_sync'",
         "helpful_score": "REAL",
     },
+    "strategy_memories": {
+        "quality_reason": "VARCHAR(512)",
+    },
+    "skill_playbook_cards": {
+        "generator_moves": "JSON DEFAULT '[]'",
+        "watch_for": "JSON DEFAULT '[]'",
+        "avoid": "JSON DEFAULT '[]'",
+        "evaluator_rubric_hints": "JSON DEFAULT '[]'",
+        "positive_signals": "JSON DEFAULT '[]'",
+        "negative_signals": "JSON DEFAULT '[]'",
+        "score_bias_rules": "JSON DEFAULT '[]'",
+        "evaluator_visibility": "BOOLEAN DEFAULT 0",
+    },
 }
 
 _POSTGRES_UPGRADES: dict[str, dict[str, str]] = {
     "interview_sessions": {
         "session_token_hash": "VARCHAR(128)",
+        "session_token_expires_at": "TIMESTAMP WITH TIME ZONE",
+        "recovery_token_hash": "VARCHAR(128)",
+        "recovery_token_expires_at": "TIMESTAMP WITH TIME ZONE",
+        "recovery_token_revoked_at": "TIMESTAMP WITH TIME ZONE",
         "current_question": "JSONB",
         "llm_config_meta": "JSONB",
+        "setup_snapshot": "JSONB",
+        "enable_video_analysis": "BOOLEAN DEFAULT FALSE",
         "turn_idx": "INTEGER DEFAULT 0",
         "asked_turn": "INTEGER DEFAULT -1",
         "error": "TEXT",
@@ -152,6 +177,19 @@ _POSTGRES_UPGRADES: dict[str, dict[str, str]] = {
     "outcome_records": {
         "source": "VARCHAR(32) DEFAULT 'ats_sync'",
         "helpful_score": "DOUBLE PRECISION",
+    },
+    "strategy_memories": {
+        "quality_reason": "VARCHAR(512)",
+    },
+    "skill_playbook_cards": {
+        "generator_moves": "JSONB DEFAULT '[]'::jsonb",
+        "watch_for": "JSONB DEFAULT '[]'::jsonb",
+        "avoid": "JSONB DEFAULT '[]'::jsonb",
+        "evaluator_rubric_hints": "JSONB DEFAULT '[]'::jsonb",
+        "positive_signals": "JSONB DEFAULT '[]'::jsonb",
+        "negative_signals": "JSONB DEFAULT '[]'::jsonb",
+        "score_bias_rules": "JSONB DEFAULT '[]'::jsonb",
+        "evaluator_visibility": "BOOLEAN DEFAULT FALSE",
     },
 }
 
@@ -297,7 +335,15 @@ def init_db() -> None:
     Intentionally lazy-imports the models so that importing ``base``
     doesn't pull them in unless ``init_db`` is actually called.
     """
-    from app.models import generation_trace, interview_session, outcome_record  # noqa: F401
+    from app.models import (  # noqa: F401
+        generation_trace,
+        interview_session,
+        outcome_record,
+        question_bank,
+        skill_playbook,
+        strategy_memory,
+        verifier_drift,
+    )
 
     eng = get_engine()
     Base.metadata.create_all(eng)

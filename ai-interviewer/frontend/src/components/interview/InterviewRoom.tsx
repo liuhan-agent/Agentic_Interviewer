@@ -5,15 +5,21 @@ import { useRouter } from "next/navigation";
 import React, { useEffect, useRef, useState, useMemo } from "react";
 import {
   Activity,
+  AlertTriangle,
   ArrowRight,
+  Camera,
+  CameraOff,
   CheckCircle2,
   Loader2,
+  Maximize2,
   MessageSquare,
   Mic,
+  Minimize2,
   Pause,
   Send,
   SkipForward,
   Lightbulb,
+  Play,
   Sparkles,
   Volume2,
   VolumeX,
@@ -25,31 +31,54 @@ import ReactMarkdown from "react-markdown";
 import TextareaAutosize from "react-textarea-autosize";
 
 import { LLMSettingsDialog } from "@/components/layout/LLMSettingsDialog";
-import { NextQuestionLoader } from "@/components/interview/NextQuestionLoader";
-import { PreviousTurnFeedback } from "@/components/interview/PreviousTurnFeedback";
+import { CollapsibleAnswerBubble } from "@/components/interview/CollapsibleAnswerBubble";
+import {
+  NextQuestionLoader,
+  type AnswerInsight,
+} from "@/components/interview/NextQuestionLoader";
+import { SessionIdTooltip } from "@/components/interview/SessionIdTooltip";
+import { VoiceAnswerPanel } from "@/components/interview/VoiceAnswerPanel";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Textarea } from "@/components/ui/textarea";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import {
   isReauthRequired,
+  listInterviewWaitingTips,
   requestHint,
   retryFailedQuestion,
   skipQuestion,
+  synthesizeQuestionAudio,
   submitAnswer,
 } from "@/lib/api/interview";
-import type { LLMErrorKind, PollQuestion, ResumeAnchor } from "@/lib/api/types";
+import type {
+  LLMErrorKind,
+  InterviewWaitingTipsResponse,
+  PollQuestion,
+  PreviousTurnEvaluation,
+  ResumeAnchor,
+  ResumeHistoryTurn,
+} from "@/lib/api/types";
 import { useQuestionPoller } from "@/lib/hooks/useQuestionPoller";
-import { useToast } from "@/lib/hooks/useToast";
 import {
-  canSpeakQuestions,
+  useTurnVideoCapture,
+  type TurnVideoStatus,
+} from "@/lib/hooks/useTurnVideoCapture";
+import { useToast } from "@/lib/hooks/useToast";
+import { cn } from "@/lib/utils";
+import { formatDimensionName } from "@/lib/constants/interview";
+import {
   loadQuestionSpeechEnabled,
-  speakQuestion,
-  stopQuestionSpeech,
   storeQuestionSpeechEnabled,
 } from "@/lib/question-speaker";
 import { upsertEntry } from "@/lib/storage/interviewHistory";
+import type { AggregatedVideoSignal } from "@/lib/video/types";
 
 const ENCOURAGEMENTS = [
   "已收到回答，正在准备下一题。",
@@ -58,19 +87,43 @@ const ENCOURAGEMENTS = [
   "已保存本轮回答，继续保持节奏。",
   "提交成功，正在生成下一轮问题。",
 ];
-const ANSWER_MAX_LENGTH = 50000;
+const ANSWER_MAX_LENGTH = 8000;
 
 type QaEntry = {
   turnIdx: number | null;
   formalTurnIdx?: number | null;
+  displayTurnIdx?: number | null;
   questionType?: string;
   dimension?: string;
   resumeAnchor?: ResumeAnchor;
   question: string;
   answer: string | null;
+  evaluation?: PreviousTurnEvaluation | null;
+};
+type QuestionSpeechStatus = "idle" | "speaking" | "paused";
+type QuestionSpeechState = {
+  key: string | null;
+  status: QuestionSpeechStatus;
+  runId: number | null;
+};
+type AnswerMode = "text" | "voice";
+type AnswerSelection = {
+  start: number;
+  end: number;
+};
+type VoiceInsertRecord = {
+  start: number;
+  end: number;
+  text: string;
 };
 
-export function InterviewRoom({ sessionId }: { sessionId: string }) {
+export function InterviewRoom({
+  sessionId,
+  defaultAnswerMode = "text",
+}: {
+  sessionId: string;
+  defaultAnswerMode?: AnswerMode;
+}) {
   const router = useRouter();
   const { state, afterAnswerSubmitted, afterQuestionRetryRequested } =
     useQuestionPoller(sessionId);
@@ -83,21 +136,87 @@ export function InterviewRoom({ sessionId }: { sessionId: string }) {
   const [lastSubmittedTurn, setLastSubmittedTurn] = useState<number | null>(
     null,
   );
+  const [finalTurnSubmitted, setFinalTurnSubmitted] = useState(false);
   const [readQuestions, setReadQuestions] = useState(false);
-  const [questionSpeechSupported, setQuestionSpeechSupported] = useState(false);
+  const [waitingTipsResponse, setWaitingTipsResponse] =
+    useState<InterviewWaitingTipsResponse | null>(null);
+  const [questionSpeechState, setQuestionSpeechState] =
+    useState<QuestionSpeechState>({ key: null, status: "idle", runId: null });
   const [reauthRequired, setReauthRequired] = useState(false);
   const transcriptEnd = useRef<HTMLDivElement>(null);
   const lastSpokenQuestionRef = useRef<string | null>(null);
+  const displayedWaitingTipIdsRef = useRef<Set<string>>(new Set());
+  const questionSpeechRunRef = useRef(0);
+  const questionAudioRef = useRef<HTMLAudioElement | null>(null);
+  const questionAudioUrlRef = useRef<string | null>(null);
   const currentQuestionType =
     state.phase === "waiting_for_answer" && state.question
       ? extractQuestionType(state.question)
       : undefined;
+  const currentDisplayTurnIdx =
+    state.phase === "waiting_for_answer" && history.length > 0
+      ? visibleTurnIdx(history[history.length - 1])
+      : null;
+  const latestSubmittedAnswerInsight = useMemo(
+    () => answerInsightFromHistory(history),
+    [history],
+  );
+  const videoTurnIdx =
+    state.phase === "waiting_for_answer" ? state.turnIdx : null;
+  const videoCapture = useTurnVideoCapture({
+    enableVideoAnalysis: state.enableVideoAnalysis,
+    turnIdx: videoTurnIdx,
+    paused,
+  });
 
   useEffect(() => {
-    setQuestionSpeechSupported(canSpeakQuestions());
     setReadQuestions(loadQuestionSpeechEnabled());
-    return () => stopQuestionSpeech();
+    return () => {
+      stopQuestionAudio();
+    };
   }, []);
+
+  useEffect(() => {
+    let active = true;
+    listInterviewWaitingTips()
+      .then((payload) => {
+        if (active) {
+          setWaitingTipsResponse(payload);
+        }
+      })
+      .catch(() => {
+        if (active) {
+          setWaitingTipsResponse(null);
+        }
+      });
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    const restored = state.restoredHistory
+      .map(restoredTurnToQaEntry)
+      .filter((entry): entry is QaEntry => Boolean(entry));
+    if (restored.length === 0) return;
+    const currentTurnIdxForDisplay =
+      state.phase === "waiting_for_answer" && state.question
+        ? extractFormalTurnIdx(state.question) ?? state.turnIdx
+        : null;
+    const priorRestored = filterRestoredHistoryForCurrentQuestion(
+      restored,
+      currentTurnIdxForDisplay,
+    );
+    setHistory((prev) => {
+      const openEntry = prev.find((entry) => entry.answer === null);
+      const answered = prev.filter((entry) => entry.answer !== null);
+      const alreadyRestored =
+        answered.length === priorRestored.length &&
+        answered.every((entry, index) => sameQaEntry(entry, priorRestored[index]));
+      if (alreadyRestored) return prev;
+      return openEntry ? [...priorRestored, openEntry] : priorRestored;
+    });
+  }, [state.phase, state.question, state.restoredHistory, state.turnIdx]);
 
   useEffect(() => {
     if (state.phase !== "waiting_for_answer" || !state.question) return;
@@ -106,10 +225,13 @@ export function InterviewRoom({ sessionId }: { sessionId: string }) {
     setHistory((prev) => {
       const lastOpen = prev[prev.length - 1];
       const qText = extractQuestion(q);
+      const formalTurnIdx = extractFormalTurnIdx(q);
+      const currentTurnIdxForDisplay = formalTurnIdx ?? turnIdx;
       if (
         lastOpen &&
         lastOpen.answer === null &&
-        lastOpen.turnIdx === turnIdx
+        (lastOpen.turnIdx === turnIdx ||
+          visibleTurnIdx(lastOpen) === currentTurnIdxForDisplay)
       ) {
         return prev;
       }
@@ -117,7 +239,8 @@ export function InterviewRoom({ sessionId }: { sessionId: string }) {
         ...prev,
         {
           turnIdx,
-          formalTurnIdx: extractFormalTurnIdx(q),
+          formalTurnIdx,
+          displayTurnIdx: currentTurnIdxForDisplay,
           questionType: extractQuestionType(q),
           dimension: typeof q.dimension === "string" ? q.dimension : undefined,
           resumeAnchor: extractResumeAnchor(q),
@@ -129,7 +252,20 @@ export function InterviewRoom({ sessionId }: { sessionId: string }) {
   }, [state.phase, state.question, state.turnIdx]);
 
   useEffect(() => {
+    const evaluation = state.previousEvaluation;
+    if (!evaluation) return;
+    setHistory((prev) =>
+      prev.map((entry) =>
+        qaEntryMatchesEvaluation(entry, evaluation)
+          ? { ...entry, evaluation }
+          : entry,
+      ),
+    );
+  }, [state.previousEvaluation]);
+
+  useEffect(() => {
     setPaused(false);
+    setFinalTurnSubmitted(false);
   }, [state.turnIdx]);
 
   useEffect(() => {
@@ -158,15 +294,30 @@ export function InterviewRoom({ sessionId }: { sessionId: string }) {
   }, [state.phase, sessionId]);
 
   useEffect(() => {
-    if (!readQuestions || paused || state.phase !== "waiting_for_answer" || !state.question) {
+    if (
+      !readQuestions ||
+      paused ||
+      state.phase !== "waiting_for_answer" ||
+      !state.question
+    ) {
       return;
     }
     const qText = extractQuestion(state.question);
-    const speechKey = `${state.turnIdx ?? "intro"}:${qText}`;
-    if (lastSpokenQuestionRef.current === speechKey) return;
-    lastSpokenQuestionRef.current = speechKey;
-    speakQuestion(qText);
-  }, [paused, readQuestions, state.phase, state.question, state.turnIdx]);
+    const lastSpokenKey = `${state.turnIdx ?? "intro"}:${qText}`;
+    if (lastSpokenQuestionRef.current === lastSpokenKey) return;
+    lastSpokenQuestionRef.current = lastSpokenKey;
+    void handleSpeakQuestion(qText, state.turnIdx);
+  }, [
+    paused,
+    readQuestions,
+    state.phase,
+    state.question,
+    state.turnIdx,
+  ]);
+
+  function handleWaitingTipShown(tipId: string) {
+    displayedWaitingTipIdsRef.current.add(tipId);
+  }
 
   function notifySpeechUnavailable() {
     toast({
@@ -175,32 +326,169 @@ export function InterviewRoom({ sessionId }: { sessionId: string }) {
     });
   }
 
-  function handleSpeakQuestion(text: string) {
-    if (!questionSpeechSupported || !speakQuestion(text)) {
-      notifySpeechUnavailable();
+  function markQuestionAudioUnavailable(runId: number, message?: string) {
+    if (questionSpeechRunRef.current !== runId) return;
+    stopQuestionAudio();
+    setQuestionSpeechState({ key: null, status: "idle", runId: null });
+    toast({
+      title: "题目语音合成不可用",
+      description:
+        message ??
+        "没有收到可播放的后端 TTS 音频。请检查语音合成 Key、模型和 Base URL。",
+    });
+  }
+
+  async function handleSpeakQuestion(text: string, turnIdx?: number | null) {
+    const speechKey = questionSpeechKey(text);
+    const runId = nextQuestionSpeechRunId();
+    setQuestionSpeechState({ key: speechKey, status: "speaking", runId });
+    stopQuestionAudio();
+    if (turnIdx === null || turnIdx === undefined) {
+      markQuestionAudioUnavailable(runId, "当前题目状态还没准备好，暂时无法合成语音。");
+      return;
+    }
+    try {
+      const blob = await synthesizeQuestionAudio(sessionId, text, turnIdx);
+      if (questionSpeechRunRef.current !== runId) return;
+      if (blob.size > 0 && (await playQuestionAudio(blob, text, runId))) {
+        return;
+      }
+      markQuestionAudioUnavailable(runId, "后端返回的题目音频为空或无法播放。");
+    } catch (error) {
+      const message =
+        error instanceof Error
+          ? `后端题目语音接口失败：${error.message}`
+          : "后端题目语音接口失败。";
+      markQuestionAudioUnavailable(runId, message);
     }
   }
 
-  function handleToggleQuestionSpeech() {
-    if (!questionSpeechSupported) {
-      notifySpeechUnavailable();
+  async function playQuestionAudio(
+    blob: Blob,
+    text: string,
+    runId: number,
+  ): Promise<boolean> {
+    if (questionAudioUrlRef.current) {
+      URL.revokeObjectURL(questionAudioUrlRef.current);
+      questionAudioUrlRef.current = null;
+    }
+    const audio = questionAudioRef.current ?? new Audio();
+    questionAudioRef.current = audio;
+    const url = URL.createObjectURL(blob);
+    questionAudioUrlRef.current = url;
+    audio.onended = () => {
+      if (questionSpeechRunRef.current === runId) {
+        resetQuestionSpeechState(runId);
+      }
+    };
+    audio.onerror = () => {
+      if (questionSpeechRunRef.current === runId) {
+        markQuestionAudioUnavailable(runId, "题目音频加载失败，无法播放。");
+      }
+    };
+    audio.dataset.questionText = text;
+    audio.src = url;
+    try {
+      await audio.play();
+      return true;
+    } catch {
+      stopQuestionAudio();
+      return false;
+    }
+  }
+
+  function nextQuestionSpeechRunId() {
+    questionSpeechRunRef.current += 1;
+    return questionSpeechRunRef.current;
+  }
+
+  function resetQuestionSpeechState(runId: number) {
+    setQuestionSpeechState((current) =>
+      current.runId === runId
+        ? { key: null, status: "idle", runId: null }
+        : current,
+    );
+  }
+
+  function handleStopQuestionSpeech() {
+    stopQuestionAudio();
+    setQuestionSpeechState({ key: null, status: "idle", runId: null });
+  }
+
+  function stopQuestionAudio() {
+    const audio = questionAudioRef.current;
+    if (audio) {
+      audio.pause();
+      audio.removeAttribute("src");
+      audio.load();
+    }
+    if (questionAudioUrlRef.current) {
+      URL.revokeObjectURL(questionAudioUrlRef.current);
+      questionAudioUrlRef.current = null;
+    }
+  }
+
+  function handlePauseQuestionSpeech() {
+    if (questionAudioRef.current && !questionAudioRef.current.paused) {
+      questionAudioRef.current.pause();
+      setQuestionSpeechState((current) => ({
+        key: current.key,
+        status: current.key ? "paused" : "idle",
+        runId: current.runId,
+      }));
       return;
     }
+    setQuestionSpeechState((current) => ({
+      key: current.key,
+      status: current.key ? "paused" : "idle",
+      runId: current.runId,
+    }));
+  }
+
+  function handleResumeQuestionSpeech() {
+    const audio = questionAudioRef.current;
+    if (audio && audio.paused && audio.src) {
+      audio
+        .play()
+        .catch(() =>
+          markQuestionAudioUnavailable(
+            questionSpeechRunRef.current,
+            "题目音频继续播放失败。",
+          ),
+        );
+      setQuestionSpeechState((current) => ({
+        key: current.key,
+        status: current.key ? "speaking" : "idle",
+        runId: current.runId,
+      }));
+      return;
+    }
+    setQuestionSpeechState((current) => ({
+      key: current.key,
+      status: current.key ? "speaking" : "idle",
+      runId: current.runId,
+    }));
+  }
+
+  function handleToggleQuestionSpeech() {
     const next = !readQuestions;
     setReadQuestions(next);
     storeQuestionSpeechEnabled(next);
     if (!next) {
-      stopQuestionSpeech();
+      handleStopQuestionSpeech();
       return;
     }
     if (state.phase === "waiting_for_answer" && state.question) {
       const qText = extractQuestion(state.question);
       lastSpokenQuestionRef.current = `${state.turnIdx ?? "intro"}:${qText}`;
-      handleSpeakQuestion(qText);
+      void handleSpeakQuestion(qText, state.turnIdx);
     }
   }
 
-  async function handleSubmit(text: string) {
+  async function handleSubmit(
+    text: string,
+    videoSignals?: AggregatedVideoSignal | null,
+  ) {
     if (!text || submitting) return false;
     if (state.turnIdx === null) {
       toast({
@@ -210,21 +498,33 @@ export function InterviewRoom({ sessionId }: { sessionId: string }) {
       return false;
     }
     setSubmitting(true);
+    const submittedWasFinal = isFinalFormalTurn({
+      question: state.question,
+      turnIdx: state.turnIdx,
+      maxTurns: state.maxTurns,
+    });
     try {
-      await submitAnswer(sessionId, text, state.turnIdx);
+      await submitAnswer(sessionId, text, state.turnIdx, videoSignals ?? undefined);
       setReauthRequired(false);
       setPaused(false);
       setHistory((prev) => {
         if (prev.length === 0) return prev;
         const next = prev.slice();
-        next[next.length - 1] = { ...next[next.length - 1], answer: text };
+        next[next.length - 1] = {
+          ...next[next.length - 1],
+          answer: text,
+          evaluation: undefined,
+        };
         return next;
       });
       setLastSubmittedTurn(state.turnIdx ?? null);
+      setFinalTurnSubmitted(submittedWasFinal);
       afterAnswerSubmitted();
       // Lightweight encouragement so users feel acknowledged between turns.
       toast({
-        title: ENCOURAGEMENTS[Math.floor(Math.random() * ENCOURAGEMENTS.length)],
+        title: submittedWasFinal
+          ? "最后一题已提交，正在整理本场面试总结。"
+          : ENCOURAGEMENTS[Math.floor(Math.random() * ENCOURAGEMENTS.length)],
       });
       return true;
     } catch (err) {
@@ -250,6 +550,11 @@ export function InterviewRoom({ sessionId }: { sessionId: string }) {
   async function handleSkipCurrentQuestion() {
     if (skipping || state.turnIdx === null) return false;
     setSkipping(true);
+    const skippedWasFinal = isFinalFormalTurn({
+      question: state.question,
+      turnIdx: state.turnIdx,
+      maxTurns: state.maxTurns,
+    });
     try {
       await skipQuestion(sessionId, state.turnIdx, "candidate_skip");
       setHistory((prev) => {
@@ -263,8 +568,13 @@ export function InterviewRoom({ sessionId }: { sessionId: string }) {
       });
       setPaused(false);
       setLastSubmittedTurn(state.turnIdx ?? null);
+      setFinalTurnSubmitted(skippedWasFinal);
       afterAnswerSubmitted();
-      toast({ title: "已跳过本题，继续下一轮练习。" });
+      toast({
+        title: skippedWasFinal
+          ? "已跳过最后一题，正在整理本场面试总结。"
+          : "已跳过本题，继续下一轮练习。",
+      });
       return true;
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
@@ -286,6 +596,7 @@ export function InterviewRoom({ sessionId }: { sessionId: string }) {
       upsertEntry({ sessionId, status: "running" });
       setHistory((prev) => prev.filter((entry) => entry.answer !== null));
       setLastSubmittedTurn(null);
+      setFinalTurnSubmitted(false);
       afterQuestionRetryRequested();
       toast({ title: "正在继续处理" });
     } catch (err) {
@@ -301,7 +612,29 @@ export function InterviewRoom({ sessionId }: { sessionId: string }) {
 
   return (
     <div className="space-y-6">
-      <StatusBar state={state} sessionId={sessionId} />
+      <StatusBar
+        state={state}
+        sessionId={sessionId}
+        currentDisplayTurnIdx={currentDisplayTurnIdx}
+      />
+
+      {state.enableVideoAnalysis && (
+        <>
+          <VideoMobileControl
+            cameraOn={videoCapture.cameraOn}
+            status={videoCapture.status}
+            onToggleCamera={videoCapture.toggleCamera}
+          />
+          <VideoPreviewPanel
+            cameraOn={videoCapture.cameraOn}
+            videoRef={videoCapture.videoRef}
+            status={videoCapture.status}
+            warning={videoCapture.warning}
+            onToggleCamera={videoCapture.toggleCamera}
+            className="hidden xl:block"
+          />
+        </>
+      )}
 
       {reauthRequired && <ReauthRequiredBanner />}
 
@@ -364,28 +697,41 @@ export function InterviewRoom({ sessionId }: { sessionId: string }) {
                     idx === history.length - 1 &&
                     state.phase === "waiting_for_answer"
                   }
-                  onSpeak={handleSpeakQuestion}
+                  effectiveTurnIdx={
+                    idx === history.length - 1 &&
+                    state.phase === "waiting_for_answer"
+                      ? state.turnIdx
+                      : t.turnIdx
+                  }
+                  questionSpeechState={questionSpeechState}
+                  showTurnFeedback={
+                    !(state.phase === "loading" && idx === history.length - 1)
+                  }
+                  onSpeak={(question, turnIdx) =>
+                    void handleSpeakQuestion(question, turnIdx)
+                  }
+                  onPauseSpeaking={handlePauseQuestionSpeech}
+                  onResumeSpeaking={handleResumeQuestionSpeech}
                 />
               </motion.div>
             ))}
           </AnimatePresence>
 
           {state.phase === "loading" && lastSubmittedTurn !== null && (
-            <NextQuestionLoader etaMs={state.lastServerLatencyMs} />
+            <NextQuestionLoader
+              etaMs={state.lastServerLatencyMs}
+              isFinalTurn={finalTurnSubmitted}
+              answerInsight={latestSubmittedAnswerInsight}
+              waitingTips={waitingTipsResponse?.tips ?? null}
+              tipRotationIntervalMs={waitingTipsResponse?.rotation_interval_ms}
+              displayedTipIds={displayedWaitingTipIdsRef.current}
+              onWaitingTipShown={handleWaitingTipShown}
+            />
           )}
 
           <div ref={transcriptEnd} />
         </CardContent>
       </Card>
-
-      {state.phase === "waiting_for_answer" && state.previousEvaluation ? (
-        <PreviousTurnFeedback
-          evaluation={state.previousEvaluation}
-          currentDimension={
-            (state.question?.dimension as string | undefined) ?? null
-          }
-        />
-      ) : null}
 
       <AnimatePresence>
         {state.phase === "waiting_for_answer" && (
@@ -402,13 +748,16 @@ export function InterviewRoom({ sessionId }: { sessionId: string }) {
               onSkip={handleSkipCurrentQuestion}
               paused={paused}
               onPause={() => {
-                stopQuestionSpeech();
+                handleStopQuestionSpeech();
                 setPaused(true);
               }}
               onResume={() => setPaused(false)}
               submitting={submitting}
               skipping={skipping}
               questionType={currentQuestionType}
+              defaultMode={defaultAnswerMode}
+              finishTurnCapture={videoCapture.finishTurnCapture}
+              clearTurnCapture={videoCapture.clearTurnCapture}
             />
           </motion.div>
         )}
@@ -480,9 +829,11 @@ export function InterviewRoom({ sessionId }: { sessionId: string }) {
 function StatusBar({
   state,
   sessionId,
+  currentDisplayTurnIdx,
 }: {
   state: ReturnType<typeof useQuestionPoller>["state"];
   sessionId: string;
+  currentDisplayTurnIdx?: number | null;
 }) {
   const label = phaseLabel(state.phase);
   const isActive = state.phase === "waiting_for_answer";
@@ -499,7 +850,9 @@ function StatusBar({
     questionType === "self_intro"
       ? "开场"
       : `第 ${
-          formalTurnIdx !== null
+          currentDisplayTurnIdx !== null && currentDisplayTurnIdx !== undefined
+            ? currentDisplayTurnIdx + 1
+            : formalTurnIdx !== null
             ? formalTurnIdx + 1
             : state.turnIdx !== null
               ? state.turnIdx + 1
@@ -547,7 +900,9 @@ function StatusBar({
       <span className="text-muted-foreground/40">·</span>
       <span className="font-mono text-muted-foreground">
         会话{" "}
-        <span className="text-foreground">{truncateSession(sessionId)}</span>
+        <span className="text-foreground">
+          <SessionIdTooltip sessionId={sessionId} />
+        </span>
       </span>
       <span className="text-muted-foreground/40">·</span>
       <span className="font-mono text-muted-foreground">
@@ -614,10 +969,13 @@ function AnswerBox({
   submitting,
   skipping,
   questionType,
+  defaultMode,
+  finishTurnCapture,
+  clearTurnCapture,
 }: {
   sessionId: string;
   turnIdx: number | null;
-  onSubmit: (text: string) => Promise<boolean>;
+  onSubmit: (text: string, videoSignals?: AggregatedVideoSignal | null) => Promise<boolean>;
   onSkip: () => Promise<boolean>;
   paused: boolean;
   onPause: () => void;
@@ -625,12 +983,21 @@ function AnswerBox({
   submitting: boolean;
   skipping: boolean;
   questionType?: string;
+  defaultMode: AnswerMode;
+  finishTurnCapture: () => AggregatedVideoSignal | null;
+  clearTurnCapture: () => void;
 }) {
   const [draft, setDraft] = useState("");
+  const [voiceToolsOpen, setVoiceToolsOpen] = useState(defaultMode === "voice");
   const [hintText, setHintText] = useState<string | null>(null);
   const [hintSource, setHintSource] = useState<string | null>(null);
   const [hintError, setHintError] = useState<string | null>(null);
   const [hintLoading, setHintLoading] = useState(false);
+  const [answerExpanded, setAnswerExpanded] = useState(false);
+  const answerInputRef = useRef<HTMLTextAreaElement | null>(null);
+  const answerSelectionRef = useRef<AnswerSelection | null>(null);
+  const pendingSelectionRef = useRef<number | null>(null);
+  const lastVoiceInsertRef = useRef<VoiceInsertRecord | null>(null);
   const isSelfIntro = questionType === "self_intro";
   const trimmedLength = draft.trim().length;
   const nearLimit = draft.length >= ANSWER_MAX_LENGTH * 0.9;
@@ -661,22 +1028,76 @@ function AnswerBox({
     setHintSource(null);
     setHintError(null);
     setHintLoading(false);
-  }, [draftKey]);
+    setAnswerExpanded(false);
+    answerSelectionRef.current = null;
+    pendingSelectionRef.current = null;
+    lastVoiceInsertRef.current = null;
+    clearTurnCapture();
+  }, [clearTurnCapture, draftKey]);
+
+  useEffect(() => {
+    if (paused) clearTurnCapture();
+  }, [clearTurnCapture, paused]);
+
+  useEffect(() => {
+    const position = pendingSelectionRef.current;
+    if (position === null) return;
+    pendingSelectionRef.current = null;
+    const input = answerInputRef.current;
+    if (!input) return;
+    input.focus();
+    input.setSelectionRange(position, position);
+    updateAnswerSelection(input);
+  }, [draft]);
 
   async function handleLocalSubmit() {
     const text = draft.trim();
     if (!text || submitting) return;
-    const success = await onSubmit(text);
+    const videoSignals = finishTurnCapture();
+    const success = await onSubmit(text, videoSignals);
     if (success) {
+      clearTurnCapture();
       clearAnswerDraft(draftKey);
       setDraft("");
     }
+  }
+
+  function handleVoiceTranscript(text: string) {
+    setDraft((current) => {
+      const result = insertTranscriptAtSelection(
+        current,
+        text,
+        answerSelectionRef.current,
+        ANSWER_MAX_LENGTH,
+      );
+      pendingSelectionRef.current = result.cursor;
+      lastVoiceInsertRef.current = result.inserted;
+      return result.value;
+    });
+  }
+
+  function handleUndoVoiceTranscript() {
+    setDraft((current) => {
+      const result = removeLastVoiceInsert(current, lastVoiceInsertRef.current);
+      pendingSelectionRef.current = result.cursor;
+      lastVoiceInsertRef.current = null;
+      return result.value;
+    });
+  }
+
+  function updateAnswerSelection(input = answerInputRef.current) {
+    if (!input) return;
+    answerSelectionRef.current = {
+      start: input.selectionStart,
+      end: input.selectionEnd,
+    };
   }
 
   async function handleLocalSkip() {
     if (submitting || skipping) return;
     const success = await onSkip();
     if (success) {
+      clearTurnCapture();
       clearAnswerDraft(draftKey);
       setDraft("");
     }
@@ -704,17 +1125,35 @@ function AnswerBox({
           <Send className="h-4 w-4 text-emerald-400" />
           你的回答
         </CardTitle>
-        <Button
-          asChild
-          variant="outline"
-          size="sm"
-          className="h-8 gap-1.5"
-        >
-          <Link href={`/interview/${sessionId}/voice`}>
+        <div className="flex items-center gap-2">
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            aria-expanded={answerExpanded}
+            aria-controls="answer-draft-input"
+            onClick={() => setAnswerExpanded((value) => !value)}
+            className="h-8 gap-1.5 text-muted-foreground"
+          >
+            {answerExpanded ? (
+              <Minimize2 className="h-3.5 w-3.5" />
+            ) : (
+              <Maximize2 className="h-3.5 w-3.5" />
+            )}
+            {answerExpanded ? "收起" : "展开"}
+          </Button>
+          <Button
+            type="button"
+            variant={voiceToolsOpen ? "outline" : "ghost"}
+            size="sm"
+            aria-expanded={voiceToolsOpen}
+            onClick={() => setVoiceToolsOpen((value) => !value)}
+            className="h-8 gap-1.5"
+          >
             <Mic className="h-3.5 w-3.5" />
             用语音回答
-          </Link>
-        </Button>
+          </Button>
+        </div>
       </CardHeader>
       <CardContent className="space-y-3">
         {paused ? (
@@ -726,8 +1165,10 @@ function AnswerBox({
           </div>
         ) : (
           <TextareaAutosize
-            minRows={3}
-            maxRows={15}
+            ref={answerInputRef}
+            id="answer-draft-input"
+            minRows={answerExpanded ? 10 : 3}
+            maxRows={answerExpanded ? 24 : 8}
             maxLength={ANSWER_MAX_LENGTH}
             aria-label="输入你的回答"
             placeholder={
@@ -736,14 +1177,36 @@ function AnswerBox({
                 : "在此输入你的回答… 按 Ctrl/Cmd+Enter 提交。"
             }
             value={draft}
-            onChange={(e) => setDraft(e.target.value)}
+            onChange={(e) => {
+              setDraft(e.target.value);
+              updateAnswerSelection(e.currentTarget);
+            }}
+            onClick={(e) => updateAnswerSelection(e.currentTarget)}
+            onKeyUp={(e) => updateAnswerSelection(e.currentTarget)}
+            onSelect={(e) => updateAnswerSelection(e.currentTarget)}
+            onFocus={(e) => updateAnswerSelection(e.currentTarget)}
             onKeyDown={(e) => {
               if ((e.ctrlKey || e.metaKey) && e.key === "Enter" && !submitting) {
                 e.preventDefault();
                 void handleLocalSubmit();
               }
             }}
-            className="flex w-full rounded-md border border-input px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 resize-none border-border/50 bg-secondary/30 focus:border-emerald-500/30"
+            className={cn(
+              "flex w-full resize-none overflow-y-auto rounded-md border border-input border-border/50 bg-secondary/30 px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus:border-emerald-500/30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50",
+              answerExpanded ? "min-h-[18rem]" : "",
+            )}
+          />
+        )}
+        {voiceToolsOpen && (
+          <VoiceAnswerPanel
+            sessionId={sessionId}
+            turnIdx={turnIdx}
+            disabled={paused || draft.trim().length >= ANSWER_MAX_LENGTH}
+            submitting={submitting}
+            maxLength={ANSWER_MAX_LENGTH}
+            onTranscript={handleVoiceTranscript}
+            canUndoTranscript={lastVoiceInsertRef.current !== null}
+            onUndoTranscript={handleUndoVoiceTranscript}
           />
         )}
         <div className="flex items-center justify-between">
@@ -783,42 +1246,38 @@ function AnswerBox({
               暂停休息
             </Button>
           )}
-          {!isSelfIntro && (
-            <Button
-              type="button"
-              variant="ghost"
-              size="sm"
-              className="gap-1.5 text-muted-foreground"
-              onClick={() => void handleLocalHint()}
-              disabled={hintLoading || turnIdx === null}
-            >
-              {hintLoading ? (
-                <Loader2 className="h-3.5 w-3.5 animate-spin" />
-              ) : (
-                <Lightbulb className="h-3.5 w-3.5" />
-              )}
-              求一点思路
-            </Button>
-          )}
-          {!isSelfIntro && (
-            <Button
-              type="button"
-              variant="ghost"
-              size="sm"
-              className="gap-1.5 text-muted-foreground"
-              onClick={() => void handleLocalSkip()}
-              disabled={submitting || skipping}
-            >
-              {skipping ? (
-                <Loader2 className="h-3.5 w-3.5 animate-spin" />
-              ) : (
-                <SkipForward className="h-3.5 w-3.5" />
-              )}
-              跳过本题
-            </Button>
-          )}
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            className="gap-1.5 text-muted-foreground"
+            onClick={() => void handleLocalHint()}
+            disabled={hintLoading || turnIdx === null}
+          >
+            {hintLoading ? (
+              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+            ) : (
+              <Lightbulb className="h-3.5 w-3.5" />
+            )}
+            求一点思路
+          </Button>
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            className="gap-1.5 text-muted-foreground"
+            onClick={() => void handleLocalSkip()}
+            disabled={submitting || skipping}
+          >
+            {skipping ? (
+              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+            ) : (
+              <SkipForward className="h-3.5 w-3.5" />
+            )}
+            跳过本题
+          </Button>
         </div>
-        {!isSelfIntro && (hintText || hintError || hintLoading) && (
+        {(hintText || hintError || hintLoading) && (
           <div className="rounded-lg border border-emerald-500/25 bg-emerald-500/[0.04] p-3 text-sm">
             <div className="mb-1 flex items-center gap-2 font-medium text-emerald-200">
               {hintLoading ? (
@@ -853,12 +1312,232 @@ function AnswerBox({
           </div>
         )}
       </CardContent>
-    </Card>
+      </Card>
   );
+}
+
+function VideoMobileControl({
+  cameraOn,
+  status,
+  onToggleCamera,
+}: {
+  cameraOn: boolean;
+  status: TurnVideoStatus;
+  onToggleCamera: () => Promise<void>;
+}) {
+  return (
+    <div className="xl:hidden flex items-center justify-between rounded-lg border border-emerald-500/20 bg-emerald-500/[0.04] px-3 py-2 text-sm">
+      <div className="flex min-w-0 items-center gap-2 text-muted-foreground">
+        {cameraOn ? (
+          <Camera className="h-4 w-4 shrink-0 text-emerald-300" />
+        ) : (
+          <CameraOff className="h-4 w-4 shrink-0 text-muted-foreground" />
+        )}
+        <span className="truncate">{videoStatusLabel(status, cameraOn)}</span>
+      </div>
+      <Button
+        type="button"
+        variant="outline"
+        size="sm"
+        onClick={() => void onToggleCamera()}
+        className="h-8 shrink-0 gap-1.5"
+      >
+        {cameraOn ? (
+          <CameraOff className="h-3.5 w-3.5" />
+        ) : (
+          <Camera className="h-3.5 w-3.5" />
+        )}
+        {cameraOn ? "关闭" : "开启"}
+      </Button>
+    </div>
+  );
+}
+
+function VideoPreviewPanel({
+  cameraOn,
+  videoRef,
+  status,
+  warning,
+  onToggleCamera,
+  className,
+}: {
+  cameraOn: boolean;
+  videoRef: React.RefObject<HTMLVideoElement>;
+  status: TurnVideoStatus;
+  warning: string | null;
+  onToggleCamera: () => Promise<void>;
+  className?: string;
+}) {
+  return (
+    <aside
+      aria-label="视频面试预览"
+      className={cn(
+        "fixed right-6 top-20 z-40 w-64 overflow-hidden rounded-lg border border-emerald-500/20 bg-background/95 shadow-2xl shadow-black/30 backdrop-blur",
+        className,
+      )}
+    >
+      <div className="relative aspect-video bg-black/80">
+        <video
+          ref={videoRef}
+          autoPlay
+          muted
+          playsInline
+          className={cn(
+            "h-full w-full scale-x-[-1] object-cover",
+            !cameraOn && "opacity-20",
+          )}
+        />
+        {!cameraOn && (
+          <div className="absolute inset-0 flex items-center justify-center text-muted-foreground">
+            <CameraOff className="h-7 w-7" />
+          </div>
+        )}
+      </div>
+      <div className="space-y-2 p-3">
+        <div className="flex items-center justify-between gap-2">
+          <div className="min-w-0">
+            <p className="truncate text-xs font-medium">
+              {videoStatusLabel(status, cameraOn)}
+            </p>
+            {warning && (
+              <p className="mt-1 line-clamp-2 text-[11px] text-amber-200/80">
+                {warning}
+              </p>
+            )}
+          </div>
+          <TooltipProvider delayDuration={150}>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  type="button"
+                  variant={cameraOn ? "outline" : "default"}
+                  size="icon"
+                  aria-label={cameraOn ? "关闭摄像头" : "开启摄像头"}
+                  onClick={() => void onToggleCamera()}
+                  className="h-8 w-8 shrink-0"
+                >
+                  {cameraOn ? (
+                    <CameraOff className="h-4 w-4" />
+                  ) : (
+                    <Camera className="h-4 w-4" />
+                  )}
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent side="bottom" align="end" className="max-w-56 text-xs leading-relaxed">
+                {cameraOn
+                  ? "关闭摄像头会清空当前题已采集的视频信号，不影响继续作答。"
+                  : "开启摄像头后，本题会尝试采集本地视频信号作为辅助反馈。"}
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
+        </div>
+      </div>
+    </aside>
+  );
+}
+
+function videoStatusLabel(status: TurnVideoStatus, cameraOn: boolean): string {
+  if (status === "disabled") return "未开启视频面试";
+  if (status === "starting") return "正在开启摄像头";
+  if (status === "capturing") return "摄像头已开启";
+  if (status === "paused") return "已暂停采集";
+  if (status === "unavailable") return "摄像头不可用";
+  if (!cameraOn || status === "camera_off") return "摄像头已关闭";
+  return "摄像头待命";
 }
 
 function answerDraftKey(sessionId: string, turnIdx: number | null): string {
   return `interviewAnswerDraft:${sessionId}:${turnIdx ?? "pending"}`;
+}
+
+function appendTranscriptToDraft(current: string, transcript: string): {
+  value: string;
+  cursor: number;
+  inserted: VoiceInsertRecord | null;
+} {
+  const addition = transcript.trim();
+  if (!addition) return { value: current, cursor: current.length, inserted: null };
+  const base = current.trimEnd();
+  if (!base) {
+    return {
+      value: addition,
+      cursor: addition.length,
+      inserted: { start: 0, end: addition.length, text: addition },
+    };
+  }
+  const value = `${base}\n${addition}`;
+  return {
+    value,
+    cursor: value.length,
+    inserted: { start: base.length + 1, end: value.length, text: addition },
+  };
+}
+
+function insertTranscriptAtSelection(
+  current: string,
+  transcript: string,
+  selection: AnswerSelection | null,
+  maxLength: number,
+): { value: string; cursor: number; inserted: VoiceInsertRecord | null } {
+  const addition = transcript.trim();
+  if (!addition) {
+    const cursor = selection?.end ?? current.length;
+    return { value: current, cursor, inserted: null };
+  }
+  if (!selection) {
+    return appendTranscriptToDraft(current, addition);
+  }
+  const start = Math.max(0, Math.min(selection.start, current.length));
+  const end = Math.max(start, Math.min(selection.end, current.length));
+  const prefix = current.slice(0, start);
+  const suffix = current.slice(end);
+  const needsLeadingSpace = prefix.length > 0 && !/\s$/.test(prefix);
+  const needsTrailingSpace = suffix.length > 0 && !/^\s/.test(suffix);
+  const inserted = `${needsLeadingSpace ? " " : ""}${addition}${
+    needsTrailingSpace ? " " : ""
+  }`;
+  const value = `${prefix}${inserted}${suffix}`.slice(0, maxLength);
+  const startIndex = prefix.length + (needsLeadingSpace ? 1 : 0);
+  const endIndex = Math.min(startIndex + addition.length, value.length);
+  return {
+    value,
+    cursor: Math.min(prefix.length + inserted.length, value.length),
+    inserted:
+      endIndex > startIndex
+        ? { start: startIndex, end: endIndex, text: value.slice(startIndex, endIndex) }
+        : null,
+  };
+}
+
+function removeLastVoiceInsert(
+  current: string,
+  record: VoiceInsertRecord | null,
+): { value: string; cursor: number } {
+  if (!record) return { value: current, cursor: current.length };
+  const actual = current.slice(record.start, record.end);
+  if (actual !== record.text) return { value: current, cursor: current.length };
+  return {
+    value: `${current.slice(0, record.start)}${current.slice(record.end)}`,
+    cursor: record.start,
+  };
+}
+
+function questionSpeechKey(question: string): string {
+  return question;
+}
+
+function getQuestionSpeechLabel(status: QuestionSpeechStatus): {
+  ariaLabel: string;
+  icon: "replay" | "pause" | "resume";
+  text: string;
+} {
+  if (status === "speaking") {
+    return { ariaLabel: "暂停读题", icon: "pause", text: "暂停" };
+  }
+  if (status === "paused") {
+    return { ariaLabel: "继续读题", icon: "resume", text: "继续" };
+  }
+  return { ariaLabel: "重播本题", icon: "replay", text: "重播" };
 }
 
 function clearAnswerDraft(key: string): void {
@@ -872,20 +1551,37 @@ function clearAnswerDraft(key: string): void {
 const QaBubble = React.memo(function QaBubble({
   entry,
   isCurrent,
+  effectiveTurnIdx,
+  questionSpeechState,
+  showTurnFeedback,
   onSpeak,
+  onPauseSpeaking,
+  onResumeSpeaking,
 }: {
   entry: QaEntry;
   isCurrent: boolean;
-  onSpeak: (question: string) => void;
+  effectiveTurnIdx: number | null;
+  questionSpeechState: QuestionSpeechState;
+  showTurnFeedback: boolean;
+  onSpeak: (question: string, turnIdx: number | null) => void;
+  onPauseSpeaking: () => void;
+  onResumeSpeaking: () => void;
 }) {
   const isSelfIntro = entry.questionType === "self_intro";
+  const isCurrentSpeech =
+    questionSpeechState.key === questionSpeechKey(entry.question);
+  const questionSpeechLabel = getQuestionSpeechLabel(
+    isCurrentSpeech ? questionSpeechState.status : "idle",
+  );
+  const displayTurnIdx =
+    entry.displayTurnIdx ?? entry.formalTurnIdx ?? entry.turnIdx;
   const turnLabel = isSelfIntro
     ? "开场"
-    : entry.formalTurnIdx !== null && entry.formalTurnIdx !== undefined
-      ? String(entry.formalTurnIdx + 1)
-      : entry.turnIdx !== null
-        ? String(entry.turnIdx + 1)
-        : "?";
+    : displayTurnIdx !== null && displayTurnIdx !== undefined
+      ? String(displayTurnIdx + 1)
+      : "?";
+  const turnBadgeText = isSelfIntro ? turnLabel : `第 ${turnLabel} 题`;
+  const answerContentId = `answer-content-${entry.turnIdx ?? "intro"}`;
 
   const safeQuestion = useMemo(() => {
     return DOMPurify.sanitize(entry.question);
@@ -902,11 +1598,12 @@ const QaBubble = React.memo(function QaBubble({
     <div className="space-y-2">
       <div className="flex items-center gap-2 text-xs font-mono text-muted-foreground">
         <span
-          className={`flex h-5 items-center justify-center rounded bg-secondary text-[10px] font-bold ${
-            isSelfIntro ? "w-10" : "w-5"
-          }`}
+          className={cn(
+            "flex h-8 min-w-[4.5rem] items-center justify-center rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-3 text-sm font-black text-emerald-200 shadow-sm",
+            isSelfIntro ? "min-w-[4rem]" : "",
+          )}
         >
-          {turnLabel}
+          {turnBadgeText}
         </span>
         {isSelfIntro && (
           <Badge
@@ -917,8 +1614,16 @@ const QaBubble = React.memo(function QaBubble({
           </Badge>
         )}
         {!isSelfIntro && entry.dimension && (
-          <Badge variant="outline" className="font-mono text-[10px]">
-            {entry.dimension}
+          <Badge
+            variant="outline"
+            aria-label={`维度：${formatDimensionName(entry.dimension)}`}
+            className="h-6 gap-1.5 rounded-md border-border/70 bg-secondary/30 px-2.5 text-[11px] font-medium text-muted-foreground shadow-none"
+          >
+            <span
+              aria-hidden="true"
+              className="h-1.5 w-1.5 rounded-full bg-emerald-400/70"
+            />
+            {formatDimensionName(entry.dimension)}
           </Badge>
         )}
         {resumeAnchorLabel(entry.resumeAnchor) && (
@@ -951,12 +1656,28 @@ const QaBubble = React.memo(function QaBubble({
             type="button"
             variant="ghost"
             size="sm"
-            aria-label="重播本题"
-            onClick={() => onSpeak(entry.question)}
+            aria-label={questionSpeechLabel.ariaLabel}
+            onClick={() => {
+              if (!isCurrentSpeech || questionSpeechState.status === "idle") {
+                onSpeak(entry.question, effectiveTurnIdx);
+              } else if (questionSpeechState.status === "speaking") {
+                onPauseSpeaking();
+              } else {
+                onResumeSpeaking();
+              }
+            }}
             className="ml-auto h-7 gap-1 px-2 text-xs text-muted-foreground hover:text-emerald-300"
           >
-            <Volume2 className="h-3.5 w-3.5" />
-            <span className="hidden sm:inline">重播</span>
+            {questionSpeechLabel.icon === "pause" ? (
+              <Pause className="h-3.5 w-3.5" />
+            ) : questionSpeechLabel.icon === "resume" ? (
+              <Play className="h-3.5 w-3.5" />
+            ) : (
+              <Volume2 className="h-3.5 w-3.5" />
+            )}
+            <span className="hidden sm:inline">
+              {questionSpeechLabel.text}
+            </span>
           </Button>
         </div>
         <div className="prose prose-sm prose-neutral dark:prose-invert max-w-none">
@@ -967,28 +1688,373 @@ const QaBubble = React.memo(function QaBubble({
       </div>
 
       {entry.answer !== null && (
-        <motion.div
-          initial={{ opacity: 0, y: 8 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.3 }}
-          className="ml-6 rounded-lg border border-primary/10 bg-primary/[0.03] p-4 text-sm leading-relaxed"
-        >
-          <div className="mb-1.5 flex items-center gap-1.5">
-            <span className="flex h-5 w-5 items-center justify-center rounded bg-primary/10 font-mono text-[10px] font-bold text-primary">
-              A
-            </span>
-            <span className="font-mono text-[10px] text-muted-foreground">
-              你
-            </span>
-          </div>
-          <div className="whitespace-pre-wrap">
-            {entry.answer}
-          </div>
-        </motion.div>
+        <CollapsibleAnswerBubble
+          text={entry.answer}
+          contentId={answerContentId}
+          className="ml-6"
+        />
       )}
+      {showTurnFeedback &&
+        entry.answer !== null &&
+        hasDisplayableTurnFeedback(entry.evaluation) && (
+          <TurnFeedbackSummary evaluation={entry.evaluation} />
+        )}
     </div>
   );
 });
+
+function TurnFeedbackSummary({
+  evaluation,
+}: {
+  evaluation: PreviousTurnEvaluation;
+}) {
+  const verdict = getTurnFeedbackVerdict(evaluation);
+  const VerdictIcon = verdict.icon;
+
+  return (
+    <div
+      className={cn(
+        "ml-6 rounded-lg border p-3 text-xs shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]",
+        verdict.containerClass,
+      )}
+    >
+      <div className="mb-2 flex flex-wrap items-center gap-2">
+        <VerdictIcon className={cn("h-3.5 w-3.5", verdict.iconClass)} />
+        <span className="font-medium text-emerald-200">本题反馈</span>
+        <Badge
+          variant={verdict.badgeVariant}
+          className={cn("text-[10px]", verdict.badgeClass)}
+        >
+          {verdict.label}
+        </Badge>
+      </div>
+      {isFallbackTurnEvaluation(evaluation) ? (
+        <TurnFeedbackFallbackNotice evaluation={evaluation} />
+      ) : (
+        <div className="grid gap-2 sm:grid-cols-2">
+          <TurnFeedbackList
+            tone="positive"
+            heading="做得好"
+            items={evaluation.strengths}
+            emptyText="这题暂未提炼出明确亮点，可以继续保持作答节奏。"
+          />
+          <TurnFeedbackList
+            tone="negative"
+            heading="可补齐"
+            items={evaluation.weaknesses}
+            emptyText={verdict.emptyWeaknessText}
+          />
+        </div>
+      )}
+    </div>
+  );
+}
+
+type TurnFeedbackVerdict = {
+  label: string;
+  icon: typeof CheckCircle2;
+  badgeVariant: "success" | "warn" | "secondary";
+  containerClass: string;
+  iconClass: string;
+  badgeClass: string;
+  emptyWeaknessText: string;
+};
+
+function getTurnFeedbackVerdict(
+  evaluation: PreviousTurnEvaluation,
+): TurnFeedbackVerdict {
+  if (isFallbackTurnEvaluation(evaluation)) {
+    return {
+      label: "评估暂不可用",
+      icon: AlertTriangle,
+      badgeVariant: "secondary",
+      containerClass: "border-slate-500/20 bg-slate-500/[0.045]",
+      iconClass: "text-slate-300",
+      badgeClass: "border-slate-400/20 text-slate-200",
+      emptyWeaknessText:
+        "评估模型暂时不可用，本轮回答已保存；这次不作为能力短板判断。",
+    };
+  }
+  if (evaluation.passed) {
+    return {
+      label: "本题通过",
+      icon: CheckCircle2,
+      badgeVariant: "success",
+      containerClass: "border-emerald-500/20 bg-emerald-500/[0.045]",
+      iconClass: "text-emerald-300",
+      badgeClass: "border-emerald-400/20",
+      emptyWeaknessText:
+        "这题完成度不错，暂时没有明显短板。下一题继续保持这样的展开力度。",
+    };
+  }
+  if (typeof evaluation.score === "number" && evaluation.score >= 4) {
+    return {
+      label: "接近通过线",
+      icon: Sparkles,
+      badgeVariant: "warn",
+      containerClass: "border-amber-500/20 bg-amber-500/[0.045]",
+      iconClass: "text-amber-300",
+      badgeClass: "border-amber-400/20",
+      emptyWeaknessText:
+        "整体已经接近要求，下一题可以继续补充关键细节，把证据链再压实一点。",
+    };
+  }
+  return {
+    label: "可以再补齐",
+    icon: Lightbulb,
+    badgeVariant: "secondary",
+    containerClass: "border-slate-500/20 bg-slate-500/[0.045]",
+    iconClass: "text-slate-300",
+    badgeClass: "border-slate-400/20 text-slate-200",
+    emptyWeaknessText:
+      "本题还需要更多信息支撑，下一题优先把背景、动作和结果讲完整。",
+  };
+}
+
+function isFallbackTurnEvaluation(evaluation: PreviousTurnEvaluation): boolean {
+  return Boolean(evaluation.source === "fallback" || evaluation.fallback_reason);
+}
+
+function TurnFeedbackFallbackNotice({
+  evaluation,
+}: {
+  evaluation: PreviousTurnEvaluation;
+}) {
+  const warning = evaluation.system_warnings?.find((item) => item.trim());
+  return (
+    <div className="rounded-md border border-slate-500/15 bg-background/20 px-3 py-2 leading-relaxed text-slate-300">
+      <p>
+        本轮回答已保存，但评估模型暂时不可用。这次不会作为能力短板判断，
+        可以继续下一题，稍后在报告里查看整体反馈。
+      </p>
+      {warning ? (
+        <p className="mt-1.5 text-[11px] text-slate-400">{warning}</p>
+      ) : null}
+    </div>
+  );
+}
+
+const TURN_FEEDBACK_PREVIEW_LIMIT = 2;
+
+function TurnFeedbackList({
+  tone,
+  heading,
+  items,
+  emptyText,
+}: {
+  tone: "positive" | "negative";
+  heading: string;
+  items: string[];
+  emptyText: string;
+}) {
+  const [expanded, setExpanded] = useState(false);
+  const hasOverflow = items.length > TURN_FEEDBACK_PREVIEW_LIMIT;
+  const visibleItems = expanded
+    ? items
+    : items.slice(0, TURN_FEEDBACK_PREVIEW_LIMIT);
+  const toneClass =
+    tone === "positive"
+      ? {
+          panel: "border-emerald-500/15 bg-emerald-500/[0.035]",
+          marker: "bg-emerald-300",
+          heading: "text-emerald-200",
+          item: "border-emerald-500/10 bg-background/20 text-slate-300",
+          empty: "border-emerald-500/10 bg-background/10 text-emerald-100/70",
+          action: "text-emerald-100/80 hover:text-emerald-100",
+        }
+      : {
+          panel: "border-amber-500/15 bg-amber-500/[0.035]",
+          marker: "bg-amber-300",
+          heading: "text-amber-200",
+          item: "border-amber-500/10 bg-background/20 text-slate-300",
+          empty: "border-amber-500/10 bg-background/10 text-amber-100/70",
+          action: "text-amber-100/80 hover:text-amber-100",
+        };
+
+  return (
+    <section className={cn("rounded-md border p-2.5", toneClass.panel)}>
+      <div className="mb-2 flex items-center gap-2">
+        <span
+          aria-hidden="true"
+          className={cn("h-1.5 w-1.5 rounded-full", toneClass.marker)}
+        />
+        <p className={cn("text-[11px] font-semibold", toneClass.heading)}>
+          {heading}
+        </p>
+      </div>
+      {items.length > 0 ? (
+        <>
+          <ul className="space-y-1.5">
+            {visibleItems.map((item, index) => (
+              <li
+                key={`${tone}-${index}-${item.slice(0, 12)}`}
+                className={cn(
+                  "rounded-md border px-2 py-1.5 leading-relaxed",
+                  toneClass.item,
+                )}
+              >
+                {item}
+              </li>
+            ))}
+          </ul>
+          {hasOverflow ? (
+            <button
+              type="button"
+              aria-expanded={expanded}
+              onClick={() => setExpanded((value) => !value)}
+              className={cn(
+                "mt-2 inline-flex items-center gap-1 rounded-md px-1.5 py-1 text-[11px] font-medium transition-colors active:scale-[0.98]",
+                toneClass.action,
+              )}
+            >
+              {expanded ? (
+                <>
+                  <Minimize2 className="h-3 w-3" />
+                  收起
+                </>
+              ) : (
+                <>
+                  <Maximize2 className="h-3 w-3" />
+                  展开全部 {items.length} 条
+                </>
+              )}
+            </button>
+          ) : null}
+        </>
+      ) : (
+        <p
+          className={cn(
+            "rounded-md border px-2 py-1.5 leading-relaxed",
+            toneClass.empty,
+          )}
+        >
+          {emptyText}
+        </p>
+      )}
+    </section>
+  );
+}
+
+function hasDisplayableTurnFeedback(
+  evaluation: PreviousTurnEvaluation | null | undefined,
+): evaluation is PreviousTurnEvaluation {
+  return Boolean(
+    evaluation &&
+      (isFallbackTurnEvaluation(evaluation) ||
+        evaluation.strengths.length > 0 ||
+        evaluation.weaknesses.length > 0),
+  );
+}
+
+function restoredTurnToQaEntry(turn: ResumeHistoryTurn): QaEntry | null {
+  if (!turn.question && !turn.answer) return null;
+  const isSelfIntro = turn.question_type === "self_intro";
+  const turnIdx = typeof turn.turn_idx === "number" ? turn.turn_idx : null;
+  return {
+    turnIdx: isSelfIntro ? null : turnIdx,
+    formalTurnIdx: isSelfIntro ? null : turnIdx,
+    displayTurnIdx: isSelfIntro ? null : turnIdx,
+    questionType: turn.question_type,
+    dimension: turn.dimension ?? undefined,
+    question: turn.question ?? "",
+    answer: turn.answer ?? "",
+    evaluation: resumeTurnEvaluation(turn),
+  };
+}
+
+function resumeTurnEvaluation(
+  turn: ResumeHistoryTurn,
+): PreviousTurnEvaluation | null {
+  const strengths = listStrings(turn.strengths);
+  const weaknesses = listStrings(turn.weaknesses);
+  const hasFeedback =
+    typeof turn.score === "number" ||
+    typeof turn.passed === "boolean" ||
+    strengths.length > 0 ||
+    weaknesses.length > 0;
+  if (!hasFeedback) return null;
+  return {
+    turn_idx: turn.turn_idx,
+    dimension: turn.dimension ?? null,
+    score: typeof turn.score === "number" ? turn.score : null,
+    passed: Boolean(turn.passed),
+    strengths,
+    weaknesses,
+  };
+}
+
+function listStrings(value: string[] | undefined): string[] {
+  return Array.isArray(value)
+    ? value.filter((item) => typeof item === "string" && item.trim())
+    : [];
+}
+
+function visibleTurnIdx(entry: QaEntry): number | null {
+  if (typeof entry.displayTurnIdx === "number") return entry.displayTurnIdx;
+  if (typeof entry.formalTurnIdx === "number") return entry.formalTurnIdx;
+  return typeof entry.turnIdx === "number" ? entry.turnIdx : null;
+}
+
+function answerInsightFromHistory(history: QaEntry[]): AnswerInsight | null {
+  for (let index = history.length - 1; index >= 0; index -= 1) {
+    const entry = history[index];
+    const answer = entry.answer;
+    if (!answer || answer === "已跳过本题") continue;
+    const isOpeningTurn = entry.questionType === "self_intro";
+    const dimensionId = isOpeningTurn ? null : entry.dimension;
+    const dimensionLabel = isOpeningTurn
+      ? null
+      : entry.dimension
+        ? formatDimensionName(entry.dimension)
+        : null;
+    if (isOpeningTurn || dimensionLabel) {
+      return {
+        dimensionId,
+        dimensionLabel,
+        isOpeningTurn,
+      };
+    }
+  }
+  return null;
+}
+
+function filterRestoredHistoryForCurrentQuestion(
+  entries: QaEntry[],
+  currentTurnIdxForDisplay: number | null,
+): QaEntry[] {
+  if (typeof currentTurnIdxForDisplay !== "number") return entries;
+  return entries.filter((entry) => {
+    const entryTurnIdx = visibleTurnIdx(entry);
+    return (
+      typeof entryTurnIdx !== "number" ||
+      entryTurnIdx < currentTurnIdxForDisplay
+    );
+  });
+}
+
+function sameQaEntry(left: QaEntry, right: QaEntry): boolean {
+  return (
+    left.turnIdx === right.turnIdx &&
+    left.question === right.question &&
+    left.answer === right.answer
+  );
+}
+
+function qaEntryMatchesEvaluation(
+  entry: QaEntry,
+  evaluation: PreviousTurnEvaluation,
+): boolean {
+  if (entry.answer === null) return false;
+  if (typeof evaluation.turn_idx !== "number") return false;
+  if (!evaluation.dimension || !entry.dimension) return false;
+  if (evaluation.dimension !== entry.dimension) {
+    return false;
+  }
+  return (
+    entry.formalTurnIdx === evaluation.turn_idx ||
+    entry.turnIdx === evaluation.turn_idx
+  );
+}
 
 function phaseLabel(p: string): string {
   switch (p) {
@@ -1053,13 +2119,29 @@ function extractFormalTurnIdx(q: PollQuestion): number | null {
   return null;
 }
 
-function resumeAnchorLabel(anchor?: ResumeAnchor): string {
-  return anchor?.project_name || anchor?.label || "";
+function isFinalFormalTurn({
+  question,
+  turnIdx,
+  maxTurns,
+}: {
+  question: PollQuestion | null;
+  turnIdx: number | null;
+  maxTurns: number | null;
+}): boolean {
+  if (!question || typeof maxTurns !== "number" || maxTurns <= 0) return false;
+  if (extractQuestionType(question) === "self_intro") return false;
+  const formalTurnIdx = extractFormalTurnIdx(question);
+  const currentTurn =
+    formalTurnIdx !== null
+      ? formalTurnIdx + 1
+      : turnIdx !== null
+        ? turnIdx + 1
+        : 0;
+  return currentTurn >= maxTurns;
 }
 
-function truncateSession(id: string): string {
-  if (id.length <= 12) return id;
-  return `${id.slice(0, 4)}…${id.slice(-4)}`;
+function resumeAnchorLabel(anchor?: ResumeAnchor): string {
+  return anchor?.project_name || anchor?.label || "";
 }
 
 function friendlyConnectionMessage(

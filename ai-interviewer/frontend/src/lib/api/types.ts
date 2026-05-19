@@ -76,6 +76,7 @@ export interface Candidate {
     projects?: ResumeProject[];
     focus_areas?: ResumeFocusArea[];
     concerns?: string[];
+    candidate_profile?: ResumeCandidateProfile;
   };
 }
 
@@ -114,6 +115,21 @@ export interface LLMConfigPayload {
       base_url?: string;
     }
   >;
+  voice_overrides?: {
+    asr?: {
+      provider?: "qwen" | "openai";
+      api_key?: string;
+      model?: string;
+      base_url?: string;
+    };
+    tts?: {
+      provider?: "qwen" | "openai";
+      api_key?: string;
+      model?: string;
+      voice?: string;
+      base_url?: string;
+    };
+  };
 }
 
 export interface StartSessionRequest {
@@ -136,9 +152,21 @@ export interface StartSessionRequest {
 export interface StartSessionResponse {
   session_id: string;
   session_token: string;
+  session_token_expires_at: string;
+  recovery_token: string;
+  recovery_token_expires_at: string;
   trace_id: string;
   status: string;
+  created_at: string;
+  updated_at: string;
   max_turns?: number | null;
+  enable_video_analysis?: boolean;
+}
+
+export interface RecoverSessionResponse {
+  session_id: string;
+  session_token: string;
+  session_token_expires_at: string;
 }
 
 export interface VoiceTicketResponse {
@@ -172,11 +200,15 @@ export interface PollQuestion {
  * surfaced by the backend (`_extract_last_turn_evaluation` in
  * `session_manager.py`) so the InterviewRoom can render an
  * "above-the-fold" feedback card while the candidate composes the next
- * answer. Lists are capped at 2 items upstream — the type leaves them as
- * plain `string[]` so the component never has to defend against null.
+ * answer. The backend keeps the feedback arrays intact; UI surfaces decide
+ * how many items to preview and whether to offer an expanded view. The type
+ * leaves them as plain `string[]` so the component never has to defend
+ * against null.
  *
- * Returned as `null` for first turn / non-scoring intents / fallback
- * evaluator output / explicitly skipped turns.
+ * Returned as `null` for first turn / non-scoring intents / explicitly
+ * skipped turns. Evaluator fallback turns are surfaced with
+ * `source` / `fallback_reason` so the UI can explain the system state
+ * without presenting it as candidate-quality feedback.
  */
 export interface PreviousTurnEvaluation {
   turn_idx?: number | null;
@@ -185,7 +217,10 @@ export interface PreviousTurnEvaluation {
   passed: boolean;
   strengths: string[];
   weaknesses: string[];
-  rubric_coverage: Record<string, string>;
+  source?: string | null;
+  fallback_reason?: string | null;
+  system_warnings?: string[];
+  rubric_coverage?: Record<string, unknown>;
 }
 
 export interface PollQuestionResponse {
@@ -194,6 +229,7 @@ export interface PollQuestionResponse {
   turn_idx?: number | null;
   question: PollQuestion | null;
   max_turns?: number | null;
+  enable_video_analysis?: boolean;
   final_report?: FinalReport | null;
   error?: string | null;
   error_kind?: LLMErrorKind | null;
@@ -234,6 +270,11 @@ export interface HintRequest {
   llm_config?: LLMConfigPayload;
 }
 
+export interface QuestionAudioRequest {
+  turn_idx: number;
+  llm_config?: LLMConfigPayload;
+}
+
 export interface HintResponse {
   session_id: string;
   turn_idx: number;
@@ -241,8 +282,52 @@ export interface HintResponse {
   source: "contract" | "target_skills" | "resume_anchor" | "fallback" | "llm";
 }
 
+export interface InterviewWaitingTip {
+  id: string;
+  scope: string;
+  text: string;
+}
+
+export interface InterviewWaitingTipsResponse {
+  version: string;
+  rotation_interval_ms: number;
+  tips: InterviewWaitingTip[];
+}
+
+export type RubricScoreStatus =
+  | "scored"
+  | "not_evaluated"
+  | "skipped"
+  | "evaluator_unavailable";
+
+export type RubricCoverageStatus =
+  | "passed"
+  | "below_threshold"
+  | "coverage_limited"
+  | "not_applicable";
+
+export interface ScoreSummary {
+  scored_dimension_count: number;
+  excluded_dimension_count: number;
+  total_dimension_count: number;
+}
+
+export interface ScoreBreakdown {
+  scored_turn_count: number;
+  latest_score: number;
+  best_score: number;
+  average_score: number;
+  adopted_score: number;
+  scoring_policy: "weighted_recent" | string;
+}
+
 export interface RubricScore {
-  score: number;
+  score: number | null;
+  score_status: RubricScoreStatus;
+  excluded_from_overall: boolean;
+  exclusion_reason: Exclude<RubricScoreStatus, "scored"> | null;
+  coverage_status: RubricCoverageStatus;
+  score_breakdown?: ScoreBreakdown;
   passed?: boolean;
   rationale?: string;
   weaknesses?: string[];
@@ -253,6 +338,13 @@ export interface TrainingPlanStep {
   rationale?: string;
   estimated_hours?: number;
 }
+
+export type TrainingPlanFallbackReason =
+  | "llm_call_failed"
+  | "json_parse_failed"
+  | "invalid_structure"
+  | "empty_output"
+  | string;
 
 export interface TrainingPlan {
   priority_weaknesses?: Array<{
@@ -273,6 +365,15 @@ export interface TrainingPlan {
    * intelligent inference from deterministic summary.
    */
   source?: "llm" | "fallback" | string;
+  fallback_reason?: TrainingPlanFallbackReason;
+}
+
+export interface ReplayPriorityItem {
+  category: "weakness" | "coverage_limited";
+  label: "薄弱点" | "补充证据";
+  dimension?: string | null;
+  focus: string;
+  display_text: string;
 }
 
 export interface ReplaySummary {
@@ -283,6 +384,44 @@ export interface ReplaySummary {
   overall_verdict?: string | null;
   total_turns?: number | null;
   priority_weaknesses?: string[];
+  priority_items?: ReplayPriorityItem[];
+}
+
+export interface ReplayFollowupReason {
+  title: string;
+  summary: string;
+  chips: string[];
+  source: "evaluator";
+}
+
+export interface ReplayContextBasis {
+  title: string;
+  summary?: string;
+  chips: string[];
+  self_intro?: {
+    summary?: string;
+    emphasized_projects: string[];
+    emphasized_skills: string[];
+    preferred_focus: string[];
+  };
+  resume?: {
+    projects: string[];
+    focus_areas: string[];
+    skills: string[];
+  };
+  job_spec?: {
+    title?: string | null;
+    level?: string | null;
+    required_skills: string[];
+    dimensions: string[];
+    dimension_source_label?: string;
+  };
+}
+
+export interface ReplayQuestionBasis {
+  title: string;
+  summary: string;
+  chips: string[];
 }
 
 export interface ReplayTurn {
@@ -296,12 +435,22 @@ export interface ReplayTurn {
   strengths?: string[];
   weaknesses?: string[];
   next_step?: string;
+  followup_reason?: ReplayFollowupReason | null;
+  question_basis?: ReplayQuestionBasis | null;
+}
+
+export interface ResumeHistoryTurn extends Omit<ReplayTurn, "turn_idx"> {
+  turn_idx?: number | null;
+  question_type?: "self_intro" | "technical" | string;
 }
 
 export interface ReplayResponse {
   session_id: string;
   status: PollStatus | "completed" | string;
+  created_at?: string | null;
+  updated_at?: string | null;
   summary: ReplaySummary;
+  context_basis?: ReplayContextBasis | null;
   timeline: ReplayTurn[];
   training_plan?: TrainingPlan;
 }
@@ -348,11 +497,12 @@ export interface CostSummary {
 
 export interface FinalReport {
   session_id?: string;
-  overall_score?: number;
+  overall_score?: number | null;
   growth_signal?: string | null;
   /** Deprecated: use growth_signal for candidate-facing UI. */
   overall_verdict?: string | null;
   dimension_scores?: Record<string, RubricScore>;
+  score_summary?: ScoreSummary;
   self_intro?: SelfIntroReport;
   summary?: string;
   training_plan?: TrainingPlan;
@@ -374,18 +524,45 @@ export type TraceHealth = "missing" | "partial" | "complete";
 
 export interface GetReportResponse {
   session_id: string;
+  created_at?: string | null;
+  updated_at?: string | null;
   final_report: FinalReport | null;
   trace_health?: TraceHealth | null;
   error?: string | null;
   error_kind?: LLMErrorKind | null;
 }
 
+export interface SessionMetadataResponse {
+  session_id: string;
+  status: PollStatus | "completed" | string;
+  created_at: string;
+  updated_at: string;
+  job_title?: string | null;
+  candidate_name?: string | null;
+  job_level?: string | null;
+  overall_score?: number | null;
+  growth_signal?: string | null;
+  overall_verdict?: string | null;
+  dimension_scores?: Record<string, number>;
+}
+
+export interface SessionSetupSnapshotResponse {
+  session_id: string;
+  candidate: Candidate;
+  job_spec: JobSpec;
+}
+
 export interface ResumeResponse {
   session_id: string;
   status: PollStatus;
+  created_at?: string | null;
+  updated_at?: string | null;
   turn_idx?: number;
   question?: PollQuestion | null;
   max_turns?: number | null;
+  enable_video_analysis?: boolean;
+  history?: ResumeHistoryTurn[];
+  previous_turn_evaluation?: PreviousTurnEvaluation | null;
   final_report?: FinalReport | null;
   error?: string | null;
   error_kind?: LLMErrorKind | null;
@@ -437,6 +614,21 @@ export interface ParseResumeStatus {
   text_chars?: number;
   cached?: boolean;
   cache_age_ms?: number;
+}
+
+export type ResumeParseJobStatus =
+  | "running"
+  | "completed"
+  | "failed"
+  | "expired";
+
+export interface ResumeParseJobResponse {
+  job_id: string;
+  status: ResumeParseJobStatus;
+  filename?: string | null;
+  result?: ParseResumeResponse;
+  error?: string | null;
+  expires_at?: string;
 }
 
 /** Canonical dimension id paired with its UI-friendly label. */

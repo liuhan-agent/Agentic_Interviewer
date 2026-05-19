@@ -18,6 +18,7 @@ test("avatar state maps voice room phases to digital human states", () => {
   assert.match(source, /case "ready_to_record":\s*return "listening"/);
   assert.match(source, /case "recording":\s*return "listening_active"/);
   assert.match(source, /case "uploading":\s*return "thinking"/);
+  assert.match(source, /case "reviewing_transcript":\s*return "thinking"/);
 });
 
 test("voice room renders the digital human stage", () => {

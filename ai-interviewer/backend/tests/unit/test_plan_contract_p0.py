@@ -487,6 +487,107 @@ def test_evaluator_keeps_probe_intent_fields(monkeypatch):
     assert result["failure_reason"] == "answer lacks metrics"
 
 
+def test_evaluator_node_attaches_followup_reason_after_consistency(monkeypatch):
+    from app.engine.workflow.nodes import evaluator as eval_node_mod
+
+    captured: dict[str, Any] = {}
+
+    def fake_evaluate_answer(**_kwargs):
+        return {
+            "score": 5.0,
+            "passed": True,
+            "rationale": "The answer names Redis but does not size capacity.",
+            "strengths": ["Names Redis"],
+            "weaknesses": ["Capacity estimate is thin"],
+            "rubric_coverage": {"Capacity estimate": "missing"},
+            "recommended_next": "advance",
+            "recommended_next_plan": "deep_probe",
+            "recommended_probe_intent": "evidence_probe",
+            "acceptance_check_results": {},
+        }
+
+    class _Tracer:
+        def trace_evaluator(self, state, **_kwargs):
+            captured["trace_evaluation"] = state["evaluation"]
+
+    monkeypatch.setattr(eval_node_mod, "evaluate_answer", fake_evaluate_answer)
+    monkeypatch.setattr(eval_node_mod, "get_tracer", lambda: _Tracer())
+
+    state = _base_state()
+    state.update(
+        {
+            "current_question": {
+                "question": "How would you size Redis capacity?",
+                "dimension": "technical_depth",
+                "rubric_points": ["Capacity estimate"],
+            },
+            "current_answer": "Use Redis for hot reads.",
+            "selected_action": {"id": "deepen_technical"},
+            "scores_per_dim": {},
+            "turn_budget_remaining": 2,
+            "quality_threshold": 7.5,
+        }
+    )
+
+    out = eval_node_mod.evaluator_node(state)  # type: ignore[arg-type]
+
+    reason = out["evaluation"]["followup_reason"]
+    assert out["evaluation"]["recommended_next"] == "refine"
+    assert reason["title"] == "为什么继续追问"
+    assert "Capacity estimate" in reason["summary"]
+    assert "补充证据" in reason["chips"]
+    assert captured["trace_evaluation"]["followup_reason"] == reason
+
+
+def test_evaluator_node_persists_question_basis_in_qa_history(monkeypatch):
+    from app.engine.workflow.nodes import evaluator as eval_node_mod
+
+    question_basis = {
+        "title": "为什么问这一题",
+        "summary": "这题结合了简历中的支付迁移项目，并围绕技术深度确认 Redis。",
+        "chips": ["来自简历", "评分维度", "技术深度", "Redis"],
+    }
+
+    def fake_evaluate_answer(**_kwargs):
+        return {
+            "score": 8.0,
+            "passed": True,
+            "rationale": "Clear answer.",
+            "strengths": ["Concrete"],
+            "weaknesses": [],
+            "recommended_next": "advance",
+            "acceptance_check_results": {},
+        }
+
+    class _Tracer:
+        def trace_evaluator(self, _state, **_kwargs):
+            return None
+
+    monkeypatch.setattr(eval_node_mod, "evaluate_answer", fake_evaluate_answer)
+    monkeypatch.setattr(eval_node_mod, "get_tracer", lambda: _Tracer())
+
+    state = _base_state()
+    state.update(
+        {
+            "current_question": {
+                "question": "How did you use Redis in the payment migration?",
+                "dimension": "technical_depth",
+                "rubric_points": ["Redis"],
+                "question_basis": question_basis,
+            },
+            "current_answer": "I used Redis for hot reads.",
+            "selected_action": {"id": "deepen_technical"},
+            "scores_per_dim": {},
+            "turn_budget_remaining": 2,
+            "quality_threshold": 7.5,
+        }
+    )
+
+    out = eval_node_mod.evaluator_node(state)  # type: ignore[arg-type]
+
+    assert out["qa_history"][0]["question_basis"] == question_basis
+
+
 # ---------------------------------------------------------------------------
 # 4. refine_followup_node
 # ---------------------------------------------------------------------------

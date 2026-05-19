@@ -1,27 +1,36 @@
 from __future__ import annotations
 
+from contextlib import contextmanager
 from types import SimpleNamespace
 from typing import Any
 
+from sqlalchemy import create_engine, select
+from sqlalchemy.orm import sessionmaker
+
 from app.engine.workflow.nodes import experience_extractor as ex
-from app.memory import strategy_store as ss
+from app.models.base import Base
+from app.models.strategy_memory import StrategySignal
 
 
-def _patch_strategy_dir(tmp_path, monkeypatch):
-    strategy_dir = tmp_path / "strategy"
-    strategy_dir.mkdir()
-    settings = SimpleNamespace(knowledge_dir=tmp_path)
-    monkeypatch.setattr(ss, "get_settings", lambda: settings)
-    monkeypatch.setattr(ex, "list_strategies", ss.list_strategies)
-    monkeypatch.setattr(ex, "save_strategy", ss.save_strategy)
-    return strategy_dir
+def _patch_signal_db(monkeypatch):
+    engine = create_engine("sqlite:///:memory:", future=True)
+    Base.metadata.create_all(engine)
+    Session = sessionmaker(bind=engine, expire_on_commit=False, autoflush=False)
+
+    @contextmanager
+    def get_session():
+        with Session() as sess:
+            yield sess
+            sess.commit()
+
+    monkeypatch.setattr(ex, "get_session", get_session)
+    return Session
 
 
 def test_qa_pattern_memory_key_makes_extraction_idempotent(
-    tmp_path,
     monkeypatch,
 ) -> None:
-    strategy_dir = _patch_strategy_dir(tmp_path, monkeypatch)
+    Session = _patch_signal_db(monkeypatch)
 
     class _Settings:
         experience_score_spread_threshold = 1.0
@@ -62,12 +71,14 @@ def test_qa_pattern_memory_key_makes_extraction_idempotent(
     ex.experience_extractor_node(state)  # type: ignore[arg-type]
     ex.experience_extractor_node(state)  # type: ignore[arg-type]
 
-    strategy_files = [
-        p for p in strategy_dir.glob("*.md") if p.name != "MEMORY.md"
-    ]
-    assert len(strategy_files) == 1
-    text = strategy_files[0].read_text(encoding="utf-8")
-    assert "memory_key: qa:score_recovery:mid:communication:plan_hint" in text
+    with Session() as sess:
+        signals = list(sess.scalars(select(StrategySignal)))
+
+    assert len(signals) == 1
+    assert signals[0].signal_key == (
+        "sess:qa:score_recovery:mid:communication:plan_hint"
+    )
+    assert signals[0].group_key == "qa:score_recovery:mid:communication:plan_hint"
 
     assert traced[0]["payload"]["saved"] == 1
     assert traced[0]["payload"]["skipped_existing"] == 0
@@ -77,8 +88,8 @@ def test_qa_pattern_memory_key_makes_extraction_idempotent(
     assert traced[1]["payload"]["candidates"] == 1
 
 
-def test_bandit_insight_memory_key_is_idempotent(tmp_path, monkeypatch) -> None:
-    strategy_dir = _patch_strategy_dir(tmp_path, monkeypatch)
+def test_bandit_insight_memory_key_is_idempotent(monkeypatch) -> None:
+    Session = _patch_signal_db(monkeypatch)
 
     monkeypatch.setattr(ex, "_extract_qa_patterns", lambda _state: [])
     monkeypatch.setattr(
@@ -110,17 +121,16 @@ def test_bandit_insight_memory_key_is_idempotent(tmp_path, monkeypatch) -> None:
     ex.experience_extractor_node(state)  # type: ignore[arg-type]
     ex.experience_extractor_node(state)  # type: ignore[arg-type]
 
-    strategy_files = [
-        p for p in strategy_dir.glob("*.md") if p.name != "MEMORY.md"
-    ]
-    assert len(strategy_files) == 1
-    text = strategy_files[0].read_text(encoding="utf-8")
-    assert (
-        "memory_key: bandit:high_reward_arm:"
+    with Session() as sess:
+        signals = list(sess.scalars(select(StrategySignal)))
+
+    assert len(signals) == 1
+    assert signals[0].group_key == (
+        "bandit:high_reward_arm:"
         "java_backend:senior:system_design:plan_deep_probe"
-    ) in text
+    )
     assert payloads[0]["saved_keys"] == [
-        "bandit:high_reward_arm:java_backend:senior:system_design:plan_deep_probe"
+        "sess:bandit:high_reward_arm:java_backend:senior:system_design:plan_deep_probe"
     ]
     assert payloads[1]["skipped_existing"] == 1
 
@@ -141,8 +151,11 @@ def test_experience_extractor_counts_failed_candidates(monkeypatch) -> None:
         ],
     )
     monkeypatch.setattr(ex, "_extract_bandit_insights", lambda: [])
-    monkeypatch.setattr(ex, "strategy_exists_by_memory_key", lambda _key: False)
-    monkeypatch.setattr(ex, "save_strategy", lambda **_kwargs: (_ for _ in ()).throw(RuntimeError("disk full")))
+    monkeypatch.setattr(
+        ex,
+        "_persist_strategy_signal",
+        lambda _payload: (_ for _ in ()).throw(RuntimeError("db full")),
+    )
     monkeypatch.setattr(ex, "increment_session_count", lambda: None)
 
     payloads: list[dict[str, Any]] = []

@@ -12,18 +12,40 @@ real ``knowledge/skills/`` directory.
 """
 from __future__ import annotations
 
+from contextlib import contextmanager
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
+from sqlalchemy import create_engine
+from sqlalchemy.orm import sessionmaker
+from sqlalchemy.pool import StaticPool
 
 from app.memory import skill_store
+from app.models.base import Base
+from app.models.skill_playbook import SkillPlaybookCard
 
 _SKILL_CARD_A = """\
 ---
+id: senior_backend_ownership
 name: Senior Backend Ownership
 description: Probe ownership, not buzzwords.
+status: active
+priority: 7
+direction_tags: [internet_tech]
+role_tags: [java_backend, architect]
 dimensions: [leadership, system_design]
 job_levels: [senior, staff]
+probe_intents: [architecture_challenge]
+failure_categories: [generic_storytelling]
+generator_moves: [Ask what the candidate personally owned.]
+watch_for: [Separates personal ownership from team context.]
+avoid: ['Accepting "we built" without a personal action.']
+evaluator_rubric_hints: [Reward concrete ownership evidence.]
+positive_signals: ["Names decision, action, and outcome."]
+negative_signals: [Only describes team-level work.]
+score_bias_rules: [Soft positive for first-person accountable action.]
+evaluator_visibility: true
 ---
 Body A goes here.
 Longer paragraph that explains the probe strategy in detail so the
@@ -56,6 +78,65 @@ def _write_skill(root: Path, name: str, body: str) -> Path:
     return path
 
 
+def _install_db_cards(
+    monkeypatch: pytest.MonkeyPatch,
+    cards: list[SkillPlaybookCard],
+) -> None:
+    engine = create_engine(
+        "sqlite://",
+        connect_args={"check_same_thread": False},
+        poolclass=StaticPool,
+        future=True,
+    )
+    Base.metadata.create_all(engine)
+    session_local = sessionmaker(bind=engine, expire_on_commit=False, autoflush=False)
+    with session_local() as sess:
+        sess.add_all(cards)
+        sess.commit()
+
+    @contextmanager
+    def fake_get_session():
+        with session_local() as sess:
+            yield sess
+
+    monkeypatch.setattr(skill_store, "get_session", fake_get_session, raising=False)
+
+
+def _db_card(
+    card_id: str,
+    *,
+    name: str = "DB Production Incident",
+    status: str = "active",
+    source: str = "manual_markdown",
+    dimensions: list[str] | None = None,
+    role_tags: list[str] | None = None,
+) -> SkillPlaybookCard:
+    return SkillPlaybookCard(
+        id=card_id,
+        name=name,
+        description="DB-backed probe card.",
+        body_markdown=f"Body for {card_id}.",
+        status=status,
+        priority=7,
+        direction_tags=["internet_tech"],
+        role_tags=role_tags or ["java_backend"],
+        dimensions=dimensions or ["problem_solving"],
+        job_levels=["senior"],
+        probe_intents=["debugging_probe"],
+        failure_categories=["root_cause_missing"],
+        generator_moves=["Ask for detection signal."],
+        watch_for=["Separates mitigation from prevention."],
+        avoid=["Accepting generic monitoring claims."],
+        evaluator_rubric_hints=["Credit concrete incident evidence."],
+        positive_signals=["Names metric, owner, and rollback."],
+        negative_signals=["Jumps to fix without diagnosis."],
+        score_bias_rules=["Soft positive for measurable prevention."],
+        evaluator_visibility=True,
+        source=source,
+        content_hash=f"sha1:{card_id}",
+    )
+
+
 @pytest.fixture
 def skills_root(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
@@ -68,6 +149,11 @@ def skills_root(
     """
     root = tmp_path / "skills"
     monkeypatch.setattr(skill_store, "_skills_dir", lambda: root)
+    monkeypatch.setattr(
+        skill_store,
+        "get_settings",
+        lambda: SimpleNamespace(skill_playbook_backend="file"),
+    )
     return root
 
 
@@ -87,8 +173,25 @@ def test_list_skills_parses_frontmatter(skills_root: Path) -> None:
     e = entries[0]
     assert e.name == "Senior Backend Ownership"
     assert e.description == "Probe ownership, not buzzwords."
+    assert e.id == "senior_backend_ownership"
+    assert e.status == "active"
+    assert e.priority == 7
+    assert e.direction_tags == ["internet_tech"]
+    assert e.role_tags == ["java_backend", "architect"]
     assert e.dimensions == ["leadership", "system_design"]
     assert e.job_levels == ["senior", "staff"]
+    assert e.probe_intents == ["architecture_challenge"]
+    assert e.failure_categories == ["generic_storytelling"]
+    assert e.generator_moves == ["Ask what the candidate personally owned."]
+    assert e.watch_for == ["Separates personal ownership from team context."]
+    assert e.avoid == ['Accepting "we built" without a personal action.']
+    assert e.evaluator_rubric_hints == ["Reward concrete ownership evidence."]
+    assert e.positive_signals == ["Names decision, action, and outcome."]
+    assert e.negative_signals == ["Only describes team-level work."]
+    assert e.score_bias_rules == [
+        "Soft positive for first-person accountable action."
+    ]
+    assert e.evaluator_visibility is True
     assert "Body A goes here." in e.body
     # Frontmatter must be stripped from the body.
     assert "---" not in e.body.splitlines()[0]
@@ -102,6 +205,136 @@ def test_list_skills_ignores_index_file(skills_root: Path) -> None:
     assert [e.path.name for e in entries] == ["a.md"]
 
 
+def test_list_skills_db_backend_reads_manual_markdown_cards(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _install_db_cards(
+        monkeypatch,
+        [
+            _db_card("tech_db_probe", name="DB Probe"),
+            _db_card("generated_probe", name="Generated Probe", source="generated"),
+        ],
+    )
+
+    entries = skill_store.list_skills(backend="db")
+
+    assert [entry.id for entry in entries] == ["tech_db_probe"]
+    assert entries[0].name == "DB Probe"
+    assert entries[0].path.name == "tech_db_probe.md"
+    assert entries[0].body == "Body for tech_db_probe."
+    assert entries[0].generator_moves == ["Ask for detection signal."]
+    assert entries[0].evaluator_visibility is True
+
+
+def test_retrieve_skills_db_backend_ranks_and_filters_inactive(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _install_db_cards(
+        monkeypatch,
+        [
+            _db_card("db_incident", name="DB Incident Probe"),
+            _db_card("db_draft", status="draft"),
+            _db_card("db_archived", status="archived"),
+        ],
+    )
+
+    entries = skill_store.retrieve_skills(
+        dimension="problem_solving",
+        job_level="senior",
+        direction_tags=["internet_tech"],
+        role_tags=["java_backend"],
+        probe_intent="debugging_probe",
+        failure_categories=["root_cause_missing"],
+        backend="db",
+    )
+
+    assert [entry.id for entry in entries] == ["db_incident"]
+    assert "role_tag:java_backend" in entries[0].match_reasons
+    assert "probe_intent:debugging_probe" in entries[0].match_reasons
+    assert "failure_category:root_cause_missing" in entries[0].match_reasons
+
+
+def test_db_with_file_fallback_uses_file_when_db_has_no_active_cards(
+    skills_root: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _install_db_cards(monkeypatch, [_db_card("db_draft_only", status="draft")])
+    _write_skill(skills_root, "file.md", _SKILL_CARD_A)
+
+    entries = skill_store.retrieve_skills(
+        dimension="system_design",
+        job_level="senior",
+        direction_tags=["internet_tech"],
+        role_tags=["java_backend"],
+        backend="db_with_file_fallback",
+    )
+
+    assert [entry.id for entry in entries] == ["senior_backend_ownership"]
+
+
+def test_db_with_file_fallback_uses_file_on_db_error(
+    skills_root: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def failing_get_session():
+        raise RuntimeError("database unavailable")
+
+    monkeypatch.setattr(skill_store, "get_session", failing_get_session, raising=False)
+    _write_skill(skills_root, "file.md", _SKILL_CARD_A)
+
+    entries = skill_store.retrieve_skills(
+        dimension="system_design",
+        job_level="senior",
+        direction_tags=["internet_tech"],
+        role_tags=["java_backend"],
+        backend="db_with_file_fallback",
+    )
+
+    assert [entry.id for entry in entries] == ["senior_backend_ownership"]
+
+
+def test_db_with_file_fallback_does_not_fallback_when_db_has_active_nonmatch(
+    skills_root: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _install_db_cards(
+        monkeypatch,
+        [_db_card("db_coding_only", dimensions=["coding_quality"])],
+    )
+    _write_skill(skills_root, "file.md", _SKILL_CARD_A)
+
+    entries = skill_store.retrieve_skills(
+        dimension="system_design",
+        job_level="senior",
+        direction_tags=["internet_tech"],
+        role_tags=["java_backend"],
+        backend="db_with_file_fallback",
+    )
+
+    assert entries == []
+
+
+def test_db_backend_does_not_fallback_to_file_on_error(
+    skills_root: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def failing_get_session():
+        raise RuntimeError("database unavailable")
+
+    monkeypatch.setattr(skill_store, "get_session", failing_get_session, raising=False)
+    _write_skill(skills_root, "file.md", _SKILL_CARD_A)
+
+    entries = skill_store.retrieve_skills(
+        dimension="system_design",
+        job_level="senior",
+        direction_tags=["internet_tech"],
+        role_tags=["java_backend"],
+        backend="db",
+    )
+
+    assert entries == []
+
+
 def test_retrieve_skills_scores_dimension_match_highest(
     skills_root: Path,
 ) -> None:
@@ -110,7 +343,10 @@ def test_retrieve_skills_scores_dimension_match_highest(
     _write_skill(skills_root, "u.md", _SKILL_CARD_UNIVERSAL)
 
     entries = skill_store.retrieve_skills(
-        dimension="system_design", job_level="senior"
+        dimension="system_design",
+        job_level="senior",
+        direction_tags=["internet_tech"],
+        role_tags=["java_backend"],
     )
 
     # "Senior Backend Ownership" matches both dimension (+2) and
@@ -123,6 +359,9 @@ def test_retrieve_skills_scores_dimension_match_highest(
         "Senior Backend Ownership",
         "Ask for Concrete Example",
     ]
+    assert entries[0].match_score > entries[1].match_score
+    assert "role_tag:java_backend" in entries[0].match_reasons
+    assert "direction_tag:internet_tech" in entries[0].match_reasons
 
 
 def test_retrieve_skills_returns_empty_when_nothing_matches(
@@ -133,6 +372,87 @@ def test_retrieve_skills_returns_empty_when_nothing_matches(
         dimension="system_design", job_level="senior"
     )
     assert entries == []
+
+
+def test_retrieve_skills_filters_inactive_and_role_mismatch(
+    skills_root: Path,
+) -> None:
+    _write_skill(
+        skills_root,
+        "inactive.md",
+        "---\n"
+        "name: Draft Card\n"
+        "status: draft\n"
+        "dimensions: [system_design]\n"
+        "job_levels: [senior]\n"
+        "---\nDraft body",
+    )
+    _write_skill(
+        skills_root,
+        "frontend.md",
+        "---\n"
+        "name: Frontend Only\n"
+        "status: active\n"
+        "direction_tags: [internet_tech]\n"
+        "role_tags: [frontend_web]\n"
+        "dimensions: [system_design]\n"
+        "job_levels: [senior]\n"
+        "---\nFrontend body",
+    )
+
+    entries = skill_store.retrieve_skills(
+        dimension="system_design",
+        job_level="senior",
+        direction_tags=["internet_tech"],
+        role_tags=["java_backend"],
+    )
+
+    assert entries == []
+
+
+def test_retrieve_skills_ranks_probe_and_failure_matches(
+    skills_root: Path,
+) -> None:
+    _write_skill(
+        skills_root,
+        "generic.md",
+        "---\n"
+        "id: generic_metric_probe\n"
+        "name: Generic Metric Probe\n"
+        "priority: 4\n"
+        "---\nGeneric body",
+    )
+    _write_skill(
+        skills_root,
+        "specific.md",
+        "---\n"
+        "id: java_incident_debugging\n"
+        "name: Java Incident Debugging\n"
+        "priority: 1\n"
+        "direction_tags: [internet_tech]\n"
+        "role_tags: [java_backend]\n"
+        "dimensions: [problem_solving]\n"
+        "job_levels: [senior]\n"
+        "probe_intents: [debugging_probe]\n"
+        "failure_categories: [root_cause_missing]\n"
+        "---\nSpecific body",
+    )
+
+    entries = skill_store.retrieve_skills(
+        dimension="problem_solving",
+        job_level="senior",
+        direction_tags=["internet_tech"],
+        role_tags=["java_backend"],
+        probe_intent="debugging_probe",
+        failure_categories=["root_cause_missing"],
+    )
+
+    assert [entry.id for entry in entries] == [
+        "java_incident_debugging",
+        "generic_metric_probe",
+    ]
+    assert "probe_intent:debugging_probe" in entries[0].match_reasons
+    assert "failure_category:root_cause_missing" in entries[0].match_reasons
 
 
 def test_retrieve_skills_with_llm_selector_filters_keyword_set(
@@ -206,6 +526,8 @@ def test_retrieve_skills_llm_selector_fallback_on_none(
         job_level="senior",
         limit=3,
         use_llm_selector=True,
+        direction_tags=["internet_tech"],
+        role_tags=["java_backend"],
     )
     assert [e.path.name for e in entries] == ["a.md"]
 
@@ -247,7 +569,21 @@ def test_build_skills_block_renders_entries(skills_root: Path) -> None:
     assert "[Skill 1] Senior Backend Ownership" in block
     assert "dims=leadership, system_design" in block
     assert "levels=senior, staff" in block
-    assert "Body A goes here." in block
+    assert "Generator moves:" in block
+    assert "Ask what the candidate personally owned." in block
+    assert "Watch for:" in block
+    assert "Avoid:" in block
+    assert "Body A goes here." not in block
+
+
+def test_build_skills_block_falls_back_to_body_for_legacy_cards(
+    skills_root: Path,
+) -> None:
+    _write_skill(skills_root, "legacy.md", _SKILL_CARD_UNIVERSAL)
+    entries = skill_store.list_skills()
+    block = skill_store.build_skills_block(entries)
+
+    assert "Applies everywhere, regardless of dimension or level." in block
 
 
 def test_build_skills_block_truncates_long_body(

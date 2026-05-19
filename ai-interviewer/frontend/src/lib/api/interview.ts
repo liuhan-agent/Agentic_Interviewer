@@ -1,10 +1,12 @@
 import { ApiError, request } from "./client";
+import { apiUrl } from "@/lib/config";
 import type {
   AnswerRequest,
   DeleteSessionResponse,
   GetReportResponse,
   HintRequest,
   HintResponse,
+  InterviewWaitingTipsResponse,
   JobTemplateResponse,
   ListDirectionsResponse,
   ListDimensionsResponse,
@@ -12,8 +14,13 @@ import type {
   ParseJobSpecResponse,
   ParseResumeResponse,
   PollQuestionResponse,
+  QuestionAudioRequest,
+  RecoverSessionResponse,
   ReplayResponse,
   RetryQuestionResponse,
+  ResumeParseJobResponse,
+  SessionMetadataResponse,
+  SessionSetupSnapshotResponse,
   ResumeResponse,
   SkipQuestionRequest,
   SkipQuestionResponse,
@@ -25,13 +32,52 @@ import type {
 } from "./types";
 import { jobTemplateRequestPath } from "@/lib/job-template";
 import { buildLLMPayload } from "@/lib/llm-config";
-import { getSessionToken } from "@/lib/storage/interviewHistory";
+import {
+  getRecoveryToken,
+  getSessionToken,
+  writeSessionToken,
+} from "@/lib/storage/interviewHistory";
 
 const BASE = "/api/v1/interview";
 
 function sessionHeaders(sessionId: string): HeadersInit | undefined {
   const token = getSessionToken(sessionId);
   return token ? { "X-Session-Token": token } : undefined;
+}
+
+function isRecoverableSessionAuthError(err: unknown): boolean {
+  if (!(err instanceof ApiError)) return false;
+  if (err.status === 401) return true;
+  if (err.status !== 403) return false;
+
+  const body = err.body;
+  if (body && typeof body === "object" && "detail" in body) {
+    const detail = (body as { detail?: unknown }).detail;
+    if (typeof detail === "string") {
+      return detail.includes("invalid session token");
+    }
+  }
+  return err.message.includes("invalid session token");
+}
+
+async function withSessionRecovery<T>(
+  sessionId: string,
+  requestFactory: () => Promise<T>,
+): Promise<T> {
+  try {
+    return await requestFactory();
+  } catch (err) {
+    if (!isRecoverableSessionAuthError(err)) {
+      throw err;
+    }
+    const recoveryToken = getRecoveryToken(sessionId);
+    if (!recoveryToken) {
+      throw err;
+    }
+    const recovered = await recoverSession(sessionId, recoveryToken);
+    writeSessionToken(sessionId, recovered.session_token, recovered.session_token_expires_at);
+    return requestFactory();
+  }
 }
 
 export function isReauthRequired(err: unknown): boolean {
@@ -56,6 +102,16 @@ export function startSession(
   return request(`${BASE}/sessions`, { method: "POST", body: req });
 }
 
+export function recoverSession(
+  sessionId: string,
+  recoveryToken: string,
+): Promise<RecoverSessionResponse> {
+  return request(`${BASE}/sessions/${encodeURIComponent(sessionId)}/recover`, {
+    method: "POST",
+    body: { recovery_token: recoveryToken },
+  });
+}
+
 /**
  * Upload a PDF / DOCX / TXT resume and receive the parsed
  * structured resume shape back. The frontend uses this to pre-fill
@@ -78,7 +134,31 @@ export function parseResume(
   return request(`${BASE}/resume/parse`, {
     method: "POST",
     body: fd,
-    timeoutMs: 90_000,
+    timeoutMs: 180_000,
+  });
+}
+
+export function createResumeParseJob(
+  file: File,
+  llmConfig?: LLMConfigPayload,
+): Promise<ResumeParseJobResponse> {
+  const fd = new FormData();
+  fd.append("file", file, file.name);
+  if (llmConfig) {
+    fd.append("llm_config", JSON.stringify(llmConfig));
+  }
+  return request(`${BASE}/resume/parse-jobs`, {
+    method: "POST",
+    body: fd,
+    timeoutMs: 45_000,
+  });
+}
+
+export function getResumeParseJob(
+  jobId: string,
+): Promise<ResumeParseJobResponse> {
+  return request(`${BASE}/resume/parse-jobs/${encodeURIComponent(jobId)}`, {
+    timeoutMs: 15_000,
   });
 }
 
@@ -121,20 +201,25 @@ export function listDirections(): Promise<ListDirectionsResponse> {
   return request(`${BASE}/directions`);
 }
 
+/** Static waiting-tip catalog used by the in-interview loading panel. */
+export function listInterviewWaitingTips(): Promise<InterviewWaitingTipsResponse> {
+  return request(`${BASE}/waiting-tips`);
+}
+
 export function pollQuestion(
   sessionId: string,
   opts: { timeout?: number; signal?: AbortSignal } = {},
 ): Promise<PollQuestionResponse> {
   const timeout = opts.timeout ?? 30;
-  return request(
-    `${BASE}/sessions/${encodeURIComponent(sessionId)}/question?timeout=${timeout}`,
-    // Server will block up to ``timeout`` seconds; give the client a
-    // margin above that so AbortController does not fire first.
-    {
-      headers: sessionHeaders(sessionId),
-      signal: opts.signal,
-      timeoutMs: (timeout + 5) * 1000,
-    },
+  return withSessionRecovery(sessionId, () =>
+    request(
+      `${BASE}/sessions/${encodeURIComponent(sessionId)}/question?timeout=${timeout}`,
+      {
+        headers: sessionHeaders(sessionId),
+        signal: opts.signal,
+        timeoutMs: (timeout + 5) * 1000,
+      },
+    ),
   );
 }
 
@@ -142,11 +227,11 @@ export function submitAnswer(
   sessionId: string,
   answer: string,
   turnIdx: number,
-  videoSignals?: Record<string, unknown>,
+  videoSignals?: object,
 ): Promise<{ session_id: string; accepted: boolean }> {
   const llmConfig = buildLLMPayload();
   const body: AnswerRequest = { answer, turn_idx: turnIdx };
-  if (videoSignals) body.video_signals = videoSignals;
+  if (videoSignals) body.video_signals = videoSignals as Record<string, unknown>;
   if (llmConfig) body.llm_config = llmConfig;
   return request(`${BASE}/sessions/${encodeURIComponent(sessionId)}/answer`, {
     method: "POST",
@@ -191,39 +276,109 @@ export function createVoiceTicket(sessionId: string): Promise<VoiceTicketRespons
   );
 }
 
+export async function synthesizeQuestionAudio(
+  sessionId: string,
+  text: string,
+  turnIdx: number,
+  signal?: AbortSignal,
+): Promise<Blob> {
+  void text;
+  const llmConfig = buildLLMPayload();
+  const body: QuestionAudioRequest = { turn_idx: turnIdx };
+  if (llmConfig) body.llm_config = llmConfig;
+  const res = await fetch(apiUrl(`${BASE}/sessions/${encodeURIComponent(sessionId)}/question-audio`), {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      ...(sessionHeaders(sessionId) ?? {}),
+    },
+    body: JSON.stringify(body),
+    signal,
+    cache: "no-store",
+  });
+  if (!res.ok) {
+    let message = res.statusText || `HTTP ${res.status}`;
+    let parsed: unknown = null;
+    try {
+      parsed = await res.json();
+      if (parsed && typeof parsed === "object" && "detail" in parsed) {
+        const detail = (parsed as { detail?: unknown }).detail;
+        message = typeof detail === "string" ? detail : JSON.stringify(detail);
+      }
+    } catch {
+      /* keep status text */
+    }
+    throw new ApiError(res.status, message, parsed);
+  }
+  return res.blob();
+}
+
 export function retryFailedQuestion(
   sessionId: string,
 ): Promise<RetryQuestionResponse> {
+  const llmConfig = buildLLMPayload();
   return request(
     `${BASE}/sessions/${encodeURIComponent(sessionId)}/retry-question`,
-    { method: "POST", headers: sessionHeaders(sessionId) },
+    {
+      method: "POST",
+      headers: sessionHeaders(sessionId),
+      body: llmConfig ? { llm_config: llmConfig } : undefined,
+    },
   );
 }
 
 export function deleteSession(sessionId: string): Promise<DeleteSessionResponse> {
   const encoded = encodeURIComponent(sessionId);
-  return request(
-    `${BASE}/sessions/${encoded}?confirm_session_id=${encodeURIComponent(sessionId)}`,
-    { method: "DELETE", headers: sessionHeaders(sessionId) },
+  return withSessionRecovery(sessionId, () =>
+    request(
+      `${BASE}/sessions/${encoded}?confirm_session_id=${encodeURIComponent(sessionId)}`,
+      { method: "DELETE", headers: sessionHeaders(sessionId) },
+    ),
   );
 }
 
 export function getReport(sessionId: string): Promise<GetReportResponse> {
-  return request(`${BASE}/sessions/${encodeURIComponent(sessionId)}/report`, {
-    headers: sessionHeaders(sessionId),
-  });
+  return withSessionRecovery(sessionId, () =>
+    request(`${BASE}/sessions/${encodeURIComponent(sessionId)}/report`, {
+      headers: sessionHeaders(sessionId),
+    }),
+  );
 }
 
 export function getReplay(sessionId: string): Promise<ReplayResponse> {
-  return request(`${BASE}/sessions/${encodeURIComponent(sessionId)}/replay`, {
-    headers: sessionHeaders(sessionId),
-  });
+  return withSessionRecovery(sessionId, () =>
+    request(`${BASE}/sessions/${encodeURIComponent(sessionId)}/replay`, {
+      headers: sessionHeaders(sessionId),
+    }),
+  );
+}
+
+export function getSessionMetadata(
+  sessionId: string,
+): Promise<SessionMetadataResponse> {
+  return withSessionRecovery(sessionId, () =>
+    request(`${BASE}/sessions/${encodeURIComponent(sessionId)}/metadata`, {
+      headers: sessionHeaders(sessionId),
+    }),
+  );
+}
+
+export function getSessionSetupSnapshot(
+  sessionId: string,
+): Promise<SessionSetupSnapshotResponse> {
+  return withSessionRecovery(sessionId, () =>
+    request(`${BASE}/sessions/${encodeURIComponent(sessionId)}/setup-snapshot`, {
+      headers: sessionHeaders(sessionId),
+    }),
+  );
 }
 
 export function resumeSession(sessionId: string): Promise<ResumeResponse> {
-  return request(`${BASE}/sessions/${encodeURIComponent(sessionId)}/resume`, {
-    headers: sessionHeaders(sessionId),
-  });
+  return withSessionRecovery(sessionId, () =>
+    request(`${BASE}/sessions/${encodeURIComponent(sessionId)}/resume`, {
+      headers: sessionHeaders(sessionId),
+    }),
+  );
 }
 
 export function submitFeedback(

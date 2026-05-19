@@ -1,6 +1,7 @@
 import type {
   Candidate,
   LLMConfigPayload,
+  ResumeParseJobResponse,
   ParseResumeResponse,
   ResumeCandidateProfile,
 } from "./api/types";
@@ -17,6 +18,16 @@ interface ParseResumeForSetupDeps {
   buildLLMPayload: BuildLLMPayloadFn;
 }
 
+type CreateResumeParseJobFn = (
+  file: File,
+  llmConfig?: LLMConfigPayload,
+) => Promise<ResumeParseJobResponse>;
+
+interface CreateResumeParseJobForSetupDeps {
+  createResumeParseJob: CreateResumeParseJobFn;
+  buildLLMPayload: BuildLLMPayloadFn;
+}
+
 const QWEN_FLASH_MODEL = "qwen3.6-flash";
 const QWEN_PLUS_MODEL = "qwen3.6-plus";
 
@@ -25,6 +36,16 @@ export function parseResumeForSetup(
   deps: ParseResumeForSetupDeps,
 ): Promise<ParseResumeResponse> {
   return deps.parseResume(file, preferQwenPlusForResumeParser(deps.buildLLMPayload()));
+}
+
+export function createResumeParseJobForSetup(
+  file: File,
+  deps: CreateResumeParseJobForSetupDeps,
+): Promise<ResumeParseJobResponse> {
+  return deps.createResumeParseJob(
+    file,
+    preferQwenPlusForResumeParser(deps.buildLLMPayload()),
+  );
 }
 
 export function candidateNameAutofillValue(
@@ -64,6 +85,13 @@ export function resumeParsedForSession(args: {
   if (args.concerns && args.concerns.length > 0) {
     resumeParsed.concerns = args.concerns;
   }
+  if (
+    isPlainObject(args.candidate_profile) &&
+    Object.keys(args.candidate_profile).length > 0
+  ) {
+    resumeParsed.candidate_profile =
+      args.candidate_profile as ResumeCandidateProfile;
+  }
   return resumeParsed;
 }
 
@@ -89,6 +117,10 @@ export function resumeJobAutofillValues(args: {
 
 export function resumeReuploadInputValue(): string {
   return "";
+}
+
+function isPlainObject(value: unknown): value is Record<string, unknown> {
+  return Boolean(value) && typeof value === "object" && !Array.isArray(value);
 }
 
 function preferQwenPlusForResumeParser(

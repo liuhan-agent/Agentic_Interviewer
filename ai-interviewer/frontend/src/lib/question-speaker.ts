@@ -2,8 +2,12 @@ const QUESTION_SPEECH_KEY = "interviewQuestionSpeechEnabled";
 
 type StorageLike = Pick<Storage, "getItem" | "setItem" | "removeItem">;
 type SpeechWindowLike = {
-  speechSynthesis?: Pick<SpeechSynthesis, "cancel" | "speak">;
+  speechSynthesis?: Pick<SpeechSynthesis, "cancel" | "pause" | "resume" | "speak">;
   SpeechSynthesisUtterance?: typeof SpeechSynthesisUtterance;
+};
+type SpeakQuestionOptions = {
+  onEnd?: () => void;
+  onError?: () => void;
 };
 
 function browserWindow(): SpeechWindowLike | null {
@@ -49,7 +53,11 @@ export function canSpeakQuestions(win = browserWindow()): boolean {
   return Boolean(win?.speechSynthesis && win?.SpeechSynthesisUtterance);
 }
 
-export function speakQuestion(text: string, win = browserWindow()): boolean {
+export function speakQuestion(
+  text: string,
+  win = browserWindow(),
+  options: SpeakQuestionOptions = {},
+): boolean {
   const content = normalizeQuestionSpeechText(text);
   if (!content || !canSpeakQuestions(win)) return false;
 
@@ -59,6 +67,8 @@ export function speakQuestion(text: string, win = browserWindow()): boolean {
   utterance.lang = "zh-CN";
   utterance.rate = 0.95;
   utterance.pitch = 1;
+  utterance.onend = () => options.onEnd?.();
+  utterance.onerror = () => options.onError?.();
 
   try {
     synthesis.cancel();
@@ -75,5 +85,25 @@ export function stopQuestionSpeech(win = browserWindow()): void {
     win.speechSynthesis.cancel();
   } catch {
     /* ignore */
+  }
+}
+
+export function pauseQuestionSpeech(win = browserWindow()): boolean {
+  if (!win?.speechSynthesis) return false;
+  try {
+    win.speechSynthesis.pause();
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+export function resumeQuestionSpeech(win = browserWindow()): boolean {
+  if (!win?.speechSynthesis) return false;
+  try {
+    win.speechSynthesis.resume();
+    return true;
+  } catch {
+    return false;
   }
 }

@@ -119,6 +119,7 @@ def test_resume_session_returns_error_kind_for_failed_session(
         "question": None,
         "error": "invalid api key",
         "error_kind": "auth",
+        "enable_video_analysis": False,
     }
 
 
@@ -184,6 +185,7 @@ def test_terminal_payload_uses_persisted_error_details(
         "error": "invalid api key",
         "error_kind": "auth",
         "retryable": True,
+        "enable_video_analysis": False,
     }
 
 
@@ -293,6 +295,8 @@ def test_done_cancelled_session_resumes_as_cancelled(
         "status": "cancelled",
         "question": None,
         "max_turns": 8,
+        "enable_video_analysis": False,
+        "history": [],
     }
 
 
@@ -369,20 +373,28 @@ def test_resume_session_recovers_waiting_checkpoint_when_handle_missing(
         "turn_idx": 2,
         "max_turns": 8,
         "question": {"question": "Tell me about a system."},
+        "enable_video_analysis": False,
+        "previous_turn_evaluation": None,
+        "history": [],
     }
 
 
 def test_retry_failed_question_endpoint_starts_retry(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    calls: list[str] = []
+    calls: list[tuple[str, dict[str, Any] | None]] = []
 
     class _RetryManager:
         def get(self, session_id: str) -> None:
             return None
 
-        def retry_failed_question(self, session_id: str) -> object | None:
-            calls.append(session_id)
+        def retry_failed_question(
+            self,
+            session_id: str,
+            *,
+            llm_config: dict[str, Any] | None = None,
+        ) -> object | None:
+            calls.append((session_id, llm_config))
             return object()
 
     monkeypatch.setattr(interview_api, "get_session_manager", lambda: _RetryManager())
@@ -390,11 +402,19 @@ def test_retry_failed_question_endpoint_starts_retry(
     app.include_router(interview_api.router)
     local_client = TestClient(app)
 
-    resp = local_client.post("/api/v1/interview/sessions/sess-retry/retry-question")
+    llm_config = {
+        "provider": "qwen",
+        "api_key": "fresh-key",
+        "model": "qwen3.6-flash",
+    }
+    resp = local_client.post(
+        "/api/v1/interview/sessions/sess-retry/retry-question",
+        json={"llm_config": llm_config},
+    )
 
     assert resp.status_code == 200
     assert resp.json() == {"session_id": "sess-retry", "status": "retrying"}
-    assert calls == ["sess-retry"]
+    assert calls == [("sess-retry", llm_config)]
 
 
 def test_retry_failed_question_endpoint_rejects_non_retryable(
@@ -404,7 +424,12 @@ def test_retry_failed_question_endpoint_rejects_non_retryable(
         def get(self, session_id: str) -> None:
             return None
 
-        def retry_failed_question(self, session_id: str) -> object | None:
+        def retry_failed_question(
+            self,
+            session_id: str,
+            *,
+            llm_config: dict[str, Any] | None = None,
+        ) -> object | None:
             return None
 
     monkeypatch.setattr(interview_api, "get_session_manager", lambda: _RetryManager())

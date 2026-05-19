@@ -59,6 +59,7 @@ class QATurn(TypedDict, total=False):
     # report, replay, and any downstream training pipeline see *why* a
     # turn was scored the way it was without re-running the classifier.
     answer_intent: AnswerIntent
+    video_signals: dict[str, Any]
 
 
 class SelfIntroCommunicationSignal(TypedDict, total=False):
@@ -243,7 +244,8 @@ class InterviewState(TypedDict, total=False):
     qa_summary_through_turn: int
 
     evaluation: dict[str, Any]
-    scores_per_dim: dict[str, float]
+    scores_per_dim: dict[str, float | None]
+    score_breakdowns: dict[str, dict[str, Any]]
 
     max_turns: int
     quality_threshold: float
@@ -353,7 +355,8 @@ def build_initial_state(
         "qa_summary": "",
         "qa_summary_through_turn": -1,
         "evaluation": {},
-        "scores_per_dim": {d: 0.0 for d in dimensions},
+        "scores_per_dim": {d: None for d in dimensions},
+        "score_breakdowns": {},
         "max_turns": max_turns,
         "quality_threshold": quality_threshold,
         "turn_budget_remaining": turn_budget,

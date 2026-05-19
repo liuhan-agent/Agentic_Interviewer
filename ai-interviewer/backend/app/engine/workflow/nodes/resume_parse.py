@@ -43,5 +43,5 @@ def resume_parse_node(state: InterviewState) -> dict[str, Any]:
         "dimensions": dims,
         "rubric": rubric,
         "dimension_status": status,
-        "scores_per_dim": state.get("scores_per_dim") or {d: 0.0 for d in dims},
+        "scores_per_dim": state.get("scores_per_dim") or {d: None for d in dims},
     }

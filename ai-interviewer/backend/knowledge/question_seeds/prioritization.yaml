@@ -1,0 +1,52 @@
+dimension: prioritization
+seeds:
+  - id: prioritization.roadmap_tradeoff
+    version: 1
+    title: Roadmap 优先级与取舍判断
+    dimension: prioritization
+    job_levels: [junior, mid, senior]
+    skill_tags: [product_manager, prioritization, roadmap, tradeoff, resource]
+    direction_tags: [business]
+    role_tags: [product_manager]
+    rubric:
+      must_cover: [用户价值, 业务收益, 成本风险, 时间窗口]
+      minimum_bar: 能解释多个候选需求的排序逻辑，而不是只给结论。
+      stretch: 能在短期收益和长期战略之间做有证据的取舍，并复盘排序是否有效。
+    priority: 28
+    status: active
+    source: manual_yaml
+    scope: global
+    language: zh-CN
+    variants:
+      - id: prioritization.roadmap_tradeoff.limited_sprint
+        version: 1
+        intent: opening
+        difficulty: standard
+        scenario_brief: 一个迭代只能做两项需求，但候选项包含增长、体验、合规和技术债四类诉求。
+        question_stem: 你会如何给这些需求排序，并说明为什么不是先做另外几个？
+        prompt_template: 生成一道产品优先级题，要求候选人说明价值、成本、风险、时间窗口和排序证据。
+        scenario_skill_tags: [product_manager, prioritization, roadmap, sprint]
+        resume_anchor_hints: [roadmap, prioritization, product, sprint, resource]
+        failure_categories: [weak_prioritization, missing_tradeoff, missing_evidence]
+        rubric_additions: [说明排序维度, 说明被延后项的理由, 说明后续复盘方式]
+        expected_signals: [能构造排序框架, 能说明非选择项, 能承认信息变化会改变排序]
+        anti_patterns: [只按老板要求排序, 不讲放弃什么, 没有复盘]
+        good_answer_hints: [先列约束, 再比较候选项, 最后定义复盘信号]
+        priority: 17
+        status: active
+      - id: prioritization.roadmap_tradeoff.strategic_vs_short_term
+        version: 1
+        intent: deep_probe
+        difficulty: deep_probe
+        scenario_brief: 一个短期活动功能能马上拉 GMV，另一个基础能力短期不显著但会影响半年后的平台效率。
+        question_stem: 短期结果和长期能力冲突时，你会如何做产品优先级决策并说服相关方？
+        prompt_template: 生成一道长期短期取舍追问，要求候选人说明战略价值、机会成本、沟通证据和风险。
+        scenario_skill_tags: [product_manager, roadmap, strategic_tradeoff, prioritization]
+        resume_anchor_hints: [strategy, roadmap, product, stakeholder, metric]
+        failure_categories: [missing_tradeoff, vague_metrics, weak_stakeholder_alignment]
+        rubric_additions: [说明短期与长期指标, 说明机会成本, 说明对齐和验证机制]
+        expected_signals: [能量化短期和长期价值, 能处理业务压力, 能设计阶段性里程碑]
+        anti_patterns: [只讲愿景不看结果, 只追短期 KPI, 不沟通风险]
+        good_answer_hints: [先拆收益周期, 再做阶段性方案, 最后用里程碑对齐]
+        priority: 16
+        status: active

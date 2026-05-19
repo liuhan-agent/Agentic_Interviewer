@@ -66,6 +66,142 @@ def test_llm_test_endpoint_returns_latency_on_success(
     assert captured["override"]["api_key"] == "secret-key"
 
 
+def test_llm_test_endpoint_checks_qwen_asr_route(
+    client: TestClient,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from app.api.v1 import llm as llm_api
+
+    captured: dict[str, Any] = {}
+
+    class FakeProvider:
+        async def check_asr_session(self, route):
+            captured["route"] = route
+            return "session.updated"
+
+    monkeypatch.setattr(llm_api, "provider_for", lambda route: FakeProvider())
+
+    resp = client.post(
+        "/api/v1/llm/test",
+        json={
+            "kind": "asr",
+            "provider": "qwen",
+            "api_key": "secret-key",
+            "model": "qwen3-asr-flash-realtime",
+            "base_url": "wss://dashscope.aliyuncs.com/api-ws/v1/realtime",
+        },
+    )
+
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["ok"] is True
+    assert body["provider"] == "qwen"
+    assert body["model"] == "qwen3-asr-flash-realtime"
+    assert body["message"] == "session.updated"
+    assert captured["route"].api_key == "secret-key"
+    assert "secret-key" not in resp.text
+
+
+def test_llm_test_endpoint_checks_qwen_tts_route(
+    client: TestClient,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from app.api.v1 import llm as llm_api
+
+    captured: dict[str, Any] = {}
+
+    class FakeProvider:
+        async def synth(self, route, text, *, connect_factory=None):
+            captured["route"] = route
+            captured["text"] = text
+            yield b"audio"
+
+    monkeypatch.setattr(llm_api, "provider_for", lambda route: FakeProvider())
+
+    resp = client.post(
+        "/api/v1/llm/test",
+        json={
+            "kind": "tts",
+            "provider": "qwen",
+            "api_key": "secret-key",
+            "model": "qwen3-tts-flash-realtime",
+            "voice": "Cherry",
+            "base_url": "wss://dashscope.aliyuncs.com/api-ws/v1/realtime",
+        },
+    )
+
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["ok"] is True
+    assert body["provider"] == "qwen"
+    assert body["model"] == "qwen3-tts-flash-realtime"
+    assert body["message"] == "audio"
+    assert captured["route"].voice == "Cherry"
+    assert captured["text"]
+    assert "secret-key" not in resp.text
+
+
+def test_llm_test_endpoint_redacts_voice_provider_errors(
+    client: TestClient,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from app.api.v1 import llm as llm_api
+
+    class FakeProvider:
+        async def check_asr_session(self, route):
+            raise RuntimeError("provider echoed secret-key")
+
+    monkeypatch.setattr(llm_api, "provider_for", lambda route: FakeProvider())
+
+    resp = client.post(
+        "/api/v1/llm/test",
+        json={
+            "kind": "asr",
+            "provider": "qwen",
+            "api_key": "secret-key",
+            "model": "qwen3-asr-flash-realtime",
+        },
+    )
+
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["ok"] is False
+    assert body["error_kind"] == "unknown"
+    assert body["error"] == "provider echoed [redacted-api-key]"
+    assert "secret-key" not in resp.text
+
+
+def test_llm_test_endpoint_classifies_voice_protocol_errors(
+    client: TestClient,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from app.api.v1 import llm as llm_api
+
+    class FakeProvider:
+        async def synth(self, route, text, *, connect_factory=None):
+            raise RuntimeError("server rejected websocket realtime session")
+            yield b"unreachable"
+
+    monkeypatch.setattr(llm_api, "provider_for", lambda route: FakeProvider())
+
+    resp = client.post(
+        "/api/v1/llm/test",
+        json={
+            "kind": "tts",
+            "provider": "qwen",
+            "api_key": "secret-key",
+            "model": "qwen3-tts-flash-realtime",
+            "voice": "Cherry",
+        },
+    )
+
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["ok"] is False
+    assert body["error_kind"] == "network"
+    assert body["error"] == "server rejected websocket realtime session"
+
+
 @pytest.mark.parametrize(
     ("exc", "kind"),
     [
@@ -74,6 +210,12 @@ def test_llm_test_endpoint_returns_latency_on_success(
         (LLMRateLimit("429 too many requests"), "rate_limit"),
         (LLMTransient("request timeout"), "timeout"),
         (LLMTransient("connection reset by peer"), "network"),
+        (
+            ImportError(
+                "Using SOCKS proxy, but the 'socksio' package is not installed."
+            ),
+            "network",
+        ),
         (LLMFatal("unsupported provider: nope"), "misconfig"),
     ],
 )
