@@ -14,4 +14,3 @@ Candidate recovered from 5.0 to 9.0 in communication after action 'plan_hint'.
 How to apply:
 - When a candidate scores low in communication, try 'plan_hint' before switching dimensions.
 - This pattern was observed with a score delta of 4.0 points.
-

@@ -58,6 +58,7 @@ import type {
   GetReportResponse,
   LLMErrorKind,
   RubricScore,
+  ScoringCredibility,
   TraceHealth,
   VideoAnalysis,
 } from "@/lib/api/types";
@@ -73,6 +74,7 @@ import {
   type GrowthHints as GrowthHintsType,
   type SessionDelta,
 } from "@/lib/sessionDelta";
+import { verdictShortLabel, verdictTone } from "@/lib/constants/verdicts";
 import { formatDimensionName } from "@/lib/constants/interview";
 import {
   getCompletedBefore,
@@ -144,7 +146,7 @@ function translateReportText(value?: string | null): string {
 
   const overall = text.match(/^Overall verdict: ([^@.]+)(?: @ ([^.\s]+))?\.?(?: Focus next on (.+)\.)?$/);
   if (overall) {
-    const verdict = formatVerdict(overall[1].trim());
+    const verdict = verdictShortLabel(overall[1].trim());
     const scoreValue = overall[2] ? Number(overall[2]) : null;
     const score =
       scoreValue !== null && Number.isFinite(scoreValue)
@@ -487,7 +489,7 @@ function Summary({ report }: { report: FinalReport }) {
             <div className="flex flex-wrap justify-end gap-2">
               {verdict && (
                 <Badge variant={variant} className="px-3 py-1 text-sm">
-                  {formatVerdict(verdict)}
+                  {verdictShortLabel(verdict)}
                 </Badge>
               )}
               <CoverageCautionBadge report={report} />
@@ -961,6 +963,37 @@ function asNumber(value: unknown): number | null {
   return Number.isFinite(n) ? n : null;
 }
 
+function formatRate(value: number | null | undefined): string {
+  const n = typeof value === "number" && Number.isFinite(value) ? value : 0;
+  return `${Math.round(Math.min(1, Math.max(0, n)) * 100)}%`;
+}
+
+function credibilityMetric(summary: ScoringCredibility): QualityMetric {
+  const level = String(summary.credibility_level ?? "").toLowerCase();
+  const value =
+    level === "high"
+      ? "信号充分"
+      : level === "medium"
+        ? "部分信号不足"
+        : level === "low"
+          ? "信号不足"
+          : "基础评分";
+  const forcedRefine = summary.verification_forced_refine
+    ? "；复核曾触发强制修正"
+    : "";
+
+  return {
+    label: "评分可信度",
+    value,
+    description:
+      `fallback ${formatRate(summary.fallback_rate)}，` +
+      `证据缺失 ${formatRate(summary.evidence_span_miss_rate)}，` +
+      `检查未通过 ${formatRate(summary.contract_no_rate)}${forcedRefine}。`,
+    variant: level === "high" ? "success" : level ? "warn" : "outline",
+  };
+}
+
+// Build the deep link the QualityCenter "查看该 trace" button uses.
 function summarizeCoverageWarnings(coverageWarnings: unknown[]): string {
   const dimensions = coverageWarnings
     .map((item) => formatDimensionName(String(asRecord(item).dimension ?? "")))
@@ -1033,6 +1066,7 @@ function QualityCenter({
   const workflow = asRecord(report.workflow_artifacts);
   const contract = asRecord(report.contract_summary);
   const evidenceSummary = asRecord(report.evidence_summary);
+  const credibilitySummary = report.credibility_summary;
   const coverageWarnings = asArray(report.coverage_warnings);
   const skillCoverage = asRecord(workflow.target_skill_coverage);
   const latestAction = asRecord(workflow.latest_selected_action);
@@ -1083,7 +1117,10 @@ function QualityCenter({
   const personalizationMetric: QualityMetric = {
     label: "题目个性化",
     value: skillCount > 0 ? `${skillCount} 个技能点` : "基础个性化",
-    description: summarizeSkillRows(skillRows, latestTargetSkills),
+    description:
+      skillCount > 0
+        ? "问题围绕目标技能和你的回答动态调整。"
+        : "当前报告未暴露详细技能覆盖，仍保留基础题目与评分证据。",
     variant: skillCount > 0 ? "success" : "outline",
   };
 
@@ -1101,6 +1138,9 @@ function QualityCenter({
             : "流程记录未完整闭环，评分或学习节点存在缺口；评分仅供参考。",
         variant: "warn",
       };
+    }
+    if (credibilitySummary) {
+      return credibilityMetric(credibilitySummary);
     }
     return {
       label: "评分可信度",
@@ -2034,6 +2074,15 @@ function TrainingPlanCard({
             </div>
           </section>
         )}
+
+        {weakPracticeHref && (
+          <Button asChild className="gap-2 bg-emerald-600 hover:bg-emerald-500 text-white">
+            <Link href={weakPracticeHref}>
+              <Target className="h-4 w-4" />
+              针对本次弱项再来一场
+            </Link>
+          </Button>
+        )}
       </CardContent>
     </Card>
   );
@@ -2240,26 +2289,6 @@ function Actions({
   );
 }
 
-function formatVerdict(v: string): string {
-  const map: Record<string, string> = {
-    strong_pass: "表现优秀",
-    pass: "达到目标水平",
-    borderline: "接近达标",
-    fail: "重点补齐",
-    excellent: "表现优秀",
-    target_met: "达到目标水平",
-    near_target: "接近达标",
-    needs_focus: "重点补齐",
-    strong_hire: "表现优秀",
-    hire: "达到目标水平",
-    lean_hire: "接近达标",
-    lean_no_hire: "重点补齐",
-    no_hire: "重点补齐",
-    cancelled: "已取消",
-  };
-  return map[v.toLowerCase()] ?? v.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
-}
-
 function reportGrowthSignal(report: FinalReport): string | undefined {
   const growthSignal =
     typeof report.growth_signal === "string" ? report.growth_signal : undefined;
@@ -2326,26 +2355,9 @@ function buildWeakPracticeHref(report: FinalReport): string | null {
 function verdictVariant(
   v?: string,
 ): "success" | "warn" | "destructive" | "outline" {
-  if (!v) return "outline";
-  const s = v.toLowerCase();
-  if (
-    s === "excellent" ||
-    s === "target_met" ||
-    s === "strong_pass" ||
-    s === "pass" ||
-    s === "strong_hire" ||
-    s === "hire"
-  ) {
-    return "success";
-  }
-  if (s === "near_target" || s === "borderline" || s.includes("lean")) return "warn";
-  if (
-    s === "needs_focus" ||
-    s === "fail" ||
-    s.includes("no_hire") ||
-    s.includes("no-hire")
-  ) {
-    return "destructive";
-  }
+  const tone = verdictTone(v);
+  if (tone === "positive") return "success";
+  if (tone === "mixed") return "warn";
+  if (tone === "negative") return "destructive";
   return "outline";
 }

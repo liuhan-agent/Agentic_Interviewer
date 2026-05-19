@@ -141,11 +141,71 @@ function useAutoFetch<T>(
   return state;
 }
 
+function AdminHealthSection({
+  traceRollup,
+  fallbackRollup,
+  evidenceRollup,
+  questionQualityRollup,
+  fallbackRates,
+  sessions,
+  history,
+  onRefresh,
+}: {
+  traceRollup: Loadable<TraceRollupResponse>;
+  fallbackRollup: Loadable<TraceRollupResponse>;
+  evidenceRollup: Loadable<EvidenceRollupResponse>;
+  questionQualityRollup: Loadable<QuestionQualityRollupResponse>;
+  fallbackRates: Loadable<FallbackRatesResponse>;
+  sessions: Loadable<AdminSessions>;
+  history: Loadable<InterviewSessionHistory>;
+  onRefresh: () => void;
+}) {
+  return (
+    <>
+      <InterviewQualityOverview
+        trace={traceRollup}
+        fallback={fallbackRollup}
+        evidence={evidenceRollup}
+        question={questionQualityRollup}
+      />
+      <div className="grid gap-6 lg:grid-cols-2 xl:grid-cols-4">
+        <TraceHealthRollUp state={traceRollup} />
+        <FallbackRollUp state={fallbackRollup} />
+      </div>
+      <FallbackKindCounts state={fallbackRates} />
+      <SessionsCard state={sessions} />
+      <HistoricalSessionsCard state={history} onRefresh={onRefresh} />
+    </>
+  );
+}
+
+function AdminScoringSection({
+  evidenceRollup,
+  questionQualityRollup,
+  drift,
+}: {
+  evidenceRollup: Loadable<EvidenceRollupResponse>;
+  questionQualityRollup: Loadable<QuestionQualityRollupResponse>;
+  drift: Loadable<VerifierDriftSnapshot>;
+}) {
+  return (
+    <>
+      <div className="grid gap-6 lg:grid-cols-2">
+        <EvidenceRollUp state={evidenceRollup} />
+        <QuestionQualityRollUp state={questionQualityRollup} />
+      </div>
+      <DriftCard state={drift} />
+      <RagEvalSection />
+    </>
+  );
+}
+
 export function AdminPanel() {
   const [tokenInput, setTokenInput] = useState("");
   const [tokenSaved, setTokenSaved] = useState("");
   const [tick, setTick] = useState(0);
   const [recentNode, setRecentNode] = useState<string>("evaluator");
+  const [activeTab, setActiveTab] = useState<"health" | "scoring" | "strategy">("health");
 
   useEffect(() => {
     const t = loadAdminToken();
@@ -292,6 +352,12 @@ export function AdminPanel() {
     setTick((t) => t + 1);
   }
 
+  const ADMIN_TABS = [
+    { id: "health" as const, label: "运行健康", icon: Activity },
+    { id: "scoring" as const, label: "评分质量", icon: ClipboardList },
+    { id: "strategy" as const, label: "策略学习", icon: BookMarked },
+  ];
+
   return (
     <div className="space-y-6">
       <TokenBar
@@ -310,26 +376,44 @@ export function AdminPanel() {
         strategies={strategies}
       />
 
-      <InterviewQualityOverview
-        trace={traceRollup}
-        fallback={fallbackRollup}
-        evidence={evidenceRollup}
-        question={questionQualityRollup}
-      />
-
-      <div className="grid gap-6 lg:grid-cols-2 xl:grid-cols-4">
-        <TraceHealthRollUp state={traceRollup} />
-        <FallbackRollUp state={fallbackRollup} />
-        <EvidenceRollUp state={evidenceRollup} />
-        <QuestionQualityRollUp state={questionQualityRollup} />
+      <div className="flex gap-1 rounded-lg border bg-muted/40 p-1">
+        {ADMIN_TABS.map((tab) => (
+          <button
+            key={tab.id}
+            onClick={() => setActiveTab(tab.id)}
+            className={cn(
+              "flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium transition-colors",
+              activeTab === tab.id
+                ? "bg-background text-foreground shadow-sm"
+                : "text-muted-foreground hover:text-foreground",
+            )}
+          >
+            <tab.icon className="h-3.5 w-3.5" />
+            {tab.label}
+          </button>
+        ))}
       </div>
 
-      <FallbackKindCounts state={fallbackRates} />
+      {activeTab === "health" && (
+        <AdminHealthSection
+          traceRollup={traceRollup}
+          fallbackRollup={fallbackRollup}
+          evidenceRollup={evidenceRollup}
+          questionQualityRollup={questionQualityRollup}
+          fallbackRates={fallbackRates}
+          sessions={sessions}
+          history={history}
+          onRefresh={() => setTick((t) => t + 1)}
+        />
+      )}
 
-      <div className="grid gap-6 lg:grid-cols-2">
-        <BanditCard state={bandit} />
-        <DriftCard state={drift} />
-      </div>
+      {activeTab === "scoring" && (
+        <AdminScoringSection
+          evidenceRollup={evidenceRollup}
+          questionQualityRollup={questionQualityRollup}
+          drift={drift}
+        />
+      )}
 
       <RecentTracesByNode
         state={recentTraces}
@@ -822,6 +906,27 @@ function EvidenceRollUp({ state }: { state: Loadable<EvidenceRollupResponse> }) 
             <StatBox
               label="verification_change_rate"
               value={formatPercent(data.verification_change_rate)}
+            />
+            <StatBox
+              label="total_acceptance_checks"
+              value={String(data.total_acceptance_checks)}
+            />
+            <StatBox label="yes_checks" value={String(data.yes_checks)} />
+            <StatBox
+              label="unsupported_yes"
+              value={`${data.unsupported_yes_checks}/${data.yes_checks} (${formatPercent(data.unsupported_yes_rate)})`}
+            />
+            <StatBox
+              label="evidence_span_none"
+              value={`${data.evidence_span_none_count}/${data.evidence_span_total} (${formatPercent(data.evidence_span_none_rate)})`}
+            />
+            <StatBox
+              label="evidence_quote_total"
+              value={String(data.evidence_quote_total)}
+            />
+            <StatBox
+              label="avg_quotes_per_check"
+              value={data.avg_evidence_quotes_per_check.toFixed(2)}
             />
           </div>
         )}

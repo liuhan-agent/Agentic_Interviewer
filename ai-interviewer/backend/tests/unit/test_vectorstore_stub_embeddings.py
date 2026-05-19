@@ -7,6 +7,8 @@ from pathlib import Path
 from types import SimpleNamespace
 from typing import Any
 
+import pytest
+
 from app.engine.rag import retriever, vectorstore
 from app.engine.rag.ingestion import _iter_documents, ingest_folder
 
@@ -171,6 +173,119 @@ def test_seeded_default_knowledge_has_no_rag_documents(monkeypatch):
 
     assert result.docs == []
     assert result.as_prompt_block == "(no relevant knowledge retrieved)"
+
+
+def test_prod_chroma_unavailable_raises_instead_of_falling_back(monkeypatch):
+    class FailingClient:
+        def __init__(self, *, host: str, port: int) -> None:
+            raise RuntimeError("chroma down")
+
+    monkeypatch.setitem(
+        sys.modules,
+        "chromadb",
+        types.SimpleNamespace(HttpClient=lambda host, port: FailingClient(host=host, port=port)),
+    )
+    monkeypatch.setattr(
+        vectorstore,
+        "get_settings",
+        lambda: SimpleNamespace(
+            app_env="prod",
+            chroma_host="localhost",
+            chroma_port=8100,
+            chroma_collection="interviewer_kb",
+            embedding_provider="stub",
+            embedding_model="text-embedding-3-small",
+            openai_api_key=None,
+        ),
+    )
+
+    with pytest.raises(RuntimeError, match="Chroma unavailable in production"):
+        vectorstore.ChromaVectorStore()
+
+
+class TestRuntimeChromaFailover:
+    """Verify graceful degradation when Chroma goes down after init."""
+
+    def _make_store_with_failing_ops(self, monkeypatch, *, fail_on: str):
+        """Build a ChromaVectorStore whose Chroma backend fails at runtime."""
+        collection = _FakeCollection()
+        original_upsert = collection.upsert
+        original_query = collection.query
+        original_count = collection.count
+
+        def exploding_upsert(**kw):
+            if fail_on in ("upsert", "all"):
+                raise ConnectionError("chroma connection lost")
+            return original_upsert(**kw)
+
+        def exploding_query(**kw):
+            if fail_on in ("query", "all"):
+                raise ConnectionError("chroma connection lost")
+            return original_query(**kw)
+
+        def exploding_count():
+            if fail_on in ("count", "all"):
+                raise ConnectionError("chroma connection lost")
+            return original_count()
+
+        collection.upsert = exploding_upsert
+        collection.query = exploding_query
+        collection.count = exploding_count
+
+        class FakeClient:
+            def get_or_create_collection(self, _name: str):
+                return collection
+
+        monkeypatch.setitem(
+            sys.modules,
+            "chromadb",
+            types.SimpleNamespace(HttpClient=lambda host, port: FakeClient()),
+        )
+        monkeypatch.setattr(
+            vectorstore,
+            "get_settings",
+            lambda: SimpleNamespace(
+                app_env="dev",
+                chroma_host="localhost",
+                chroma_port=8100,
+                chroma_collection="interviewer_kb",
+                embedding_provider="stub",
+                embedding_model="text-embedding-3-small",
+                openai_api_key=None,
+            ),
+        )
+        store = vectorstore.ChromaVectorStore()
+        assert store.is_remote
+        assert not store.is_degraded
+        return store
+
+    def test_add_falls_back_on_runtime_failure(self, monkeypatch):
+        store = self._make_store_with_failing_ops(monkeypatch, fail_on="upsert")
+        store.add(["test doc"], [{"source": "test.md", "chunk": 0}])
+        assert store.is_degraded
+        assert store._fallback.count() == 1
+
+    def test_similarity_search_falls_back_on_runtime_failure(self, monkeypatch):
+        store = self._make_store_with_failing_ops(monkeypatch, fail_on="query")
+        store._fallback.add(["fallback doc about python"], [{"source": "fb.md"}])
+        results = store.similarity_search("python", k=1)
+        assert store.is_degraded
+        assert len(results) == 1
+        assert results[0].text == "fallback doc about python"
+
+    def test_count_falls_back_on_runtime_failure(self, monkeypatch):
+        store = self._make_store_with_failing_ops(monkeypatch, fail_on="count")
+        store._fallback.add(["doc1"], [{"source": "a.md"}])
+        assert store.count() == 1
+        assert store.is_degraded
+
+    def test_degraded_flag_set_only_once(self, monkeypatch):
+        store = self._make_store_with_failing_ops(monkeypatch, fail_on="all")
+        store.add(["doc1"], [{"source": "a.md"}])
+        assert store.is_degraded
+        store.similarity_search("test", k=1)
+        store.count()
+        assert store.is_degraded
 
 
 def test_retriever_filters_old_non_rag_sources(monkeypatch):

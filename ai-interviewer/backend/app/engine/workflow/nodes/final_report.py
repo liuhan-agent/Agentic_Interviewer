@@ -14,6 +14,13 @@ from app.core.metrics import estimate_llm_cost_usd
 from app.core.settings import get_settings
 from app.core.tracer import get_tracer
 from app.core.video_signals_schema import normalize_video_signals
+from app.services.scoring_quality import (
+    acceptance_counts as _quality_acceptance_counts,
+    build_scoring_quality_summary,
+    evidence_summary as _quality_evidence_summary,
+    merge_contract_checks as _quality_merge_contract_checks,
+    verdict_of as _quality_verdict_of,
+)
 from app.engine.workflow.eval_helpers import (
     is_evaluator_fallback as _is_evaluator_fallback,
 )
@@ -359,58 +366,16 @@ def _verdict_of(value: Any) -> str:
     mixed-shape ``acceptance_check_results`` (old DB snapshots + new
     evaluator output) without importing the agent-layer helper.
     """
-    if isinstance(value, dict):
-        v = str(value.get("verdict", "")).strip().lower()
-    else:
-        v = str(value).strip().lower()
-    return v if v in {"yes", "partial", "no"} else "no"
+    return _quality_verdict_of(value)
 
 
 def _acceptance_counts(checks: dict[str, Any]) -> dict[str, int]:
-    counts = {"yes": 0, "partial": 0, "no": 0, "total": 0}
-    for raw in checks.values():
-        counts[_verdict_of(raw)] += 1
-        counts["total"] += 1
-    return counts
+    return _quality_acceptance_counts(checks)
 
 
 def _evidence_summary(qa_history: list[dict[str, Any]]) -> dict[str, Any]:
     """Aggregate evidence-span match health for the report UI."""
-    total = 0
-    exact = 0
-    fuzzy = 0
-    unmatched = 0
-    for qa in qa_history:
-        evaluation = qa.get("evaluation") or {}
-        checks = evaluation.get("acceptance_check_results") or {}
-        if not isinstance(checks, dict):
-            continue
-        for raw in checks.values():
-            if not isinstance(raw, dict):
-                continue
-            spans = raw.get("evidence_spans") or []
-            if not isinstance(spans, list):
-                continue
-            for span in spans:
-                if not isinstance(span, dict):
-                    continue
-                total += 1
-                match = str(span.get("match") or "").strip().lower()
-                if match == "exact":
-                    exact += 1
-                elif match == "fuzzy":
-                    fuzzy += 1
-                else:
-                    unmatched += 1
-    matched = exact + fuzzy
-    return {
-        "total_quotes": total,
-        "matched_quotes": matched,
-        "unmatched_quotes": unmatched,
-        "exact_matches": exact,
-        "fuzzy_matches": fuzzy,
-        "match_rate": round(matched / total, 3) if total else 0.0,
-    }
+    return _quality_evidence_summary(qa_history)
 
 
 def _merge_contract_checks(
@@ -424,12 +389,7 @@ def _merge_contract_checks(
     the verdict distribution, and the per-turn evidence is preserved
     separately under ``dimension_summaries[dim].evidence[*].acceptance_checks``.
     """
-    merged = dict(existing)
-    for check, raw_value in (incoming or {}).items():
-        if not check:
-            continue
-        merged[str(check)] = _verdict_of(raw_value)
-    return merged
+    return _quality_merge_contract_checks(existing, incoming)
 
 
 def _followup_reason(evaluation: dict[str, Any]) -> str | None:
@@ -601,8 +561,6 @@ def final_report_node(state: InterviewState) -> dict[str, Any]:
 
     qa_history = state.get("qa_history", [])
     dimension_summaries: dict[str, dict[str, Any]] = {}
-    merged_contract_checks: dict[str, str] = {}
-    risk_flags: list[str] = []
     for qa in qa_history:
         dim = qa.get("dimension", "unknown")
         bucket = dimension_summaries.setdefault(
@@ -630,19 +588,10 @@ def final_report_node(state: InterviewState) -> dict[str, Any]:
         bucket["rubric_coverage"].update(evaluation.get("rubric_coverage") or {})
         checks = evaluation.get("acceptance_check_results") or {}
         bucket["contract_checks"] = _acceptance_counts(checks)
-        merged_contract_checks = _merge_contract_checks(merged_contract_checks, checks)
         reason = _followup_reason(evaluation)
         if reason:
             bucket["followup_reasons"].append(reason)
         bucket["evidence"].append(_turn_evidence(qa))
-
-        if not evaluation.get("passed"):
-            risk_flags.extend(candidate_weaknesses)
-        risk_flags.extend(
-            item
-            for item in (evaluation.get("soft_warnings") or [])
-            if not _is_system_fallback_text(item)
-        )
 
     for bucket in dimension_summaries.values():
         bucket["strengths"] = _dedupe(bucket["strengths"])
@@ -650,10 +599,6 @@ def final_report_node(state: InterviewState) -> dict[str, Any]:
         bucket["followup_reasons"] = _dedupe(bucket["followup_reasons"])
 
     verification = state.get("verification") or {}
-    risk_flags = _dedupe(
-        list(verification.get("reasons_to_doubt") or []) + risk_flags
-    )[:8]
-    contract_counts = _acceptance_counts(merged_contract_checks)
 
     # Preserve an upstream ``cancelled`` marker so downstream consumers
     # (API, tracer, analytics) can tell a real completion apart from
@@ -690,6 +635,11 @@ def final_report_node(state: InterviewState) -> dict[str, Any]:
         for qa in qa_history
         if _is_evaluator_fallback(qa.get("evaluation") or {})
     )
+    quality_summary = build_scoring_quality_summary(
+        qa_history=qa_history,
+        verification=verification,
+        evaluator_fallback_count=evaluator_fallback_count,
+    )
     # Frontend-facing projection: the Next.js ``ReportView`` consumes
     # ``growth_signal`` and ``dimension_scores`` (RubricScore shape).
     # We keep the internal ``verdict`` and ``dimension_summaries``
@@ -717,27 +667,14 @@ def final_report_node(state: InterviewState) -> dict[str, Any]:
         "policy_ids": sorted({qa.get("selected_action", "") for qa in qa_history if qa.get("selected_action")}),
         "cancelled": incoming_status == "cancelled",
         "closed_loop_ready": bool(qa_history) and incoming_status != "cancelled",
-        "contract_summary": {
-            "total_checks": contract_counts["total"],
-            "checks_yes": contract_counts["yes"],
-            "checks_partial": contract_counts["partial"],
-            "checks_no": contract_counts["no"],
-        },
+        "contract_summary": quality_summary["contract_summary"],
         "coverage_warnings": coverage_warnings,
-        "risk_flags": risk_flags,
-        "evidence_summary": _evidence_summary(qa_history),
+        "risk_flags": quality_summary["risk_flags"],
+        "evidence_summary": quality_summary["evidence_summary"],
         "evaluator_fallback_count": evaluator_fallback_count,
         "workflow_artifacts": _workflow_artifacts(state),
     }
-    ev_summary = report["evidence_summary"]
-    ct_summary = report["contract_summary"]
-    report["credibility_summary"] = compute_credibility(
-        total_turns=len(qa_history),
-        evaluator_fallback_count=evaluator_fallback_count,
-        evidence_summary=ev_summary,
-        contract_summary=ct_summary,
-        verification=verification,
-    )
+    report["credibility_summary"] = quality_summary["credibility_summary"]
     cost_summary = _build_cost_summary()
     if cost_summary is not None:
         report["cost_summary"] = cost_summary

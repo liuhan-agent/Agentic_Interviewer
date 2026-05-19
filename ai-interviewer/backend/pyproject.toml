@@ -70,6 +70,7 @@ voice = [
 [project.scripts]
 interviewer-demo = "app.scripts.run_demo:main"
 interviewer-seed = "app.scripts.seed_kb:main"
+interviewer-prod-smoke = "app.scripts.production_smoke:main"
 interviewer-import-question-seeds = "app.scripts.import_question_seeds:main"
 
 [tool.hatch.build.targets.wheel]

@@ -145,6 +145,7 @@ export interface StartSessionRequest {
   max_turns?: number;
   quality_threshold?: number;
   turn_budget?: number;
+  focus_dimensions?: string[];
   /**
    * Interview style understood by the backend. ``tech`` and
    * ``behavioral`` focus the rubric; ``mixed`` combines both.
@@ -483,6 +484,16 @@ export interface EvidenceSummary {
   match_rate?: number;
 }
 
+export interface ScoringCredibility {
+  credibility_level?: "high" | "medium" | "low" | string;
+  fallback_rate?: number;
+  evidence_span_miss_rate?: number;
+  contract_no_rate?: number;
+  verification_forced_refine?: boolean;
+  total_turns?: number;
+  evaluator_fallback_count?: number;
+}
+
 /**
  * LLM cost accounting for one interview session, populated by the
  * backend ``final_report_node``. ``est_usd`` is a coarse estimate
@@ -515,6 +526,7 @@ export interface FinalReport {
   training_plan?: TrainingPlan;
   video_analysis?: VideoAnalysis;
   evidence_summary?: EvidenceSummary;
+  credibility_summary?: ScoringCredibility;
   /**
    * How many of ``total_turns`` were scored by the conservative
    * fallback path (LLM unavailable). When the ratio is high, the
@@ -584,7 +596,9 @@ export interface RetryQuestionResponse {
 export interface DeleteSessionResponse {
   session_id: string;
   deleted: boolean;
+  sessions_deleted: number;
   traces_deleted: number;
+  outcomes_deleted: number;
   outcome_deleted: boolean;
   checkpoint_deleted?: boolean;
 }

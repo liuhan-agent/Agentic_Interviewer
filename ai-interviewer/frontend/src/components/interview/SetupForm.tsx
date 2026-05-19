@@ -816,6 +816,7 @@ export function SetupForm() {
   const [allDimensions, setAllDimensions] = useState<DimensionOption[]>([]);
   const [selectedDims, setSelectedDims] =
     useState<DimensionOption[]>(() => directionById(DEFAULTS.interview_direction).dimensions);
+  const [practiceFocusDims, setPracticeFocusDims] = useState<DimensionOption[]>([]);
   // Required skills inferred by the JD parser. Kept separate from
   // candidate skills so the rubric reflects what the *role* demands,
   // not what the candidate has.
@@ -1142,6 +1143,7 @@ export function SetupForm() {
       );
       if (resolvedFocus.length === 0 && allDimensions.length === 0) return;
       if (resolvedFocus.length > 0) {
+        setPracticeFocusDims(resolvedFocus.slice(0, 5));
         setSelectedDims(resolvedFocus.slice(0, 5));
         setStep((prev) => Math.max(prev, 2));
       }
@@ -1612,6 +1614,7 @@ export function SetupForm() {
         max_turns,
         quality_threshold: values.quality_threshold,
         turn_budget,
+        focus_dimensions: practiceFocusDims.map((d) => d.id),
         mode: "mixed",
         enable_video_analysis: enableVideoAnalysis,
         llm_config: buildLLMPayload(),
