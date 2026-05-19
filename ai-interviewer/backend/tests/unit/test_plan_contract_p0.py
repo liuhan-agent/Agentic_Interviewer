@@ -418,21 +418,17 @@ def test_evaluator_reads_contract_and_emits_acceptance_checks(monkeypatch):
     assert result["recommended_next_plan"] == "adaptive"
     # The stub above returns the **legacy** string shape
     # (``"yes" / "partial"``); ``_normalize_check_result`` must
-    # upgrade it to the canonical evidence-spans dict shape so the
-    # rest of the pipeline (Verifier, final_report) sees a uniform
-    # structure regardless of what the model actually emitted.
-    assert result["acceptance_check_results"] == {
-        "Discusses zero-downtime strategies.": {
-            "verdict": "yes",
-            "evidence": [],
-            "evidence_spans": [],
-        },
-        "Mentions a rollback plan.": {
-            "verdict": "partial",
-            "evidence": [],
-            "evidence_spans": [],
-        },
-    }
+    # upgrade it to the canonical dict shape so the rest of the pipeline
+    # (Verifier, final_report) sees a uniform structure regardless of what
+    # the model actually emitted. ``evidence_spans`` is additive and may be
+    # absent when EVIDENCE_SPAN_ALIGNMENT=false in CI.
+    acceptance = result["acceptance_check_results"]
+    assert acceptance["Discusses zero-downtime strategies."]["verdict"] == "yes"
+    assert acceptance["Discusses zero-downtime strategies."]["evidence"] == []
+    assert acceptance["Discusses zero-downtime strategies."].get("evidence_spans", []) == []
+    assert acceptance["Mentions a rollback plan."]["verdict"] == "partial"
+    assert acceptance["Mentions a rollback plan."]["evidence"] == []
+    assert acceptance["Mentions a rollback plan."].get("evidence_spans", []) == []
     # derived rubric coverage must reflect acceptance check outcomes
     # (still works because ``_derive_rubric_coverage`` goes through
     # ``_verdict_of``, not raw string comparison).
