@@ -1,7 +1,6 @@
 """Integration tests for the skill-injection slot in ``ask_question_node``.
 
-Verifies that :func:`_step_retrieve_strategy` (which bundles the
-skill retrieval for minimal churn on the plan step list) correctly:
+Verifies that :func:`_step_retrieve_skills` correctly:
 
 1. Skips skill retrieval when ``enable_skill_injection`` is OFF
    (the default). The ``ctx['skill_block']`` must stay at the
@@ -59,23 +58,6 @@ def skills_root(
     return root
 
 
-def _seed_strategy_retrieval(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Short-circuit the strategy retrieval so the test focuses on the
-    skill branch. Strategy retrieval reads files from disk and the
-    strategy directory is orthogonal to what this test cares about.
-    """
-    monkeypatch.setattr(
-        ask_question_module,
-        "retrieve_strategies",
-        lambda **_: [],
-    )
-    monkeypatch.setattr(
-        ask_question_module,
-        "format_strategies_for_prompt",
-        lambda entries: "(no relevant strategy memories)",
-    )
-
-
 def _build_state() -> dict[str, object]:
     return {
         "job_spec": {"level": "senior", "title": "Senior Backend"},
@@ -87,7 +69,6 @@ def _run_step(
     settings: SimpleNamespace,
     monkeypatch: pytest.MonkeyPatch,
 ) -> dict[str, object]:
-    _seed_strategy_retrieval(monkeypatch)
     monkeypatch.setattr(
         ask_question_module, "get_settings", lambda: settings
     )
@@ -96,7 +77,7 @@ def _run_step(
         "dimension": "system_design",
         "skill_block": "(no relevant interview skills)",
     }
-    ask_question_module._step_retrieve_strategy(state, ctx)
+    ask_question_module._step_retrieve_skills(state, ctx)
     return ctx
 
 
@@ -199,3 +180,36 @@ def test_flag_on_forwards_skill_playbook_backend(
     )
 
     assert captured["backend"] == "db"
+
+
+def test_skill_retrieval_error_degrades_to_placeholder(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def failing_retrieve_skills(**_kwargs):
+        raise RuntimeError("db unavailable")
+
+    monkeypatch.setattr(
+        ask_question_module,
+        "get_settings",
+        lambda: _stub_settings(enable_skill_injection=True),
+    )
+    monkeypatch.setattr(
+        ask_question_module,
+        "retrieve_skills",
+        failing_retrieve_skills,
+    )
+
+    ctx: dict[str, object] = {
+        "dimension": "system_design",
+        "skill_block": "(no relevant interview skills)",
+    }
+
+    ask_question_module._step_retrieve_skills(_build_state(), ctx)
+
+    assert ctx["skill_block"] == "(no relevant interview skills)"
+    assert ctx["skill_artifact"] == {
+        "enabled": True,
+        "refs": [],
+        "error": "retrieval_failed",
+        "error_type": "RuntimeError",
+    }

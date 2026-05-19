@@ -16,6 +16,7 @@ from __future__ import annotations
 from typing import Any
 
 from app.engine.workflow.nodes import ask_question as ask_mod
+from app.engine.workflow.plans import llm_planner as llm_planner_mod
 
 
 def _base_state() -> dict[str, Any]:
@@ -142,7 +143,7 @@ def test_ask_planning_on_but_stub_skips_llm_planner(monkeypatch):
 
 
 def test_ask_planning_on_uses_llm_plan_when_available(monkeypatch):
-    """Non-stub + flag on: the planner's plan is adopted as-is."""
+    """Non-stub + flag on: LLM plans are adopted and normalised."""
     _wire_fake_steps(monkeypatch)
     _force_non_stub(monkeypatch)
 
@@ -193,6 +194,12 @@ def test_ask_planning_on_uses_llm_plan_when_available(monkeypatch):
 
     assert out["current_ask_plan"]["source"] == "llm"
     assert out["current_ask_plan"]["plan_id"].endswith("abcdef")
+    assert [step["kind"] for step in out["current_ask_plan"]["steps"]] == [
+        "retrieve_rag",
+        "retrieve_skills",
+        "draft_question",
+        "guardrail_check",
+    ]
 
 
 def test_ask_planning_falls_back_when_planner_returns_none(monkeypatch):
@@ -210,3 +217,71 @@ def test_ask_planning_falls_back_when_planner_returns_none(monkeypatch):
 
     assert out["current_ask_plan"]["source"] == "default"
     assert out["current_ask_plan"]["template"] == "adaptive"
+
+
+def test_llm_planner_accepts_skill_and_candidate_anchor_steps(monkeypatch):
+    raw_plan = {
+        "template": "adaptive",
+        "steps": [
+            {
+                "step_id": 1,
+                "kind": "retrieve_rag",
+                "goal": "retrieve",
+                "success_criteria": "retrieved",
+            },
+            {
+                "step_id": 2,
+                "kind": "retrieve_strategy",
+                "goal": "strategy",
+                "success_criteria": "strategy_block",
+            },
+            {
+                "step_id": 3,
+                "kind": "retrieve_skills",
+                "goal": "skills",
+                "success_criteria": "skill_block",
+                "optional": True,
+            },
+            {
+                "step_id": 4,
+                "kind": "retrieve_candidate_anchors",
+                "goal": "anchors",
+                "success_criteria": "anchor artifact",
+                "optional": True,
+            },
+            {
+                "step_id": 5,
+                "kind": "draft_question",
+                "goal": "draft",
+                "success_criteria": "question",
+            },
+            {
+                "step_id": 6,
+                "kind": "guardrail_check",
+                "goal": "guardrail",
+                "success_criteria": "allowed",
+            },
+        ],
+    }
+
+    monkeypatch.setattr(llm_planner_mod, "call_chat", lambda *_args, **_kw: "{}")
+    monkeypatch.setattr(llm_planner_mod, "parse_json_response", lambda _raw: raw_plan)
+
+    plan = llm_planner_mod.build_llm_ask_plan(
+        dimension="system_design",
+        job_level="senior",
+        selected_action={"id": "deepen_technical"},
+        refine_mode=False,
+        pending_plan_template=None,
+        contract_hints={},
+    )
+
+    assert plan is not None
+    assert [step["kind"] for step in plan["steps"]] == [
+        "retrieve_rag",
+        "retrieve_strategy",
+        "retrieve_skills",
+        "retrieve_candidate_anchors",
+        "draft_question",
+        "guardrail_check",
+    ]

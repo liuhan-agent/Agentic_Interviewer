@@ -128,7 +128,9 @@ depth beyond:
 
 ### Step 3 · ask_question_node 接入
 
-在 `_step_retrieve_strategy` 里 skill 逻辑后面再追加：
+在 `_step_retrieve_strategy` 里 strategy retrieval 后面追加；skill
+retrieval 已拆到独立 `_step_retrieve_skills`，avoid patterns 暂不随本
+plan 覆盖 simple/quick：
 
 ```python
 if getattr(settings, "enable_generator_avoid_patterns", False):
