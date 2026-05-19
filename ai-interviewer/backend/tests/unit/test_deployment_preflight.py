@@ -1,10 +1,13 @@
 """Tests for app.core.deployment_preflight."""
 from __future__ import annotations
 
+from unittest.mock import patch
+
 import pytest
 
 from app.core.deployment_preflight import (
     PreflightError,
+    _check_chroma_reachable,
     build_config_summary,
     run_preflight,
 )
@@ -29,14 +32,21 @@ class _StubSettings:
             "llm_model": "gpt-4o-mini",
             "use_stub_llm": True,
             "embedding_provider": "openai",
+            "resume_rag_mode": "off",
+            "resume_rag_embedding_model": "text-embedding-3-small",
+            "resume_rag_embedding_dimension": 1536,
+            "resume_rag_session_sample_rate": 1.0,
             "allow_stub_embeddings_in_prod": False,
             "resume_parse_cache_backend": "redis",
             "asr_provider": "openai",
             "tts_provider": "openai",
+            "rate_limit_backend": "redis",
+            "voice_ticket_backend": "redis",
             "langsmith_tracing": False,
             "default_guard_mode": "regex_only",
             "redact_answer_pii": True,
             "enable_skill_injection": False,
+            "skill_playbook_backend": "db_with_file_fallback",
             "enable_probe_intent": True,
             "policy_mode": "template",
             "verifier_drift_backend": "memory",
@@ -66,14 +76,21 @@ class TestBuildConfigSummary:
             "llm_model",
             "stub_mode",
             "embedding_provider",
+            "resume_rag_mode",
+            "resume_rag_embedding_model",
+            "resume_rag_embedding_dimension",
+            "resume_rag_session_sample_rate",
             "resume_parse_cache_backend",
             "asr_provider",
             "tts_provider",
+            "rate_limit_backend",
+            "voice_ticket_backend",
             "verifier_drift_backend",
             "langsmith_tracing",
             "default_guard_mode",
             "redact_answer_pii",
             "enable_skill_injection",
+            "skill_playbook_backend",
             "enable_probe_intent",
             "policy_mode",
         }
@@ -91,6 +108,11 @@ class TestBuildConfigSummary:
         s = _StubSettings(api_token=None)
         summary = build_config_summary(s)
         assert summary["api_token_configured"] is False
+
+    def test_skill_playbook_backend_included(self):
+        s = _StubSettings(skill_playbook_backend="db")
+        summary = build_config_summary(s)
+        assert summary["skill_playbook_backend"] == "db"
 
     def test_database_url_masked(self):
         s = _StubSettings(database_url="postgresql+psycopg2://user:pass@host/db")
@@ -139,7 +161,8 @@ class TestRunPreflight:
             llm_provider="openai",
             use_stub_llm=False,
         )
-        summary = run_preflight(s)
+        with patch("app.core.deployment_preflight._check_chroma_reachable"):
+            summary = run_preflight(s)
         assert summary["app_env"] == "prod"
         assert summary["checkpoint_backend"] == "postgres"
         assert summary["api_token_configured"] is True
@@ -192,6 +215,30 @@ class TestRunPreflight:
         with pytest.raises(PreflightError, match="resume_parse_cache_backend=memory"):
             run_preflight(s)
 
+    def test_prod_memory_rate_limit_backend_raises(self):
+        s = _StubSettings(
+            app_env="prod",
+            checkpoint_backend="postgres",
+            api_token="valid-token",
+            llm_provider="openai",
+            use_stub_llm=False,
+            rate_limit_backend="memory",
+        )
+        with pytest.raises(PreflightError, match="rate_limit_backend=memory"):
+            run_preflight(s)
+
+    def test_prod_memory_voice_ticket_backend_raises(self):
+        s = _StubSettings(
+            app_env="prod",
+            checkpoint_backend="postgres",
+            api_token="valid-token",
+            llm_provider="openai",
+            use_stub_llm=False,
+            voice_ticket_backend="memory",
+        )
+        with pytest.raises(PreflightError, match="voice_ticket_backend=memory"):
+            run_preflight(s)
+
     def test_prod_drift_monitor_memory_backend_warns_but_succeeds(self):
         s = _StubSettings(
             app_env="prod",
@@ -202,7 +249,8 @@ class TestRunPreflight:
             enable_verifier_drift_monitor=True,
             verifier_drift_backend="memory",
         )
-        summary = run_preflight(s)
+        with patch("app.core.deployment_preflight._check_chroma_reachable"):
+            summary = run_preflight(s)
         assert summary["enable_verifier_drift_monitor"] is True
         assert summary["verifier_drift_backend"] == "memory"
 
@@ -226,3 +274,86 @@ class TestRunPreflight:
         )
         summary = run_preflight(s)
         assert summary["app_env"] == "test"
+
+    def test_prod_chroma_unreachable_raises(self):
+        s = _StubSettings(
+            app_env="prod",
+            checkpoint_backend="postgres",
+            api_token="valid-token",
+            llm_provider="openai",
+            use_stub_llm=False,
+            embedding_provider="openai",
+        )
+        with patch(
+            "app.core.deployment_preflight._check_chroma_reachable"
+        ) as mock_check:
+            mock_check.side_effect = lambda _settings, issues: issues.append(
+                "Chroma unreachable at localhost:8100: connection refused"
+            )
+            with pytest.raises(PreflightError, match="Chroma unreachable"):
+                run_preflight(s)
+
+    def test_prod_stub_embedding_skips_chroma_check(self):
+        s = _StubSettings(
+            app_env="prod",
+            checkpoint_backend="postgres",
+            api_token="valid-token",
+            llm_provider="openai",
+            use_stub_llm=False,
+            embedding_provider="stub",
+            allow_stub_embeddings_in_prod=True,
+        )
+        with patch(
+            "app.core.deployment_preflight._check_chroma_reachable"
+        ) as mock_check:
+            run_preflight(s)
+            mock_check.assert_not_called()
+
+    def test_dev_skips_chroma_check(self):
+        s = _StubSettings(app_env="dev", embedding_provider="openai")
+        with patch(
+            "app.core.deployment_preflight._check_chroma_reachable"
+        ) as mock_check:
+            run_preflight(s)
+            mock_check.assert_not_called()
+
+
+class TestCheckChromaReachable:
+    def test_heartbeat_success(self):
+        s = _StubSettings(chroma_host="localhost", chroma_port=8100)
+        issues: list[str] = []
+        with patch("app.core.deployment_preflight.chromadb", create=True) as mock_mod:
+            mock_client = mock_mod.HttpClient.return_value
+            mock_client.heartbeat.return_value = 1
+            # Patch the import inside the function
+            with patch.dict("sys.modules", {"chromadb": mock_mod}):
+                _check_chroma_reachable(s, issues)
+        assert issues == []
+
+    def test_connection_refused_appends_issue(self):
+        s = _StubSettings(chroma_host="localhost", chroma_port=8100)
+        issues: list[str] = []
+        import sys
+
+        fake_chromadb = type(sys)("chromadb")
+        fake_chromadb.HttpClient = lambda **kw: (_ for _ in ()).throw(
+            ConnectionError("connection refused")
+        )
+
+        class _RaisingHttpClient:
+            def __init__(self, **kw):
+                raise ConnectionError("connection refused")
+
+        fake_chromadb.HttpClient = _RaisingHttpClient
+        with patch.dict("sys.modules", {"chromadb": fake_chromadb}):
+            _check_chroma_reachable(s, issues)
+        assert len(issues) == 1
+        assert "Chroma unreachable" in issues[0]
+
+    def test_import_error_appends_issue(self):
+        s = _StubSettings(chroma_host="localhost", chroma_port=8100)
+        issues: list[str] = []
+        with patch.dict("sys.modules", {"chromadb": None}):
+            _check_chroma_reachable(s, issues)
+        assert len(issues) == 1
+        assert "chromadb package is not installed" in issues[0]

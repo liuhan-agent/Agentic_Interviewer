@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import threading
+from datetime import UTC, datetime
 from typing import Any
 
 from fastapi import FastAPI
@@ -9,6 +10,9 @@ from fastapi.testclient import TestClient
 from app.api.v1 import interview as interview_api
 from app.core.idempotency import reset_idempotency_store
 from app.core.session_auth import hash_session_token
+
+LIVE_CREATED_AT = datetime(2026, 5, 1, 9, 0, tzinfo=UTC)
+LIVE_UPDATED_AT = datetime(2026, 5, 1, 9, 15, tzinfo=UTC)
 
 
 class _RuntimeHandle:
@@ -26,6 +30,8 @@ class _RuntimeHandle:
     final_state: dict[str, Any] | None = None
     last_turn_evaluation: dict[str, Any] | None = None
     last_segment_latency_ms: int | None = None
+    created_at = LIVE_CREATED_AT
+    last_activity_at = LIVE_UPDATED_AT
 
     def __init__(self) -> None:
         self.done_event = threading.Event()
@@ -112,7 +118,12 @@ class _RuntimeManager:
             "source": "contract",
         }
 
-    def retry_failed_question(self, session_id: str) -> _RuntimeHandle | None:
+    def retry_failed_question(
+        self,
+        session_id: str,
+        *,
+        llm_config: dict[str, Any] | None = None,
+    ) -> _RuntimeHandle | None:
         self.retry_calls.append(session_id)
         return self.handle
 
@@ -151,9 +162,39 @@ def test_poll_question_waiting_response_contract(monkeypatch) -> None:
             "dimension": "system_design",
         },
         "max_turns": 8,
+        "enable_video_analysis": False,
         "previous_turn_evaluation": {"score": 7, "passed": True},
         "server_latency_ms": 456,
     }
+
+
+def test_poll_question_strips_internal_selection_artifacts(monkeypatch) -> None:
+    http, manager = _client(monkeypatch)
+    manager.handle.current_question = {
+        "question": "请设计库存缓存一致性方案。",
+        "dimension": "system_design",
+        "selection_artifacts": {
+            "question_items": [
+                {
+                    "seed_id": "system_design.cache_consistency",
+                    "variant_id": "system_design.cache_consistency.flash_sale_inventory",
+                    "expected_signals": ["internal"],
+                }
+            ]
+        },
+        "strategy_memory_refs": [{"id": "seed:internal"}],
+    }
+
+    resp = http.get(
+        "/api/v1/interview/sessions/sess-contract/question",
+        headers={"X-Session-Token": "session-secret"},
+    )
+
+    assert resp.status_code == 200
+    question = resp.json()["question"]
+    assert question["question"] == "请设计库存缓存一致性方案。"
+    assert "selection_artifacts" not in question
+    assert "strategy_memory_refs" not in question
 
 
 def test_poll_question_terminal_response_contracts(monkeypatch) -> None:
@@ -176,6 +217,7 @@ def test_poll_question_terminal_response_contracts(monkeypatch) -> None:
         "question": None,
         "final_report": {"overall_score": 8.2},
         "max_turns": 8,
+        "enable_video_analysis": False,
         "previous_turn_evaluation": None,
         "server_latency_ms": None,
     }
@@ -191,6 +233,7 @@ def test_poll_question_terminal_response_contracts(monkeypatch) -> None:
         "status": "cancelled",
         "question": None,
         "max_turns": 8,
+        "enable_video_analysis": False,
         "previous_turn_evaluation": None,
         "server_latency_ms": None,
     }
@@ -209,6 +252,7 @@ def test_poll_question_terminal_response_contracts(monkeypatch) -> None:
         "question": None,
         "error": "question generation failed",
         "error_kind": "question_generation_failed",
+        "enable_video_analysis": False,
         "previous_turn_evaluation": None,
         "server_latency_ms": None,
     }
@@ -327,12 +371,17 @@ def test_report_resume_and_replay_status_contracts(monkeypatch) -> None:
     assert resume.json() == {
         "session_id": "sess-contract",
         "status": "waiting_for_answer",
+        "created_at": LIVE_CREATED_AT.isoformat(),
+        "updated_at": LIVE_UPDATED_AT.isoformat(),
         "turn_idx": 3,
         "question": {
             "question": "请介绍一个你主导的系统设计。",
             "dimension": "system_design",
         },
         "max_turns": 8,
+        "enable_video_analysis": False,
+        "previous_turn_evaluation": None,
+        "history": [],
     }
 
     manager.handle.done_event.set()
@@ -348,6 +397,8 @@ def test_report_resume_and_replay_status_contracts(monkeypatch) -> None:
     assert report.status_code == 200
     assert report.json() == {
         "session_id": "sess-contract",
+        "created_at": LIVE_CREATED_AT.isoformat(),
+        "updated_at": LIVE_UPDATED_AT.isoformat(),
         "final_report": {"overall_score": 8.2},
         "error": None,
         "trace_health": "ok",

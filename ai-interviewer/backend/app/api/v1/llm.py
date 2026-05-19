@@ -7,7 +7,9 @@ operator-only observability surface.
 """
 from __future__ import annotations
 
+import asyncio
 import time
+from typing import Literal
 
 from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel, Field, field_validator
@@ -31,18 +33,22 @@ from app.engine.agents.llm_client import (
     redact_llm_secrets,
     validate_llm_base_url,
 )
+from app.voice.providers import provider_for
+from app.voice.routing import VoiceRoute, normalize_voice_provider
 
 router = APIRouter(prefix="/api/v1/llm", tags=["llm"])
 
 
 class LLMTestRequest(BaseModel):
+    kind: Literal["chat", "asr", "tts"] = "chat"
     provider: LLMProvider
     api_key: str = Field(min_length=1, max_length=LLM_API_KEY_MAX_LENGTH)
     model: str = Field(min_length=1, max_length=LLM_MODEL_MAX_LENGTH)
     temperature: float | None = Field(default=None, ge=0, le=2)
     base_url: str | None = Field(default=None, max_length=LLM_BASE_URL_MAX_LENGTH)
+    voice: str | None = Field(default=None, max_length=128)
 
-    @field_validator("api_key", "model", "base_url", mode="before")
+    @field_validator("api_key", "model", "base_url", "voice", mode="before")
     @classmethod
     def _strip_string(cls, value: str | None) -> str | None:
         if isinstance(value, str):
@@ -80,11 +86,52 @@ def _enforce_rate_limit(request: Request) -> None:
         ) from e
 
 
+def _voice_route(req: LLMTestRequest) -> VoiceRoute:
+    provider = normalize_voice_provider(req.provider)
+    if provider not in {"qwen", "openai"}:
+        raise HTTPException(
+            status_code=422,
+            detail=api_error_detail(
+                "voice_provider_unsupported",
+                "语音测试目前只支持 Qwen 或 OpenAI。",
+                "edit_provider",
+                error_kind="misconfig",
+                error=f"unsupported voice provider: {req.provider}",
+            ),
+        )
+    return VoiceRoute(
+        provider=provider,
+        api_key=req.api_key,
+        model=req.model,
+        base_url=req.base_url,
+        voice=req.voice,
+    )
+
+
+async def _test_voice(req: LLMTestRequest) -> str:
+    route = _voice_route(req)
+    provider = provider_for(route)
+    if req.kind == "asr":
+        if route.provider == "qwen":
+            return await provider.check_asr_session(route)  # type: ignore[attr-defined]
+        import io
+
+        sample = io.BytesIO(b"voice-test")
+        sample.name = "voice-test.webm"
+        return provider.transcribe(route, file=sample)  # type: ignore[attr-defined]
+
+    chunks: list[bytes] = []
+    async for chunk in provider.synth(route, "语音合成连接测试。"):  # type: ignore[attr-defined]
+        chunks.append(chunk)
+        break
+    return "audio" if chunks else ""
+
+
 @router.post("/test")
 def test_llm_connection(req: LLMTestRequest, request: Request) -> dict[str, object]:
     """Verify a provider key with a minimal chat-completions request."""
     _enforce_rate_limit(request)
-    if req.provider == "openai_compatible" and not req.base_url:
+    if req.kind == "chat" and req.provider == "openai_compatible" and not req.base_url:
         raise HTTPException(
             status_code=422,
             detail=api_error_detail(
@@ -95,7 +142,7 @@ def test_llm_connection(req: LLMTestRequest, request: Request) -> dict[str, obje
                 error="provider=openai_compatible requires base_url",
             ),
         )
-    if req.base_url:
+    if req.base_url and not (req.kind in {"asr", "tts"} and req.base_url.startswith("wss://")):
         try:
             validate_llm_base_url(req.base_url)
         except LLMFatal as e:
@@ -116,16 +163,20 @@ def test_llm_connection(req: LLMTestRequest, request: Request) -> dict[str, obje
         "api_key": req.api_key,
         "model": req.model,
         **({"base_url": req.base_url} if req.base_url else {}),
+        **({"voice": req.voice} if req.voice else {}),
     }
     try:
-        message = _invoke_provider(
-            [ChatMessage(role="user", content="Reply with pong.")],
-            model=req.model,
-            temperature=0.0,
-            max_tokens=8,
-            json_mode=False,
-            override=override,
-        )
+        if req.kind in {"asr", "tts"}:
+            message = asyncio.run(_test_voice(req))
+        else:
+            message = _invoke_provider(
+                [ChatMessage(role="user", content="Reply with pong.")],
+                model=req.model,
+                temperature=0.0,
+                max_tokens=8,
+                json_mode=False,
+                override=override,
+            )
     except LLMError as e:
         return {
             "ok": False,

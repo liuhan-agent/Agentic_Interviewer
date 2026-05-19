@@ -1,6 +1,7 @@
 import type {
   Candidate,
   LLMConfigPayload,
+  ResumeParseJobResponse,
   ParseResumeResponse,
   ResumeCandidateProfile,
 } from "./api/types";
@@ -17,6 +18,21 @@ interface ParseResumeForSetupDeps {
   buildLLMPayload: BuildLLMPayloadFn;
 }
 
+type CreateResumeParseJobFn = (
+  file: File,
+  llmConfig?: LLMConfigPayload,
+) => Promise<ResumeParseJobResponse>;
+
+interface CreateResumeParseJobForSetupDeps {
+  createResumeParseJob: CreateResumeParseJobFn;
+  buildLLMPayload: BuildLLMPayloadFn;
+}
+
+export interface ResumeSourceRef {
+  id: string;
+  expiresAt?: string;
+}
+
 const QWEN_FLASH_MODEL = "qwen3.6-flash";
 const QWEN_PLUS_MODEL = "qwen3.6-plus";
 
@@ -25,6 +41,16 @@ export function parseResumeForSetup(
   deps: ParseResumeForSetupDeps,
 ): Promise<ParseResumeResponse> {
   return deps.parseResume(file, preferQwenPlusForResumeParser(deps.buildLLMPayload()));
+}
+
+export function createResumeParseJobForSetup(
+  file: File,
+  deps: CreateResumeParseJobForSetupDeps,
+): Promise<ResumeParseJobResponse> {
+  return deps.createResumeParseJob(
+    file,
+    preferQwenPlusForResumeParser(deps.buildLLMPayload()),
+  );
 }
 
 export function candidateNameAutofillValue(
@@ -64,6 +90,13 @@ export function resumeParsedForSession(args: {
   if (args.concerns && args.concerns.length > 0) {
     resumeParsed.concerns = args.concerns;
   }
+  if (
+    isPlainObject(args.candidate_profile) &&
+    Object.keys(args.candidate_profile).length > 0
+  ) {
+    resumeParsed.candidate_profile =
+      args.candidate_profile as ResumeCandidateProfile;
+  }
   return resumeParsed;
 }
 
@@ -89,6 +122,38 @@ export function resumeJobAutofillValues(args: {
 
 export function resumeReuploadInputValue(): string {
   return "";
+}
+
+export function resumeSourceRefFromParseResult(
+  result: Pick<ParseResumeResponse, "resume_source_id" | "resume_source_expires_at">,
+): ResumeSourceRef | null {
+  const id = result.resume_source_id?.trim();
+  if (!id) return null;
+  return {
+    id,
+    ...(result.resume_source_expires_at
+      ? { expiresAt: result.resume_source_expires_at }
+      : {}),
+  };
+}
+
+export function resumeSourceIdForSession(
+  source: ResumeSourceRef | null | undefined,
+  now = Date.now(),
+): string | undefined {
+  const id = source?.id?.trim();
+  if (!id) return undefined;
+  if (source?.expiresAt) {
+    const expiresAt = Date.parse(source.expiresAt);
+    if (Number.isFinite(expiresAt) && expiresAt <= now) {
+      return undefined;
+    }
+  }
+  return id;
+}
+
+function isPlainObject(value: unknown): value is Record<string, unknown> {
+  return Boolean(value) && typeof value === "object" && !Array.isArray(value);
 }
 
 function preferQwenPlusForResumeParser(

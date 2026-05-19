@@ -1,0 +1,52 @@
+dimension: decision_making
+seeds:
+  - id: decision_making.management_tradeoff_decision
+    version: 1
+    title: Management tradeoff decision making
+    dimension: decision_making
+    job_levels: [junior, mid, senior]
+    skill_tags: [general_management, decision_making, tradeoff, risk_management]
+    direction_tags: [business]
+    role_tags: [general_management]
+    rubric:
+      must_cover: [decision_context, options, risk_tradeoff, communication]
+      minimum_bar: Explain how to make a structured decision under uncertainty and communicate the rationale.
+      stretch: Show how to use evidence, reversibility, and risk controls instead of pretending certainty.
+    priority: 25
+    status: active
+    source: manual_yaml
+    scope: global
+    language: zh-CN
+    variants:
+      - id: decision_making.management_tradeoff_decision.speed_quality_conflict
+        version: 1
+        intent: opening
+        difficulty: standard
+        scenario_brief: The team can ship faster, but quality risk may hurt a key customer segment.
+        question_stem: How would you decide between speed and quality, and how would you explain the decision to stakeholders?
+        prompt_template: Generate a general management decision question about speed, quality, and risk tradeoff.
+        scenario_skill_tags: [general_management, decision_making, tradeoff, quality_risk]
+        resume_anchor_hints: [decision, tradeoff, quality, delivery, stakeholder]
+        failure_categories: [missing_tradeoff, missing_evidence, poor_communication]
+        rubric_additions: [Compare options and impact, define risk controls, communicate rationale]
+        expected_signals: [Uses evidence, names acceptable risk, plans monitoring]
+        anti_patterns: [Chooses speed or quality absolutely, hides risk, gives no decision criteria]
+        good_answer_hints: [Frame options, quantify impact, choose with guardrails]
+        priority: 17
+        status: active
+      - id: decision_making.management_tradeoff_decision.incomplete_data
+        version: 1
+        intent: deep_probe
+        difficulty: deep_probe
+        scenario_brief: The manager must decide with incomplete data because waiting would miss a market window.
+        question_stem: How would you make the decision with incomplete evidence and design safeguards if the decision is wrong?
+        prompt_template: Generate a deep probe about management decision making under uncertainty.
+        scenario_skill_tags: [general_management, decision_making, uncertainty, risk_control]
+        resume_anchor_hints: [uncertainty, decision, market_window, risk, management]
+        failure_categories: [missing_risk_boundary, shallow_analysis, weak_follow_up]
+        rubric_additions: [State assumptions, identify reversible parts, set early warning metrics]
+        expected_signals: [Names assumptions, designs rollback or correction, communicates uncertainty]
+        anti_patterns: [Waits for perfect data, acts without safeguards, hides uncertainty]
+        good_answer_hints: [Separate known and unknown, decide reversible path, monitor leading indicators]
+        priority: 15
+        status: active

@@ -7,6 +7,8 @@ one level out.
 """
 from __future__ import annotations
 
+import re
+
 from app.engine.agents.llm_client import CacheHint, ChatMessage
 from app.engine.agents.prompts.loader import render_prompt
 
@@ -39,6 +41,10 @@ _GENERATOR_PAYLOAD_KEYS = (
     "user_material_boundary",
     "history_section",
     "retrieval",
+    "question_seed",
+    "candidate_anchor",
+    "resume_rag",
+    "self_intro_rag",
     "strategy",
     "skills",
     "avoid_patterns",
@@ -113,10 +119,46 @@ def frame_to_generator_messages(frame: ContextFrame) -> list[ChatMessage]:
         "generator_task.md",
         **{k: frame.payload[k] for k in _GENERATOR_PAYLOAD_KEYS},
     )
+    if not str(frame.payload.get("question_seed") or "").strip():
+        user_text = _suppress_empty_question_seed_prompt(user_text)
+    if not str(frame.payload.get("candidate_anchor") or "").strip():
+        user_text = _suppress_empty_candidate_anchor_prompt(user_text)
     return [
         *_system_messages_from_frame(frame),
         ChatMessage("user", user_text),
     ]
+
+
+def _suppress_empty_question_seed_prompt(user_text: str) -> str:
+    """Keep vector/shadow prompts free of structured-question-bank text."""
+
+    user_text = re.sub(
+        r"\n- If STRUCTURED_QUESTION_SEED is non-empty,.*?(?=\n- Treat TARGET_SKILLS)",
+        "",
+        user_text,
+        flags=re.DOTALL,
+    )
+    return re.sub(
+        r"\nSTRUCTURED_QUESTION_SEED =\n(?:[ \t]*\n)+(?=(?:CANDIDATE_ANCHOR|STRATEGY_MEMORY) =)",
+        "\n",
+        user_text,
+    )
+
+
+def _suppress_empty_candidate_anchor_prompt(user_text: str) -> str:
+    """Keep shadow/vector prompts free of candidate-anchor plumbing."""
+
+    user_text = re.sub(
+        r"\n- If CANDIDATE_ANCHOR is non-empty,.*?(?=\n- Treat TARGET_SKILLS|\nRETRIEVED_KNOWLEDGE =)",
+        "",
+        user_text,
+        flags=re.DOTALL,
+    )
+    return re.sub(
+        r"\nCANDIDATE_ANCHOR =\n(?:[ \t]*\n)+(?=STRATEGY_MEMORY =)",
+        "\n",
+        user_text,
+    )
 
 
 _EVALUATOR_PAYLOAD_KEYS = (

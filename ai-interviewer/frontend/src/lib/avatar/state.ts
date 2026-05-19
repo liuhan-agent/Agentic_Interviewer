@@ -5,6 +5,7 @@ export type VoicePhase =
   | "ready_to_record"
   | "recording"
   | "uploading"
+  | "reviewing_transcript"
   | "completed"
   | "error";
 
@@ -32,6 +33,8 @@ export function mapVoicePhaseToAvatarState(phase: VoicePhase): AvatarState {
     case "recording":
       return "listening_active";
     case "uploading":
+      return "thinking";
+    case "reviewing_transcript":
       return "thinking";
     case "awaiting_question":
       return "thinking";

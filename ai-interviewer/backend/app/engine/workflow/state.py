@@ -59,6 +59,7 @@ class QATurn(TypedDict, total=False):
     # report, replay, and any downstream training pipeline see *why* a
     # turn was scored the way it was without re-running the classifier.
     answer_intent: AnswerIntent
+    video_signals: dict[str, Any]
 
 
 class SelfIntroCommunicationSignal(TypedDict, total=False):
@@ -73,6 +74,7 @@ class SelfIntroProfile(TypedDict, total=False):
     preferred_focus: list[str]
     clarification_targets: list[str]
     communication_signal: SelfIntroCommunicationSignal
+    anchor_cards: list[dict[str, Any]]
     parse_status: Literal["llm", "heuristic", "fallback"]
 
 
@@ -115,6 +117,7 @@ BarLevel = Literal["intro", "standard", "deep_probe"]
 PlanStepKind = Literal[
     "retrieve_rag",
     "retrieve_strategy",
+    "retrieve_candidate_anchors",
     "draft_question",
     "negotiate_contract",
     "challenge_with_reference",
@@ -213,6 +216,7 @@ class InterviewState(TypedDict, total=False):
 
     rubric: dict[str, Any]
     dimensions: list[str]
+    focus_dimensions: list[str]
     dimension_status: dict[str, DimensionStatus]
     current_dimension: str | None
 
@@ -243,7 +247,8 @@ class InterviewState(TypedDict, total=False):
     qa_summary_through_turn: int
 
     evaluation: dict[str, Any]
-    scores_per_dim: dict[str, float]
+    scores_per_dim: dict[str, float | None]
+    score_breakdowns: dict[str, dict[str, Any]]
 
     max_turns: int
     quality_threshold: float
@@ -296,6 +301,7 @@ class InterviewState(TypedDict, total=False):
     intro_completed: bool
     self_intro_answer: str
     self_intro_profile: SelfIntroProfile
+    self_intro_vector_status: dict[str, Any]
 
     # Video interview: per-turn visual signals from the front-end
     # MediaPipe face analysis. ``None`` when the camera is off.
@@ -312,6 +318,7 @@ def build_initial_state(
     mode: InterviewMode = "mixed",
     runtime_config: dict[str, Any] | None = None,
     context_flags: dict[str, list[str]] | None = None,
+    focus_dimensions: list[str] | None = None,
     max_turns: int = 8,
     quality_threshold: float = 7.5,
     turn_budget: int = 12,
@@ -327,6 +334,12 @@ def build_initial_state(
         "problem_solving",
         "communication",
     ]
+    dimension_set = set(dimensions)
+    focus = [
+        d
+        for d in (focus_dimensions or [])
+        if isinstance(d, str) and d in dimension_set
+    ]
     return {
         "session_id": session_id,
         "trace_id": trace_id,
@@ -336,6 +349,7 @@ def build_initial_state(
         "mode": mode,
         "rubric": job_spec.get("rubric", {}),
         "dimensions": dimensions,
+        "focus_dimensions": focus,
         "dimension_status": {d: "pending" for d in dimensions},
         "current_dimension": None,
         "selected_action": {},
@@ -353,7 +367,8 @@ def build_initial_state(
         "qa_summary": "",
         "qa_summary_through_turn": -1,
         "evaluation": {},
-        "scores_per_dim": {d: 0.0 for d in dimensions},
+        "scores_per_dim": {d: None for d in dimensions},
+        "score_breakdowns": {},
         "max_turns": max_turns,
         "quality_threshold": quality_threshold,
         "turn_budget_remaining": turn_budget,
@@ -372,6 +387,7 @@ def build_initial_state(
         "intro_completed": False,
         "self_intro_answer": "",
         "self_intro_profile": {},
+        "self_intro_vector_status": {},
         "video_signals": None,
         "answer_repair_count": 0,
     }

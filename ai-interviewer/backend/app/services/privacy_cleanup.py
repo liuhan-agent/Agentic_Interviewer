@@ -24,7 +24,9 @@ def delete_session_data(session_id: str) -> dict[str, Any]:
             delete(GenerationTrace).where(GenerationTrace.session_id == session_id)
         ).rowcount
 
-        outcome_deleted = outcome_row is not None
+        sessions_deleted = 1 if session_row is not None else 0
+        outcomes_deleted = 1 if outcome_row is not None else 0
+        outcome_deleted = outcomes_deleted > 0
         if outcome_row is not None:
             db.delete(outcome_row)
 
@@ -42,7 +44,9 @@ def delete_session_data(session_id: str) -> dict[str, Any]:
     return {
         "session_id": session_id,
         "deleted": deleted,
+        "sessions_deleted": sessions_deleted,
         "traces_deleted": int(traces_deleted or 0),
+        "outcomes_deleted": outcomes_deleted,
         "outcome_deleted": outcome_deleted,
     }
 

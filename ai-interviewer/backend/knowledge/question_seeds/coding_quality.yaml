@@ -1,0 +1,511 @@
+dimension: coding_quality
+seeds:
+  - id: coding_quality.java_api_contract_idempotency
+    version: 1
+    title: Java API 契约与幂等设计
+    dimension: coding_quality
+    job_levels: [junior, mid, senior]
+    skill_tags: [java, backend_systems, api_design, idempotency, contract, compatibility]
+    direction_tags: [internet_tech]
+    role_tags: [java_backend]
+    rubric:
+      must_cover: [请求响应契约, 幂等键, 错误语义, 向后兼容]
+      minimum_bar: 能定义清晰 API 契约，并解释重复请求和客户端重试的服务端行为。
+      stretch: 能覆盖版本演进、状态查询、审计追踪和兼容迁移。
+    priority: 29
+    status: active
+    source: manual_yaml
+    scope: global
+    language: zh-CN
+    variants:
+      - id: coding_quality.java_api_contract_idempotency.payment_create_retry
+        version: 1
+        intent: opening
+        difficulty: standard
+        scenario_brief: 客户端创建支付单时可能因网络超时重复提交，服务端需要避免重复扣款和重复建单。
+        question_stem: 你会如何设计创建支付单 API 的契约、幂等策略和错误返回？
+        prompt_template: 结合候选人的 Java API 设计经验，生成一道代码质量题，要求说明请求字段、幂等键、状态码、错误码和兼容性。
+        scenario_skill_tags: [java, rest api, idempotency key, error handling]
+        resume_anchor_hints: [java, api, payment, idempotency, rest]
+        failure_categories: [missing_idempotency, vague_contract, missing_edge_case]
+        rubric_additions: [说明幂等键作用域, 说明处理中和已成功响应, 说明错误码和状态码]
+        expected_signals: [能区分创建成功和处理中, 能处理客户端重试, 能避免破坏旧客户端]
+        anti_patterns: [只靠前端禁用按钮, 每次请求都新建资源, 错误语义含糊]
+        good_answer_hints: [先定义请求与状态流转, 再讨论重复提交和兼容演进]
+        priority: 18
+        status: active
+      - id: coding_quality.java_api_contract_idempotency.client_retry_status
+        version: 1
+        intent: followup
+        difficulty: standard
+        scenario_brief: 客户端创建支付单超时后会查询状态并重试，服务端要让调用方安全判断请求是否生效。
+        question_stem: 面对客户端超时后的查询和重试，你会如何设计 API 状态码、错误码和幂等返回？
+        prompt_template: 生成一道 Java API 契约追问题，要求候选人说明可预期响应、状态查询、重试语义和字段兼容。
+        scenario_skill_tags: [java, api contract, retry, status code, compatibility]
+        resume_anchor_hints: [java, api, idempotency, retry, status code]
+        failure_categories: [vague_contract, missing_idempotency, missing_edge_case]
+        rubric_additions: [说明处理中和最终成功的响应, 说明幂等键缓存或业务唯一约束, 说明兼容演进]
+        expected_signals: [能定义稳定错误语义, 能处理重复提交的同结果返回, 能保留向后兼容字段]
+        anti_patterns: [超时后只返回 500, 重试创建新支付单, 随意变更响应字段]
+        good_answer_hints: [先列客户端决策需要的信息, 再设计状态和错误语义]
+        priority: 15
+        status: active
+
+  - id: coding_quality.java_agent_extension_boundaries
+    version: 1
+    title: Java 策略扩展边界与防腐设计
+    dimension: coding_quality
+    job_levels: [junior, mid, senior]
+    skill_tags: [java, strategy_pattern, extension, interface_design, maintainability]
+    direction_tags: [internet_tech]
+    role_tags: [java_backend]
+    rubric:
+      must_cover: [接口边界, 策略注册, 输入校验, 回归测试]
+      minimum_bar: 能说明如何让业务策略可扩展，同时避免核心服务被分支逻辑污染。
+      stretch: 能结合灰度、配置、版本兼容、审计和异常兜底设计可治理扩展点。
+    priority: 24
+    status: active
+    source: manual_yaml
+    scope: global
+    language: zh-CN
+    variants:
+      - id: coding_quality.java_agent_extension_boundaries.ai_strategy_hot_swap
+        version: 1
+        intent: opening
+        difficulty: standard
+        scenario_brief: 业务需要为不同场景切换推荐策略和风控策略，旧代码中大量 if else 已难以维护。
+        question_stem: 你会如何重构 Java 服务中的多策略分支，让策略扩展更清晰、更可测试？
+        prompt_template: 结合候选人的 Java 工程经验，生成一道代码质量题，要求说明策略接口、注册发现、输入输出契约和回归测试。
+        scenario_skill_tags: [java, strategy pattern, interface, testing]
+        resume_anchor_hints: [java, strategy, refactor, interface, testing]
+        failure_categories: [vague_contract, missing_test_strategy, missing_tradeoff]
+        rubric_additions: [说明策略接口和上下文对象, 说明注册和选择规则, 说明测试覆盖和灰度发布]
+        expected_signals: [能抽出稳定接口, 能避免业务分支散落, 能设计单元测试和集成测试]
+        anti_patterns: [只把 if else 搬到另一个类, 没有契约校验, 没有回归样例]
+        good_answer_hints: [先识别变化点和不变量, 再设计策略接口, 最后补测试和灰度]
+        priority: 15
+        status: active
+      - id: coding_quality.java_agent_extension_boundaries.llm_output_guard
+        version: 1
+        intent: deep_probe
+        difficulty: deep_probe
+        scenario_brief: Java 服务接入 LLM 后需要把模型输出转换为业务动作，但模型字段偶发缺失或越界。
+        question_stem: Java 服务接入 LLM 输出时，你会如何设计 schema 校验、防腐层和异常兜底？
+        prompt_template: 生成一道 Java 后端扩展边界深挖题，要求候选人说明模型输出校验、业务动作边界、错误处理和测试样例。
+        scenario_skill_tags: [java, llm integration, schema validation, anti corruption layer]
+        resume_anchor_hints: [java, llm, schema, validation, api]
+        failure_categories: [missing_edge_case, vague_contract, missing_test_strategy]
+        rubric_additions: [说明模型输出不可信, 说明防腐转换层, 说明异常兜底和回归样例]
+        expected_signals: [能用运行时 schema 校验, 能隔离模型字段和业务领域对象, 能处理缺失或越界输出]
+        anti_patterns: [业务代码直接信任模型输出, 只靠 prompt 约束, 缺少异常样例测试]
+        good_answer_hints: [先固定业务动作契约, 再做模型输出转换和校验, 最后覆盖异常测试]
+        priority: 13
+        status: active
+
+  - id: coding_quality.java_service_testability
+    version: 1
+    title: Java 服务可测试性与质量防线
+    dimension: coding_quality
+    job_levels: [junior, mid, senior]
+    skill_tags: [java, testing, maintainability, service_design, refactoring]
+    direction_tags: [internet_tech]
+    role_tags: [java_backend]
+    rubric:
+      must_cover: [分层边界, 依赖隔离, 测试金字塔, 回归样例]
+      minimum_bar: 能说明如何让核心业务逻辑脱离外部依赖并可被稳定测试。
+      stretch: 能结合契约测试、测试数据、流水线门禁和线上回归形成质量闭环。
+    priority: 23
+    status: active
+    source: manual_yaml
+    scope: global
+    language: zh-CN
+    variants:
+      - id: coding_quality.java_service_testability.transaction_service_boundary
+        version: 1
+        intent: opening
+        difficulty: standard
+        scenario_brief: 订单服务逻辑同时包含参数校验、库存扣减、事务写库和消息发送，单测很难覆盖。
+        question_stem: 你会如何拆分 Java 订单服务的职责，让核心逻辑更容易测试和回归？
+        prompt_template: 结合候选人的 Java 服务开发经验，生成一道代码质量题，要求说明分层边界、依赖注入、mock 策略和集成测试。
+        scenario_skill_tags: [java, service design, unit testing, transaction]
+        resume_anchor_hints: [java, spring, unit test, service, transaction]
+        failure_categories: [missing_test_strategy, vague_contract, missing_tradeoff]
+        rubric_additions: [说明领域逻辑和基础设施依赖分离, 说明 mock 与真实集成测试边界, 说明关键回归样例]
+        expected_signals: [能把外部依赖封装到端口, 能覆盖异常和边界条件, 能区分单测和集成测试价值]
+        anti_patterns: [所有逻辑塞在一个 service 方法, 单测只覆盖 happy path, 测试依赖真实外部服务]
+        good_answer_hints: [先拆职责和依赖方向, 再设计测试夹具, 最后补关键路径回归]
+        priority: 15
+        status: active
+      - id: coding_quality.java_service_testability.async_job_test
+        version: 1
+        intent: followup
+        difficulty: standard
+        scenario_brief: 异步任务有重试、幂等和状态迁移，历史 bug 多发生在异常分支。
+        question_stem: 对于有重试和状态迁移的 Java 异步任务，你会如何设计测试用例？
+        prompt_template: 生成一道 Java 可测试性追问题，要求候选人说明状态机测试、幂等测试、失败注入和回归数据。
+        scenario_skill_tags: [java, async job, state machine, testing, idempotency]
+        resume_anchor_hints: [java, async, retry, testing, idempotency]
+        failure_categories: [missing_test_strategy, missing_edge_case, missing_observability]
+        rubric_additions: [说明状态迁移覆盖, 说明失败注入和重复执行测试, 说明测试数据可维护]
+        expected_signals: [能覆盖可重试与不可重试失败, 能验证重复执行无副作用, 能把关键 bug 固化成回归用例]
+        anti_patterns: [只测成功路径, 不模拟重复消息, 不断言最终状态]
+        good_answer_hints: [先画状态机, 再列失败场景, 最后把历史问题做成固定用例]
+        priority: 13
+        status: active
+
+  - id: coding_quality.frontend_component_maintainability
+    version: 1
+    title: 前端组件可维护性与工程质量
+    dimension: coding_quality
+    job_levels: [junior, mid, senior, staff]
+    skill_tags: [frontend, component design, testing, maintainability]
+    direction_tags: [internet_tech]
+    role_tags: [frontend_web]
+    rubric:
+      must_cover: [组件边界, 状态管理, 测试策略, 可演进性]
+      minimum_bar: 能说明如何让复杂前端组件在多人协作和长期迭代中保持可维护。
+      stretch: 能结合设计系统、数据契约、测试金字塔和性能约束提出治理方案。
+    priority: 22
+    status: active
+    source: manual_yaml
+    scope: global
+    language: zh-CN
+    variants:
+      - id: coding_quality.frontend_component_maintainability.form_builder
+        version: 1
+        intent: opening
+        difficulty: standard
+        scenario_brief: 一个动态表单组件支持多业务复用，字段规则、权限和联动逻辑不断增加。
+        question_stem: 请说明你会如何设计动态表单组件的边界、状态管理和测试策略。
+        prompt_template: 结合候选人的前端工程经验，生成一道代码质量题，要求说明组件 API、状态拆分、测试和演进风险。
+        scenario_skill_tags: [component api, form, testing, state management]
+        resume_anchor_hints: [component, form, react, vue, testing]
+        failure_categories: [missing_tradeoff, missing_test_strategy, vague_contract]
+        rubric_additions: [说明受控与非受控边界, 说明联动逻辑隔离, 说明单测和集成测试]
+        expected_signals: [能设计清晰组件契约, 能避免状态耦合, 能覆盖关键业务规则测试]
+        anti_patterns: [把所有逻辑塞进一个组件, 没有测试策略, API 随需求随意扩张]
+        good_answer_hints: [先定义使用方契约, 再拆状态和规则, 最后补测试和版本演进]
+        priority: 15
+        status: active
+      - id: coding_quality.frontend_component_maintainability.design_system
+        version: 1
+        intent: followup
+        difficulty: standard
+        scenario_brief: 多个业务线重复实现按钮、表格和弹窗，样式与交互逐渐不一致。
+        question_stem: 如果要推动前端组件库治理，你会如何处理 API 设计、兼容迁移和质量保障？
+        prompt_template: 生成一道前端组件库治理追问题，要求候选人说明 API 设计、迁移策略、测试和文档。
+        scenario_skill_tags: [design system, component library, migration, testing]
+        resume_anchor_hints: [component library, design system, ui, testing]
+        failure_categories: [missing_action, missing_tradeoff, vague_contract]
+        rubric_additions: [说明组件抽象边界, 说明旧用法迁移策略, 说明视觉和交互回归测试]
+        expected_signals: [能平衡统一和业务灵活性, 能设计渐进迁移, 能建立质量门禁]
+        anti_patterns: [一次性推翻重写, 只统一样式不统一行为, 没有迁移计划]
+        good_answer_hints: [先盘点重复模式, 再设计稳定 API, 最后灰度迁移和测试兜底]
+        priority: 13
+        status: active
+
+  - id: coding_quality.mobile_modular_quality
+    version: 1
+    title: 移动端模块化与工程质量
+    dimension: coding_quality
+    job_levels: [junior, mid, senior]
+    skill_tags: [mobile, modularization, testing, maintainability, app]
+    direction_tags: [internet_tech]
+    role_tags: [mobile]
+    rubric:
+      must_cover: [模块边界, 依赖管理, 测试策略, 发布影响]
+      minimum_bar: 能说明移动端复杂业务如何通过模块化和测试降低维护成本。
+      stretch: 能结合跨端、动态化、灰度发布和性能约束设计工程质量体系。
+    priority: 24
+    status: active
+    source: manual_yaml
+    scope: global
+    language: zh-CN
+    variants:
+      - id: coding_quality.mobile_modular_quality.feature_module
+        version: 1
+        intent: opening
+        difficulty: standard
+        scenario_brief: 移动 App 业务模块越来越多，公共组件和页面逻辑互相依赖，发布风险变高。
+        question_stem: 你会如何设计移动端业务模块边界、公共组件和依赖治理？
+        prompt_template: 结合候选人的移动端工程经验，生成一道代码质量题，要求说明模块化、依赖和测试。
+        scenario_skill_tags: [mobile, modularization, dependency, testing]
+        resume_anchor_hints: [mobile, module, component, testing, app]
+        failure_categories: [missing_tradeoff, missing_action, missing_edge_case]
+        rubric_additions: [说明模块划分原则, 说明公共组件边界, 说明依赖和测试策略]
+        expected_signals: [能避免循环依赖, 能分业务模块和基础模块, 能设计模块级测试]
+        anti_patterns: [所有模块互相调用, 公共组件承载业务逻辑, 没有发布影响评估]
+        good_answer_hints: [先按业务和基础能力分层, 再治理依赖, 最后补测试和发布检查]
+        priority: 15
+        status: active
+      - id: coding_quality.mobile_modular_quality.cross_platform
+        version: 1
+        intent: deep_probe
+        difficulty: deep_probe
+        scenario_brief: 团队同时维护 Android、iOS 和 Flutter 页面，功能一致性和质量回归压力很大。
+        question_stem: 多端移动应用如何治理复用、差异和测试，避免跨端质量失控？
+        prompt_template: 生成一道移动端跨端工程质量深挖题，要求候选人说明复用边界、平台差异和测试策略。
+        scenario_skill_tags: [mobile, cross platform, flutter, testing]
+        resume_anchor_hints: [android, ios, flutter, cross platform, testing]
+        failure_categories: [missing_tradeoff, missing_edge_case, missing_metrics]
+        rubric_additions: [说明跨端复用边界, 说明平台差异处理, 说明自动化和灰度验证]
+        expected_signals: [能区分业务逻辑复用和原生差异, 能建立多端验收用例, 能控制灰度风险]
+        anti_patterns: [强行完全一致, 不处理平台能力差异, 只靠人工回归]
+        good_answer_hints: [先定义复用层级, 再列平台差异, 最后做自动化和灰度]
+        priority: 13
+        status: active
+
+  - id: coding_quality.frontend_web_form_composition
+    version: 1
+    title: 复杂表单的组件抽象与状态隔离
+    dimension: coding_quality
+    job_levels: [junior, mid, senior]
+    skill_tags: [frontend, form, component, state isolation, validation]
+    direction_tags: [internet_tech]
+    role_tags: [frontend_web]
+    rubric:
+      must_cover: [组件抽象, 状态隔离, 校验链路, 可测试性]
+      minimum_bar: 能说明复杂表单的组件分解与校验设计。
+      stretch: 能结合 react-hook-form / formik / 自研方案做对比与可维护性优化。
+    priority: 24
+    status: active
+    source: manual_yaml
+    scope: global
+    language: zh-CN
+    variants:
+      - id: coding_quality.frontend_web_form_composition.layered_design
+        version: 1
+        intent: opening
+        difficulty: standard
+        scenario_brief: 后台一个采购申请表单含 80 个字段、跨多个 tab、有联动逻辑。
+        question_stem: 你会如何抽象组件、隔离状态并保证表单可维护？
+        prompt_template: 结合候选人的前端 / 组件设计经验，生成一道代码质量题，要求说明表单架构。
+        scenario_skill_tags: [frontend, form, composition, validation]
+        resume_anchor_hints: [frontend, form, react, validation, composition]
+        failure_categories: [missing_action, missing_edge_case, missing_tradeoff]
+        rubric_additions: [说明组件分层, 说明状态隔离, 说明校验链路]
+        expected_signals: [能抽出字段级/区块级/表单级组件, 能让局部状态不污染全局, 能定义校验执行时机]
+        anti_patterns: [大表单一个组件, 全状态放最外层, 校验全在提交时]
+        good_answer_hints: [先分层, 再隔离, 最后校验]
+        priority: 13
+        status: active
+      - id: coding_quality.frontend_web_form_composition.dynamic_field
+        version: 1
+        intent: deep_probe
+        difficulty: deep_probe
+        scenario_brief: 业务方需要按条件动态展示 / 隐藏 / 启用字段，且每次改动都要保留已填数据。
+        question_stem: 如果表单字段需要动态变化且不能丢失用户已填数据，你会如何设计组件契约？
+        prompt_template: 生成一道动态表单深挖题，要求候选人说明字段状态保留、依赖图与校验。
+        scenario_skill_tags: [frontend, dynamic form, field dependency, validation]
+        resume_anchor_hints: [frontend, dynamic form, field dependency, react]
+        failure_categories: [missing_edge_case, missing_consistency_boundary, shallow_debugging]
+        rubric_additions: [说明字段依赖图, 说明状态保留策略, 说明动态校验]
+        expected_signals: [能维护字段依赖图, 能隔离卸载字段的值, 能动态启用校验规则]
+        anti_patterns: [字段卸载丢值, 全表单刷新, 校验规则硬编码]
+        good_answer_hints: [先建依赖图, 再保留状态, 最后动态校验]
+        priority: 11
+        status: active
+
+  - id: coding_quality.frontend_web_type_contract
+    version: 1
+    title: TypeScript 组件契约与前端代码可维护性
+    dimension: coding_quality
+    job_levels: [junior, mid, senior]
+    skill_tags: [frontend, typescript, component contract, maintainability]
+    direction_tags: [internet_tech]
+    role_tags: [frontend_web]
+    rubric:
+      must_cover: [类型契约, 公共/私有边界, 文档与示例, 演进策略]
+      minimum_bar: 能用 TypeScript 表达清晰的组件契约。
+      stretch: 能用 utility types、模板字面量类型与 contract test 做长期维护。
+    priority: 22
+    status: active
+    source: manual_yaml
+    scope: global
+    language: zh-CN
+    variants:
+      - id: coding_quality.frontend_web_type_contract.public_api
+        version: 1
+        intent: opening
+        difficulty: standard
+        scenario_brief: 公司前端组件库被 20+ 业务团队使用，反馈 props 太乱、文档跟不上。
+        question_stem: 你会如何用 TypeScript 设计清晰的组件契约提升可维护性？
+        prompt_template: 结合候选人的前端 / TypeScript 经验，生成一道代码质量题，要求说明契约与维护。
+        scenario_skill_tags: [frontend, typescript, component, contract]
+        resume_anchor_hints: [frontend, typescript, component, library, contract]
+        failure_categories: [missing_action, missing_tradeoff, shallow_debugging]
+        rubric_additions: [说明 props 分组, 说明默认值与必传, 说明文档生成]
+        expected_signals: [能分组 props（外观/行为/数据）, 能用 discriminated union 表达变体, 能自动生成文档]
+        anti_patterns: [所有 props 全 optional, 没分组, 手工维护文档]
+        good_answer_hints: [先分组 props, 再定必传, 最后自动文档]
+        priority: 11
+        status: active
+      - id: coding_quality.frontend_web_type_contract.evolution
+        version: 1
+        intent: deep_probe
+        difficulty: deep_probe
+        scenario_brief: 旧组件 API 想去掉某些 props，但下游团队大量在用。
+        question_stem: 如果要演进组件 API 又不能破坏下游，你会如何用类型系统辅助迁移？
+        prompt_template: 生成一道组件 API 演进深挖题，要求候选人说明 deprecation、过渡期与回归。
+        scenario_skill_tags: [frontend, typescript, api evolution, deprecation]
+        resume_anchor_hints: [frontend, typescript, deprecation, migration, library]
+        failure_categories: [missing_action, missing_observability, missing_tradeoff]
+        rubric_additions: [说明 deprecation 类型, 说明编译期警告, 说明使用度监控]
+        expected_signals: [能在类型上加 @deprecated, 能用编译期警告引导迁移, 能监控旧 API 使用度]
+        anti_patterns: [直接删 props, 没迁移期, 不监控使用度]
+        good_answer_hints: [先标 deprecation, 再过渡期, 最后看监控下线]
+        priority: 10
+        status: active
+
+  - id: coding_quality.frontend_web_testing_strategy
+    version: 1
+    title: 前端测试金字塔：单测 / 集成 / E2E 边界
+    dimension: coding_quality
+    job_levels: [junior, mid, senior]
+    skill_tags: [frontend, testing, unit test, integration test, e2e]
+    direction_tags: [internet_tech]
+    role_tags: [frontend_web]
+    rubric:
+      must_cover: [测试金字塔, 工具选择, mock 策略, CI 集成]
+      minimum_bar: 能区分前端单测 / 集成 / E2E 的职责。
+      stretch: 能结合 visual regression / contract test / coverage 形成完整策略。
+    priority: 21
+    status: active
+    source: manual_yaml
+    scope: global
+    language: zh-CN
+    variants:
+      - id: coding_quality.frontend_web_testing_strategy.pyramid
+        version: 1
+        intent: opening
+        difficulty: standard
+        scenario_brief: 团队前端代码无测试，常出现 regression，业务方抱怨"小修小补总有连锁问题"。
+        question_stem: 你会如何为前端项目搭建测试金字塔并提升回归保护？
+        prompt_template: 结合候选人的前端测试经验，生成一道代码质量题，要求说明测试策略。
+        scenario_skill_tags: [frontend, testing, pyramid, ci]
+        resume_anchor_hints: [frontend, testing, jest, vitest, playwright]
+        failure_categories: [missing_action, missing_metrics, missing_tradeoff]
+        rubric_additions: [说明三层分工, 说明工具选择, 说明 CI 集成]
+        expected_signals: [能区分单测/集成/E2E 适用范围, 能合理选工具, 能用 coverage / 回归监控]
+        anti_patterns: [全 E2E 跑慢, 全单测覆盖不足, 没 CI 集成]
+        good_answer_hints: [先分层, 再选工具, 最后接 CI]
+        priority: 10
+        status: active
+      - id: coding_quality.frontend_web_testing_strategy.flaky_test
+        version: 1
+        intent: deep_probe
+        difficulty: deep_probe
+        scenario_brief: E2E 测试 30% 概率 flaky，团队怀疑要不要保留。
+        question_stem: 如果 E2E flaky 严重，你会如何在工程上判断保留 / 修复 / 替换？
+        prompt_template: 生成一道 E2E flaky 治理深挖题，要求候选人说明根因分类与替代方案。
+        scenario_skill_tags: [frontend, e2e, flaky test, ci, root cause]
+        resume_anchor_hints: [frontend, e2e, flaky, ci, test]
+        failure_categories: [shallow_debugging, missing_action, missing_metrics]
+        rubric_additions: [说明 flaky 根因分类, 说明保留/修复/替换决策, 说明 quarantine 机制]
+        expected_signals: [能区分环境/时序/数据三类 flaky 根因, 能用 quarantine 隔离, 能用对照实验决定保留]
+        anti_patterns: [全部禁用 E2E, 一直跑红失去 CI 意义, 不分类根因]
+        good_answer_hints: [先分类根因, 再 quarantine, 最后决定]
+        priority: 9
+        status: active
+
+  - id: coding_quality.mobile_modularization
+    version: 1
+    title: 移动端模块化与组件复用设计
+    dimension: coding_quality
+    job_levels: [junior, mid, senior]
+    skill_tags: [mobile, modularization, component, reuse, architecture]
+    direction_tags: [internet_tech]
+    role_tags: [mobile]
+    rubric:
+      must_cover: [模块边界, 通信机制, 依赖管理, 演进策略]
+      minimum_bar: 能给移动端项目设计模块化结构。
+      stretch: 能用 monorepo / 二进制依赖 / contract test 保证长期可维护。
+    priority: 21
+    status: active
+    source: manual_yaml
+    scope: global
+    language: zh-CN
+    variants:
+      - id: coding_quality.mobile_modularization.boundary
+        version: 1
+        intent: opening
+        difficulty: standard
+        scenario_brief: 一个移动应用代码已经 30 万行，团队想做模块化但担心改动巨大。
+        question_stem: 你会如何系统化推进移动端模块化与组件复用？
+        prompt_template: 结合候选人的移动端 / 架构经验，生成一道代码质量题，要求说明模块化。
+        scenario_skill_tags: [mobile, modularization, architecture, refactor]
+        resume_anchor_hints: [mobile, modularization, architecture, refactor]
+        failure_categories: [missing_action, missing_tradeoff, missing_consistency_boundary]
+        rubric_additions: [说明模块边界, 说明通信机制, 说明演进策略]
+        expected_signals: [能按业务/能力划模块, 能用路由/事件通信, 能给渐进迁移路径]
+        anti_patterns: [一次大重构, 模块互相强耦合, 没演进规划]
+        good_answer_hints: [先分边界, 再定通信, 最后渐进迁移]
+        priority: 9
+        status: active
+      - id: coding_quality.mobile_modularization.binary_dep
+        version: 1
+        intent: deep_probe
+        difficulty: deep_probe
+        scenario_brief: 编译时间长达 15 分钟，团队想用二进制依赖优化构建。
+        question_stem: 如果用二进制依赖管理模块，你会如何在工程上保证一致性？
+        prompt_template: 生成一道模块二进制依赖深挖题，要求候选人说明版本管理与一致性。
+        scenario_skill_tags: [mobile, binary dep, versioning, build]
+        resume_anchor_hints: [mobile, binary, version, build]
+        failure_categories: [missing_action, missing_consistency_boundary, missing_observability]
+        rubric_additions: [说明版本策略, 说明 ABI 兼容, 说明回滚机制]
+        expected_signals: [能定语义化版本, 能用 ABI 检查兼容, 能给回滚]
+        anti_patterns: [无版本管理, 不查 ABI, 没回滚]
+        good_answer_hints: [先版本, 再兼容, 最后回滚]
+        priority: 7
+        status: active
+
+  - id: coding_quality.mobile_testing_strategy
+    version: 1
+    title: 移动端单元测试与 UI 测试的边界
+    dimension: coding_quality
+    job_levels: [junior, mid, senior]
+    skill_tags: [mobile, testing, unit test, ui test, espresso]
+    direction_tags: [internet_tech]
+    role_tags: [mobile]
+    rubric:
+      must_cover: [测试金字塔, 工具选择, mock 策略, CI 集成]
+      minimum_bar: 能为移动端项目搭建测试金字塔。
+      stretch: 能结合契约测试 / 真机测试 / 截图测试形成完整保护。
+    priority: 19
+    status: active
+    source: manual_yaml
+    scope: global
+    language: zh-CN
+    variants:
+      - id: coding_quality.mobile_testing_strategy.pyramid
+        version: 1
+        intent: opening
+        difficulty: standard
+        scenario_brief: 团队移动端项目几乎无测试，常出现 regression。
+        question_stem: 你会如何为移动端项目搭建测试金字塔？
+        prompt_template: 结合候选人的移动端测试经验，生成一道代码质量题，要求说明测试策略。
+        scenario_skill_tags: [mobile, testing, pyramid, ci]
+        resume_anchor_hints: [mobile, testing, junit, xctest, espresso]
+        failure_categories: [missing_action, missing_metrics, missing_tradeoff]
+        rubric_additions: [说明三层分工, 说明工具选择, 说明 CI 集成]
+        expected_signals: [能区分单测/UI/E2E 适用范围, 能合理选工具, 能用 coverage / 回归监控]
+        anti_patterns: [全 UI 测试跑慢, 全单测覆盖不足, 没 CI 集成]
+        good_answer_hints: [先分层, 再选工具, 最后接 CI]
+        priority: 8
+        status: active
+      - id: coding_quality.mobile_testing_strategy.flaky_ui
+        version: 1
+        intent: deep_probe
+        difficulty: deep_probe
+        scenario_brief: UI 测试在 CI 上 flaky 严重，团队怀疑要不要保留。
+        question_stem: 如果移动端 UI 测试 flaky 严重，你会如何治理？
+        prompt_template: 生成一道 UI 测试 flaky 治理深挖题，要求候选人说明根因与替代。
+        scenario_skill_tags: [mobile, ui test, flaky, debugging]
+        resume_anchor_hints: [mobile, ui test, flaky, ci]
+        failure_categories: [shallow_debugging, missing_action, missing_metrics]
+        rubric_additions: [说明根因分类, 说明 quarantine 机制, 说明替代方案]
+        expected_signals: [能区分环境/时序/数据三类 flaky 根因, 能用 quarantine 隔离, 能给截图/快照测试替代]
+        anti_patterns: [全禁用 UI 测试, 不分根因, 不替代]
+        good_answer_hints: [先分类根因, 再 quarantine, 最后替代]
+        priority: 6
+        status: active

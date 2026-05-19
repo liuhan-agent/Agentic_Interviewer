@@ -1,0 +1,52 @@
+dimension: solution_delivery
+seeds:
+  - id: solution_delivery.customer_solution_closure
+    version: 1
+    title: Customer solution delivery and closure
+    dimension: solution_delivery
+    job_levels: [junior, mid, senior]
+    skill_tags: [customer_success, solution_delivery, closure, support]
+    direction_tags: [business]
+    role_tags: [customer_success]
+    rubric:
+      must_cover: [solution_options, execution_owner, customer_confirmation, closure_standard]
+      minimum_bar: Explain how to deliver a customer solution clearly and confirm the issue is truly closed.
+      stretch: Manage partial solutions, customer expectation, and internal ownership when the fix is not immediate.
+    priority: 24
+    status: active
+    source: manual_yaml
+    scope: global
+    language: zh-CN
+    variants:
+      - id: solution_delivery.customer_solution_closure.partial_workaround
+        version: 1
+        intent: opening
+        difficulty: standard
+        scenario_brief: Engineering cannot fix the root cause immediately, but a workaround can reduce customer impact.
+        question_stem: How would you explain the workaround, confirm it is acceptable, and track the final solution to closure?
+        prompt_template: Generate a customer success question about workaround delivery and closure management.
+        scenario_skill_tags: [customer_success, solution_delivery, workaround, closure]
+        resume_anchor_hints: [workaround, customer_success, support, closure, engineering]
+        failure_categories: [poor_communication, weak_follow_up, missing_risk_boundary]
+        rubric_additions: [Explain limitation honestly, confirm acceptance, track permanent fix]
+        expected_signals: [Distinguishes workaround and root fix, sets owner, defines closure confirmation]
+        anti_patterns: [Calls workaround final fix, hides limitation, forgets follow up]
+        good_answer_hints: [Be explicit, confirm customer acceptance, keep root fix visible]
+        priority: 17
+        status: active
+      - id: solution_delivery.customer_solution_closure.customer_training_gap
+        version: 1
+        intent: deep_probe
+        difficulty: deep_probe
+        scenario_brief: The customer problem is partly caused by usage misunderstanding across several customer teams.
+        question_stem: How would you design a solution that closes the current issue and prevents the same confusion from recurring?
+        prompt_template: Generate a deep probe about customer solution delivery through enablement and prevention.
+        scenario_skill_tags: [customer_success, solution_delivery, enablement, prevention]
+        resume_anchor_hints: [training, enablement, customer_success, documentation, adoption]
+        failure_categories: [shallow_solution, weak_follow_up, missing_metrics]
+        rubric_additions: [Address current case, create enablement asset, measure recurrence]
+        expected_signals: [Segments customer users, designs training or guide, tracks repeat tickets]
+        anti_patterns: [Only sends documentation link, blames customer, ignores adoption signal]
+        good_answer_hints: [Solve now, teach by scenario, monitor repeat behavior]
+        priority: 15
+        status: active

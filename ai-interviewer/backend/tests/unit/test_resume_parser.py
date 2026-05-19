@@ -19,6 +19,7 @@ from __future__ import annotations
 import io
 import json
 import sys
+import threading
 import time
 import types
 import zipfile
@@ -784,12 +785,15 @@ def client(monkeypatch: pytest.MonkeyPatch) -> TestClient:
     monkeypatch.setenv("RESUME_PARSE_CACHE_BACKEND", "off")
     from app.core import settings as settings_mod
     from app.services import resume_parse_cache as cache_mod
+    from app.services import resume_parse_jobs as jobs_mod
 
     settings_mod.get_settings.cache_clear()
     cache_mod.reset_resume_parse_cache_for_tests()
+    jobs_mod.reset_resume_parse_jobs_for_tests()
     app = FastAPI()
     app.include_router(interview_api.router)
     yield TestClient(app)
+    jobs_mod.reset_resume_parse_jobs_for_tests()
     cache_mod.reset_resume_parse_cache_for_tests()
     settings_mod.get_settings.cache_clear()
 
@@ -903,6 +907,136 @@ def test_endpoint_txt_upload_llm_failure_falls_back_to_heuristic(
     assert body["parse_status"]["mode"] == "basic"
     assert body["parse_status"]["reason"] == "llm_failed"
     assert "secret-key" not in resp.text
+
+
+def test_async_resume_parse_job_returns_running_then_completed(
+    client: TestClient,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from app.core import settings as settings_mod
+
+    monkeypatch.setenv("RESUME_PARSE_JOB_LLM_TIMEOUT_SECONDS", "300")
+    settings_mod.get_settings.cache_clear()
+    started = threading.Event()
+    release = threading.Event()
+    captured_kwargs: dict[str, object] = {}
+
+    def fake_parse_resume(text: str, **kwargs: object) -> rp.ParsedResume:
+        captured_kwargs.update(kwargs)
+        started.set()
+        assert release.wait(timeout=2.0), "test did not release fake parser"
+        return rp.ParsedResume(
+            summary="AI parsed summary",
+            skills=["python", "kafka"],
+            highlights=["Led a payment migration."],
+            raw_text=text,
+            parse_status={
+                "mode": "ai_refined",
+                "reason": "ai_completed",
+                "message": "AI parsed",
+            },
+        )
+
+    monkeypatch.setattr(interview_api, "parse_resume", fake_parse_resume)
+    files = {"file": ("resume.txt", io.BytesIO(SAMPLE_RESUME.encode()), "text/plain")}
+    create_resp = client.post("/api/v1/interview/resume/parse-jobs", files=files)
+
+    assert create_resp.status_code == 200, create_resp.text
+    created = create_resp.json()
+    assert created["status"] == "running"
+    assert isinstance(created["job_id"], str) and created["job_id"]
+    assert created["filename"] == "resume.txt"
+    assert "expires_at" in created
+    assert started.wait(timeout=2.0)
+    assert captured_kwargs["llm_timeout_seconds"] == 300.0
+
+    release.set()
+    completed: dict[str, object] | None = None
+    for _ in range(50):
+        poll_resp = client.get(
+            f"/api/v1/interview/resume/parse-jobs/{created['job_id']}"
+        )
+        assert poll_resp.status_code == 200, poll_resp.text
+        body = poll_resp.json()
+        if body["status"] == "completed":
+            completed = body
+            break
+        time.sleep(0.02)
+
+    assert completed is not None
+    result = completed["result"]
+    assert isinstance(result, dict)
+    assert result["summary"] == "AI parsed summary"
+    assert result["parse_status"]["mode"] == "ai_refined"
+    settings_mod.get_settings.cache_clear()
+
+
+def test_async_resume_parse_unknown_job_returns_expired(client: TestClient) -> None:
+    resp = client.get("/api/v1/interview/resume/parse-jobs/missing-job")
+
+    assert resp.status_code == 200, resp.text
+    body = resp.json()
+    assert body["job_id"] == "missing-job"
+    assert body["status"] == "expired"
+    assert body["error"]
+
+
+def test_async_resume_parse_job_cache_hit_is_recoverable(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from app.core import settings as settings_mod
+    from app.services import resume_parse_cache as cache_mod
+    from app.services import resume_parse_jobs as jobs_mod
+
+    monkeypatch.setenv("LLM_PROVIDER", "stub")
+    monkeypatch.setenv("RESUME_PARSE_CACHE_BACKEND", "memory")
+    settings_mod.get_settings.cache_clear()
+    cache_mod.reset_resume_parse_cache_for_tests()
+    jobs_mod.reset_resume_parse_jobs_for_tests()
+    app = FastAPI()
+    app.include_router(interview_api.router)
+    client = TestClient(app)
+
+    calls = 0
+
+    def fake_parse_resume(text: str, **_kwargs: object) -> rp.ParsedResume:
+        nonlocal calls
+        calls += 1
+        return rp.ParsedResume(
+            summary="Cached async summary",
+            skills=["java"],
+            highlights=["Built a payment system."],
+            raw_text=text,
+            parse_status={
+                "mode": "ai_refined",
+                "reason": "ai_completed",
+                "message": "ok",
+            },
+        )
+
+    try:
+        monkeypatch.setattr(interview_api, "parse_resume", fake_parse_resume)
+        files = {"file": ("resume.txt", io.BytesIO(SAMPLE_RESUME.encode()), "text/plain")}
+        first = client.post("/api/v1/interview/resume/parse", files=files)
+        assert first.status_code == 200, first.text
+
+        files = {"file": ("resume.txt", io.BytesIO(SAMPLE_RESUME.encode()), "text/plain")}
+        created = client.post("/api/v1/interview/resume/parse-jobs", files=files)
+        assert created.status_code == 200, created.text
+        body = created.json()
+        assert body["status"] == "completed"
+        assert calls == 1
+
+        fetched = client.get(f"/api/v1/interview/resume/parse-jobs/{body['job_id']}")
+        assert fetched.status_code == 200, fetched.text
+        fetched_body = fetched.json()
+        assert fetched_body["status"] == "completed"
+        assert fetched_body["result"]["summary"] == "Cached async summary"
+        assert fetched_body["result"]["parse_status"]["cached"] is True
+    finally:
+        jobs_mod.reset_resume_parse_jobs_for_tests()
+        cache_mod.reset_resume_parse_cache_for_tests()
+        settings_mod.get_settings.cache_clear()
 
 
 def test_endpoint_reuses_cached_resume_parse_for_same_file_and_model(
@@ -1147,6 +1281,39 @@ def test_endpoint_rejects_oversized_upload_before_decode(
 
     files = {"file": ("big.txt", io.BytesIO(b"x" * 17), "text/plain")}
     resp = client.post("/api/v1/interview/resume/parse", files=files)
+
+    assert resp.status_code == 413
+    assert resp.json()["detail"]["code"] == "resume_file_too_large"
+
+
+def test_async_resume_parse_job_rejects_unsupported_format(
+    client: TestClient,
+) -> None:
+    files = {"file": ("ignore.zip", io.BytesIO(b"PKjunk"), "application/zip")}
+    resp = client.post("/api/v1/interview/resume/parse-jobs", files=files)
+    assert resp.status_code == 415
+    assert "unsupported" in resp.text.lower()
+
+
+def test_async_resume_parse_job_rejects_empty_file(client: TestClient) -> None:
+    files = {"file": ("empty.txt", io.BytesIO(b""), "text/plain")}
+    resp = client.post("/api/v1/interview/resume/parse-jobs", files=files)
+    assert resp.status_code == 422
+
+
+def test_async_resume_parse_job_rejects_oversized_upload_before_decode(
+    client: TestClient,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(interview_api, "MAX_RESUME_UPLOAD_BYTES", 16, raising=False)
+
+    def fail_extract_text(*args, **kwargs):  # type: ignore[no-untyped-def]
+        raise AssertionError("oversized upload should be rejected before decode")
+
+    monkeypatch.setattr(interview_api, "extract_text_with_timeout", fail_extract_text)
+
+    files = {"file": ("big.txt", io.BytesIO(b"x" * 17), "text/plain")}
+    resp = client.post("/api/v1/interview/resume/parse-jobs", files=files)
 
     assert resp.status_code == 413
     assert resp.json()["detail"]["code"] == "resume_file_too_large"

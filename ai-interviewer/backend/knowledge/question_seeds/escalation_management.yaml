@@ -1,0 +1,52 @@
+dimension: escalation_management
+seeds:
+  - id: escalation_management.customer_escalation_coordination
+    version: 1
+    title: Customer escalation coordination
+    dimension: escalation_management
+    job_levels: [junior, mid, senior]
+    skill_tags: [customer_success, escalation_management, risk_control, stakeholder_alignment]
+    direction_tags: [business]
+    role_tags: [customer_success]
+    rubric:
+      must_cover: [escalation_trigger, internal_owner, customer_update, risk_control]
+      minimum_bar: Explain how to escalate customer issues with clear trigger, owner, and communication rhythm.
+      stretch: Coordinate internal pressure without losing customer trust or creating unrealistic commitments.
+    priority: 25
+    status: active
+    source: manual_yaml
+    scope: global
+    language: zh-CN
+    variants:
+      - id: escalation_management.customer_escalation_coordination.executive_complaint
+        version: 1
+        intent: opening
+        difficulty: standard
+        scenario_brief: A key customer escalates to executives after a high impact incident remains unresolved.
+        question_stem: How would you organize the escalation, assign internal owners, and keep the customer updated under pressure?
+        prompt_template: Generate a customer success escalation question about owner, cadence, and risk communication.
+        scenario_skill_tags: [customer_success, escalation_management, executive_escalation, risk_control]
+        resume_anchor_hints: [escalation, enterprise_customer, incident, executive, support]
+        failure_categories: [weak_stakeholder_alignment, poor_communication, missing_risk_boundary]
+        rubric_additions: [Define escalation owner, set update cadence, separate facts from commitments]
+        expected_signals: [Creates command rhythm, aligns internal owner, manages executive expectation]
+        anti_patterns: [Only pushes engineering, gives unverified ETA, leaves customer without updates]
+        good_answer_hints: [Name owner, set cadence, communicate facts and next milestones]
+        priority: 18
+        status: active
+      - id: escalation_management.customer_escalation_coordination.repeated_sla_breach
+        version: 1
+        intent: deep_probe
+        difficulty: deep_probe
+        scenario_brief: A customer has multiple SLA breaches in one quarter and threatens to terminate the contract.
+        question_stem: How would you handle the escalation so it addresses immediate trust damage and longer term recurrence risk?
+        prompt_template: Generate a deep probe about SLA breach escalation and recurrence control.
+        scenario_skill_tags: [customer_success, escalation_management, sla, recurrence_prevention]
+        resume_anchor_hints: [sla, escalation, renewal_risk, incident_review, customer_success]
+        failure_categories: [missing_root_cause, weak_follow_up, missing_metrics]
+        rubric_additions: [Acknowledge breach impact, build recovery plan, track recurrence prevention]
+        expected_signals: [Combines customer repair with internal corrective action, defines risk owner, tracks SLA trend]
+        anti_patterns: [Offers apology only, discounts contract risk, treats breaches independently]
+        good_answer_hints: [Repair trust now, show prevention plan, review SLA evidence over time]
+        priority: 16
+        status: active

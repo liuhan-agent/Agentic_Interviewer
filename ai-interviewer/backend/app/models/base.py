@@ -11,9 +11,9 @@ from collections.abc import Iterator
 from contextlib import contextmanager
 from pathlib import Path
 
-from sqlalchemy import Text, create_engine, inspect, text
+from sqlalchemy import Table, Text, create_engine, inspect, text
 from sqlalchemy.engine import Engine
-from sqlalchemy.exc import OperationalError
+from sqlalchemy.exc import OperationalError, SQLAlchemyError
 from sqlalchemy.orm import DeclarativeBase, Session, sessionmaker
 
 from app.core.logging import get_logger
@@ -106,8 +106,14 @@ def __getattr__(name: str) -> Engine:
 _SQLITE_UPGRADES: dict[str, dict[str, str]] = {
     "interview_sessions": {
         "session_token_hash": "VARCHAR(128)",
+        "session_token_expires_at": "DATETIME",
+        "recovery_token_hash": "VARCHAR(128)",
+        "recovery_token_expires_at": "DATETIME",
+        "recovery_token_revoked_at": "DATETIME",
         "current_question": "JSON",
         "llm_config_meta": "JSON",
+        "setup_snapshot": "JSON",
+        "enable_video_analysis": "BOOLEAN DEFAULT 0",
         "turn_idx": "INTEGER DEFAULT 0",
         "asked_turn": "INTEGER DEFAULT -1",
         "error": "TEXT",
@@ -127,13 +133,32 @@ _SQLITE_UPGRADES: dict[str, dict[str, str]] = {
         "source": "VARCHAR(32) DEFAULT 'ats_sync'",
         "helpful_score": "REAL",
     },
+    "strategy_memories": {
+        "quality_reason": "VARCHAR(512)",
+    },
+    "skill_playbook_cards": {
+        "generator_moves": "JSON DEFAULT '[]'",
+        "watch_for": "JSON DEFAULT '[]'",
+        "avoid": "JSON DEFAULT '[]'",
+        "evaluator_rubric_hints": "JSON DEFAULT '[]'",
+        "positive_signals": "JSON DEFAULT '[]'",
+        "negative_signals": "JSON DEFAULT '[]'",
+        "score_bias_rules": "JSON DEFAULT '[]'",
+        "evaluator_visibility": "BOOLEAN DEFAULT 0",
+    },
 }
 
 _POSTGRES_UPGRADES: dict[str, dict[str, str]] = {
     "interview_sessions": {
         "session_token_hash": "VARCHAR(128)",
+        "session_token_expires_at": "TIMESTAMP WITH TIME ZONE",
+        "recovery_token_hash": "VARCHAR(128)",
+        "recovery_token_expires_at": "TIMESTAMP WITH TIME ZONE",
+        "recovery_token_revoked_at": "TIMESTAMP WITH TIME ZONE",
         "current_question": "JSONB",
         "llm_config_meta": "JSONB",
+        "setup_snapshot": "JSONB",
+        "enable_video_analysis": "BOOLEAN DEFAULT FALSE",
         "turn_idx": "INTEGER DEFAULT 0",
         "asked_turn": "INTEGER DEFAULT -1",
         "error": "TEXT",
@@ -153,6 +178,19 @@ _POSTGRES_UPGRADES: dict[str, dict[str, str]] = {
         "source": "VARCHAR(32) DEFAULT 'ats_sync'",
         "helpful_score": "DOUBLE PRECISION",
     },
+    "strategy_memories": {
+        "quality_reason": "VARCHAR(512)",
+    },
+    "skill_playbook_cards": {
+        "generator_moves": "JSONB DEFAULT '[]'::jsonb",
+        "watch_for": "JSONB DEFAULT '[]'::jsonb",
+        "avoid": "JSONB DEFAULT '[]'::jsonb",
+        "evaluator_rubric_hints": "JSONB DEFAULT '[]'::jsonb",
+        "positive_signals": "JSONB DEFAULT '[]'::jsonb",
+        "negative_signals": "JSONB DEFAULT '[]'::jsonb",
+        "score_bias_rules": "JSONB DEFAULT '[]'::jsonb",
+        "evaluator_visibility": "BOOLEAN DEFAULT FALSE",
+    },
 }
 
 _POSTGRES_TYPE_UPGRADES: dict[str, dict[str, str]] = {
@@ -160,6 +198,52 @@ _POSTGRES_TYPE_UPGRADES: dict[str, dict[str, str]] = {
         "answer": "TEXT",
     },
 }
+
+_SQLITE_SKIP_TABLES = {"session_anchor_chunks"}
+
+
+def _tables_for_create_all(
+    eng: Engine,
+    *,
+    include_session_anchor: bool = True,
+) -> list[Table]:
+    """Return tables that can be created safely for the active dialect."""
+
+    tables = list(Base.metadata.sorted_tables)
+    if eng.dialect.name == "sqlite" or not include_session_anchor:
+        return [table for table in tables if table.name not in _SQLITE_SKIP_TABLES]
+    return tables
+
+
+def _ensure_pgvector_extension(eng: Engine) -> bool:
+    if eng.dialect.name != "postgresql":
+        return False
+    try:
+        with eng.begin() as conn:
+            conn.execute(text("CREATE EXTENSION IF NOT EXISTS vector"))
+        return True
+    except SQLAlchemyError as e:
+        if getattr(get_settings(), "app_env", "dev") == "prod":
+            raise
+        log.warning(
+            "pgvector extension unavailable on %s; session anchor table skipped (%s)",
+            _redact_database_url(str(eng.url)),
+            e,
+        )
+        return False
+
+
+def _ensure_pgvector_indexes(eng: Engine) -> None:
+    if eng.dialect.name != "postgresql":
+        return
+    with eng.begin() as conn:
+        conn.execute(
+            text(
+                "CREATE INDEX IF NOT EXISTS ix_session_anchor_chunks_embedding_hnsw "
+                "ON session_anchor_chunks USING hnsw "
+                "(embedding vector_cosine_ops)"
+            )
+        )
 
 
 def _upgrade_schema(eng: Engine) -> None:
@@ -297,9 +381,28 @@ def init_db() -> None:
     Intentionally lazy-imports the models so that importing ``base``
     doesn't pull them in unless ``init_db`` is actually called.
     """
-    from app.models import generation_trace, interview_session, outcome_record  # noqa: F401
+    from app.models import (  # noqa: F401
+        generation_trace,
+        interview_session,
+        outcome_record,
+        question_bank,
+        resume_parse_artifact,
+        session_anchor,
+        skill_playbook,
+        strategy_memory,
+        verifier_drift,
+    )
 
     eng = get_engine()
-    Base.metadata.create_all(eng)
+    pgvector_available = _ensure_pgvector_extension(eng)
+    Base.metadata.create_all(
+        eng,
+        tables=_tables_for_create_all(
+            eng,
+            include_session_anchor=pgvector_available,
+        ),
+    )
     _upgrade_schema(eng)
+    if pgvector_available:
+        _ensure_pgvector_indexes(eng)
     log.info("db schema ensured on %s", eng.url)

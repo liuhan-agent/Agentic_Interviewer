@@ -25,6 +25,7 @@ test-results/
 *.db
 *.sqlite
 *.sqlite3
+*.dump
 ai-interviewer/backend/knowledge/strategy/.dream_state.json
 
 # Local tool configuration

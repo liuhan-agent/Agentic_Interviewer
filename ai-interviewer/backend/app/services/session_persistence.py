@@ -1,6 +1,7 @@
 from __future__ import annotations
 
-from typing import Any, Callable
+from collections.abc import Callable
+from typing import Any
 
 from app.core.logging import get_logger
 from app.models.interview_session import InterviewSession
@@ -33,8 +34,19 @@ class SessionPersistence:
                 row.status = "interrupted"
                 if handle.session_token_hash and not row.session_token_hash:
                     row.session_token_hash = handle.session_token_hash
+                if getattr(handle, "session_token_expires_at", None):
+                    row.session_token_expires_at = handle.session_token_expires_at
+                if getattr(handle, "recovery_token_hash", None) and not row.recovery_token_hash:
+                    row.recovery_token_hash = handle.recovery_token_hash
+                if getattr(handle, "recovery_token_expires_at", None):
+                    row.recovery_token_expires_at = handle.recovery_token_expires_at
                 if handle.llm_config_meta:
                     row.llm_config_meta = handle.llm_config_meta
+                if getattr(handle, "setup_snapshot", None) is not None:
+                    row.setup_snapshot = handle.setup_snapshot
+                row.enable_video_analysis = bool(
+                    getattr(handle, "enable_video_analysis", False)
+                )
                 row.current_question = question
                 row.turn_idx = turn_idx
                 row.asked_turn = handle.asked_turn
@@ -58,8 +70,19 @@ class SessionPersistence:
                 status = (final_state or {}).get("status", "completed")
                 if handle.session_token_hash and not row.session_token_hash:
                     row.session_token_hash = handle.session_token_hash
+                if getattr(handle, "session_token_expires_at", None):
+                    row.session_token_expires_at = handle.session_token_expires_at
+                if getattr(handle, "recovery_token_hash", None) and not row.recovery_token_hash:
+                    row.recovery_token_hash = handle.recovery_token_hash
+                if getattr(handle, "recovery_token_expires_at", None):
+                    row.recovery_token_expires_at = handle.recovery_token_expires_at
                 if handle.llm_config_meta:
                     row.llm_config_meta = handle.llm_config_meta
+                if getattr(handle, "setup_snapshot", None) is not None:
+                    row.setup_snapshot = handle.setup_snapshot
+                row.enable_video_analysis = bool(
+                    getattr(handle, "enable_video_analysis", False)
+                )
                 row.status = status if status != "running" else "completed"
                 row.final_report = (final_state or {}).get("final_report")
                 if status in {"error", "errored", "failed", "stale"}:
@@ -89,7 +112,11 @@ class SessionPersistence:
                     "job_title": row.job_title,
                     "job_level": row.job_level,
                     "mode": row.mode,
+                    "enable_video_analysis": bool(
+                        getattr(row, "enable_video_analysis", False)
+                    ),
                     "session_token_hash": row.session_token_hash,
+                    "session_token_expires_at": row.session_token_expires_at,
                     "llm_config_meta": row.llm_config_meta,
                     "turn_idx": row.turn_idx,
                     "asked_turn": row.asked_turn,
