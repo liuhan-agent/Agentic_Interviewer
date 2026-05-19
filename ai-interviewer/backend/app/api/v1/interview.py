@@ -135,6 +135,10 @@ from app.services.jd_parser import (
 )
 from app.services.job_templates import JobTemplateNotFound
 from app.services.privacy_cleanup import delete_session_data
+from app.services.resume_parse_artifacts import (
+    create_resume_parse_artifact,
+    read_resume_parse_artifact,
+)
 from app.services.resume_parse_cache import (
     get_resume_parse_cache,
     resume_parse_cache_key,
@@ -397,6 +401,7 @@ class StartSessionRequest(BaseModel):
     )
     candidate: CandidateInput
     job_spec: JobSpecInput
+    resume_source_id: str | None = Field(default=None, max_length=128)
     mode: str = "mixed"
     enable_video_analysis: bool = False
     max_turns: int | None = Field(default=None, ge=1, le=MAX_SESSION_TURNS)
@@ -602,6 +607,33 @@ def _setup_snapshot_from_request(req: StartSessionRequest) -> dict[str, Any]:
     return {
         "candidate": req.candidate.model_dump(exclude_none=True),
         "job_spec": req.job_spec.model_dump(exclude_none=False),
+    }
+
+
+def _stamp_resume_source_for_session(
+    *,
+    resume_source_id: str | None,
+) -> dict[str, Any]:
+    if not resume_source_id:
+        return {
+            "status": "skipped",
+            "skipped_reason": "no_parse_artifact",
+            "resume_source_id": None,
+            "resume_revision_id": None,
+        }
+    artifact = read_resume_parse_artifact(resume_source_id)
+    if artifact is None:
+        return {
+            "status": "skipped",
+            "skipped_reason": "parse_artifact_missing_or_expired",
+            "resume_source_id": resume_source_id,
+            "resume_revision_id": None,
+        }
+    return {
+        "status": "pending_node",
+        "resume_source_id": artifact.artifact_id,
+        "resume_revision_id": None,
+        "expires_at": artifact.expires_at.isoformat(),
     }
 
 
@@ -1055,6 +1087,14 @@ def _enforce_setup_rate_limit(
 def start_session(req: StartSessionRequest) -> dict[str, Any]:
     session_id, trace_id, initial = translate_request(req.model_dump(exclude_none=False))
     setup_snapshot = _setup_snapshot_from_request(req)
+    vector_status = _stamp_resume_source_for_session(
+        resume_source_id=req.resume_source_id,
+    )
+    candidate = initial.setdefault("candidate", {})
+    candidate["resume_vector_status"] = vector_status
+    if vector_status.get("status") == "pending_node":
+        candidate["resume_source_id"] = vector_status.get("resume_source_id")
+    setup_snapshot["resume_vector_status"] = vector_status
     initial["setup_snapshot"] = setup_snapshot
     token = bind_log_context(session_id=session_id, trace_id=trace_id)
     manager = get_session_manager()
@@ -1945,6 +1985,14 @@ async def parse_resume_upload(
     else:
         log.info("resume_parse_cache_miss: key=%s", result.cache_key[:16])
     payload = result.payload
+    artifact = create_resume_parse_artifact(
+        text=result.text,
+        parsed=payload,
+        filename=file.filename,
+    )
+    if artifact is not None:
+        payload["resume_source_id"] = artifact.artifact_id
+        payload["resume_source_expires_at"] = artifact.expires_at.isoformat()
     log.info(
         "resume_parse_upload_done: mode=%s reason=%s elapsed_ms=%s text_chars=%s projects=%d focus_areas=%d",
         payload.get("parse_status", {}).get("mode"),

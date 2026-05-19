@@ -11,9 +11,9 @@ from collections.abc import Iterator
 from contextlib import contextmanager
 from pathlib import Path
 
-from sqlalchemy import Text, create_engine, inspect, text
+from sqlalchemy import Table, Text, create_engine, inspect, text
 from sqlalchemy.engine import Engine
-from sqlalchemy.exc import OperationalError
+from sqlalchemy.exc import OperationalError, SQLAlchemyError
 from sqlalchemy.orm import DeclarativeBase, Session, sessionmaker
 
 from app.core.logging import get_logger
@@ -199,6 +199,52 @@ _POSTGRES_TYPE_UPGRADES: dict[str, dict[str, str]] = {
     },
 }
 
+_SQLITE_SKIP_TABLES = {"session_anchor_chunks"}
+
+
+def _tables_for_create_all(
+    eng: Engine,
+    *,
+    include_session_anchor: bool = True,
+) -> list[Table]:
+    """Return tables that can be created safely for the active dialect."""
+
+    tables = list(Base.metadata.sorted_tables)
+    if eng.dialect.name == "sqlite" or not include_session_anchor:
+        return [table for table in tables if table.name not in _SQLITE_SKIP_TABLES]
+    return tables
+
+
+def _ensure_pgvector_extension(eng: Engine) -> bool:
+    if eng.dialect.name != "postgresql":
+        return False
+    try:
+        with eng.begin() as conn:
+            conn.execute(text("CREATE EXTENSION IF NOT EXISTS vector"))
+        return True
+    except SQLAlchemyError as e:
+        if getattr(get_settings(), "app_env", "dev") == "prod":
+            raise
+        log.warning(
+            "pgvector extension unavailable on %s; session anchor table skipped (%s)",
+            _redact_database_url(str(eng.url)),
+            e,
+        )
+        return False
+
+
+def _ensure_pgvector_indexes(eng: Engine) -> None:
+    if eng.dialect.name != "postgresql":
+        return
+    with eng.begin() as conn:
+        conn.execute(
+            text(
+                "CREATE INDEX IF NOT EXISTS ix_session_anchor_chunks_embedding_hnsw "
+                "ON session_anchor_chunks USING hnsw "
+                "(embedding vector_cosine_ops)"
+            )
+        )
+
 
 def _upgrade_schema(eng: Engine) -> None:
     """Bring existing tables in line with additive column changes.
@@ -340,12 +386,23 @@ def init_db() -> None:
         interview_session,
         outcome_record,
         question_bank,
+        resume_parse_artifact,
+        session_anchor,
         skill_playbook,
         strategy_memory,
         verifier_drift,
     )
 
     eng = get_engine()
-    Base.metadata.create_all(eng)
+    pgvector_available = _ensure_pgvector_extension(eng)
+    Base.metadata.create_all(
+        eng,
+        tables=_tables_for_create_all(
+            eng,
+            include_session_anchor=pgvector_available,
+        ),
+    )
     _upgrade_schema(eng)
+    if pgvector_available:
+        _ensure_pgvector_indexes(eng)
     log.info("db schema ensured on %s", eng.url)

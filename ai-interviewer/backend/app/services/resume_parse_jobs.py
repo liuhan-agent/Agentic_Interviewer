@@ -3,13 +3,15 @@ from __future__ import annotations
 import concurrent.futures
 import secrets
 import threading
+from collections.abc import Callable
 from dataclasses import dataclass
-from datetime import datetime, timedelta, timezone
-from typing import Any, Callable, Literal
+from datetime import UTC, datetime, timedelta
+from typing import Any, Literal
 
 from app.core.logging import get_logger
 from app.core.settings import get_settings
 from app.services.interview_setup import resume_parse_payload
+from app.services.resume_parse_artifacts import create_resume_parse_artifact
 from app.services.resume_parse_cache import (
     get_resume_parse_cache,
     resume_parse_cache_key,
@@ -17,7 +19,6 @@ from app.services.resume_parse_cache import (
 )
 from app.services.resume_parser import (
     EXTRACT_TEXT_TIMEOUT_SECONDS,
-    ResumeParseError,
     extract_text_with_timeout,
     parse_resume,
 )
@@ -87,6 +88,11 @@ class ResumeParseJobManager:
                         "cache_age_ms": hit.age_ms,
                     }
                 payload["raw_text_preview"] = text[:2000]
+                _attach_resume_source_artifact(
+                    payload=payload,
+                    text=text,
+                    filename=filename,
+                )
                 return self._store_completed_job(
                     filename=filename,
                     result=payload,
@@ -94,7 +100,7 @@ class ResumeParseJobManager:
 
         settings = get_settings()
         job_id = secrets.token_urlsafe(24)
-        expires_at = datetime.now(timezone.utc) + timedelta(
+        expires_at = datetime.now(UTC) + timedelta(
             seconds=max(60, int(settings.resume_parse_job_ttl_seconds))
         )
         job = ResumeParseJob(
@@ -163,6 +169,11 @@ class ResumeParseJobManager:
             payload = resume_parse_payload(parsed, text)
             if cache is not None and should_cache_fn(payload):
                 cache.set(cache_key, payload)
+            _attach_resume_source_artifact(
+                payload=payload,
+                text=text,
+                filename=filename,
+            )
             with self._lock:
                 job = self._jobs.get(job_id)
                 if job is not None:
@@ -178,7 +189,7 @@ class ResumeParseJobManager:
                     job.error = str(e) or e.__class__.__name__
 
     def _prune_expired(self) -> None:
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         with self._lock:
             expired = [
                 job_id
@@ -209,7 +220,7 @@ class ResumeParseJobManager:
         result: dict[str, Any],
     ) -> dict[str, Any]:
         job_id = secrets.token_urlsafe(24)
-        expires_at = datetime.now(timezone.utc) + timedelta(
+        expires_at = datetime.now(UTC) + timedelta(
             seconds=max(60, int(get_settings().resume_parse_job_ttl_seconds))
         )
         job = ResumeParseJob(
@@ -229,7 +240,7 @@ class ResumeParseJobManager:
             "job_id": job_id,
             "status": "expired",
             "filename": None,
-            "expires_at": datetime.now(timezone.utc).isoformat(),
+            "expires_at": datetime.now(UTC).isoformat(),
             "error": "resume parse job is missing or expired",
         }
 
@@ -247,3 +258,20 @@ def get_resume_parse_job(job_id: str) -> dict[str, Any]:
 
 def reset_resume_parse_jobs_for_tests() -> None:
     _manager.reset_for_tests()
+
+
+def _attach_resume_source_artifact(
+    *,
+    payload: dict[str, Any],
+    text: str,
+    filename: str | None,
+) -> None:
+    artifact = create_resume_parse_artifact(
+        text=text,
+        parsed=payload,
+        filename=filename,
+    )
+    if artifact is None:
+        return
+    payload["resume_source_id"] = artifact.artifact_id
+    payload["resume_source_expires_at"] = artifact.expires_at.isoformat()

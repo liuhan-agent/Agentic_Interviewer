@@ -28,6 +28,11 @@ interface CreateResumeParseJobForSetupDeps {
   buildLLMPayload: BuildLLMPayloadFn;
 }
 
+export interface ResumeSourceRef {
+  id: string;
+  expiresAt?: string;
+}
+
 const QWEN_FLASH_MODEL = "qwen3.6-flash";
 const QWEN_PLUS_MODEL = "qwen3.6-plus";
 
@@ -117,6 +122,34 @@ export function resumeJobAutofillValues(args: {
 
 export function resumeReuploadInputValue(): string {
   return "";
+}
+
+export function resumeSourceRefFromParseResult(
+  result: Pick<ParseResumeResponse, "resume_source_id" | "resume_source_expires_at">,
+): ResumeSourceRef | null {
+  const id = result.resume_source_id?.trim();
+  if (!id) return null;
+  return {
+    id,
+    ...(result.resume_source_expires_at
+      ? { expiresAt: result.resume_source_expires_at }
+      : {}),
+  };
+}
+
+export function resumeSourceIdForSession(
+  source: ResumeSourceRef | null | undefined,
+  now = Date.now(),
+): string | undefined {
+  const id = source?.id?.trim();
+  if (!id) return undefined;
+  if (source?.expiresAt) {
+    const expiresAt = Date.parse(source.expiresAt);
+    if (Number.isFinite(expiresAt) && expiresAt <= now) {
+      return undefined;
+    }
+  }
+  return id;
 }
 
 function isPlainObject(value: unknown): value is Record<string, unknown> {

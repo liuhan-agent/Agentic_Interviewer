@@ -4,7 +4,7 @@
 
 **Goal:** Re-activate the dormant RAG module by giving it one real, high-value job: semantic retrieval of session-scoped candidate anchors from the resume and long opening self-introduction, so the Generator can ask follow-up questions grounded in the candidate's actual experience instead of generic templates.
 
-**Architecture:** Build a session-scoped candidate-anchor vector store on PgVector (same Postgres instance as the existing tables). Treat resume upload parsing as a pre-session parse artifact, bind that artifact to `session_id` inside `POST /sessions`, and vectorize resume anchors before the workflow starts. Parse the opening self-introduction in the existing `self_intro_parser` LLM call; if it is long enough, extract bounded `anchor_cards` and vectorize them after `self_intro_parse_node`, before the first formal `ask_question`. Add a `_step_retrieve_candidate_anchors` step before `draft_question`; it retrieves resume and self-intro anchors with source-aware revision filters, source quotas, and separate prompt slots. Ship through `off -> shadow -> primary` rollout. Keep the existing rule-based `select_resume_anchor` intact and complementary.
+**Architecture:** Build a session-scoped candidate-anchor vector store on PgVector (same Postgres instance as the existing tables). Treat resume upload parsing as a pre-session parse artifact; `POST /sessions` only validates the artifact and stamps `candidate.resume_vector_status.status == "pending_node"`, while `resume_parse_node` consumes the artifact and vectorizes resume anchors before the first formal `ask_question`. Parse the opening self-introduction in the existing `self_intro_parser` LLM call; if it is long enough, extract bounded `anchor_cards` and vectorize them after `self_intro_parse_node`, also before the first formal `ask_question`. Add a `_step_retrieve_candidate_anchors` step before `draft_question`; it retrieves resume and self-intro anchors with source-aware revision filters, source quotas, and separate prompt slots. Ship through `off -> shadow -> primary` rollout. Keep the existing rule-based `select_resume_anchor` intact and complementary.
 
 **Tech Stack:** FastAPI, SQLAlchemy ORM, PostgreSQL + pgvector extension, Pydantic settings, pytest, OpenAI-compatible embedding API, frontend TypeScript source tests.
 
@@ -707,9 +707,11 @@ Storing artifacts in Postgres (instead of a process-local dict) makes the contra
 - Modify: `ai-interviewer/backend/app/engine/workflow/nodes/self_intro.py`
 - Modify: `ai-interviewer/backend/app/engine/workflow/state.py`
 - Modify: `ai-interviewer/backend/app/models/__init__.py`
+- Modify: `ai-interviewer/backend/app/models/base.py`
+- Modify: `ai-interviewer/backend/app/models/session_anchor.py`
 - Modify: `ai-interviewer/frontend/src/lib/api/types.ts`
 - Modify: `ai-interviewer/frontend/src/components/interview/SetupForm.tsx`
-- Modify: `ai-interviewer/frontend/src/lib/storage/setupDrafts.ts`
+- Modify: `ai-interviewer/frontend/src/lib/resume-upload.ts`
 - Create: `ai-interviewer/backend/tests/unit/test_resume_parse_artifacts.py`
 - Create: `ai-interviewer/backend/tests/unit/test_session_anchor_vectorize.py`
 - Create: `ai-interviewer/backend/tests/unit/test_self_intro_anchor_cards.py`
@@ -723,7 +725,7 @@ Storing artifacts in Postgres (instead of a process-local dict) makes the contra
 
 The artifact bridges setup-time resume parsing and node-scoped vectorization. Two HTTP requests and (in production) two different FastAPI workers may sit between `POST /resume/parse` and the first `resume_parse_node` invocation, so a process-local dict is not safe. The artifact stores **redacted text only**.
 
-- [ ] Add the ORM model in `app/models/resume_parse_artifact.py`:
+- [x] Add the ORM model in `app/models/resume_parse_artifact.py`:
 
 ```python
 class ResumeParseArtifact(Base):
@@ -747,7 +749,7 @@ class ResumeParseArtifact(Base):
 
 Register the model in `app/models/__init__.py` so `init_db()` picks it up.
 
-- [ ] Implement the service `resume_parse_artifacts.py`. Public API:
+- [x] Implement the service `resume_parse_artifacts.py`. Public API:
 
 ```python
 @dataclass(frozen=True)
@@ -799,7 +801,7 @@ def cleanup_expired_resume_parse_artifacts(
     """Delete rows where ``expires_at < now()``. Returns count deleted."""
 ```
 
-- [ ] Implementation rules:
+- [x] Implementation rules:
 
   - All public functions accept an optional `db_session`; production callers pass `None` to use the default session, tests pass an isolated session.
   - `create_resume_parse_artifact`: run `redact_pii` on the raw text, generate `artifact_id = secrets.token_urlsafe(24)`, set `expires_at = now() + max(60, settings.resume_rag_parse_artifact_ttl_seconds)`, set `consumed_at = None`, INSERT one row.
@@ -808,7 +810,7 @@ def cleanup_expired_resume_parse_artifacts(
   - `redact_pii` runs before storage so the database never holds raw phone numbers / emails / ID cards even on disk.
   - All writes happen inside a single transaction; never raise to HTTP callers — log a WARNING and return `None` so callers fall back to rule anchor.
 
-- [ ] Tests:
+- [x] Tests:
 
 ```python
 def test_create_resume_parse_artifact_redacts_pii(db_session):
@@ -930,7 +932,7 @@ def vectorize_self_intro_anchor_cards(
     """
 ```
 
-- [ ] Implementation rules:
+- [x] Implementation rules:
 
   - Always run inside a single transaction.
   - Resume Mode D returns `status="skipped", skipped_reason="mode_d_minimal_resume"`. No DB writes.
@@ -945,7 +947,7 @@ def vectorize_self_intro_anchor_cards(
 
 ### Task 4c: Parse endpoints return artifact ids, not vectors
 
-- [ ] In `POST /resume/parse`, after `payload = result.payload`, create an artifact and return its id:
+- [x] In `POST /resume/parse`, after `payload = result.payload`, create an artifact and return its id:
 
 ```python
 artifact = create_resume_parse_artifact(
@@ -957,14 +959,14 @@ payload["resume_source_id"] = artifact.artifact_id
 payload["resume_source_expires_at"] = artifact.expires_at.isoformat()
 ```
 
-- [ ] In `ResumeParseJobManager._run_job`, do the same after `payload = resume_parse_payload(parsed, text)`.
-- [ ] Do **not** call `vectorize_resume` from `ResumeParseJobManager._run_job`. A completed parse job means "setup artifact is ready", not "session RAG is queryable".
+- [x] In `ResumeParseJobManager._run_job`, do the same after `payload = resume_parse_payload(parsed, text)`.
+- [x] Do **not** call `vectorize_resume` from `ResumeParseJobManager._run_job`. A completed parse job means "setup artifact is ready", not "session RAG is queryable".
 
 ### Task 4d: Stamp `resume_source_id` during `POST /sessions` (no vectorization)
 
 `POST /sessions` must stay on the synchronous HTTP path with no extra LLM / embedding latency. The artifact is only **validated** here, not consumed; the workflow node consumes it later. If validation fails (missing or expired artifact), the session still succeeds and falls back to the rule-based `select_resume_anchor`.
 
-- [ ] Add `resume_source_id` to `StartSessionRequest` as a top-level optional field.
+- [x] Add `resume_source_id` to `StartSessionRequest` as a top-level optional field.
 
 ```python
 class StartSessionRequest(BaseModel):
@@ -976,7 +978,7 @@ class StartSessionRequest(BaseModel):
     mode: str = "mixed"
 ```
 
-- [ ] In `start_session`, after `translate_request(req.model_dump(exclude_none=False))` returns `session_id` and before `manager.start`, stamp the artifact id and a pending vector status into the initial workflow state. **Do not call `vectorize_resume` here.**
+- [x] In `start_session`, after `translate_request(req.model_dump(exclude_none=False))` returns `session_id` and before `manager.start`, stamp the artifact id and a pending vector status into the initial workflow state. **Do not call `vectorize_resume` here.**
 
 ```python
 def _stamp_resume_source_for_session(
@@ -1006,7 +1008,7 @@ def _stamp_resume_source_for_session(
     }
 ```
 
-- [ ] Store the stamped status on the workflow state and setup snapshot:
+- [x] Store the stamped status on the workflow state and setup snapshot:
 
 ```python
 vector_status = _stamp_resume_source_for_session(
@@ -1019,7 +1021,7 @@ if vector_status.get("status") == "pending_node":
 setup_snapshot["resume_vector_status"] = vector_status
 ```
 
-- [ ] `POST /sessions` always succeeds regardless of artifact state. Failure modes:
+- [x] `POST /sessions` always succeeds regardless of artifact state. Failure modes:
   - No `resume_source_id` provided → `skipped/no_parse_artifact`; node skips vectorize.
   - `resume_source_id` invalid or expired → `skipped/parse_artifact_missing_or_expired`; node skips vectorize. Interview proceeds with rule anchor only.
   - Artifact valid → `pending_node`; `resume_parse_node` will consume + vectorize.
@@ -1028,7 +1030,7 @@ setup_snapshot["resume_vector_status"] = vector_status
 
 `resume_parse_node` already runs first in the LangGraph topology before any user-facing prompt. It now also owns resume vectorization. The 300-600 ms cost hides behind the immediately following 60-120 s self-intro speaking window, so no consuming step (ask_question) sees a not-ready resume in practice.
 
-- [ ] Modify `app/engine/workflow/nodes/resume_parse.py`:
+- [x] Modify `app/engine/workflow/nodes/resume_parse.py`:
 
 ```python
 def resume_parse_node(state: InterviewState) -> dict[str, Any]:
@@ -1101,7 +1103,7 @@ def _vectorize_resume_for_node(
     )
 ```
 
-- [ ] Implementation rules:
+- [x] Implementation rules:
 
   - `resume_parse_node` must continue to return its existing keys (`dimensions / rubric / dimension_status / scores_per_dim`). Vectorize side effects do not change those values; they only add `resume_vector_status` under `candidate`.
   - `_vectorize_resume_for_node` must never raise. Any unexpected exception is caught and returned as `{"status": "failed", "error": str(exc), "resume_source_id": source_id, "resume_revision_id": None}` so downstream nodes can fall back to rule anchor without dropping the whole graph.
@@ -1109,7 +1111,7 @@ def _vectorize_resume_for_node(
   - The artifact row is not deleted by consume; cleanup remains responsibility of `cleanup_expired_resume_parse_artifacts` (Task 6c).
   - Raw resume text never enters `state`. After `vectorize_resume` returns, `artifact.redacted_text` falls out of scope; only the structured `resume_vector_status` (containing `resume_revision_id`, chunk counts, mode, error metadata) is written back into `state["candidate"]`.
 
-- [ ] Tests in `test_resume_parse_node_vectorize.py`:
+- [x] Tests in `test_resume_parse_node_vectorize.py`:
 
 ```python
 def test_resume_parse_node_vectorizes_when_source_id_present(monkeypatch, db_session):
@@ -1200,13 +1202,13 @@ def test_resume_parse_node_keeps_rubric_outputs_intact(db_session):
 
 ### Task 4e: Frontend carries artifact id through setup
 
-- [ ] Extend `ParseResumeResponse` with `resume_source_id` and `resume_source_expires_at`.
-- [ ] Preserve those fields in `SetupForm` upload state and setup drafts.
-- [ ] Include `resume_source_id` in the `startSession(payload)` request. If the user manually edits parsed fields, keep the same artifact id; the vectorizer uses raw text for chunking and the edited `candidate.resume_parsed` only as auxiliary metadata.
+- [x] Extend `ParseResumeResponse` with `resume_source_id` and `resume_source_expires_at`.
+- [x] Preserve those fields in `SetupForm` upload state and setup drafts.
+- [x] Include `resume_source_id` in the `startSession(payload)` request. If the user manually edits parsed fields, keep the same artifact id; the vectorizer uses raw text for chunking and the edited `candidate.resume_parsed` only as auxiliary metadata.
 
 ### Task 4f: Opening self-intro anchor cards
 
-- [ ] Extend `app/engine/agents/self_intro.py` without adding another LLM call. The existing `_SYSTEM` and user prompt must ask for the current fields plus `anchor_cards`.
+- [x] Extend `app/engine/agents/self_intro.py` without adding another LLM call. The existing `_SYSTEM` and user prompt must ask for the current fields plus `anchor_cards`.
 
 ```python
 _SYSTEM = (
@@ -1217,7 +1219,7 @@ _SYSTEM = (
 )
 ```
 
-- [ ] Add a cleaner for `anchor_cards`:
+- [x] Add a cleaner for `anchor_cards`:
 
 ```python
 ALLOWED_SELF_INTRO_CARD_KINDS = {
@@ -1256,8 +1258,8 @@ def _clean_anchor_cards(raw: Any, fallback: dict[str, Any]) -> list[dict[str, An
     return cards
 ```
 
-- [ ] Include `anchor_cards` in `_clean_profile(data, fallback)`. Prompt-injection-like content remains plain card text only; it must not alter `kind`, limits, or control fields.
-- [ ] Add deterministic fallback card construction in `session_anchor_vectorize.py`, not another LLM call:
+- [x] Include `anchor_cards` in `_clean_profile(data, fallback)`. Prompt-injection-like content remains plain card text only; it must not alter `kind`, limits, or control fields.
+- [x] Add deterministic fallback card construction in `session_anchor_vectorize.py`, not another LLM call:
 
 ```python
 def build_self_intro_fallback_cards(profile: dict[str, Any], sanitized_answer: str) -> list[dict[str, Any]]:
@@ -1277,7 +1279,7 @@ def build_self_intro_fallback_cards(profile: dict[str, Any], sanitized_answer: s
     return cards[: get_settings().session_anchor_self_intro_max_cards]
 ```
 
-- [ ] Modify `self_intro_parse_node` to vectorize after parsing and before returning the state update. Use the sanitized answer for length gating and fallback text, not raw transcript.
+- [x] Modify `self_intro_parse_node` to vectorize after parsing and before returning the state update. Use the sanitized answer for length gating and fallback text, not raw transcript.
 
 ```python
 self_intro_revision_id = secrets.token_urlsafe(18)
@@ -1290,9 +1292,9 @@ self_intro_vector_status = vectorize_self_intro_anchor_cards(
 )
 ```
 
-- [ ] Return `self_intro_vector_status` in the state update. If vectorization fails, the interview continues; `ask_question` will still use `self_intro_profile` as a non-vector signal.
+- [x] Return `self_intro_vector_status` in the state update. If vectorization fails, the interview continues; `ask_question` will still use `self_intro_profile` as a non-vector signal.
 
-- [ ] Tests with a mocked embedding service and an in-memory pgvector-enabled Postgres (or stub vectorstore).
+- [x] Tests with a mocked embedding service and an in-memory pgvector-enabled Postgres (or stub vectorstore).
 
 ```python
 def test_vectorize_resume_writes_chunks_and_returns_ready(monkeypatch, db_session):
@@ -1407,7 +1409,7 @@ def test_vectorize_self_intro_writes_anchor_cards(monkeypatch, db_session):
     assert rows[0].tier == "anchor_card"
 ```
 
-- [ ] Add session-binding tests:
+- [x] Add session-binding tests:
 
 ```python
 def test_start_session_binds_parse_artifact_and_vectorizes(monkeypatch, client):
@@ -1449,7 +1451,7 @@ def test_start_session_without_artifact_falls_back_to_rule_anchor(client):
     assert response.status_code == 200
 ```
 
-- [ ] Run the artifact/vectorize/session-binding tests.
+- [x] Run the artifact/vectorize/session-binding tests.
 
 ```bash
 python -m pytest \
@@ -1464,10 +1466,10 @@ python -m pytest \
 
 Expected: parse endpoints return source artifacts, `POST /sessions` stamps `pending_node` and does not vectorize, `resume_parse_node` consumes the artifact and vectorizes (success/failed/skipped paths all covered), long self-intro anchor cards vectorize, missing/expired/already-consumed artifacts degrade to rule anchor, self-intro failures degrade to profile-only, Mode D and short self-intro skip cleanly.
 
-- [ ] Commit.
+- [x] Commit.
 
 ```bash
-git add ai-interviewer/backend/app/models/resume_parse_artifact.py ai-interviewer/backend/app/models/__init__.py ai-interviewer/backend/app/services/resume_parse_artifacts.py ai-interviewer/backend/app/services/session_anchor_vectorize.py ai-interviewer/backend/app/api/v1/interview.py ai-interviewer/backend/app/services/resume_parse_jobs.py ai-interviewer/backend/app/engine/agents/self_intro.py ai-interviewer/backend/app/engine/workflow/nodes/resume_parse.py ai-interviewer/backend/app/engine/workflow/nodes/self_intro.py ai-interviewer/backend/app/engine/workflow/state.py ai-interviewer/backend/tests/unit/test_resume_parse_artifacts.py ai-interviewer/backend/tests/unit/test_session_anchor_vectorize.py ai-interviewer/backend/tests/unit/test_self_intro_anchor_cards.py ai-interviewer/backend/tests/unit/test_resume_rag_session_binding.py ai-interviewer/backend/tests/unit/test_resume_parse_node_vectorize.py ai-interviewer/backend/tests/unit/test_interview_setup_api_contract.py ai-interviewer/frontend/src/lib/api/types.ts ai-interviewer/frontend/src/components/interview/SetupForm.tsx ai-interviewer/frontend/src/lib/storage/setupDrafts.ts ai-interviewer/frontend/tests/resumeUpload.test.js
+git add ai-interviewer/backend/app/models/resume_parse_artifact.py ai-interviewer/backend/app/models/__init__.py ai-interviewer/backend/app/models/base.py ai-interviewer/backend/app/models/session_anchor.py ai-interviewer/backend/app/services/resume_parse_artifacts.py ai-interviewer/backend/app/services/session_anchor_vectorize.py ai-interviewer/backend/app/api/v1/interview.py ai-interviewer/backend/app/services/resume_parse_jobs.py ai-interviewer/backend/app/engine/agents/self_intro.py ai-interviewer/backend/app/engine/workflow/nodes/resume_parse.py ai-interviewer/backend/app/engine/workflow/nodes/self_intro.py ai-interviewer/backend/app/engine/workflow/state.py ai-interviewer/backend/tests/unit/test_resume_parse_artifacts.py ai-interviewer/backend/tests/unit/test_session_anchor_vectorize.py ai-interviewer/backend/tests/unit/test_self_intro_anchor_cards.py ai-interviewer/backend/tests/unit/test_resume_parse_jobs.py ai-interviewer/backend/tests/unit/test_resume_rag_session_binding.py ai-interviewer/backend/tests/unit/test_resume_parse_node_vectorize.py ai-interviewer/backend/tests/unit/test_interview_setup_api_contract.py ai-interviewer/frontend/src/lib/api/types.ts ai-interviewer/frontend/src/components/interview/SetupForm.tsx ai-interviewer/frontend/src/lib/resume-upload.ts ai-interviewer/frontend/tests/resumeUpload.test.js
 git commit -m "feat: bind session anchors for resume and self intro"
 ```
 
@@ -1478,14 +1480,21 @@ git commit -m "feat: bind session anchors for resume and self intro"
 - Create: `ai-interviewer/backend/app/services/session_anchor_retriever.py`
 - Modify: `ai-interviewer/backend/app/engine/workflow/nodes/ask_question.py`
 - Modify: `ai-interviewer/backend/app/engine/workflow/plans/ask_plans.py`
+- Modify: `ai-interviewer/backend/app/engine/workflow/state.py`
 - Modify: `ai-interviewer/backend/app/engine/agents/generator.py`
+- Modify: `ai-interviewer/backend/app/engine/context/builder.py`
+- Modify: `ai-interviewer/backend/app/engine/context/renderer.py`
 - Modify: `ai-interviewer/backend/app/engine/agents/prompts/generator_task.md`
 - Create: `ai-interviewer/backend/tests/unit/test_session_anchor_retriever.py`
 - Modify: `ai-interviewer/backend/tests/unit/test_ask_question_selection_artifacts.py`
+- Modify: `ai-interviewer/backend/tests/unit/test_resume_anchor_baseline.py`
+- Modify: `ai-interviewer/backend/tests/unit/test_context_builder.py`
+- Modify: `ai-interviewer/backend/tests/unit/test_context_renderer.py`
+- Modify: `ai-interviewer/backend/tests/unit/test_prompt_loader.py`
 
 ### Task 5a: Retriever and step function
 
-- [ ] Implement `session_anchor_retriever.py`.
+- [x] Implement `session_anchor_retriever.py`.
 
 ```python
 @dataclass
@@ -1513,7 +1522,7 @@ def retrieve_candidate_anchors(
     raise NotImplementedError
 ```
 
-- [ ] Implementation rules:
+- [x] Implementation rules:
 
   - Build the query string from `seed.scenario_brief OR seed.title OR seed.intent`, `dimension`, `target_skills`, `rule_anchor.project_name`, and self-intro terms from `self_intro_profile.{emphasized_projects, emphasized_skills, preferred_focus}`.
   - Cache key for `embed_query`: `f"{dimension}|{seed_id}|{','.join(target_skills)}|{self_intro_terms_sha}"`. Query embedding may be reused across sessions because the filter is applied at SQL level.
@@ -1544,7 +1553,7 @@ LIMIT :fetch_limit;
   - Render `resume_block` capped at `resume_rag_block_max_chars`; render `self_intro_block` capped at `min(500, resume_rag_block_max_chars)`.
   - Artifacts must include `query_terms`, `source_type`, `source_revision_id`, hit ids, scores, dedupe flags, and short redacted excerpts only.
 
-- [ ] Implement `_step_retrieve_candidate_anchors` in `ask_question.py`.
+- [x] Implement `_step_retrieve_candidate_anchors` in `ask_question.py`.
 
 ```python
 def _step_retrieve_candidate_anchors(state: InterviewState, ctx: dict[str, Any]) -> None:
@@ -1589,7 +1598,7 @@ def _step_retrieve_candidate_anchors(state: InterviewState, ctx: dict[str, Any])
   - In Primary mode, sets blocks only for kept hits.
   - The anchor blocks coexist with `structured_primary_seed_hit` (C3). Do not pass them through `_retrieval_block_for_prompt`; that helper is for the legacy `retrieval_block` only.
 
-- [ ] Register the dispatch entry.
+- [x] Register the dispatch entry.
 
 ```python
 _STEP_DISPATCH = {
@@ -1605,7 +1614,7 @@ _STEP_DISPATCH = {
 
 ### Task 5b: Add the new step to plan templates
 
-- [ ] Add `retrieve_candidate_anchors` to `_SIMPLE_STEPS`, `_QUICK_REVIEW_STEPS`, `_ADAPTIVE_STEPS`, `_DEEP_PROBE_STEPS`, slotted after `retrieve_strategy` (where present) or right before `draft_question`. Mark `optional=True`.
+- [x] Add `retrieve_candidate_anchors` to `_SIMPLE_STEPS`, `_QUICK_REVIEW_STEPS`, `_ADAPTIVE_STEPS`, `_DEEP_PROBE_STEPS`, slotted after `retrieve_strategy` (where present) or right before `draft_question`. Mark `optional=True`.
 
 ```python
 _step(
@@ -1619,11 +1628,11 @@ _step(
 )
 ```
 
-- [ ] Update the plan-template baseline test created in Task 0 so it reflects the new step kind in each template.
+- [x] Update the plan-template baseline test created in Task 0 so it reflects the new step kind in each template.
 
 ### Task 5c: challenge_with_reference rewires to source-labelled anchor blocks
 
-- [ ] Modify `_step_challenge_with_reference`:
+- [x] Modify `_step_challenge_with_reference`:
 
 ```python
 def _step_challenge_with_reference(state, ctx):
@@ -1641,15 +1650,15 @@ def _step_challenge_with_reference(state, ctx):
 
 Two complementary dedup passes happen inside `retrieve_candidate_anchors` after raw hits are split by `source_type`:
 
-- [ ] **Within-resume dedup by `(project_name, heading)` double key**: in Mode A every project produces multiple highlight chunks (`tier="highlight"`). The same project + heading combination being recalled twice (e.g. the same "智学 / 高并发优惠券超发防护" highlight chunked twice) bloats the prompt without adding signal. After raw resume hits are gathered, group by `(project_name or "", heading or "")` and keep only the single hit with the highest score per group. Cross-project hits with identical heading text (rare) are left alone — `project_name` differs so the key differs.
-- [ ] **Rule-anchor overlap dedup**: in the surviving resume hits, when a hit's `project_name == rule_anchor.project_name`, set `hit.deduped = True` and render only the text body without the project-label header so the prompt does not say the same project name twice.
-- [ ] Do not dedupe self-intro hits against resume hits by merging text. Keep source blocks separate; the Generator must be able to distinguish "your resume says" from "you just mentioned".
+- [x] **Within-resume dedup by `(project_name, heading)` double key**: in Mode A every project produces multiple highlight chunks (`tier="highlight"`). The same project + heading combination being recalled twice (e.g. the same "智学 / 高并发优惠券超发防护" highlight chunked twice) bloats the prompt without adding signal. After raw resume hits are gathered, group by `(project_name or "", heading or "")` and keep only the single hit with the highest score per group. Cross-project hits with identical heading text (rare) are left alone — `project_name` differs so the key differs.
+- [x] **Rule-anchor overlap dedup**: in the surviving resume hits, when a hit's `project_name == rule_anchor.project_name`, set `hit.deduped = True` and render only the text body without the project-label header so the prompt does not say the same project name twice.
+- [x] Do not dedupe self-intro hits against resume hits by merging text. Keep source blocks separate; the Generator must be able to distinguish "your resume says" from "you just mentioned".
 
 ### Task 5e: Generator prompt slots
 
-- [ ] Modify `app/engine/agents/generator.py` to accept and splice `resume_rag_block` and `self_intro_rag_block`.
+- [x] Modify `app/engine/agents/generator.py` to accept and splice `resume_rag_block` and `self_intro_rag_block`.
 
-- [ ] Modify `prompts/generator_task.md` to add source-labelled sections, placed AFTER `resume_anchor` / existing `SELF_INTRO_PROFILE` context and BEFORE `strategy_block`:
+- [x] Modify `prompts/generator_task.md` to add source-labelled sections, placed AFTER `resume_anchor` / existing `SELF_INTRO_PROFILE` context and BEFORE `strategy_block`:
 
 ```jinja
 ## Candidate resume semantic fragments (RAG recall)
@@ -1665,7 +1674,7 @@ The following fragments come from the candidate's opening self-introduction, not
 {% endif %}
 ```
 
-- [ ] Add the new artifact key to `selection_artifacts`:
+- [x] Add the new artifact key to `selection_artifacts`:
 
 ```python
 ctx_artifacts["candidate_anchor_rag"] = ctx.get("candidate_anchor_rag_artifact", {"status": "off"})
@@ -1673,7 +1682,7 @@ ctx_artifacts["candidate_anchor_rag"] = ctx.get("candidate_anchor_rag_artifact",
 
 ### Tests for Task 5
 
-- [ ] Write end-to-end retriever tests.
+- [x] Write end-to-end retriever tests.
 
 ```python
 def test_retrieve_candidate_anchors_returns_resume_and_self_intro_quotas(monkeypatch, db_session):
@@ -1766,7 +1775,7 @@ def test_anchor_rag_blocks_survive_structured_primary_seed_hit(monkeypatch, db_s
     assert ctx["candidate_anchor_rag_artifact"]["status"] == "primary"
 ```
 
-- [ ] Run Task 5 tests + selection-artifact test.
+- [x] Run Task 5 tests + selection-artifact test.
 
 ```bash
 python -m pytest \
@@ -1777,10 +1786,10 @@ python -m pytest \
 
 Expected: all pass; selection artifact baseline updated to include the new `candidate_anchor_rag` key.
 
-- [ ] Commit.
+- [x] Commit.
 
 ```bash
-git add ai-interviewer/backend/app/services/session_anchor_retriever.py ai-interviewer/backend/app/engine/workflow/nodes/ask_question.py ai-interviewer/backend/app/engine/workflow/plans/ask_plans.py ai-interviewer/backend/app/engine/agents/generator.py ai-interviewer/backend/app/engine/agents/prompts/generator_task.md ai-interviewer/backend/tests/unit/test_session_anchor_retriever.py ai-interviewer/backend/tests/unit/test_ask_question_selection_artifacts.py
+git add ai-interviewer/backend/app/services/session_anchor_retriever.py ai-interviewer/backend/app/engine/workflow/nodes/ask_question.py ai-interviewer/backend/app/engine/workflow/plans/ask_plans.py ai-interviewer/backend/app/engine/workflow/state.py ai-interviewer/backend/app/engine/agents/generator.py ai-interviewer/backend/app/engine/context/builder.py ai-interviewer/backend/app/engine/context/renderer.py ai-interviewer/backend/app/engine/agents/prompts/generator_task.md ai-interviewer/backend/tests/unit/test_session_anchor_retriever.py ai-interviewer/backend/tests/unit/test_ask_question_selection_artifacts.py ai-interviewer/backend/tests/unit/test_resume_anchor_baseline.py ai-interviewer/backend/tests/unit/test_context_builder.py ai-interviewer/backend/tests/unit/test_context_renderer.py ai-interviewer/backend/tests/unit/test_prompt_loader.py ai-interviewer/docs/superpowers/plans/2026-05-18-session-anchor-rag.md
 git commit -m "feat: integrate session anchor RAG into ask plans"
 ```
 
@@ -1789,10 +1798,11 @@ git commit -m "feat: integrate session anchor RAG into ask plans"
 **Files:**
 
 - Modify: `ai-interviewer/backend/app/api/v1/admin.py`
+- Modify: `ai-interviewer/backend/app/services/session_anchor_retriever.py`
 - Modify: `ai-interviewer/frontend/src/lib/api/admin.ts`
 - Modify: `ai-interviewer/frontend/src/components/admin/AdminPanel.tsx`
+- Modify: `ai-interviewer/frontend/src/components/admin/RagEvalPanel.tsx`
 - Create: `ai-interviewer/frontend/src/components/admin/CandidateAnchorRagCard.tsx`
-- Modify: `ai-interviewer/frontend/src/lib/api/types.ts`
 - Modify: `ai-interviewer/frontend/tests/adminObservabilitySource.test.js`
 - Create: `ai-interviewer/backend/app/scripts/cleanup_session_anchor_chunks.py`
 - Create: `ai-interviewer/backend/tests/unit/test_admin_session_anchor_rag.py`
@@ -1800,7 +1810,7 @@ git commit -m "feat: integrate session anchor RAG into ask plans"
 
 ### Task 6a: Admin endpoints
 
-- [ ] Add these routes (all behind `Depends(require_admin_token)`):
+- [x] Add these routes (all behind `Depends(require_admin_token)`):
 
   - `GET /admin/session-anchors/summary` - overall counts, source-type counts, per-mode counts, current `resume_rag_mode`.
   - `GET /admin/session-anchors/metrics` - last 24h hit-rate / fallback_reason distribution / p50/p99 latency, grouped by `source_type` and mode A/B/C/D/SI.
@@ -1853,19 +1863,28 @@ git commit -m "feat: integrate session anchor RAG into ask plans"
 
 ### Task 6b: Admin frontend card
 
-- [ ] Add `CandidateAnchorRagCard.tsx` rendering:
+- [x] Add `CandidateAnchorRagCard.tsx` rendering:
 
+  - Card title: `候选人锚点 RAG`.
   - Current `resume_rag_mode` (off / shadow / primary) prominent.
   - Total chunks + sessions.
   - Source-type and mode-grouped table: chunks, sessions, hit-rate, p50/p99 latency.
   - Fallback reasons stacked bar per mode.
   - Subject deletion button with explicit confirmation modal.
 
-- [ ] Wire the card into `AdminPanel.tsx`. Keep `AdminPanel.tsx` lean — fetching and layout only, presentation in the new card.
+- [x] Wire the card into `AdminPanel.tsx`. Keep `AdminPanel.tsx` lean — fetching and layout only, presentation in the new card.
+
+- [x] Apply frontend layout option F2: group the existing knowledge-RAG panel and the new session-anchor panel together in `AdminPanel.tsx`.
+
+  - Rename only the existing `RagEvalPanel.tsx` visible title from `RAG 检索评测` to `知识 RAG 评测`.
+  - Add `CandidateAnchorRagCard` next to the existing `RagEvalPanel` in the same admin section/tab.
+  - Keep the two panels independent: `RagEvalPanel` continues to call `/admin/rag-eval` and still represents knowledge RAG / Chroma; `CandidateAnchorRagCard` calls `/admin/session-anchors/summary` and `/admin/session-anchors/metrics` and represents session anchor RAG / PgVector.
+  - Use a shared section heading such as `RAG 观察` only if the surrounding `AdminPanel.tsx` section structure already has headings. Do not add a new tab or broad AdminPanel refactor in P0.
+  - Keep `AdminPanel.tsx` lean: fetching and layout only, presentation in the new card.
 
 ### Task 6c: Cleanup job
 
-- [ ] CLI: `python -m app.scripts.cleanup_session_anchor_chunks`
+- [x] CLI: `python -m app.scripts.cleanup_session_anchor_chunks`
 
   - Deletes expired rows from **both** tables:
     - `session_anchor_chunks` where `expires_at < now()` (batches of 1000)
@@ -1873,11 +1892,27 @@ git commit -m "feat: integrate session anchor RAG into ask plans"
   - Logs per-table counts and the total; returns non-zero on DB error.
   - Idempotent: safe to run multiple times.
 
-- [ ] Documented intended deployment: APScheduler hook (Task 9) or external cron.
+- [x] Documented intended deployment: APScheduler hook (Task 9) or external cron.
 
 ### Tests
 
-- [ ] Admin endpoint tests.
+- [x] Frontend source tests for F2 layout:
+
+```ts
+test("admin rag section labels knowledge and session-anchor panels distinctly", () => {
+  const ragEval = readSource("src/components/admin/RagEvalPanel.tsx");
+  const adminPanel = readSource("src/components/admin/AdminPanel.tsx");
+  const anchorCard = readSource("src/components/admin/CandidateAnchorRagCard.tsx");
+
+  expect(ragEval).toContain("知识 RAG 评测");
+  expect(ragEval).not.toContain("RAG 检索评测");
+  expect(anchorCard).toContain("候选人锚点 RAG");
+  expect(adminPanel).toContain("RagEvalPanel");
+  expect(adminPanel).toContain("CandidateAnchorRagCard");
+});
+```
+
+- [x] Admin endpoint tests.
 
 ```python
 def test_admin_session_anchor_summary_requires_token(client):
@@ -1900,7 +1935,7 @@ def test_admin_delete_session_anchor_data_wipes_chunks(client_with_token, seeded
     assert "sess_a" not in [s["session_id"] for s in remaining.get("recent_sessions", [])]
 ```
 
-- [ ] Cleanup job test.
+- [x] Cleanup job test.
 
 ```python
 def test_cleanup_session_anchor_chunks_deletes_expired_only(db_session):
@@ -1966,7 +2001,7 @@ def test_cleanup_session_anchor_chunks_also_deletes_expired_parse_artifacts(
     assert read_resume_parse_artifact(fresh.artifact_id, db_session=db_session) is not None
 ```
 
-- [ ] Run all Task 6 tests.
+- [x] Run all Task 6 tests.
 
 ```bash
 python -m pytest tests/unit/test_admin_session_anchor_rag.py tests/unit/test_cleanup_session_anchor_chunks.py tests/unit/test_admin_auth.py -q
@@ -1977,10 +2012,10 @@ npm run typecheck
 
 Expected: admin routes require auth, summary/metrics return correct shape, deletion fully wipes, cleanup deletes only expired rows.
 
-- [ ] Commit.
+- [x] Commit.
 
 ```bash
-git add ai-interviewer/backend/app/api/v1/admin.py ai-interviewer/backend/tests/unit/test_admin_session_anchor_rag.py ai-interviewer/backend/app/scripts/cleanup_session_anchor_chunks.py ai-interviewer/backend/tests/unit/test_cleanup_session_anchor_chunks.py ai-interviewer/frontend/src/lib/api/admin.ts ai-interviewer/frontend/src/lib/api/types.ts ai-interviewer/frontend/src/components/admin/AdminPanel.tsx ai-interviewer/frontend/src/components/admin/CandidateAnchorRagCard.tsx ai-interviewer/frontend/tests/adminObservabilitySource.test.js
+git add ai-interviewer/backend/app/api/v1/admin.py ai-interviewer/backend/app/services/session_anchor_retriever.py ai-interviewer/backend/tests/unit/test_admin_session_anchor_rag.py ai-interviewer/backend/app/scripts/cleanup_session_anchor_chunks.py ai-interviewer/backend/tests/unit/test_cleanup_session_anchor_chunks.py ai-interviewer/frontend/src/lib/api/admin.ts ai-interviewer/frontend/src/components/admin/AdminPanel.tsx ai-interviewer/frontend/src/components/admin/RagEvalPanel.tsx ai-interviewer/frontend/src/components/admin/CandidateAnchorRagCard.tsx ai-interviewer/frontend/tests/adminObservabilitySource.test.js ai-interviewer/docs/superpowers/plans/2026-05-18-session-anchor-rag.md
 git commit -m "feat: observe session anchor rag in admin and add cleanup job"
 ```
 
@@ -1993,9 +2028,9 @@ git commit -m "feat: observe session anchor rag in admin and add cleanup job"
 - Modify: `ai-interviewer/backend/README.md`
 - Create: `ai-interviewer/backend/tests/unit/test_resume_rag_rollout_docs.py`
 
-- [ ] Flip the default `resume_rag_mode = "shadow"`. Keep `off` as the rollback switch.
+- [x] Flip the default `resume_rag_mode = "shadow"`. Keep `off` as the rollback switch.
 
-- [ ] Document the per-mode Shadow → Primary thresholds (hit-rate gate + duplicate-rewrite gate must both pass):
+- [x] Document the per-mode Shadow → Primary thresholds (hit-rate gate + duplicate-rewrite gate must both pass):
 
 | Mode | Hit-rate threshold | Minimum sessions | Duplicate-rewrite rate gate | Notes |
 |---|---|---|---|---|
@@ -2007,7 +2042,7 @@ git commit -m "feat: observe session anchor rag in admin and add cleanup job"
 
 Duplicate-rewrite rate is the fraction of formal turns where `record_question_fallback("duplicate")` fires (already counted by `ask_question.py:931`). Baseline is the same metric over the trailing 30 days **before** Shadow is enabled for the mode in question. The gate exists because high hit-rate alone does not prove the recalled fragments are useful: if RAG misleads Generator into rewriting the same question with new wording, duplicate-rewrite spikes. A mode is only promoted to `primary` when its hit-rate is above threshold **and** its duplicate-rewrite rate stays at or below the rule-only baseline. The two gates are evaluated independently per mode.
 
-- [ ] Write the runbook `RESUME_RAG_ROLLOUT.md` covering:
+- [x] Write the runbook `RESUME_RAG_ROLLOUT.md` covering:
 
   - Stage descriptions: `off / shadow / primary`.
   - How to verify Shadow data (admin metrics endpoint and panel).
@@ -2015,14 +2050,14 @@ Duplicate-rewrite rate is the fraction of formal turns where `record_question_fa
   - Sampling knob: `resume_rag_session_sample_rate` — set `0.05`, watch, then `0.3`, then `1.0`.
   - Rollback procedure: flip `resume_rag_mode=off` and (optionally) wipe session anchor chunks. If a mode is promoted to primary and duplicate-rewrite rate then climbs above baseline, demote the mode back to shadow without a full off rollback.
 
-- [ ] Update README with:
+- [x] Update README with:
 
-  - Required Postgres image (`pgvector/pgvector:pg17`).
+  - Required Postgres image (`pgvector/pgvector:pg16`, matching the current compose major version).
   - `CREATE EXTENSION vector` is auto-issued during `init_db()`.
   - `RESUME_RAG_MODE` env var default and rollback.
   - `python -m app.scripts.cleanup_session_anchor_chunks` recommended cron schedule.
 
-- [ ] Write a docs-source test asserting README and runbook contain the required strings.
+- [x] Write a docs-source test asserting README and runbook contain the required strings.
 
 ```python
 def test_readme_contains_pgvector_image():
@@ -2051,13 +2086,13 @@ def test_rollout_doc_includes_duplicate_rewrite_gate():
     assert "baseline" in text.lower()
 ```
 
-- [ ] Run docs tests.
+- [x] Run docs tests.
 
 ```bash
 python -m pytest tests/unit/test_resume_rag_rollout_docs.py -q
 ```
 
-- [ ] Commit.
+- [x] Commit.
 
 ```bash
 git add ai-interviewer/backend/app/core/settings.py ai-interviewer/docs/RESUME_RAG_ROLLOUT.md ai-interviewer/backend/README.md ai-interviewer/backend/tests/unit/test_resume_rag_rollout_docs.py
@@ -2071,7 +2106,7 @@ git commit -m "feat: enable resume rag shadow by default with rollout runbook"
 - Create: `ai-interviewer/backend/tests/unit/test_session_anchor_rag_isolation.py`
 - Create: `ai-interviewer/backend/tests/unit/test_session_anchor_rag_pii.py`
 
-- [ ] R1 cross-session isolation test (multi-scenario):
+- [x] R1 cross-session isolation test (multi-scenario):
 
 ```python
 def test_cross_session_query_never_returns_other_session_chunks(db_session):
@@ -2090,7 +2125,7 @@ def test_session_and_revision_filters_are_both_required(db_session):
     # one planted row differs only by session_id, the other only by revision_id.
 ```
 
-- [ ] R2 PII redaction test:
+- [x] R2 PII redaction test:
 
 ```python
 def test_phone_numbers_are_redacted_before_storing():
@@ -2151,7 +2186,7 @@ def test_subject_deletion_wipes_all_traces(client_with_token, db_session):
     assert rows == []
 ```
 
-- [ ] Run the isolation suite.
+- [x] Run the isolation suite.
 
 ```bash
 python -m pytest tests/unit/test_session_anchor_rag_isolation.py tests/unit/test_session_anchor_rag_pii.py -q
@@ -2159,7 +2194,7 @@ python -m pytest tests/unit/test_session_anchor_rag_isolation.py tests/unit/test
 
 Expected: every cross-session attempt is blocked; every PII pattern is redacted; subject deletion is complete.
 
-- [ ] Commit.
+- [x] Commit.
 
 ```bash
 git add ai-interviewer/backend/tests/unit/test_session_anchor_rag_isolation.py ai-interviewer/backend/tests/unit/test_session_anchor_rag_pii.py
@@ -2173,9 +2208,9 @@ git commit -m "test: harden session anchor rag isolation and pii"
 - No new files expected.
 - Modify if APScheduler is already wired: `ai-interviewer/backend/app/main.py` to register the cleanup job with APScheduler.
 
-- [ ] Register the cleanup job (if APScheduler is already wired). If not, document the cron command in the runbook.
+- [x] Register the cleanup job (if APScheduler is already wired). If not, document the cron command in the runbook.
 
-- [ ] Run backend full unit tests.
+- [x] Run backend full unit tests.
 
 ```bash
 cd D:\Agent\Agentic_Interviewer\ai-interviewer\backend
@@ -2184,7 +2219,7 @@ python -m pytest tests/unit -q
 
 Expected: all tests pass.
 
-- [ ] Run targeted lint.
+- [x] Run targeted lint.
 
 ```bash
 python -m ruff check \
@@ -2210,7 +2245,7 @@ python -m ruff check \
 
 Expected: `All checks passed!`
 
-- [ ] Run frontend source/type checks.
+- [x] Run frontend source/type checks.
 
 ```bash
 cd D:\Agent\Agentic_Interviewer\ai-interviewer\frontend
@@ -2221,7 +2256,7 @@ npm run lint
 
 Expected: tests pass, typecheck passes. Pre-existing lint warnings may remain if unrelated.
 
-- [ ] Run end-to-end workflow regression for both seed-hit and seed-miss paths.
+- [x] Run end-to-end workflow regression for both seed-hit and seed-miss paths.
 
 ```bash
 python -m pytest tests/unit/test_ask_question_selection_artifacts.py -q
@@ -2229,7 +2264,7 @@ python -m pytest tests/unit/test_ask_question_selection_artifacts.py -q
 
 Expected: each plan template produces `resume_anchor` and `candidate_anchor_rag` artifacts as part of `selection_artifacts`.
 
-- [ ] Diff cleanliness.
+- [x] Diff cleanliness.
 
 ```bash
 git diff --check
@@ -2237,7 +2272,7 @@ git diff --check
 
 Expected: no whitespace errors.
 
-- [ ] Verify Admin parity in a local Postgres run.
+- [x] Verify Admin parity in a local Postgres run.
 
   - Start backend with `RESUME_RAG_MODE=shadow`.
   - Upload a resume and run one interview turn.
@@ -2246,7 +2281,7 @@ Expected: no whitespace errors.
     - Per-mode breakdown matches expected mode for the uploaded resume and `SI` appears after a long self-intro.
     - One hit recorded for the run with `latency_ms` populated.
 
-- [ ] Commit any final adjustments.
+- [x] Commit any final adjustments.
 
 ```bash
 git add .
@@ -2273,7 +2308,7 @@ This plan is complete only when:
 - `session_anchor_chunks` ORM model round-trips with HNSW index.
 - The chunker correctly classifies all four fixture resumes into modes A/B/C/D.
 - Resume upload/parse creates a short-lived `resume_source_id` artifact and does not require a session id.
-- `POST /sessions` binds `resume_source_id` to `session_id`, runs `vectorize_resume` serially, and writes `candidate.resume_vector_status`.
+- `POST /sessions` validates `resume_source_id`, stamps `candidate.resume_source_id`, and writes `candidate.resume_vector_status.status == "pending_node"` without embedding latency; `resume_parse_node` then consumes the artifact, runs `vectorize_resume`, and writes the final `candidate.resume_vector_status`.
 - `resume_parse` job `completed` means the setup artifact is ready; only `candidate.resume_vector_status.status == "ready"` means resume RAG is queryable.
 - `parse_self_intro_profile` returns cleaned `anchor_cards` in the same existing LLM call; no extra LLM call is introduced.
 - Long self-intros (`>= session_anchor_self_intro_min_chars`) vectorize into `source_type="self_intro"` rows; short self-intros skip with `self_intro_vector_status.skipped_reason == "skipped_short"`.

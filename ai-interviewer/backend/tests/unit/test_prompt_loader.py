@@ -222,6 +222,8 @@ def test_render_generator_task_end_to_end() -> None:
         retrieval="(no docs)",
         question_seed="",
         candidate_anchor="",
+        resume_rag="[resume] Redis Lua coupon guard",
+        self_intro_rag="[self_intro] 50w QPS Lua atomic",
         strategy="(no memories)",
         skills="(no relevant interview skills)",
         avoid_patterns="(no historical shallow patterns on this dimension)",
@@ -238,6 +240,9 @@ def test_render_generator_task_end_to_end() -> None:
     # renders into the ``AVOID_PATTERNS`` block; same regression-guard.
     assert "AVOID_PATTERNS =" in out
     assert "CANDIDATE_ANCHOR =" in out
+    assert "CANDIDATE_RESUME_RAG =" in out
+    assert "SELF_INTRO_RAG =" in out
+    assert "[resume] Redis Lua coupon guard" in out
     assert "简体中文" in out
     assert "Do not output English" in out
 
@@ -282,6 +287,8 @@ def test_generator_task_documents_quick_review_positioning() -> None:
         retrieval="(no docs)",
         question_seed="",
         candidate_anchor="",
+        resume_rag="",
+        self_intro_rag="",
         strategy="(no memories)",
         skills="(no relevant interview skills)",
         avoid_patterns="(no historical shallow patterns on this dimension)",
