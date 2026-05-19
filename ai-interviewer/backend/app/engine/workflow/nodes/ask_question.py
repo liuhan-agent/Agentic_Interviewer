@@ -328,6 +328,39 @@ def _rag_selection_artifact(
 
 def _skill_card_ref(entry: Any) -> dict[str, Any]:
     path = getattr(entry, "path", None)
+    evaluator_rubric_hints = list(
+        getattr(entry, "evaluator_rubric_hints", []) or []
+    )
+    positive_signals = list(getattr(entry, "positive_signals", []) or [])
+    negative_signals = list(getattr(entry, "negative_signals", []) or [])
+    score_bias_rules = list(getattr(entry, "score_bias_rules", []) or [])
+    evaluator_visibility = bool(getattr(entry, "evaluator_visibility", False))
+
+    # ``evaluator_payload`` is the Phase-A observability surface for the
+    # evaluator skill-injection roadmap (see ``PLAN_SKILL_INJECTION.md``
+    # Phase-3 hook). It groups the four evaluator-visible frontmatter
+    # fields under a single key **only when** the card author has
+    # explicitly opted in via ``evaluator_visibility: true``, so admin
+    # observability can show "this is what the Evaluator could be told
+    # about this turn" without consumers having to filter the flat
+    # fields themselves.
+    #
+    # The flat fields (``evaluator_rubric_hints`` / ``positive_signals``
+    # / ``negative_signals`` / ``score_bias_rules`` /
+    # ``evaluator_visibility``) stay on the payload for backward
+    # compatibility with any existing reader; the new grouped key is
+    # ``None`` whenever the card does not advertise evaluator
+    # visibility, giving downstream code a single boolean check instead
+    # of recombining four list fields with the visibility flag.
+    evaluator_payload: dict[str, Any] | None = None
+    if evaluator_visibility:
+        evaluator_payload = {
+            "rubric_hints": evaluator_rubric_hints,
+            "positive_signals": positive_signals,
+            "negative_signals": negative_signals,
+            "score_bias_rules": score_bias_rules,
+        }
+
     return {
         "filename": path.name if path is not None else "",
         "id": getattr(entry, "id", ""),
@@ -344,13 +377,12 @@ def _skill_card_ref(entry: Any) -> dict[str, Any]:
         "generator_moves": list(getattr(entry, "generator_moves", []) or []),
         "watch_for": list(getattr(entry, "watch_for", []) or []),
         "avoid": list(getattr(entry, "avoid", []) or []),
-        "evaluator_rubric_hints": list(
-            getattr(entry, "evaluator_rubric_hints", []) or []
-        ),
-        "positive_signals": list(getattr(entry, "positive_signals", []) or []),
-        "negative_signals": list(getattr(entry, "negative_signals", []) or []),
-        "score_bias_rules": list(getattr(entry, "score_bias_rules", []) or []),
-        "evaluator_visibility": bool(getattr(entry, "evaluator_visibility", False)),
+        "evaluator_rubric_hints": evaluator_rubric_hints,
+        "positive_signals": positive_signals,
+        "negative_signals": negative_signals,
+        "score_bias_rules": score_bias_rules,
+        "evaluator_visibility": evaluator_visibility,
+        "evaluator_payload": evaluator_payload,
         "match_score": float(getattr(entry, "match_score", 0.0) or 0.0),
         "match_reasons": list(getattr(entry, "match_reasons", []) or []),
     }

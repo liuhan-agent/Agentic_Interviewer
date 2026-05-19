@@ -228,6 +228,18 @@ def test_ask_question_records_selection_artifacts(monkeypatch) -> None:
             "negative_signals": ["No failure mode."],
             "score_bias_rules": ["Soft positive for quantified bound."],
             "evaluator_visibility": True,
+            "evaluator_payload": {
+                "rubric_hints": [
+                    "Credit concrete failure mode and scale bound."
+                ],
+                "positive_signals": [
+                    "Names load, bottleneck, and mitigation."
+                ],
+                "negative_signals": ["No failure mode."],
+                "score_bias_rules": [
+                    "Soft positive for quantified bound."
+                ],
+            },
             "match_score": 42.0,
             "match_reasons": ["dimension:system_design", "role_tag:java_backend"],
         }
@@ -240,6 +252,96 @@ def test_ask_question_records_selection_artifacts(monkeypatch) -> None:
         "min_support": 2,
     }
     assert artifacts["question_items"] == []
+
+
+def test_skill_card_ref_groups_evaluator_payload_when_visible() -> None:
+    """Phase-A observability — evaluator_payload mirrors the four
+    evaluator-visible frontmatter lists, but only when the card author
+    has opted in via ``evaluator_visibility: true``.
+    """
+    entry = SkillEntry(
+        path=Path("tech_production_incident_probe.md"),
+        id="tech_production_incident_probe",
+        name="Production Incident Probe",
+        description="Probe incident answers.",
+        status="active",
+        priority=7,
+        direction_tags=["internet_tech"],
+        role_tags=["sre"],
+        dimensions=["problem_solving"],
+        job_levels=["senior"],
+        probe_intents=["debugging_probe"],
+        failure_categories=["root_cause_missing"],
+        generator_moves=["Ask for detection signal."],
+        watch_for=["Separates mitigation from root cause."],
+        avoid=["Accepting code-only incident answers."],
+        evaluator_rubric_hints=["Credit detect / mitigate / scope / diagnose / prevent."],
+        positive_signals=["Names blast radius and permanent guardrail."],
+        negative_signals=["Skips blast radius."],
+        score_bias_rules=["Soft positive when prevention is technical + process."],
+        evaluator_visibility=True,
+        body="Use when the answer touches outage or degraded behavior.",
+        match_score=27.0,
+        match_reasons=["dimension:problem_solving"],
+    )
+
+    ref = ask_mod._skill_card_ref(entry)
+
+    assert ref["evaluator_visibility"] is True
+    assert ref["evaluator_payload"] == {
+        "rubric_hints": ["Credit detect / mitigate / scope / diagnose / prevent."],
+        "positive_signals": ["Names blast radius and permanent guardrail."],
+        "negative_signals": ["Skips blast radius."],
+        "score_bias_rules": [
+            "Soft positive when prevention is technical + process."
+        ],
+    }
+    # Flat fields stay populated for backward compatibility with any
+    # existing reader (admin observability + downstream audits).
+    assert ref["evaluator_rubric_hints"] == [
+        "Credit detect / mitigate / scope / diagnose / prevent."
+    ]
+    assert ref["positive_signals"] == [
+        "Names blast radius and permanent guardrail."
+    ]
+    assert ref["negative_signals"] == ["Skips blast radius."]
+    assert ref["score_bias_rules"] == [
+        "Soft positive when prevention is technical + process."
+    ]
+
+
+def test_skill_card_ref_evaluator_payload_is_none_when_card_opts_out() -> None:
+    """A card without ``evaluator_visibility`` must surface
+    ``evaluator_payload: None`` so admin observability can hide the
+    evaluator-visible column entirely instead of recombining four list
+    fields. Flat fields are still exported for any existing reader.
+    """
+    entry = SkillEntry(
+        path=Path("internal_only_card.md"),
+        id="internal_only_card",
+        name="Internal Only Card",
+        description="Generator hint without an evaluator surface.",
+        status="active",
+        priority=3,
+        evaluator_rubric_hints=["Internal rubric hint that must not surface."],
+        positive_signals=["Internal positive signal."],
+        negative_signals=["Internal negative signal."],
+        score_bias_rules=["Internal score bias rule."],
+        evaluator_visibility=False,
+        body="Generator only.",
+    )
+
+    ref = ask_mod._skill_card_ref(entry)
+
+    assert ref["evaluator_visibility"] is False
+    assert ref["evaluator_payload"] is None
+    # Flat fields are still exported so existing readers keep their
+    # contract; admin should filter by ``evaluator_payload is None`` to
+    # decide whether to display the evaluator column.
+    assert ref["evaluator_rubric_hints"] == [
+        "Internal rubric hint that must not surface."
+    ]
+    assert ref["score_bias_rules"] == ["Internal score bias rule."]
 
 
 def _make_retrieval(*, docs: list[RetrievedDoc] | None = None) -> RetrievalContext:
