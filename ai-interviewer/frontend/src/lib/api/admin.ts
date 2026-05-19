@@ -523,7 +523,9 @@ async function adminDelete<T>(path: string): Promise<T> {
 export interface AdminDeleteSessionResponse {
   session_id: string;
   deleted: boolean;
+  sessions_deleted: number;
   traces_deleted: number;
+  outcomes_deleted: number;
   outcome_deleted: boolean;
   checkpoint_deleted?: boolean;
 }
@@ -708,6 +710,15 @@ export interface EvidenceRollupResponse {
   acceptance_check_rate: number;
   evidence_span_rate: number;
   fallback_rate: number;
+  total_acceptance_checks: number;
+  yes_checks: number;
+  unsupported_yes_checks: number;
+  unsupported_yes_rate: number;
+  evidence_span_total: number;
+  evidence_span_none_count: number;
+  evidence_span_none_rate: number;
+  evidence_quote_total: number;
+  avg_evidence_quotes_per_check: number;
   verification_traces: number;
   verification_triggered: number;
   verification_changed: number;

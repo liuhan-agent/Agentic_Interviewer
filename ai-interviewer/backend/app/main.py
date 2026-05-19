@@ -142,6 +142,7 @@ def _run_startup(app: FastAPI, settings: Settings) -> None:
         try:
             app.state.privacy_cleanup_scheduler = start_privacy_cleanup_scheduler(
                 interval_hours=settings.privacy_cleanup_interval_hours,
+                batch_size=settings.privacy_cleanup_batch_size,
             )
         except Exception as e:  # pragma: no cover
             log.warning("privacy cleanup scheduler startup failed: %s", e)

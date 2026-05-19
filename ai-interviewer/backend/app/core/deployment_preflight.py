@@ -47,6 +47,8 @@ def build_config_summary(settings: Settings) -> dict[str, Any]:
         "resume_parse_cache_backend": settings.resume_parse_cache_backend,
         "asr_provider": settings.asr_provider,
         "tts_provider": settings.tts_provider,
+        "rate_limit_backend": settings.rate_limit_backend,
+        "voice_ticket_backend": settings.voice_ticket_backend,
         "verifier_drift_backend": settings.verifier_drift_backend,
         "langsmith_tracing": settings.langsmith_tracing,
         "default_guard_mode": settings.default_guard_mode,
@@ -56,6 +58,31 @@ def build_config_summary(settings: Settings) -> dict[str, Any]:
         "enable_probe_intent": settings.enable_probe_intent,
         "policy_mode": settings.policy_mode,
     }
+
+
+def _check_chroma_reachable(settings: Settings, issues: list[str]) -> None:
+    """Verify Chroma is reachable in production (non-stub embeddings only).
+
+    Appends to *issues* on failure rather than raising directly, so the
+    caller can aggregate all preflight problems into a single report.
+    """
+    try:
+        import chromadb  # noqa: F811
+
+        client = chromadb.HttpClient(
+            host=settings.chroma_host,
+            port=settings.chroma_port,
+        )
+        client.heartbeat()
+    except ImportError:
+        issues.append(
+            "chromadb package is not installed; "
+            "required for production RAG with non-stub embeddings"
+        )
+    except Exception as exc:
+        issues.append(
+            f"Chroma unreachable at {settings.chroma_host}:{settings.chroma_port}: {exc}"
+        )
 
 
 def run_preflight(settings: Settings) -> dict[str, Any]:
@@ -116,6 +143,29 @@ def run_preflight(settings: Settings) -> dict[str, Any]:
             issues.append(msg)
         else:
             log.warning("preflight: %s", msg)
+
+    if settings.rate_limit_backend == "memory":
+        msg = (
+            "rate_limit_backend=memory is not safe for production "
+            "multi-worker deployments; set RATE_LIMIT_BACKEND=redis"
+        )
+        if is_prod:
+            issues.append(msg)
+        else:
+            log.warning("preflight: %s", msg)
+
+    if settings.voice_ticket_backend == "memory":
+        msg = (
+            "voice_ticket_backend=memory is not safe for production "
+            "multi-worker voice sessions; set VOICE_TICKET_BACKEND=redis"
+        )
+        if is_prod:
+            issues.append(msg)
+        else:
+            log.warning("preflight: %s", msg)
+
+    if is_prod and settings.embedding_provider != "stub":
+        _check_chroma_reachable(settings, issues)
 
     if (
         settings.enable_verifier_drift_monitor

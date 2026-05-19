@@ -216,6 +216,7 @@ class InterviewState(TypedDict, total=False):
 
     rubric: dict[str, Any]
     dimensions: list[str]
+    focus_dimensions: list[str]
     dimension_status: dict[str, DimensionStatus]
     current_dimension: str | None
 
@@ -317,6 +318,7 @@ def build_initial_state(
     mode: InterviewMode = "mixed",
     runtime_config: dict[str, Any] | None = None,
     context_flags: dict[str, list[str]] | None = None,
+    focus_dimensions: list[str] | None = None,
     max_turns: int = 8,
     quality_threshold: float = 7.5,
     turn_budget: int = 12,
@@ -332,6 +334,12 @@ def build_initial_state(
         "problem_solving",
         "communication",
     ]
+    dimension_set = set(dimensions)
+    focus = [
+        d
+        for d in (focus_dimensions or [])
+        if isinstance(d, str) and d in dimension_set
+    ]
     return {
         "session_id": session_id,
         "trace_id": trace_id,
@@ -341,6 +349,7 @@ def build_initial_state(
         "mode": mode,
         "rubric": job_spec.get("rubric", {}),
         "dimensions": dimensions,
+        "focus_dimensions": focus,
         "dimension_status": {d: "pending" for d in dimensions},
         "current_dimension": None,
         "selected_action": {},

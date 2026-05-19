@@ -140,6 +140,7 @@ class ChromaVectorStore:
     def __init__(self) -> None:
         settings = get_settings()
         self._fallback = InMemoryVectorStore()
+        self._degraded = False
         self._client = None
         self._collection = None
         self._embeddings = None
@@ -150,6 +151,8 @@ class ChromaVectorStore:
             self._client = chromadb.HttpClient(host=settings.chroma_host, port=settings.chroma_port)
             self._collection = self._client.get_or_create_collection(settings.chroma_collection)
         except Exception as e:  # pragma: no cover
+            if getattr(settings, "app_env", "dev") == "prod":
+                raise RuntimeError("Chroma unavailable in production") from e
             log.warning("Chroma unavailable (%s); falling back to in-memory store", e)
 
         if self._collection is not None and settings.embedding_provider == "openai":
@@ -161,6 +164,8 @@ class ChromaVectorStore:
                     openai_api_key=settings.openai_api_key,
                 )
             except Exception as e:  # pragma: no cover
+                if getattr(settings, "app_env", "dev") == "prod":
+                    raise RuntimeError("OpenAI embeddings unavailable in production") from e
                 log.warning("OpenAI embeddings unavailable (%s); using in-memory fallback", e)
                 self._collection = None
         elif self._collection is not None and settings.embedding_provider == "stub":
@@ -170,20 +175,42 @@ class ChromaVectorStore:
     def is_remote(self) -> bool:
         return self._collection is not None and self._embeddings is not None
 
+    @property
+    def is_degraded(self) -> bool:
+        """True when remote Chroma was available at init but failed at runtime."""
+        return self._degraded
+
+    def _enter_degraded(self, operation: str, exc: Exception) -> None:
+        if not self._degraded:
+            log.warning(
+                "Chroma runtime failure during %s (%s); "
+                "switching to in-memory fallback for this process",
+                operation, exc,
+            )
+            self._degraded = True
+
     def add(self, texts: list[str], metadatas: list[dict[str, Any]] | None = None) -> None:
         if not self.is_remote:
             self._fallback.add(texts, metadatas)
             return
         metadatas = metadatas or [{} for _ in texts]
         ids = [_stable_doc_id(t, m) for t, m in zip(texts, metadatas, strict=True)]
-        vectors = self._embeddings.embed_documents(texts)
-        self._collection.upsert(ids=ids, documents=texts, metadatas=metadatas, embeddings=vectors)
+        try:
+            vectors = self._embeddings.embed_documents(texts)
+            self._collection.upsert(ids=ids, documents=texts, metadatas=metadatas, embeddings=vectors)
+        except Exception as exc:
+            self._enter_degraded("add", exc)
+            self._fallback.add(texts, metadatas)
 
     def similarity_search(self, query: str, k: int = 5) -> list[RetrievedDoc]:
         if not self.is_remote:
             return self._fallback.similarity_search(query, k=k)
-        vec = self._embeddings.embed_query(query)
-        res = self._collection.query(query_embeddings=[vec], n_results=k)
+        try:
+            vec = self._embeddings.embed_query(query)
+            res = self._collection.query(query_embeddings=[vec], n_results=k)
+        except Exception as exc:
+            self._enter_degraded("similarity_search", exc)
+            return self._fallback.similarity_search(query, k=k)
         docs: list[RetrievedDoc] = []
         for text, meta, dist in zip(
             res.get("documents", [[]])[0],
@@ -197,7 +224,11 @@ class ChromaVectorStore:
     def count(self) -> int:
         if not self.is_remote:
             return self._fallback.count()
-        return self._collection.count()
+        try:
+            return self._collection.count()
+        except Exception as exc:
+            self._enter_degraded("count", exc)
+            return self._fallback.count()
 
 
 _singleton: ChromaVectorStore | None = None

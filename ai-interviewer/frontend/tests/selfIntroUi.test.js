@@ -90,9 +90,10 @@ test("report page hides evaluator system fallback from user weaknesses", () => {
 
 test("report page hides NaN score and localizes internal verdicts", () => {
   const source = read("src", "components", "interview", "ReportView.tsx");
+  const verdicts = read("src", "lib", "constants", "verdicts.ts");
 
   assert.match(source, /Number\.isFinite/);
-  assert.match(source, /borderline:\s*"接近达标"/);
-  assert.match(source, /strong_pass:\s*"表现优秀"/);
+  assert.match(verdicts, /borderline:\s*"接近达标"/);
+  assert.match(verdicts, /strong_pass:\s*"表现优秀"/);
   assert.doesNotMatch(source, /Number\(overall\[2\]\)\.toFixed\(2\)/);
 });
