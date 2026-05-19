@@ -1,0 +1,52 @@
+dimension: team_leadership
+seeds:
+  - id: team_leadership.management_team_growth
+    version: 1
+    title: Management team leadership and growth
+    dimension: team_leadership
+    job_levels: [junior, mid, senior]
+    skill_tags: [general_management, team_leadership, coaching, team_growth]
+    direction_tags: [business]
+    role_tags: [general_management]
+    rubric:
+      must_cover: [team_diagnosis, coaching_action, motivation, follow_up]
+      minimum_bar: Explain how to diagnose team capability or motivation issues and help people improve.
+      stretch: Balance individual development, team performance, and manager accountability.
+    priority: 25
+    status: active
+    source: manual_yaml
+    scope: global
+    language: zh-CN
+    variants:
+      - id: team_leadership.management_team_growth.new_member_underperformance
+        version: 1
+        intent: opening
+        difficulty: standard
+        scenario_brief: A new team member is missing expectations, and senior members are losing patience.
+        question_stem: How would you diagnose the performance issue and create a coaching plan that protects team trust?
+        prompt_template: Generate a management leadership question about coaching, performance diagnosis, and team trust.
+        scenario_skill_tags: [general_management, team_leadership, coaching, performance]
+        resume_anchor_hints: [team_leadership, coaching, performance, onboarding, manager]
+        failure_categories: [shallow_analysis, poor_communication, weak_follow_up]
+        rubric_additions: [Diagnose ability versus clarity issue, set coaching actions, review progress]
+        expected_signals: [Separates expectation clarity from capability, gives feedback directly, tracks improvement]
+        anti_patterns: [Labels person too early, avoids feedback, delegates coaching entirely]
+        good_answer_hints: [Clarify expectations, coach with evidence, review progress with team impact in mind]
+        priority: 17
+        status: active
+      - id: team_leadership.management_team_growth.low_morale_after_change
+        version: 1
+        intent: deep_probe
+        difficulty: deep_probe
+        scenario_brief: After a strategy change, the team follows tasks but morale and ownership are visibly declining.
+        question_stem: How would you rebuild ownership and motivation while still moving the business change forward?
+        prompt_template: Generate a deep probe about team leadership during change and morale decline.
+        scenario_skill_tags: [general_management, team_leadership, change_management, motivation]
+        resume_anchor_hints: [change, morale, team_management, ownership, communication]
+        failure_categories: [poor_communication, weak_stakeholder_alignment, vague_process]
+        rubric_additions: [Acknowledge change impact, explain why, create participation and feedback loop]
+        expected_signals: [Listens to concerns, connects work to goal, creates small wins]
+        anti_patterns: [Only repeats strategy, ignores emotion, uses pressure as motivation]
+        good_answer_hints: [Listen first, explain context, create ownership through concrete choices]
+        priority: 15
+        status: active

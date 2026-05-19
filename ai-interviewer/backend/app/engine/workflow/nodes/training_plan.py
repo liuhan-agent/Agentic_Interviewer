@@ -55,10 +55,14 @@ def training_plan_node(state: InterviewState) -> dict[str, Any]:
     artifacts = dict(final_report.get("workflow_artifacts") or {})
     artifacts["training_plan_attached"] = True
     artifacts["training_plan_source"] = training_plan.get("source")
+    fallback_reason = training_plan.get("fallback_reason")
+    if fallback_reason:
+        artifacts["training_plan_fallback_reason"] = fallback_reason
     final_report["workflow_artifacts"] = artifacts
     log.info(
-        "training_plan: source=%s priorities=%d",
+        "training_plan: source=%s fallback_reason=%s priorities=%d",
         training_plan.get("source"),
+        fallback_reason,
         len(training_plan.get("priority_weaknesses") or []),
     )
     update = {"final_report": final_report}
@@ -67,6 +71,7 @@ def training_plan_node(state: InterviewState) -> dict[str, Any]:
         update,
         reason="attached",
         source=str(training_plan.get("source") or ""),
+        fallback_reason=str(fallback_reason or ""),
     )
     return update
 
@@ -77,12 +82,17 @@ def _trace_training_plan(
     *,
     reason: str,
     source: str = "",
+    fallback_reason: str = "",
 ) -> None:
     try:
         get_tracer().trace_node_event(
             {**state, **update},
             node="training_plan",
-            payload={"reason": reason, "source": source},
+            payload={
+                "reason": reason,
+                "source": source,
+                "fallback_reason": fallback_reason,
+            },
         )
     except Exception as e:  # pragma: no cover - side channel
         log.warning("training_plan tracer side-channel failed: %s", e)

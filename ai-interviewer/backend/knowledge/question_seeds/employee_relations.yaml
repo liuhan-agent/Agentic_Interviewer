@@ -1,0 +1,52 @@
+dimension: employee_relations
+seeds:
+  - id: employee_relations.hr_conflict_resolution
+    version: 1
+    title: HR employee conflict resolution
+    dimension: employee_relations
+    job_levels: [junior, mid, senior]
+    skill_tags: [hr_function, employee_relations, conflict_resolution, workplace_communication]
+    direction_tags: [business]
+    role_tags: [hr_function]
+    rubric:
+      must_cover: [fact_collection, risk_boundary, communication_plan, follow_up]
+      minimum_bar: Explain how to handle employee relations issues with facts, boundaries, and respectful communication.
+      stretch: Balance employee experience, manager accountability, and compliance risk without escalating blindly.
+    priority: 25
+    status: active
+    source: manual_yaml
+    scope: global
+    language: zh-CN
+    variants:
+      - id: employee_relations.hr_conflict_resolution.manager_employee_tension
+        version: 1
+        intent: opening
+        difficulty: standard
+        scenario_brief: An employee reports repeated communication conflict with their manager, but both sides tell different stories.
+        question_stem: How would you collect facts, judge the risk level, and help both sides move toward a workable resolution?
+        prompt_template: Generate an HR employee relations question about conflict facts, risk boundaries, and communication plan.
+        scenario_skill_tags: [hr_function, employee_relations, conflict_resolution, fact_collection]
+        resume_anchor_hints: [employee_relations, conflict, manager, hrbp, communication]
+        failure_categories: [missing_evidence, one_sided_judgment, weak_follow_up]
+        rubric_additions: [Separate facts from opinions, define risk level, plan follow up checkpoints]
+        expected_signals: [Interviews both sides, documents facts, protects confidentiality]
+        anti_patterns: [Immediately takes sides, promises impossible outcome, ignores documentation]
+        good_answer_hints: [Listen first, verify facts, align next steps and boundaries]
+        priority: 18
+        status: active
+      - id: employee_relations.hr_conflict_resolution.sensitive_complaint
+        version: 1
+        intent: deep_probe
+        difficulty: deep_probe
+        scenario_brief: A complaint may involve policy violation and emotional harm, but evidence is incomplete.
+        question_stem: How would you handle the case so that employee trust, compliance risk, and investigation quality are all protected?
+        prompt_template: Generate a deep probe about sensitive employee relations case handling.
+        scenario_skill_tags: [hr_function, employee_relations, compliance_risk, investigation]
+        resume_anchor_hints: [complaint, employee_relations, compliance, investigation, policy]
+        failure_categories: [missing_risk_boundary, vague_process, weak_confidentiality]
+        rubric_additions: [Set investigation boundary, protect confidentiality, escalate based on risk]
+        expected_signals: [Defines escalation criteria, avoids premature conclusion, plans communication cadence]
+        anti_patterns: [Treats it as ordinary mediation, exposes private information, delays risk escalation]
+        good_answer_hints: [Classify risk, preserve evidence, communicate process not conclusions]
+        priority: 16
+        status: active

@@ -59,6 +59,14 @@ const apiTypesPath = path.join(
   "api",
   "types.ts",
 );
+const interviewConstantsPath = path.join(
+  __dirname,
+  "..",
+  "src",
+  "lib",
+  "constants",
+  "interview.ts",
+);
 
 function readSetupForm() {
   return fs.readFileSync(setupFormPath, "utf8");
@@ -86,6 +94,10 @@ function readInterviewApi() {
 
 function readApiTypes() {
   return fs.readFileSync(apiTypesPath, "utf8");
+}
+
+function readInterviewConstants() {
+  return fs.readFileSync(interviewConstantsPath, "utf8");
 }
 
 test("setup uses interview depth copy instead of strict duration copy", () => {
@@ -164,6 +176,13 @@ test("interview room offers retry when a backend segment failed", () => {
   assert.match(source, /retryable/);
 });
 
+test("retrying a failed question resends saved LLM config", () => {
+  const source = readInterviewApi();
+
+  assert.match(source, /const llmConfig = buildLLMPayload\(\)/);
+  assert.match(source, /llm_config: llmConfig/);
+});
+
 test("interview room does not redirect completed sessions without a report", () => {
   const source = readQuestionPoller();
 
@@ -175,11 +194,13 @@ test("interview room does not redirect completed sessions without a report", () 
 
 test("report page keeps dimension names user-facing", () => {
   const source = readReportView();
+  const constants = readInterviewConstants();
 
-  assert.match(source, /project_experience:\s*"项目经验"/);
-  assert.match(source, /coding_quality:\s*"代码质量"/);
-  assert.match(source, /product_thinking:\s*"产品思维"/);
-  assert.match(source, /customer_discovery:\s*"客户发现"/);
+  assert.match(source, /formatDimensionName/);
+  assert.match(constants, /project_experience:\s*"项目经验"/);
+  assert.match(constants, /coding_quality:\s*"代码质量"/);
+  assert.match(constants, /product_thinking:\s*"产品思维"/);
+  assert.match(constants, /customer_discovery:\s*"客户发现"/);
 });
 
 test("report page localizes evaluator fallback rationale", () => {
@@ -231,6 +252,15 @@ test("interview room exposes progress pause skip and draft persistence", () => {
   assert.match(source, /answerDraftKey/);
   assert.match(source, /sessionStorage/);
   assert.doesNotMatch(source, /将丢失/);
+});
+
+test("interview room keeps answer length aligned with backend validation", () => {
+  const source = readInterviewRoom();
+
+  assert.match(source, /const ANSWER_MAX_LENGTH = 8000;/);
+  assert.match(source, /maxLength=\{ANSWER_MAX_LENGTH\}/);
+  assert.match(source, /<VoiceAnswerPanel[\s\S]*maxLength=\{ANSWER_MAX_LENGTH\}/);
+  assert.doesNotMatch(source, /const ANSWER_MAX_LENGTH = 50000;/);
 });
 
 test("interview room exposes directional hint without submitting or clearing draft", () => {

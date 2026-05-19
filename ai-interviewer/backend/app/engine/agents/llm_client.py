@@ -265,7 +265,13 @@ def _classify_error_text(text: str) -> LLMErrorKind:
             "failed to fetch",
             "fetch",
             "dns",
+            "proxy",
+            "socksio",
             "socket",
+            "websocket",
+            "realtime",
+            "session",
+            "handshake",
             "reset by peer",
             "service unavailable",
             "gateway",
@@ -485,10 +491,10 @@ def _stub_response(
                 "_digest": digest,
                 "summary": f"stub-reply-to: {last_user[:60]}",
                 "score": 7.5,
-                "strengths": ["structured reasoning"],
-                "weaknesses": ["needs concrete example"],
-                "followup": "Can you walk through a specific production incident?",
-                "question": "Tell me about a system you designed and the trade-offs you made.",
+                "strengths": ["回答结构清晰，能围绕核心方案展开"],
+                "weaknesses": ["还可以补充更具体的线上数据或复盘结果"],
+                "followup": "请结合一次真实线上场景，继续说明你的取舍和结果。",
+                "question": "请讲一个你设计过的系统，并说明当时的关键取舍。",
                 "dimension": "system_design",
                 "rubric_points": ["clarity", "trade_offs", "scale_reasoning"],
             },
@@ -516,6 +522,17 @@ _OPENAI_COMPATIBLE_DEFAULT_BASE_URLS: dict[str, str] = {
 
 
 _BLOCKED_BASE_URL_HOSTS = {"localhost", "localhost.localdomain"}
+_FAKE_IP_NETWORKS = (
+    ipaddress.ip_network("198.18.0.0/15"),
+)
+_FAKE_IP_ALLOWED_LLM_HOST_SUFFIXES = (
+    "deepseek.com",
+    "moonshot.cn",
+    "dashscope.aliyuncs.com",
+    "dashscope-intl.aliyuncs.com",
+    "bigmodel.cn",
+    "mistral.ai",
+)
 
 
 def _is_blocked_base_url_ip(raw_ip: str) -> bool:
@@ -530,6 +547,21 @@ def _is_blocked_base_url_ip(raw_ip: str) -> bool:
         or ip.is_multicast
         or ip.is_reserved
         or ip.is_unspecified
+    )
+
+
+def _is_fake_ip(raw_ip: str) -> bool:
+    try:
+        ip = ipaddress.ip_address(raw_ip)
+    except ValueError:
+        return False
+    return any(ip in network for network in _FAKE_IP_NETWORKS)
+
+
+def _is_fake_ip_allowed_llm_host(host: str) -> bool:
+    return any(
+        host == suffix or host.endswith(f".{suffix}")
+        for suffix in _FAKE_IP_ALLOWED_LLM_HOST_SUFFIXES
     )
 
 
@@ -552,7 +584,12 @@ def validate_llm_base_url(base_url: str) -> None:
 
     for info in addr_infos:
         sockaddr = info[4]
-        if sockaddr and _is_blocked_base_url_ip(str(sockaddr[0])):
+        if not sockaddr:
+            continue
+        raw_ip = str(sockaddr[0])
+        if _is_fake_ip(raw_ip) and _is_fake_ip_allowed_llm_host(host):
+            continue
+        if _is_blocked_base_url_ip(raw_ip):
             raise LLMFatal("base_url resolves to a disallowed address")
 
 

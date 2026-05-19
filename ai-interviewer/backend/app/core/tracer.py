@@ -209,6 +209,10 @@ class Tracer:
                 seen.add(item)
         return out
 
+    def _enable_video_analysis(self, state: dict[str, Any]) -> bool:
+        runtime = state.get("runtime_config") or {}
+        return bool(runtime.get("enable_video_analysis"))
+
     def trace_session_started(self, state: dict[str, Any]) -> None:
         if not self.enabled:
             return
@@ -217,6 +221,12 @@ class Tracer:
             with get_session() as sess:
                 existing = sess.get(InterviewSession, state.get("session_id"))
                 if existing is not None:
+                    setup_snapshot = state.get("setup_snapshot")
+                    if (
+                        existing.setup_snapshot is None
+                        and isinstance(setup_snapshot, dict)
+                    ):
+                        existing.setup_snapshot = setup_snapshot
                     _record_trace_success("session_started")
                     return
                 sess.add(
@@ -227,6 +237,10 @@ class Tracer:
                         job_title=(state.get("job_spec") or {}).get("title"),
                         job_level=(state.get("job_spec") or {}).get("level"),
                         mode=state.get("mode", "mixed"),
+                        enable_video_analysis=self._enable_video_analysis(state),
+                        setup_snapshot=state.get("setup_snapshot")
+                        if isinstance(state.get("setup_snapshot"), dict)
+                        else None,
                         status="running",
                     )
                 )
@@ -431,6 +445,7 @@ class Tracer:
                 if sess_row is not None:
                     sess_row.status = "completed"
                     sess_row.final_report = state.get("final_report")
+                    sess_row.enable_video_analysis = self._enable_video_analysis(state)
                     sess_row.updated_at = datetime.now(UTC)
                 else:
                     sess.add(
@@ -441,6 +456,7 @@ class Tracer:
                             job_title=(state.get("job_spec") or {}).get("title"),
                             job_level=(state.get("job_spec") or {}).get("level"),
                             mode=state.get("mode", "mixed"),
+                            enable_video_analysis=self._enable_video_analysis(state),
                             status="completed",
                             final_report=state.get("final_report"),
                         )

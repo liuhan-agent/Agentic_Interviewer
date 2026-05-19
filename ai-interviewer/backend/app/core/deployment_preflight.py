@@ -48,6 +48,7 @@ def build_config_summary(settings: Settings) -> dict[str, Any]:
         "default_guard_mode": settings.default_guard_mode,
         "redact_answer_pii": settings.redact_answer_pii,
         "enable_skill_injection": settings.enable_skill_injection,
+        "skill_playbook_backend": settings.skill_playbook_backend,
         "enable_probe_intent": settings.enable_probe_intent,
         "policy_mode": settings.policy_mode,
     }

@@ -34,7 +34,9 @@ from app.engine.workflow.probe_intent import (
     normalize_failure_category,
     resolve_probe_intent,
 )
-from app.engine.workflow.state import InterviewState, PlanTemplate
+from app.engine.workflow.state import FailureCategory, InterviewState, PlanTemplate
+
+_VALID_FAILURE_CATEGORIES: set[str] = set(FailureCategory.__args__)  # type: ignore[attr-defined]
 
 log = get_logger(__name__)
 
@@ -42,6 +44,41 @@ log = get_logger(__name__)
 _ALLOWED_TEMPLATES: set[str] = {
     "simple", "adaptive", "deep_probe",
 }
+
+
+def _resolve_failure_categories(
+    *,
+    evaluation_categories: Any,
+    failure_reason: str | None,
+    weaknesses: list[str],
+    missing_must_cover: list[str],
+) -> list[str]:
+    """Pick the structured failure-category list to forward into hints.
+
+    Evaluator output wins when it contains at least one legal value;
+    otherwise we wrap the keyword-driven inference as a one-item list.
+    Empty result means "no category" — callers omit the key so the
+    pre-PR2 ``contract_hints`` shape stays byte-identical for clean
+    refines.
+    """
+    if isinstance(evaluation_categories, list):
+        cleaned: list[str] = []
+        seen: set[str] = set()
+        for item in evaluation_categories:
+            value = str(item or "").strip()
+            if not value or value not in _VALID_FAILURE_CATEGORIES or value in seen:
+                continue
+            cleaned.append(value)
+            seen.add(value)
+        if cleaned:
+            return cleaned
+
+    inferred = normalize_failure_category(
+        failure_reason=failure_reason,
+        weaknesses=weaknesses,
+        missing_must_cover=missing_must_cover,
+    )
+    return [inferred] if inferred else []
 
 
 def _pick_next_template(evaluation: dict[str, Any]) -> PlanTemplate:
@@ -85,11 +122,19 @@ def refine_followup_node(state: InterviewState) -> dict[str, Any]:
 
     probe_intent = evaluation.get("recommended_probe_intent")
     failure_reason = evaluation.get("failure_reason")
-    failure_category = normalize_failure_category(
+    # PR2: prefer the evaluator's structured ``failure_categories`` when
+    # the LLM produced any legal ones; fall back to the keyword-driven
+    # ``normalize_failure_category`` inference otherwise. The dual-write
+    # to both ``failure_categories`` (list) and ``failure_category``
+    # (single) keeps every existing reader working — pre-PR2 callers
+    # only look at the single field.
+    failure_categories = _resolve_failure_categories(
+        evaluation_categories=evaluation.get("failure_categories"),
         failure_reason=failure_reason,
         weaknesses=list(weaknesses),
         missing_must_cover=missing_must_cover,
     )
+    failure_category = failure_categories[0] if failure_categories else None
     if not probe_intent:
         probe_intent = resolve_probe_intent(
             direction=(state.get("job_spec") or {}).get("interview_direction"),
@@ -104,6 +149,8 @@ def refine_followup_node(state: InterviewState) -> dict[str, Any]:
         "missing_must_cover": missing_must_cover,
         "refine_mode": True,
     }
+    if failure_categories:
+        contract_hints["failure_categories"] = failure_categories
     if failure_category:
         contract_hints["failure_category"] = failure_category
     if probe_intent:

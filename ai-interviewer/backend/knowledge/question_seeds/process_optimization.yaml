@@ -1,0 +1,52 @@
+dimension: process_optimization
+seeds:
+  - id: process_optimization.operations_workflow_efficiency
+    version: 1
+    title: 运营流程优化与机制沉淀
+    dimension: process_optimization
+    job_levels: [junior, mid, senior]
+    skill_tags: [operations, process_optimization, workflow, sop, efficiency]
+    direction_tags: [business]
+    role_tags: [operations]
+    rubric:
+      must_cover: [低效环节, 人工成本, 机制设计, 落地验证]
+      minimum_bar: 能识别运营流程中的低效点，并提出可执行的优化动作。
+      stretch: 能平衡自动化、人工判断和团队接受度，证明流程真的被使用。
+    priority: 27
+    status: active
+    source: manual_yaml
+    scope: global
+    language: zh-CN
+    variants:
+      - id: process_optimization.operations_workflow_efficiency.manual_to_system
+        version: 1
+        intent: opening
+        difficulty: standard
+        scenario_brief: 社群运营名单筛选、触达和反馈记录长期靠人工表格，错误率高且交接困难。
+        question_stem: 你会如何判断哪些流程值得系统化或自动化，并设计落地路径？
+        prompt_template: 生成一道运营流程优化题，要求候选人说明成本收益、流程重构、工具协作和验证指标。
+        scenario_skill_tags: [operations, process_optimization, workflow, automation]
+        resume_anchor_hints: [workflow, sop, automation, operations, efficiency]
+        failure_categories: [missing_tradeoff, vague_metrics, missing_process]
+        rubric_additions: [说明人工成本和错误成本, 说明系统化范围, 说明落地和验证]
+        expected_signals: [能按频率和错误成本排序, 能设计渐进自动化, 能定义效率指标]
+        anti_patterns: [所有流程都做系统, 只买工具不改流程, 不验证使用率]
+        good_answer_hints: [先算成本, 再挑高频高错环节, 最后灰度落地]
+        priority: 16
+        status: active
+      - id: process_optimization.operations_workflow_efficiency.sop_adoption
+        version: 1
+        intent: deep_probe
+        difficulty: deep_probe
+        scenario_brief: 新 SOP 发布后团队执行率很低，一线同学觉得流程更复杂，管理层认为没有坚持。
+        question_stem: SOP 没被真正执行时，你会如何判断是流程设计问题还是执行问题？
+        prompt_template: 生成一道流程落地追问，要求候选人说明使用反馈、流程阻力、激励约束和迭代闭环。
+        scenario_skill_tags: [operations, sop, process_optimization, adoption]
+        resume_anchor_hints: [sop, process, operations, training, adoption]
+        failure_categories: [missing_evidence, weak_communication, missing_action]
+        rubric_additions: [说明一线反馈收集, 说明流程与激励问题区分, 说明改版和跟踪]
+        expected_signals: [能观察真实执行场景, 能区分设计和执行, 能设置 adoption 指标]
+        anti_patterns: [只要求大家执行, 不看实际阻力, 不更新 SOP]
+        good_answer_hints: [先看现场, 再判断阻力类型, 最后改机制和指标]
+        priority: 15
+        status: active

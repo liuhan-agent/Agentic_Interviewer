@@ -242,7 +242,9 @@ CHECKPOINT_BACKEND=memory
 | `LLM_MODEL` | `gpt-4o-mini` | 默认模型 |
 | `GENERATOR_LLM_TIMEOUT_SECONDS` | `45` | 面试题生成 LLM 调用超时时间 |
 | `EVALUATOR_LLM_TIMEOUT_SECONDS` | `45` | 候选人回答评分 LLM 调用超时时间 |
-| `RESUME_PARSER_LLM_TIMEOUT_SECONDS` | `60` | 简历上传时等待 LLM 精修的秒数 |
+| `RESUME_PARSER_LLM_TIMEOUT_SECONDS` | `120` | 同步简历上传时等待 LLM 精修的秒数 |
+| `RESUME_PARSE_JOB_LLM_TIMEOUT_SECONDS` | `300` | 异步简历解析 job 等待 LLM 精修的秒数 |
+| `RESUME_PARSE_JOB_TTL_SECONDS` | `3600` | 异步简历解析 job 在进程内保留的秒数 |
 | `OPENAI_API_KEY` | 空 | OpenAI key |
 | `ANTHROPIC_API_KEY` | 空 | Anthropic key |
 | `EMBEDDING_PROVIDER` | `openai` | `openai` 或 `stub` |
@@ -251,8 +253,41 @@ CHECKPOINT_BACKEND=memory
 | `CHECKPOINT_BACKEND` | `postgres` | `postgres` 或 `memory` |
 | `LANGSMITH_TRACING` | `false` | 是否启用 LangSmith |
 | `API_TOKEN` | 空 | 设置后保护 `/admin/*` |
+| `QUESTION_SELECTOR_MODE` | `structured_primary` | 结构化题库主链路模式，可回滚为 `structured_shadow` 或 `vector` |
+| `ENABLE_SKILL_INJECTION` | `true` | 是否把面试官 playbook 注入 Generator |
+| `SKILL_PLAYBOOK_BACKEND` | `db_with_file_fallback` | Skills Playbook 运行时读源，可回滚为 `file` |
 
 更多开关在 `app/core/settings.py`。
+
+## 结构化题库与 Skills Playbook
+
+RAG no longer owns question-bank or skills playbook content. The default question
+path is now `QUESTION_SELECTOR_MODE=structured_primary`: YAML question seeds decide
+what to ask, while RAG stays as supporting knowledge, shadow artifact, and fallback
+when a structured seed misses.
+
+Skills Playbook is enabled by default with `ENABLE_SKILL_INJECTION=true` and
+`SKILL_PLAYBOOK_BACKEND=db_with_file_fallback`. Markdown remains the human-authored
+source of truth, but runtime reads from DB first. FastAPI startup does not auto-import
+content, so first deploy and every content update should run:
+
+```powershell
+python -m app.scripts.import_question_seeds --archive-missing
+python -m app.scripts.import_skill_playbooks --archive-missing
+```
+
+After import, open Admin and verify the Question Bank and Skills Playbook cards both
+show active rows.
+
+Rollback switches:
+
+```env
+QUESTION_SELECTOR_MODE=structured_shadow
+# or
+QUESTION_SELECTOR_MODE=vector
+SKILL_PLAYBOOK_BACKEND=file
+ENABLE_SKILL_INJECTION=false
+```
 
 ## RAG 知识库
 
@@ -264,7 +299,8 @@ knowledge/
   business_questions/   # 业务题库
   behavioral_questions/ # 行为题库
   sample_resumes/       # 示例简历
-  skills/               # 人工维护的面试技能卡
+  question_seeds/       # YAML 结构化题库，导入 DB 后参与主链路出题
+  skills/               # Markdown Skills Playbook，导入 DB 后注入 Generator
   strategy/             # reward-driven 策略记忆
 ```
 
@@ -274,7 +310,9 @@ knowledge/
 python -m app.scripts.seed_kb
 ```
 
-新增或修改题库 `.md` 后，需要重新运行 `python -m app.scripts.seed_kb`，让运行中的向量库吃到最新内容。
+`knowledge/tech_questions`、`business_questions`、`behavioral_questions`、
+`sample_resumes` 和 `skills` 不再作为题库或 playbook 语料进入 RAG 索引。
+新增或修改真正支持性知识后，再运行 `python -m app.scripts.seed_kb`。
 
 检索逻辑位于：
 
