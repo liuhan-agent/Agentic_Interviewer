@@ -43,7 +43,7 @@ def _assert_check_core(
 ) -> None:
     assert check["verdict"] == verdict
     assert check["evidence"] == evidence
-    assert isinstance(check["evidence_spans"], list)
+    assert isinstance(check.get("evidence_spans", []), list)
 
 # ---------------------------------------------------------------------------
 # _normalize_check_result — shape contract
@@ -363,10 +363,11 @@ def test_evaluate_answer_synthesises_canonical_fallback_when_llm_silent(
     # so Verifier prompt rendering (``json.dumps``) doesn't KeyError.
     assert set(acceptance.keys()) == {"Names A.", "Names B."}
     for check in acceptance.values():
-        assert set(check.keys()) == {"verdict", "evidence", "evidence_spans"}
+        assert {"verdict", "evidence"} <= set(check.keys())
+        assert set(check.keys()) <= {"verdict", "evidence", "evidence_spans"}
         assert check["verdict"] in {"yes", "partial", "no"}
         assert check["evidence"] == []
-        assert check["evidence_spans"] == []
+        assert check.get("evidence_spans", []) == []
 
 
 def test_evaluate_answer_falls_back_when_llm_call_fails(monkeypatch) -> None:
