@@ -203,3 +203,25 @@ test("admin panel summarizes interview main-chain quality", () => {
   assert.match(panel, /evidence_span_rate/);
   assert.match(panel, /contract_rate/);
 });
+
+test("admin rag section labels knowledge and session-anchor panels distinctly", () => {
+  const ragEval = read("src/components/admin/RagEvalPanel.tsx");
+  const adminPanel = read("src/components/admin/AdminPanel.tsx");
+  const anchorCard = read("src/components/admin/CandidateAnchorRagCard.tsx");
+  const api = read("src/lib/api/admin.ts");
+
+  assert.match(ragEval, /知识 RAG 评测/);
+  assert.doesNotMatch(ragEval, /RAG 检索评测/);
+  assert.match(anchorCard, /候选人锚点 RAG/);
+  assert.match(anchorCard, /getSessionAnchorRagSummary/);
+  assert.match(anchorCard, /getSessionAnchorRagMetrics/);
+  assert.match(anchorCard, /deleteSessionAnchorData/);
+  assert.match(adminPanel, /RagEvalPanel/);
+  assert.match(adminPanel, /CandidateAnchorRagCard/);
+  assert.match(adminPanel, /RAG 观察/);
+  assert.ok(api.includes("/admin/session-anchors/summary"));
+  assert.ok(api.includes("/admin/session-anchors/metrics"));
+  assert.ok(api.includes("/admin/sessions/${encodeURIComponent(sessionId)}/anchor-data"));
+  assert.match(api, /SessionAnchorRagSummary/);
+  assert.match(api, /SessionAnchorRagMetrics/);
+});

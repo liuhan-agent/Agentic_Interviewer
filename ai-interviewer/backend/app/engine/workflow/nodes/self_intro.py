@@ -1,11 +1,13 @@
 """Opening self-introduction phase."""
 from __future__ import annotations
 
+import secrets
 from typing import Any
 
 from app.core.logging import get_logger
 from app.engine.agents.self_intro import parse_self_intro_profile
 from app.engine.workflow.state import InterviewState
+from app.services.session_anchor_vectorize import vectorize_self_intro_anchor_cards
 
 from .wait_answer import clear_raw_answer_for_state, get_raw_answer_for_state
 
@@ -58,11 +60,18 @@ def self_intro_parse_node(state: InterviewState) -> dict[str, Any]:
         len(profile.get("emphasized_skills") or []),
         profile.get("parse_status"),
     )
+    self_intro_vector_status = _vectorize_self_intro_for_node(
+        session_id=str(state.get("session_id") or ""),
+        turn_idx=int(turn_idx or 0),
+        sanitized_answer=sanitised_answer,
+        profile=profile,
+    )
     clear_raw_answer_for_state(state)
     return {
         "intro_completed": True,
         "self_intro_answer": sanitised_answer,
         "self_intro_profile": profile,
+        "self_intro_vector_status": self_intro_vector_status,
         "turn_idx": turn_idx + 1,
         "formal_turn_idx": state.get("formal_turn_idx", 0),
         "current_answer": "",
@@ -78,3 +87,37 @@ def self_intro_parse_node(state: InterviewState) -> dict[str, Any]:
             }
         ],
     }
+
+
+def _vectorize_self_intro_for_node(
+    *,
+    session_id: str,
+    turn_idx: int,
+    sanitized_answer: str,
+    profile: dict[str, Any],
+) -> dict[str, Any]:
+    revision_id = secrets.token_urlsafe(18)
+    if not session_id:
+        return {
+            "status": "skipped",
+            "source_type": "self_intro",
+            "self_intro_revision_id": revision_id,
+            "skipped_reason": "no_session_id",
+        }
+    try:
+        return vectorize_self_intro_anchor_cards(
+            session_id=session_id,
+            self_intro_revision_id=revision_id,
+            turn_idx=turn_idx,
+            sanitized_answer=sanitized_answer,
+            anchor_cards=profile.get("anchor_cards") or [],
+            profile=profile,
+        )
+    except Exception as exc:  # pragma: no cover - workflow must degrade
+        log.warning("self_intro vectorization failed: %s", exc)
+        return {
+            "status": "failed",
+            "source_type": "self_intro",
+            "self_intro_revision_id": revision_id,
+            "error": str(exc) or exc.__class__.__name__,
+        }

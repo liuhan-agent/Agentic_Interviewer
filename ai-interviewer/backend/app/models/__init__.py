@@ -13,6 +13,8 @@ from .question_bank import (
     QuestionUsage,
     QuestionVariant,
 )
+from .resume_parse_artifact import ResumeParseArtifact
+from .session_anchor import SessionAnchorChunk
 from .skill_playbook import SkillPlaybookCard
 from .strategy_memory import (
     StrategyMemory,
@@ -43,6 +45,8 @@ __all__ = [
     "QuestionReview",
     "QuestionUsage",
     "QuestionVariant",
+    "ResumeParseArtifact",
+    "SessionAnchorChunk",
     "SkillPlaybookCard",
     "StrategyMemory",
     "StrategyMemoryStats",

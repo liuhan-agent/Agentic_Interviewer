@@ -15,10 +15,12 @@ log = get_logger(__name__)
 
 
 def _run_cleanup() -> None:
+    from app.scripts.cleanup_session_anchor_chunks import run_cleanup as run_anchor_cleanup
     from app.services.privacy_cleanup import cleanup_expired_data
 
     try:
         result = cleanup_expired_data(dry_run=False)
+        anchor_result = run_anchor_cleanup()
         total = (
             result["sessions_deleted"]
             + result["traces_deleted"]
@@ -30,6 +32,12 @@ def _run_cleanup() -> None:
                 result["sessions_deleted"],
                 result["traces_deleted"],
                 result["outcomes_deleted"],
+            )
+        if anchor_result.get("total_deleted", 0) > 0:
+            log.info(
+                "session anchor cleanup: chunks=%d artifacts=%d",
+                anchor_result.get("session_anchor_chunks_deleted", 0),
+                anchor_result.get("resume_parse_artifacts_deleted", 0),
             )
     except Exception:
         log.exception("privacy cleanup tick failed")

@@ -63,7 +63,7 @@ def test_list_skills_reuses_cache_when_directory_signature_is_unchanged(
     monkeypatch.setattr(
         skill_store,
         "get_settings",
-        lambda: SimpleNamespace(knowledge_dir=root),
+        lambda: SimpleNamespace(knowledge_dir=root, skill_playbook_backend="file"),
     )
     skill_store.clear_skill_cache_for_tests()
 

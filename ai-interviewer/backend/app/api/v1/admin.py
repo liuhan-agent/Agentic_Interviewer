@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import hashlib
 import re
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
 from urllib.parse import urlparse, urlunparse
@@ -871,6 +872,427 @@ def admin_delete_session(session_id: str) -> dict[str, Any]:
 
     log.info("admin deleted session %s: %s", session_id, payload)
     return payload
+
+
+_ANCHOR_SOURCE_TYPES = ("resume", "self_intro")
+_ANCHOR_CHUNKER_MODES = ("A", "B", "C", "D", "SI")
+_ANCHOR_FALLBACK_REASONS = (
+    "low_score",
+    "timeout",
+    "empty",
+    "not_ready",
+    "skipped",
+    "error",
+)
+
+
+@router.get(
+    "/session-anchors/summary",
+    dependencies=[Depends(require_admin_token)],
+)
+def session_anchor_summary() -> dict[str, Any]:
+    """Summarise session-scoped candidate anchor chunks."""
+    from sqlalchemy import distinct, func
+
+    from app.models.session_anchor import SessionAnchorChunk
+    from app.services.resume_embedding import current_embedding_model_version
+
+    with get_session() as sess:
+        total_chunks = int(sess.query(func.count(SessionAnchorChunk.id)).scalar() or 0)
+        total_sessions = int(
+            sess.query(func.count(distinct(SessionAnchorChunk.session_id))).scalar() or 0
+        )
+        source_rows = (
+            sess.query(
+                SessionAnchorChunk.source_type,
+                func.count(SessionAnchorChunk.id),
+                func.count(distinct(SessionAnchorChunk.session_id)),
+            )
+            .group_by(SessionAnchorChunk.source_type)
+            .all()
+        )
+        mode_rows = (
+            sess.query(
+                SessionAnchorChunk.chunker_mode,
+                func.count(SessionAnchorChunk.id),
+                func.count(distinct(SessionAnchorChunk.session_id)),
+            )
+            .group_by(SessionAnchorChunk.chunker_mode)
+            .all()
+        )
+        recent_rows = (
+            sess.query(
+                SessionAnchorChunk.session_id,
+                func.count(SessionAnchorChunk.id),
+                func.max(SessionAnchorChunk.created_at),
+            )
+            .group_by(SessionAnchorChunk.session_id)
+            .order_by(func.max(SessionAnchorChunk.created_at).desc())
+            .limit(10)
+            .all()
+        )
+
+    by_source_type = {
+        source: {"chunks": 0, "sessions": 0}
+        for source in _ANCHOR_SOURCE_TYPES
+    }
+    for source, chunks, sessions in source_rows:
+        key = str(source or "unknown")
+        by_source_type[key] = {
+            "chunks": int(chunks or 0),
+            "sessions": int(sessions or 0),
+        }
+
+    by_mode = {
+        mode: {"chunks": 0, "sessions": 0, "avg_chunks_per_session": 0.0}
+        for mode in _ANCHOR_CHUNKER_MODES
+    }
+    for mode, chunks, sessions in mode_rows:
+        key = str(mode or "unknown")
+        chunk_count = int(chunks or 0)
+        session_count = int(sessions or 0)
+        by_mode[key] = {
+            "chunks": chunk_count,
+            "sessions": session_count,
+            "avg_chunks_per_session": (
+                round(chunk_count / session_count, 2) if session_count else 0.0
+            ),
+        }
+
+    recent_sessions = [
+        {
+            "session_id": str(session_id),
+            "chunks": int(chunks or 0),
+            "last_chunk_at": created_at.isoformat() if created_at else None,
+        }
+        for session_id, chunks, created_at in recent_rows
+    ]
+
+    return {
+        "resume_rag_mode": str(getattr(get_settings(), "resume_rag_mode", "off")),
+        "total_chunks": total_chunks,
+        "total_sessions": total_sessions,
+        "by_source_type": by_source_type,
+        "by_mode": by_mode,
+        "embedding_model_version": current_embedding_model_version(),
+        "recent_sessions": recent_sessions,
+    }
+
+
+@router.get(
+    "/session-anchors/metrics",
+    dependencies=[Depends(require_admin_token)],
+)
+def session_anchor_metrics(window_hours: int = 24) -> dict[str, Any]:
+    """Aggregate session-anchor RAG artifacts from recent ask traces."""
+    from app.models.generation_trace import GenerationTrace
+
+    hours = max(1, min(int(window_hours or 24), 24 * 30))
+    cutoff = datetime.now(UTC) - timedelta(hours=hours)
+    with get_session() as sess:
+        rows = (
+            sess.query(GenerationTrace)
+            .filter(GenerationTrace.node == "ask_question")
+            .filter(GenerationTrace.created_at >= cutoff)
+            .order_by(GenerationTrace.created_at.desc())
+            .limit(5000)
+            .all()
+        )
+
+    source_buckets = {
+        source: _new_anchor_metric_bucket()
+        for source in _ANCHOR_SOURCE_TYPES
+    }
+    mode_buckets = {
+        mode: _new_anchor_metric_bucket()
+        for mode in (*_ANCHOR_CHUNKER_MODES, "unknown")
+    }
+    status_counts: dict[str, int] = {}
+
+    for row in rows:
+        artifact = _candidate_anchor_artifact(row)
+        if not artifact:
+            continue
+        status_value = str(artifact.get("status") or "unknown")
+        status_counts[status_value] = status_counts.get(status_value, 0) + 1
+        if status_value == "off":
+            continue
+
+        fallback = str(artifact.get("fallback_reason") or "").strip()
+        latency = _coerce_int(artifact.get("latency_ms"))
+        hits = [
+            hit for hit in artifact.get("hits") or []
+            if isinstance(hit, dict)
+        ]
+        hit_sources = {
+            str(hit.get("source_type") or "unknown") for hit in hits
+        }
+        hit_modes = {
+            _anchor_hit_mode(hit)
+            for hit in hits
+        }
+
+        for source, bucket in source_buckets.items():
+            _record_anchor_retrieval(
+                bucket,
+                hit=source in hit_sources,
+                fallback_reason=fallback,
+                latency_ms=latency,
+            )
+
+        if hit_modes:
+            for mode in hit_modes:
+                bucket = mode_buckets.setdefault(mode, _new_anchor_metric_bucket())
+                _record_anchor_retrieval(
+                    bucket,
+                    hit=True,
+                    fallback_reason="",
+                    latency_ms=latency,
+                )
+        else:
+            _record_anchor_retrieval(
+                mode_buckets["unknown"],
+                hit=False,
+                fallback_reason=fallback,
+                latency_ms=latency,
+            )
+
+    return {
+        "window_hours": hours,
+        "by_source_type": {
+            key: _finalize_anchor_metric_bucket(bucket)
+            for key, bucket in sorted(source_buckets.items())
+        },
+        "by_mode": {
+            key: _finalize_anchor_metric_bucket(bucket)
+            for key, bucket in sorted(mode_buckets.items())
+        },
+        "by_status": status_counts,
+    }
+
+
+@router.delete(
+    "/sessions/{session_id}/anchor-data",
+    dependencies=[Depends(require_admin_token)],
+)
+def delete_session_anchor_data(session_id: str) -> dict[str, Any]:
+    """Delete all session-scoped anchor data and scrub persisted snapshots."""
+    from sqlalchemy import delete, select
+
+    from app.models.generation_trace import GenerationTrace
+    from app.models.interview_session import InterviewSession
+    from app.models.resume_parse_artifact import ResumeParseArtifact
+    from app.models.session_anchor import SessionAnchorChunk
+
+    with get_session() as sess:
+        session_row = sess.get(InterviewSession, session_id)
+        artifact_ids = _resume_artifact_ids_from_session(session_row)
+        chunk_artifact_ids = set(
+            sess.scalars(
+                select(SessionAnchorChunk.source_artifact_id).where(
+                    SessionAnchorChunk.session_id == session_id,
+                    SessionAnchorChunk.source_artifact_id.isnot(None),
+                )
+            ).all()
+        )
+        artifact_ids.update(str(v) for v in chunk_artifact_ids if v)
+
+        chunks_deleted = int(
+            sess.execute(
+                delete(SessionAnchorChunk).where(
+                    SessionAnchorChunk.session_id == session_id
+                )
+            ).rowcount
+            or 0
+        )
+        artifacts_deleted = 0
+        if artifact_ids:
+            artifacts_deleted = int(
+                sess.execute(
+                    delete(ResumeParseArtifact).where(
+                        ResumeParseArtifact.artifact_id.in_(sorted(artifact_ids))
+                    )
+                ).rowcount
+                or 0
+            )
+
+        sessions_scrubbed = 0
+        if session_row is not None:
+            setup_snapshot, setup_changed = _scrub_anchor_payload(
+                session_row.setup_snapshot
+            )
+            current_question, question_changed = _scrub_anchor_payload(
+                session_row.current_question
+            )
+            if setup_changed:
+                session_row.setup_snapshot = setup_snapshot
+            if question_changed:
+                session_row.current_question = current_question
+            if setup_changed or question_changed:
+                sessions_scrubbed = 1
+
+        traces_scrubbed = 0
+        traces = sess.scalars(
+            select(GenerationTrace).where(GenerationTrace.session_id == session_id)
+        ).all()
+        for trace in traces:
+            scrubbed, changed = _scrub_anchor_payload(trace.state_snapshot)
+            if changed:
+                trace.state_snapshot = scrubbed
+                traces_scrubbed += 1
+
+    payload = {
+        "session_id": session_id,
+        "chunks_deleted": chunks_deleted,
+        "resume_artifacts_deleted": artifacts_deleted,
+        "resume_artifact_ids": sorted(artifact_ids),
+        "sessions_scrubbed": sessions_scrubbed,
+        "traces_scrubbed": traces_scrubbed,
+        "deleted": bool(
+            chunks_deleted
+            or artifacts_deleted
+            or sessions_scrubbed
+            or traces_scrubbed
+        ),
+    }
+    log.info("admin deleted session anchor data %s: %s", session_id, payload)
+    return payload
+
+
+def _new_anchor_metric_bucket() -> dict[str, Any]:
+    return {
+        "total_retrievals": 0,
+        "hit_count": 0,
+        "fallback_distribution": {
+            reason: 0 for reason in _ANCHOR_FALLBACK_REASONS
+        },
+        "_latencies": [],
+    }
+
+
+def _record_anchor_retrieval(
+    bucket: dict[str, Any],
+    *,
+    hit: bool,
+    fallback_reason: str,
+    latency_ms: int | None,
+) -> None:
+    bucket["total_retrievals"] = int(bucket.get("total_retrievals") or 0) + 1
+    if hit:
+        bucket["hit_count"] = int(bucket.get("hit_count") or 0) + 1
+    else:
+        reason = fallback_reason or "empty"
+        fallback = bucket.setdefault("fallback_distribution", {})
+        fallback[reason] = int(fallback.get(reason) or 0) + 1
+    if latency_ms is not None:
+        bucket.setdefault("_latencies", []).append(latency_ms)
+
+
+def _finalize_anchor_metric_bucket(bucket: dict[str, Any]) -> dict[str, Any]:
+    total = int(bucket.get("total_retrievals") or 0)
+    hits = int(bucket.get("hit_count") or 0)
+    latencies = sorted(
+        int(v) for v in bucket.get("_latencies") or [] if isinstance(v, int)
+    )
+    return {
+        "total_retrievals": total,
+        "hit_count": hits,
+        "hit_rate": round(hits / total, 3) if total else 0.0,
+        "fallback_distribution": dict(bucket.get("fallback_distribution") or {}),
+        "latency_ms": {
+            "p50": _percentile_nearest(latencies, 0.50),
+            "p99": _percentile_nearest(latencies, 0.99),
+        },
+    }
+
+
+def _percentile_nearest(values: list[int], percentile: float) -> int | None:
+    if not values:
+        return None
+    index = max(0, min(len(values) - 1, int(len(values) * percentile + 0.9999) - 1))
+    return values[index]
+
+
+def _candidate_anchor_artifact(row: Any) -> dict[str, Any]:
+    snapshot = _as_dict(getattr(row, "state_snapshot", None))
+    payload = _as_dict(snapshot.get("payload"))
+    selection = _as_dict(payload.get("selection_artifacts"))
+    artifact = _as_dict(selection.get("candidate_anchor_rag"))
+    if artifact:
+        return artifact
+    state = _as_dict(snapshot.get("state"))
+    question = _as_dict(state.get("current_question"))
+    selection = _as_dict(question.get("selection_artifacts"))
+    return _as_dict(selection.get("candidate_anchor_rag"))
+
+
+def _anchor_hit_mode(hit: dict[str, Any]) -> str:
+    mode = str(hit.get("chunker_mode") or "").strip()
+    if mode:
+        return mode
+    if str(hit.get("source_type") or "") == "self_intro":
+        return "SI"
+    return "unknown"
+
+
+def _coerce_int(value: Any) -> int | None:
+    try:
+        if value is None:
+            return None
+        return int(value)
+    except (TypeError, ValueError):
+        return None
+
+
+def _resume_artifact_ids_from_session(row: Any) -> set[str]:
+    if row is None:
+        return set()
+    snapshot = _as_dict(getattr(row, "setup_snapshot", None))
+    candidate = _as_dict(snapshot.get("candidate"))
+    candidates = [
+        candidate.get("resume_source_id"),
+        _as_dict(candidate.get("resume_vector_status")).get("resume_source_id"),
+        _as_dict(snapshot.get("resume_vector_status")).get("resume_source_id"),
+    ]
+    return {str(value) for value in candidates if value}
+
+
+_ANCHOR_SCRUB_KEYS = {
+    "anchor_cards",
+    "candidate_anchor_rag",
+    "candidate_anchor_rag_artifact",
+    "resume_anchor",
+    "resume_parsed",
+    "resume_rag_block",
+    "resume_source_id",
+    "resume_vector_status",
+    "self_intro_profile",
+    "self_intro_rag_block",
+    "self_intro_vector_status",
+}
+
+
+def _scrub_anchor_payload(value: Any) -> tuple[Any, bool]:
+    if isinstance(value, dict):
+        changed = False
+        out: dict[str, Any] = {}
+        for key, item in value.items():
+            if key in _ANCHOR_SCRUB_KEYS:
+                changed = True
+                continue
+            scrubbed, item_changed = _scrub_anchor_payload(item)
+            out[key] = scrubbed
+            changed = changed or item_changed
+        return out, changed
+    if isinstance(value, list):
+        changed = False
+        items = []
+        for item in value:
+            scrubbed, item_changed = _scrub_anchor_payload(item)
+            items.append(scrubbed)
+            changed = changed or item_changed
+        return items, changed
+    return value, False
 
 
 @router.get(

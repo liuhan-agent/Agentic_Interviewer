@@ -47,6 +47,8 @@ def test_builder_produces_expected_slot_shape() -> None:
             retrieval_block="RETRIEVAL",
             question_seed_block="STRUCTURED_SEED",
             candidate_anchor_block="CANDIDATE_ANCHOR",
+            resume_rag_block="RESUME_RAG",
+            self_intro_rag_block="SELF_INTRO_RAG",
             strategy_block="STRATEGY",
             resume_anchor={"project_name": "Payment Migration"},
             qa_summary="",
@@ -80,6 +82,8 @@ def test_builder_produces_expected_slot_shape() -> None:
     assert payload["retrieval"] == "RETRIEVAL"
     assert payload["question_seed"] == "STRUCTURED_SEED"
     assert payload["candidate_anchor"] == "CANDIDATE_ANCHOR"
+    assert payload["resume_rag"] == "RESUME_RAG"
+    assert payload["self_intro_rag"] == "SELF_INTRO_RAG"
     assert payload["strategy"] == "STRATEGY"
     # PLAN_SKILL_INJECTION: default placeholder when caller does not
     # pass ``skill_block`` (feature flag OFF path).
