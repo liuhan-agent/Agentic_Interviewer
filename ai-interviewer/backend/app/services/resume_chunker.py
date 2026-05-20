@@ -16,6 +16,10 @@ class ResumeChunkerMode(StrEnum):
     D = "D"
 
 
+_MODE_A_MAX_CHUNKS = 24
+_MODE_A_MAX_DETAIL_CHUNKS_PER_PROJECT = 8
+
+
 @dataclass(frozen=True)
 class ResumeChunk:
     chunk_index: int
@@ -28,6 +32,8 @@ class ResumeChunk:
     dimensions_hint: list[str]
 
 
+# Expanded dictionaries for Chinese/module-style resumes. These replace the
+# compact bootstrap values above before any chunking function is called.
 _SECTION_HEADERS = (
     "项目经验",
     "工作经历",
@@ -126,6 +132,120 @@ _BULLET_RE = re.compile(r"^\s*(?:[-*•]|\d+[.)])\s+")
 _DATE_RE = re.compile(
     r"(?:19|20)\d{2}(?:[./-]\d{1,2}|年\s*\d{1,2}\s*月)?"
     r"(?:\s*[-~至]\s*(?:19|20)?\d{0,2}(?:[./-]\d{1,2}|年\s*\d{1,2}\s*月)?)?"
+)
+
+
+_SECTION_HEADERS = (
+    "项目经历",
+    "项目经验",
+    "项目",
+    "个人项目",
+    "专业项目",
+    "工作经历",
+    "工作经验",
+    "实习经历",
+    "实习经验",
+    "教育背景",
+    "专业技能",
+    "技能",
+    "技能清单",
+    "技术栈",
+    "projects",
+    "project experience",
+    "experience",
+    "work experience",
+    "education",
+    "skills",
+)
+
+_TECH_KEYWORDS = (
+    "Spring Cloud",
+    "Spring Boot",
+    "Spring Security",
+    "Spring AI",
+    "SpringAI",
+    "MyBatis-Plus",
+    "Elasticsearch",
+    "ElasticSearch",
+    "PostgreSQL",
+    "RabbitMQ",
+    "Kubernetes",
+    "Prometheus",
+    "LangChain",
+    "LangChainj",
+    "XXL-JOB",
+    "Flowable",
+    "WebSocket",
+    "IoT",
+    "Nacos",
+    "OpenFeign",
+    "Redisson",
+    "RAG",
+    "MCP",
+    "Tool Calling",
+    "FunctionScoreQuery",
+    "ClickHouse",
+    "ZSet",
+    "JUC",
+    "Java",
+    "Python",
+    "React",
+    "Redis",
+    "Kafka",
+    "Flink",
+    "Docker",
+    "MySQL",
+    "SQLite",
+    "Lua",
+    "SQL",
+    "API",
+)
+
+_CANONICAL_TECH.update(
+    {
+        "spring security": "Spring Security",
+        "spring ai": "SpringAI",
+        "springai": "SpringAI",
+        "xxl-job": "XXL-JOB",
+        "flowable": "Flowable",
+        "websocket": "WebSocket",
+        "iot": "IoT",
+        "nacos": "Nacos",
+        "openfeign": "OpenFeign",
+        "redisson": "Redisson",
+        "rag": "RAG",
+        "mcp": "MCP",
+        "tool calling": "Tool Calling",
+        "functionscorequery": "FunctionScoreQuery",
+        "zset": "ZSet",
+        "juc": "JUC",
+        "langchainj": "LangChainj",
+    }
+)
+
+_DIMENSION_BY_KEYWORD.update(
+    {
+        "Spring Security": ["coding_quality", "system_design"],
+        "XXL-JOB": ["system_design", "debugging"],
+        "Flowable": ["architecture", "system_design"],
+        "LangChain": ["technical_depth", "system_design"],
+        "LangChainj": ["technical_depth", "system_design"],
+        "SpringAI": ["technical_depth", "system_design"],
+        "WebSocket": ["system_design", "technical_depth"],
+        "IoT": ["system_design", "architecture"],
+        "RAG": ["technical_depth", "system_design"],
+        "MCP": ["architecture", "technical_depth"],
+        "Nacos": ["architecture", "system_design"],
+        "OpenFeign": ["architecture", "system_design"],
+        "Redisson": ["system_design", "technical_depth"],
+    }
+)
+
+_BULLET_RE = re.compile(r"^\s*(?:[-*•·▪●]\s*|\d+[.)、]\s+)")
+_DATE_RE = re.compile(
+    r"(?:19|20)\d{2}\s*(?:[./-]\s*\d{1,2}|年\s*\d{1,2}\s*月?)?"
+    r"(?:\s*[-~至到–—]\s*(?:(?:19|20)\d{2}\s*)?"
+    r"(?:[./-]?\s*\d{1,2}|年\s*\d{1,2}\s*月?)?)?"
 )
 
 
@@ -251,8 +371,13 @@ def _normalise_ascii_punctuation(text: str) -> str:
 
 
 def _is_section_header(line: str) -> bool:
-    cleaned = line.strip().strip(":").lower()
-    return any(cleaned == header or cleaned.startswith(f"{header}:") for header in _SECTION_HEADERS)
+    cleaned = line.strip().strip(":：").lower()
+    return any(
+        cleaned == header
+        or cleaned.startswith(f"{header}:")
+        or cleaned.startswith(f"{header}：")
+        for header in _SECTION_HEADERS
+    )
 
 
 def _contains_keyword(text: str, keyword: str) -> bool:
@@ -272,9 +397,135 @@ def _llm_extract_tech_keywords(text: str) -> list[str]:
 def _chunk_mode_a(text: str, parsed: dict | None) -> list[ResumeChunk]:
     parsed = parsed if isinstance(parsed, dict) else {}
     parsed_chunks = _chunks_from_parsed_projects(parsed)
-    if parsed_chunks:
-        return parsed_chunks
+    parsed_chunks.extend(_chunks_from_parsed_focus_areas(parsed))
+    parsed_chunks.extend(_chunks_from_parsed_skills(parsed))
+    raw_chunks = _chunks_from_raw_mode_a(text)
+    merged_chunks = _dedupe_and_cap_mode_a_chunks([*parsed_chunks, *raw_chunks])
+    if merged_chunks:
+        return merged_chunks
+    return []
 
+
+def _chunks_from_parsed_projects(parsed: dict[str, Any]) -> list[ResumeChunk]:
+    projects = parsed.get("projects")
+    if not isinstance(projects, list) or not projects:
+        return []
+    chunks: list[ResumeChunk] = []
+    for project in projects:
+        if not isinstance(project, dict):
+            continue
+        project_name = str(
+            project.get("name") or project.get("project_name") or "Project"
+        ).strip()
+        role = str(project.get("role") or "").strip()
+        tech_stack = _as_text_list(project.get("tech_stack"), limit=10)
+        responsibilities = _as_text_list(project.get("responsibilities"), limit=4)
+        achievements = _as_text_list(project.get("achievements"), limit=4)
+        summary_parts = [
+            project_name,
+            role,
+            _labelled_list("技术栈", tech_stack),
+            _labelled_list("职责", responsibilities[:2]),
+            _labelled_list("成果", achievements[:2]),
+        ]
+        summary = _join_parts(summary_parts, max_chars=700)
+        if summary:
+            chunks.append(
+                _make_chunk(
+                    len(chunks),
+                    "project",
+                    "projects",
+                    project_name,
+                    project_name,
+                    summary,
+                )
+            )
+        for field, label in (
+            ("responsibilities", "职责"),
+            ("achievements", "成果"),
+            ("question_anchors", "追问锚点"),
+            ("highlights", "亮点"),
+        ):
+            for item in _as_text_list(project.get(field)):
+                body = _parsed_project_detail_text(
+                    project_name=project_name,
+                    tech_stack=tech_stack,
+                    label=label,
+                    item=item,
+                )
+                if body:
+                    chunks.append(
+                        _make_chunk(
+                            len(chunks),
+                            "highlight",
+                            "projects",
+                            _heading_from_text(item),
+                            project_name,
+                            body,
+                        )
+                    )
+    return chunks
+
+
+def _chunks_from_parsed_focus_areas(parsed: dict[str, Any]) -> list[ResumeChunk]:
+    focus_areas = parsed.get("focus_areas")
+    if not isinstance(focus_areas, list):
+        return []
+    chunks: list[ResumeChunk] = []
+    for focus in focus_areas[:6]:
+        if not isinstance(focus, dict):
+            continue
+        label = str(focus.get("label") or focus.get("name") or "").strip()
+        skills = _as_text_list(
+            focus.get("skills") or focus.get("tech_stack") or focus.get("keywords"),
+            limit=8,
+        )
+        highlights = _as_text_list(
+            focus.get("highlights")
+            or focus.get("question_anchors")
+            or focus.get("evidence"),
+            limit=3,
+        )
+        body = _join_parts(
+            [
+                label,
+                _labelled_list("技能", skills),
+                _labelled_list("证据", highlights),
+            ],
+            max_chars=500,
+        )
+        if not body:
+            continue
+        chunks.append(
+            _make_chunk(
+                len(chunks),
+                "focus",
+                "focus_areas",
+                label or _heading_from_text(body),
+                str(focus.get("project_name") or "").strip() or None,
+                body,
+            )
+        )
+    return chunks
+
+
+def _chunks_from_parsed_skills(parsed: dict[str, Any]) -> list[ResumeChunk]:
+    skills = _as_text_list(parsed.get("skills"), limit=24)
+    if not skills:
+        return []
+    return [
+        _make_chunk(
+            0,
+            "skill",
+            "skills",
+            "skills",
+            None,
+            _labelled_list("技能", skills),
+        )
+    ]
+
+
+def _chunks_from_raw_mode_a(text: str) -> list[ResumeChunk]:
     chunks: list[ResumeChunk] = []
     project_lines: dict[str, list[str]] = {}
     current_section = ""
@@ -284,10 +535,10 @@ def _chunk_mode_a(text: str, parsed: dict | None) -> list[ResumeChunk]:
         if not line:
             continue
         if _is_section_header(line):
-            current_section = line.strip(":").lower()
+            current_section = line.strip().strip(":：").lower()
             current_project = None
             continue
-        if "skill" in current_section or "技能" in current_section:
+        if _is_skill_section(current_section):
             if _looks_like_skill_line(line):
                 chunk_text = _BULLET_RE.sub("", line).strip()
                 chunks.append(
@@ -322,7 +573,7 @@ def _chunk_mode_a(text: str, parsed: dict | None) -> list[ResumeChunk]:
                 continue
     project_chunks: list[ResumeChunk] = []
     for project_name, lines in project_lines.items():
-        summary = " ".join(lines)[:500]
+        summary = " ".join(lines)[:700]
         project_chunks.append(
             _make_chunk(
                 len(project_chunks),
@@ -333,7 +584,42 @@ def _chunk_mode_a(text: str, parsed: dict | None) -> list[ResumeChunk]:
                 summary,
             )
         )
-    all_chunks = project_chunks + chunks
+    return _reindex_chunks([*project_chunks, *chunks])
+
+
+def _dedupe_and_cap_mode_a_chunks(chunks: list[ResumeChunk]) -> list[ResumeChunk]:
+    seen: set[tuple[str, str, str]] = set()
+    detail_counts_by_project: dict[str, int] = {}
+    result: list[ResumeChunk] = []
+    for chunk in chunks:
+        if not chunk.text.strip():
+            continue
+        key = _chunk_dedupe_key(chunk)
+        if key in seen:
+            continue
+        if chunk.tier == "highlight" and chunk.project_name:
+            project_key = _normalise_dedupe_text(chunk.project_name)
+            detail_count = detail_counts_by_project.get(project_key, 0)
+            if detail_count >= _MODE_A_MAX_DETAIL_CHUNKS_PER_PROJECT:
+                continue
+            detail_counts_by_project[project_key] = detail_count + 1
+        seen.add(key)
+        result.append(chunk)
+        if len(result) >= _MODE_A_MAX_CHUNKS:
+            break
+    return _reindex_chunks(result)
+
+
+def _chunk_dedupe_key(chunk: ResumeChunk) -> tuple[str, str, str]:
+    heading = chunk.heading or chunk.text[:96]
+    return (
+        _normalise_dedupe_text(chunk.tier),
+        _normalise_dedupe_text(chunk.project_name or ""),
+        _normalise_dedupe_text(heading),
+    )
+
+
+def _reindex_chunks(chunks: list[ResumeChunk]) -> list[ResumeChunk]:
     return [
         ResumeChunk(
             chunk_index=index,
@@ -345,52 +631,65 @@ def _chunk_mode_a(text: str, parsed: dict | None) -> list[ResumeChunk]:
             tech_keywords=chunk.tech_keywords,
             dimensions_hint=chunk.dimensions_hint,
         )
-        for index, chunk in enumerate(all_chunks)
+        for index, chunk in enumerate(chunks)
     ]
 
 
-def _chunks_from_parsed_projects(parsed: dict[str, Any]) -> list[ResumeChunk]:
-    projects = parsed.get("projects")
-    if not isinstance(projects, list) or not projects:
-        return []
-    chunks: list[ResumeChunk] = []
-    for project in projects:
-        if not isinstance(project, dict):
-            continue
-        project_name = str(
-            project.get("name") or project.get("project_name") or "Project"
-        ).strip()
-        summary_parts = [
+def _parsed_project_detail_text(
+    *,
+    project_name: str,
+    tech_stack: list[str],
+    label: str,
+    item: str,
+) -> str:
+    return _join_parts(
+        [
             project_name,
-            str(project.get("role") or "").strip(),
-            " ".join(str(item) for item in _as_list(project.get("achievements"))),
-        ]
-        summary = " ".join(part for part in summary_parts if part).strip()
-        if summary:
-            chunks.append(
-                _make_chunk(
-                    len(chunks),
-                    "project",
-                    "projects",
-                    project_name,
-                    project_name,
-                    summary,
-                )
+            _labelled_list("技术栈", tech_stack[:8]),
+            f"{label}: {item}",
+        ],
+        max_chars=700,
+    )
+
+
+def _labelled_list(label: str, items: list[str]) -> str:
+    if not items:
+        return ""
+    return f"{label}: {', '.join(items)}"
+
+
+def _join_parts(parts: list[str], *, max_chars: int) -> str:
+    body = "。".join(part.strip().strip("。") for part in parts if part.strip())
+    return body[:max_chars].strip()
+
+
+def _normalise_dedupe_text(text: str) -> str:
+    return " ".join(str(text or "").strip().lower().split())
+
+
+def _as_text_list(value: Any, *, limit: int | None = None) -> list[str]:
+    if isinstance(value, (list, tuple, set)):
+        raw_values = list(value)
+    elif isinstance(value, str):
+        raw_values = [value]
+    else:
+        raw_values = []
+    values: list[str] = []
+    for item in raw_values:
+        if isinstance(item, dict):
+            item = (
+                item.get("label")
+                or item.get("name")
+                or item.get("text")
+                or item.get("summary")
+                or item.get("description")
             )
-        for item in _as_list(project.get("highlights")):
-            body = str(item).strip()
-            if body:
-                chunks.append(
-                    _make_chunk(
-                        len(chunks),
-                        "highlight",
-                        "projects",
-                        _heading_from_text(body),
-                        project_name,
-                        body,
-                    )
-                )
-    return chunks
+        text = " ".join(str(item or "").split())
+        if text:
+            values.append(text)
+        if limit is not None and len(values) >= limit:
+            break
+    return values
 
 
 def _chunk_mode_b(text: str) -> list[ResumeChunk]:
@@ -475,12 +774,19 @@ def _looks_like_skill_line(line: str) -> bool:
     return bool(extract_tech_keywords(clean))
 
 
+def _is_skill_section(section: str) -> bool:
+    return "skill" in section or "技能" in section or "技术栈" in section
+
+
 def _is_projectish_section(section: str) -> bool:
     return (
         "project" in section
         or "experience" in section
         or "项目" in section
-        or "经历" in section
+        or "工作经历" in section
+        or "工作经验" in section
+        or "实习经历" in section
+        or "实习经验" in section
     )
 
 

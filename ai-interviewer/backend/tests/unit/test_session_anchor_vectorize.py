@@ -35,6 +35,56 @@ Skills
 - Docker, Kubernetes, Prometheus
 """
 
+JAVA_BACKEND_TEXT = """
+项目经历
+康乐智慧养老系统 | 后端开发 | 2025年8月-2025年11月
+- 工作流引擎集成：业务状态机 + Flowable，5 个审批节点、4 个部门流转，RBAC 数据权限和 formKey/taskId 四级权限。
+- IoT 告警系统：XXL-JOB 分钟级扫描，Redis Hash 设备快照，规则引擎阈值/窗口/静默去抖，WebSocket 定向推送。
+- 数据查询优化：单 SQL + 双 LEFT JOIN + nested ResultMap 消除 N+1，Redis Hash HMGET 回填实时数据。
+- AI健康评估系统：异步任务 + Redis 进度缓存，Prompt 工程与结构化输出后校验，准确率从 60% 提升到 90%+。
+
+智学在线教育平台 | 后端开发 | 2025年3月-2025年6月
+- AI agent 路由：Redis memory isolation，RAG 与 Tool Calling 双通道输出。
+- 优惠券防超卖：Redis Lua 原子扣减库存与限领，RabbitMQ 异步落库保证最终一致性。
+- 推荐搜索：多路召回 + 融合排序，FunctionScoreQuery 热度衰减，ElasticSearch 支持课程检索。
+- 排行榜分表：Redis ZSet 月榜实时排行，XXL-JOB 分片任务归档，rank 作为主键节省 25% 存储。
+
+专业技能
+- Java, Spring Boot, Redis, RabbitMQ, Flowable, XXL-JOB, RAG
+"""
+
+JAVA_BACKEND_PARSED = {
+    "skills": ["Java", "Spring Boot", "Redis", "RabbitMQ", "Flowable", "XXL-JOB"],
+    "projects": [
+        {
+            "name": "康乐智慧养老系统",
+            "role": "后端开发",
+            "tech_stack": ["Spring Boot", "Redis", "Flowable", "XXL-JOB", "WebSocket"],
+            "responsibilities": [
+                "工作流引擎集成：业务状态机 + Flowable，5 个审批节点、4 个部门流转。",
+                "IoT 告警系统：XXL-JOB 分钟级扫描，Redis Hash 设备快照。",
+            ],
+            "achievements": ["Redis Hash HMGET 回填实时数据，减少 N+1 查询。"],
+            "question_anchors": ["Flowable 流程变量与权限隔离"],
+        },
+        {
+            "name": "智学在线教育平台",
+            "role": "后端开发",
+            "tech_stack": ["Redis", "Lua", "RabbitMQ", "SpringAI", "RAG"],
+            "responsibilities": [
+                "AI agent 路由：Redis memory isolation，RAG 与 Tool Calling 双通道输出。"
+            ],
+            "achievements": [
+                "优惠券防超卖：Redis Lua 原子扣减库存与限领，RabbitMQ 异步落库保证最终一致性。"
+            ],
+            "question_anchors": ["Redis Lua 高并发扣减一致性", "RabbitMQ 异步落库幂等"],
+        },
+    ],
+    "focus_areas": [
+        {"label": "缓存一致性与高并发", "skills": ["Redis", "Lua", "RabbitMQ"]},
+    ],
+}
+
 LONG_SELF_INTRO_TEXT = (
     "I led the Smart Learning coupon guard project where Redis Lua scripts "
     "protected coupon deduction during high traffic. I also handled RabbitMQ "
@@ -83,6 +133,38 @@ def test_vectorize_resume_writes_chunks_and_returns_ready(monkeypatch) -> None:
         assert {row.source_type for row in rows} == {"resume"}
         assert {row.source_revision_id for row in rows} == {"rev_1"}
         assert rows[0].source_artifact_id == "artifact_1"
+
+
+def test_vectorize_resume_writes_dual_track_mode_a_chunks(monkeypatch) -> None:
+    session_local = _db()
+    with session_local() as db_session:
+        monkeypatch.setattr(
+            "app.services.session_anchor_vectorize.embed_chunks",
+            lambda texts, **_kw: [[0.1] * 1536 for _ in texts],
+        )
+
+        status = vectorize_resume(
+            session_id="sess_dual",
+            resume_revision_id="rev_dual",
+            source_artifact_id="artifact_dual",
+            raw_text=JAVA_BACKEND_TEXT,
+            parsed=JAVA_BACKEND_PARSED,
+            db_session=db_session,
+        )
+        rows = db_session.scalars(
+            select(SessionAnchorChunk)
+            .where(SessionAnchorChunk.session_id == "sess_dual")
+            .order_by(SessionAnchorChunk.chunk_index)
+        ).all()
+
+        assert status["status"] == "ready"
+        assert status["mode"] == "A"
+        assert status["chunk_count"] > 2
+        assert len(rows) == status["chunk_count"]
+        assert {row.source_type for row in rows} == {"resume"}
+        assert {row.chunker_mode for row in rows} == {"A"}
+        assert [row.chunk_index for row in rows] == list(range(len(rows)))
+        assert {"project", "highlight", "focus"}.issubset({row.tier for row in rows})
 
 
 def test_vectorize_resume_writes_revision_id(monkeypatch) -> None:
@@ -211,6 +293,7 @@ def test_vectorize_self_intro_skips_short_answer() -> None:
 
         assert status["status"] == "skipped"
         assert status["skipped_reason"] == "skipped_short"
+        assert status["strategy"] == "short"
 
 
 def test_vectorize_self_intro_writes_anchor_cards(monkeypatch) -> None:
@@ -232,6 +315,7 @@ def test_vectorize_self_intro_writes_anchor_cards(monkeypatch) -> None:
                     "title": "Redis coupon guard",
                     "text": "I led the Redis Lua atomic deduction work under peak traffic.",
                     "tech_keywords": ["Redis", "Lua"],
+                    "source": "llm",
                 }
             ],
             db_session=db_session,
@@ -246,6 +330,54 @@ def test_vectorize_self_intro_writes_anchor_cards(monkeypatch) -> None:
         assert rows[0].source_turn_id == 0
         assert rows[0].tier == "anchor_card"
         assert rows[0].chunker_mode == "SI"
+        assert status["strategy"] == "medium"
+        assert status["card_sources"] == {"llm": 1}
+        assert status["card_count_by_kind"] == {"project": 1}
+
+
+def test_vectorize_self_intro_reports_long_strategy_and_source_counts(monkeypatch) -> None:
+    session_local = _db()
+    long_answer = LONG_SELF_INTRO_TEXT * 5
+    with session_local() as db_session:
+        monkeypatch.setattr(
+            "app.services.session_anchor_vectorize.embed_chunks",
+            lambda texts, **_kw: [[0.2] * 1536 for _ in texts],
+        )
+
+        status = vectorize_self_intro_anchor_cards(
+            session_id="sess_long",
+            self_intro_revision_id="intro_rev_long",
+            turn_idx=0,
+            sanitized_answer=long_answer,
+            anchor_cards=[
+                {
+                    "kind": "project",
+                    "title": "Redis coupon guard",
+                    "text": "I led the Redis Lua atomic deduction work.",
+                    "tech_keywords": ["Redis", "Lua"],
+                    "source": "llm",
+                },
+                {
+                    "kind": "result",
+                    "title": "Consistency outcome",
+                    "text": "The work improved consistency under peak traffic.",
+                    "tech_keywords": ["Redis"],
+                    "source": "supplement",
+                },
+            ],
+            db_session=db_session,
+        )
+        rows = db_session.scalars(
+            select(SessionAnchorChunk)
+            .where(SessionAnchorChunk.session_id == "sess_long")
+            .order_by(SessionAnchorChunk.chunk_index)
+        ).all()
+
+        assert status["status"] == "ready"
+        assert status["strategy"] == "long"
+        assert status["card_sources"] == {"llm": 1, "supplement": 1}
+        assert status["card_count_by_kind"] == {"project": 1, "result": 1}
+        assert [row.chunk_index for row in rows] == [0, 1]
 
 
 def test_self_intro_fallback_cards_use_profile_summary() -> None:
