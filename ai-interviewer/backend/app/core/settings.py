@@ -560,6 +560,9 @@ class Settings(BaseSettings):
         "reward_shadow",
         "reward",
     ] = "reward_shadow"
+    enable_strategy_promotion_scheduler: bool = False
+    strategy_promotion_interval_minutes: int = 60
+    strategy_promotion_startup_delay_minutes: int = 5
 
     # Structured question-bank rollout mode.
     # - vector: current vector/hybrid RAG question generation only.
