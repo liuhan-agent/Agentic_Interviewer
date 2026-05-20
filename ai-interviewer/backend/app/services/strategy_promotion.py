@@ -14,6 +14,7 @@ from app.models.strategy_memory import StrategyMemory, StrategyMemoryStats, Stra
 LOW_CONFIDENCE_MIN_SESSIONS = 30
 LOW_CONFIDENCE_MIN_REWARD = 0.68
 LOW_CONFIDENCE_MIN_SCORE = 7.0
+LOW_CONFIDENCE_MIN_SCORE_DELTA = 3.0
 LOW_CONFIDENCE_MAX_OVERRULE_RATE = 0.20
 
 STABLE_MIN_SESSIONS = 100
@@ -56,6 +57,21 @@ class _SignalGroup:
             if signal.score_after is not None
         ]
         return float(mean(values)) if values else 0.0
+
+    @property
+    def avg_score_delta(self) -> float:
+        values = [
+            signal.score_delta
+            for signal in self.signals
+            if signal.score_delta is not None
+        ]
+        return float(mean(values)) if values else 0.0
+
+    @property
+    def signal_type(self) -> str:
+        if not self.signals:
+            return ""
+        return str(self.signals[0].signal_type or "")
 
     @property
     def overrule_rate(self) -> float:
@@ -178,6 +194,64 @@ def _load_signal_groups(session: Session) -> list[_SignalGroup]:
 
 
 def _promotion_stage(group: _SignalGroup) -> str | None:
+    if group.group_key.startswith("qa:"):
+        return _stage_for_qa_pattern(group)
+    if group.group_key.startswith("bandit:"):
+        return _stage_for_bandit_insight(group)
+    return _stage_for_legacy_signal(group)
+
+
+def _stage_for_qa_pattern(group: _SignalGroup) -> str | None:
+    if group.signal_type not in {"score_recovery", "hint_effective"}:
+        return None
+
+    if group.distinct_sessions >= STABLE_MIN_SESSIONS:
+        if (
+            _qa_evidence_passes(group)
+            and group.overrule_rate <= STABLE_MAX_OVERRULE_RATE
+        ):
+            return "stable"
+
+    if group.distinct_sessions < LOW_CONFIDENCE_MIN_SESSIONS:
+        return None
+    if group.overrule_rate > LOW_CONFIDENCE_MAX_OVERRULE_RATE:
+        return None
+    if not _qa_evidence_passes(group):
+        return None
+    return "low_confidence"
+
+
+def _qa_evidence_passes(group: _SignalGroup) -> bool:
+    if group.avg_score_after < LOW_CONFIDENCE_MIN_SCORE:
+        return False
+    if group.signal_type == "score_recovery":
+        return group.avg_score_delta >= LOW_CONFIDENCE_MIN_SCORE_DELTA
+    if group.signal_type == "hint_effective":
+        return True
+    return False
+
+
+def _stage_for_bandit_insight(group: _SignalGroup) -> str | None:
+    if group.signal_type != "high_reward_arm":
+        return None
+
+    if group.distinct_sessions >= STABLE_MIN_SESSIONS:
+        if (
+            group.avg_reward >= STABLE_MIN_REWARD
+            and group.overrule_rate <= STABLE_MAX_OVERRULE_RATE
+        ):
+            return "stable"
+
+    if group.distinct_sessions < LOW_CONFIDENCE_MIN_SESSIONS:
+        return None
+    if group.avg_reward < LOW_CONFIDENCE_MIN_REWARD:
+        return None
+    if group.overrule_rate > LOW_CONFIDENCE_MAX_OVERRULE_RATE:
+        return None
+    return "low_confidence"
+
+
+def _stage_for_legacy_signal(group: _SignalGroup) -> str | None:
     if group.distinct_sessions >= STABLE_MIN_SESSIONS:
         if (
             group.avg_reward >= STABLE_MIN_REWARD
@@ -204,10 +278,7 @@ def _memory_from_group(group: _SignalGroup, *, stage: str) -> StrategyMemory:
         id=_memory_id(group.group_key),
         slug=_slug(group.group_key),
         name=_memory_name(first),
-        description=(
-            f"Promoted from {support} sessions; avg reward "
-            f"{group.avg_reward:.2f}, overrule rate {group.overrule_rate:.0%}."
-        ),
+        description=_memory_description(group),
         source="promoted_signal",
         memory_key=f"promoted:{group.group_key}",
         dimensions=[first.dimension],
@@ -232,7 +303,72 @@ def _memory_name(signal: StrategySignal) -> str:
     return f"Auto: {action} for {dimension}"
 
 
+def _memory_description(group: _SignalGroup) -> str:
+    support = group.distinct_sessions
+    if group.group_key.startswith("qa:"):
+        if group.signal_type == "hint_effective":
+            return (
+                f"Promoted from {support} sessions; avg hint score "
+                f"{group.avg_score_after:.2f}, overrule rate "
+                f"{group.overrule_rate:.0%}."
+            )
+        return (
+            f"Promoted from {support} sessions; avg post-signal score "
+            f"{group.avg_score_after:.2f}, avg score delta "
+            f"{group.avg_score_delta:.2f}, overrule rate "
+            f"{group.overrule_rate:.0%}."
+        )
+    return (
+        f"Promoted from {support} sessions; avg reward "
+        f"{group.avg_reward:.2f}, overrule rate {group.overrule_rate:.0%}."
+    )
+
+
 def _memory_body(group: _SignalGroup, *, stage: str) -> str:
+    if group.group_key.startswith("qa:"):
+        return _qa_memory_body(group, stage=stage)
+    if group.group_key.startswith("bandit:"):
+        return _bandit_memory_body(group, stage=stage)
+    return _legacy_memory_body(group, stage=stage)
+
+
+def _qa_memory_body(group: _SignalGroup, *, stage: str) -> str:
+    first = group.signals[0]
+    evidence_line = (
+        f"- Average hint score: {group.avg_score_after:.2f}."
+        if group.signal_type == "hint_effective"
+        else f"- Average QA score delta: {group.avg_score_delta:.2f}."
+    )
+    return "\n".join(
+        [
+            f"Promoted from {group.distinct_sessions} sessions.",
+            "",
+            "How to apply:",
+            f"- In `{first.dimension}` for `{first.job_level}` candidates, consider `{first.action_id}`.",
+            f"- Average post-signal score: {group.avg_score_after:.2f}.",
+            evidence_line,
+            f"- Verifier overrule rate: {group.overrule_rate:.0%}.",
+            f"- Promotion stage: `{stage}`.",
+        ]
+    )
+
+
+def _bandit_memory_body(group: _SignalGroup, *, stage: str) -> str:
+    first = group.signals[0]
+    return "\n".join(
+        [
+            f"Promoted from {group.distinct_sessions} sessions.",
+            "",
+            "How to apply:",
+            f"- In `{first.dimension}` for `{first.job_level}` candidates, consider `{first.action_id}`.",
+            f"- Average immediate reward: {group.avg_reward:.2f}.",
+            f"- Verifier overrule rate: {group.overrule_rate:.0%}.",
+            f"- Promotion stage: `{stage}`.",
+        ]
+    )
+
+
+def _legacy_memory_body(group: _SignalGroup, *, stage: str) -> str:
     first = group.signals[0]
     return "\n".join(
         [
@@ -251,6 +387,8 @@ def _memory_body(group: _SignalGroup, *, stage: str) -> str:
 def _confidence_for_stage(stage: str, group: _SignalGroup) -> float:
     if stage == "stable":
         return 0.75
+    if group.group_key.startswith("qa:"):
+        return 0.35
     bonus = min(0.20, max(0.0, group.avg_reward - LOW_CONFIDENCE_MIN_REWARD))
     return round(0.35 + bonus, 3)
 
@@ -281,10 +419,17 @@ def _slug(group_key: str) -> str:
 
 
 def _content_hash(group: _SignalGroup) -> str:
-    payload = (
-        f"{group.group_key}|{group.distinct_sessions}|"
-        f"{group.avg_reward:.4f}|{group.overrule_rate:.4f}"
-    )
+    if group.group_key.startswith("qa:"):
+        payload = (
+            f"{group.group_key}|{group.distinct_sessions}|"
+            f"{group.avg_score_after:.4f}|{group.avg_score_delta:.4f}|"
+            f"{group.overrule_rate:.4f}"
+        )
+    else:
+        payload = (
+            f"{group.group_key}|{group.distinct_sessions}|"
+            f"{group.avg_reward:.4f}|{group.overrule_rate:.4f}"
+        )
     digest = hashlib.sha1(payload.encode("utf-8"), usedforsecurity=False).hexdigest()
     return f"sha1:{digest}"
 
