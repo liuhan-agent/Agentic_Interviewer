@@ -289,3 +289,48 @@ def test_qa_history_defaults_to_normal_when_intent_missing(
     update = evaluator_node_mod.evaluator_node(state)
 
     assert update["qa_history"][0]["answer_intent"] == "normal"
+
+
+def test_qa_history_persists_minimal_injected_question_refs(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    real = _fake_evaluation(fallback=False, score=7.0, passed=False)
+    monkeypatch.setattr(evaluator_node_mod, "evaluate_answer", lambda **_: real)
+
+    state = _state_with_dim("system_design", prev_score=0.0, prev_status="pending")
+    state["current_question"] = {
+        "dimension": "system_design",
+        "question": "Q",
+        "selection_artifacts": {
+            "rag": {"doc_refs": [{"source": "kb.md"}]},
+            "question_items": [
+                {
+                    "seed_id": "system_design.cache",
+                    "variant_id": "system_design.cache.opening",
+                    "rank": 1,
+                    "injected": True,
+                    "scenario_brief": "do not persist",
+                    "match_reasons": ["priority:100"],
+                },
+                {
+                    "seed_id": "system_design.queue",
+                    "variant_id": "system_design.queue.opening",
+                    "rank": 2,
+                    "injected": False,
+                },
+            ],
+        },
+    }
+
+    update = evaluator_node_mod.evaluator_node(state)
+
+    assert update["qa_history"][0]["selection_artifacts"] == {
+        "question_items": [
+            {
+                "seed_id": "system_design.cache",
+                "variant_id": "system_design.cache.opening",
+                "rank": 1,
+                "injected": True,
+            }
+        ]
+    }

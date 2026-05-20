@@ -116,6 +116,46 @@ def test_vectorize_resume_writes_revision_id(monkeypatch) -> None:
         assert {row.source_revision_id for row in rows} == {"rev_1", "rev_2"}
 
 
+def test_vectorize_resume_uses_embedding_override_version(monkeypatch) -> None:
+    session_local = _db()
+    embedding_override = {
+        "provider": "qwen",
+        "api_key": "sk-qwen-embedding",
+        "model": "text-embedding-v4",
+        "base_url": "https://dashscope.aliyuncs.com/compatible-mode/v1",
+        "dimensions": 1536,
+    }
+    captured = {}
+    with session_local() as db_session:
+        def fake_embed_chunks(texts, **kw):
+            captured["kw"] = kw
+            return [[0.1] * 1536 for _ in texts]
+
+        monkeypatch.setattr(
+            "app.services.session_anchor_vectorize.embed_chunks",
+            fake_embed_chunks,
+        )
+
+        status = vectorize_resume(
+            session_id="sess_a",
+            resume_revision_id="rev_1",
+            source_artifact_id="artifact_1",
+            raw_text=HIGH_STRUCTURE_TEXT,
+            parsed=None,
+            db_session=db_session,
+            embedding_override=embedding_override,
+        )
+        rows = db_session.scalars(
+            select(SessionAnchorChunk).where(SessionAnchorChunk.session_id == "sess_a")
+        ).all()
+
+        assert status["embedding_model_version"] == "qwen:text-embedding-v4:1536@v1"
+        assert {row.embedding_model_version for row in rows} == {
+            "qwen:text-embedding-v4:1536@v1"
+        }
+        assert captured["kw"]["embedding_override"] == embedding_override
+
+
 def test_vectorize_resume_returns_failed_on_embedding_error(monkeypatch) -> None:
     session_local = _db()
     with session_local() as db_session:

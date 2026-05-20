@@ -920,6 +920,15 @@ def session_anchor_summary() -> dict[str, Any]:
             .group_by(SessionAnchorChunk.chunker_mode)
             .all()
         )
+        model_version_rows = (
+            sess.query(
+                SessionAnchorChunk.embedding_model_version,
+                func.count(SessionAnchorChunk.id),
+                func.count(distinct(SessionAnchorChunk.session_id)),
+            )
+            .group_by(SessionAnchorChunk.embedding_model_version)
+            .all()
+        )
         recent_rows = (
             sess.query(
                 SessionAnchorChunk.session_id,
@@ -967,6 +976,13 @@ def session_anchor_summary() -> dict[str, Any]:
         }
         for session_id, chunks, created_at in recent_rows
     ]
+    by_embedding_model_version = {
+        str(version or "unknown"): {
+            "chunks": int(chunks or 0),
+            "sessions": int(sessions or 0),
+        }
+        for version, chunks, sessions in model_version_rows
+    }
 
     return {
         "resume_rag_mode": str(getattr(get_settings(), "resume_rag_mode", "off")),
@@ -975,6 +991,7 @@ def session_anchor_summary() -> dict[str, Any]:
         "by_source_type": by_source_type,
         "by_mode": by_mode,
         "embedding_model_version": current_embedding_model_version(),
+        "by_embedding_model_version": by_embedding_model_version,
         "recent_sessions": recent_sessions,
     }
 

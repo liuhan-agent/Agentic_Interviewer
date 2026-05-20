@@ -188,6 +188,56 @@ def test_retrieve_candidate_anchors_isolates_source_revisions(monkeypatch) -> No
     assert "other session row" not in rendered
 
 
+def test_retrieve_candidate_anchors_uses_embedding_override_version(monkeypatch) -> None:
+    embedding_override = {
+        "provider": "qwen",
+        "api_key": "sk-qwen-embedding",
+        "model": "text-embedding-v4",
+        "base_url": "https://dashscope.aliyuncs.com/compatible-mode/v1",
+        "dimensions": 1536,
+    }
+    captured: dict[str, Any] = {}
+
+    def fake_embed_query(text: str, **kwargs: Any) -> list[float]:
+        captured["kwargs"] = kwargs
+        return _vec(1.0)
+
+    monkeypatch.setattr(
+        "app.services.session_anchor_retriever.embed_query",
+        fake_embed_query,
+    )
+    session_local = _db()
+    with session_local() as db_session:
+        _add_chunk(
+            db_session,
+            embedding_model_version="qwen:text-embedding-v4:1536@v1",
+            text="qwen embedded current resume row",
+        )
+        _add_chunk(
+            db_session,
+            embedding_model_version=current_embedding_model_version(),
+            text="server default row should not match",
+        )
+
+        result = retrieve_candidate_anchors(
+            session_id="sess_a",
+            resume_revision_id="rev_1",
+            self_intro_revision_id=None,
+            dimension="system_design",
+            seed={"scenario_brief": "Redis consistency"},
+            target_skills=[],
+            rule_anchor=None,
+            self_intro_profile={},
+            db_session=db_session,
+            embedding_override=embedding_override,
+        )
+
+    assert result.fallback_reason is None
+    assert "qwen embedded current resume row" in result.resume_block
+    assert "server default row should not match" not in result.resume_block
+    assert captured["kwargs"]["embedding_override"] == embedding_override
+
+
 def test_retrieve_candidate_anchors_uses_self_intro_terms_in_query(monkeypatch) -> None:
     captured: dict[str, Any] = {}
 

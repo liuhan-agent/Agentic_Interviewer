@@ -7,7 +7,7 @@ priority: 8
 direction_tags: [internet_tech]
 role_tags: [ai_agent, ai_fullstack, ai_algorithm, architect]
 dimensions: [technical_depth, problem_solving, product_thinking, project_experience]
-job_levels: [mid, senior, staff, principal]
+job_levels: [junior, mid, senior, staff, principal]
 probe_intents: [evaluation_probe, metric_probe, failure_analysis_probe]
 failure_categories: [weak_attribution, missing_evidence, shallow_analysis]
 generator_moves:

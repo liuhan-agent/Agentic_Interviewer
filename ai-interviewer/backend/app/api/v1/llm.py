@@ -33,6 +33,11 @@ from app.engine.agents.llm_client import (
     redact_llm_secrets,
     validate_llm_base_url,
 )
+from app.services.embedding_providers import (
+    UnsupportedEmbeddingProviderError,
+    browser_embedding_provider_spec,
+)
+from app.services.resume_embedding import ResumeEmbeddingError, embed_query
 from app.voice.providers import provider_for
 from app.voice.routing import VoiceRoute, normalize_voice_provider
 
@@ -40,13 +45,14 @@ router = APIRouter(prefix="/api/v1/llm", tags=["llm"])
 
 
 class LLMTestRequest(BaseModel):
-    kind: Literal["chat", "asr", "tts"] = "chat"
+    kind: Literal["chat", "asr", "tts", "embedding"] = "chat"
     provider: LLMProvider
     api_key: str = Field(min_length=1, max_length=LLM_API_KEY_MAX_LENGTH)
     model: str = Field(min_length=1, max_length=LLM_MODEL_MAX_LENGTH)
     temperature: float | None = Field(default=None, ge=0, le=2)
     base_url: str | None = Field(default=None, max_length=LLM_BASE_URL_MAX_LENGTH)
     voice: str | None = Field(default=None, max_length=128)
+    dimensions: int | None = Field(default=None, ge=1, le=8192)
 
     @field_validator("api_key", "model", "base_url", "voice", mode="before")
     @classmethod
@@ -127,11 +133,58 @@ async def _test_voice(req: LLMTestRequest) -> str:
     return "audio" if chunks else ""
 
 
+def _embedding_override(req: LLMTestRequest) -> dict[str, object]:
+    provider = browser_embedding_provider_spec(req.provider)
+    return {
+        "provider": provider.id,
+        "api_key": req.api_key,
+        "model": req.model or provider.default_model,
+        "base_url": req.base_url or provider.default_base_url,
+        "dimensions": req.dimensions
+        or int(get_settings().resume_rag_embedding_dimension or 1536),
+    }
+
+
+def _embedding_error_kind(error: Exception) -> str:
+    text = str(error).lower()
+    if (
+        "dimension mismatch" in text
+        or "base_url required" in text
+        or "model required" in text
+        or "unsupported embedding provider" in text
+        or "dimension unsupported" in text
+    ):
+        return "misconfig"
+    return classify_llm_error_kind(error)
+
+
+def _test_embedding(req: LLMTestRequest) -> str:
+    expected_dim = int(get_settings().resume_rag_embedding_dimension or 1536)
+    dimensions = int(req.dimensions or expected_dim)
+    try:
+        override = _embedding_override(req)
+    except UnsupportedEmbeddingProviderError as e:
+        raise ResumeEmbeddingError(str(e)) from e
+    if dimensions != expected_dim:
+        raise ResumeEmbeddingError(
+            f"embedding dimension mismatch: expected {expected_dim}, got {dimensions}"
+        )
+    vector = embed_query(
+        "ping",
+        timeout_ms=20_000,
+        embedding_override=override,
+        raise_errors=True,
+    )
+    if not vector:
+        raise ResumeEmbeddingError("embedding request failed")
+    return "embedding"
+
+
 @router.post("/test")
 def test_llm_connection(req: LLMTestRequest, request: Request) -> dict[str, object]:
     """Verify a provider key with a minimal chat-completions request."""
     _enforce_rate_limit(request)
-    if req.kind == "chat" and req.provider == "openai_compatible" and not req.base_url:
+    if req.kind in {"chat", "embedding"} and req.provider == "openai_compatible" and not req.base_url:
         raise HTTPException(
             status_code=422,
             detail=api_error_detail(
@@ -164,10 +217,13 @@ def test_llm_connection(req: LLMTestRequest, request: Request) -> dict[str, obje
         "model": req.model,
         **({"base_url": req.base_url} if req.base_url else {}),
         **({"voice": req.voice} if req.voice else {}),
+        **({"dimensions": req.dimensions} if req.dimensions else {}),
     }
     try:
         if req.kind in {"asr", "tts"}:
             message = asyncio.run(_test_voice(req))
+        elif req.kind == "embedding":
+            message = _test_embedding(req)
         else:
             message = _invoke_provider(
                 [ChatMessage(role="user", content="Reply with pong.")],
@@ -192,7 +248,9 @@ def test_llm_connection(req: LLMTestRequest, request: Request) -> dict[str, obje
             "provider": req.provider,
             "model": req.model,
             "latency_ms": _latency_ms(started),
-            "error_kind": classify_llm_error_kind(e),
+            "error_kind": _embedding_error_kind(e)
+            if req.kind == "embedding"
+            else classify_llm_error_kind(e),
             "error": redact_llm_secrets(str(e), override),
         }
 

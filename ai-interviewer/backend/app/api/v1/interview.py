@@ -310,9 +310,44 @@ class VoiceOverrides(BaseModel):
     tts: VoiceTTSOverride | None = None
 
 
+EmbeddingProvider = Literal["qwen", "dashscope", "openai", "openai_compatible"]
+
+
+class EmbeddingOverride(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    provider: EmbeddingProvider | None = None
+    api_key: str | None = Field(default=None, max_length=LLM_API_KEY_MAX_LENGTH)
+    model: str | None = Field(default=None, max_length=LLM_MODEL_MAX_LENGTH)
+    base_url: str | None = Field(default=None, max_length=LLM_BASE_URL_MAX_LENGTH)
+    dimensions: int | None = Field(default=None, ge=1, le=8192)
+
+    @field_validator("provider", "api_key", "model", "base_url", mode="before")
+    @classmethod
+    def _blank_to_none(cls, value: str | None) -> str | None:
+        if isinstance(value, str):
+            value = value.strip()
+            return value or None
+        return value
+
+    @field_validator("base_url")
+    @classmethod
+    def _validate_base_url(cls, value: str | None) -> str | None:
+        if not value:
+            return value
+        from app.engine.agents.llm_client import LLMFatal, validate_llm_base_url
+
+        try:
+            validate_llm_base_url(value)
+        except LLMFatal as e:
+            raise ValueError(str(e)) from e
+        return value
+
+
 class LLMConfigOverride(LLMRoleOverride):
     role_overrides: dict[LLMRoleKey, LLMRoleOverride] | None = None
     voice_overrides: VoiceOverrides | None = None
+    embedding_override: EmbeddingOverride | None = None
 
 
 class ResumeProject(BaseModel):

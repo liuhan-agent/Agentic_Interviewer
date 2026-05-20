@@ -33,6 +33,7 @@ import { cn } from "@/lib/utils";
 import type {
   LLMConfig,
   LLMConfigStatus,
+  LLMEmbeddingOverrideConfig,
   LLMRoleGroupId,
   LLMRoleGroupInfo,
   LLMRoleOverrideConfig,
@@ -43,9 +44,13 @@ import type {
   LLMVoiceRouteId,
 } from "@/lib/llm-config";
 import {
+  defaultEmbeddingOverride,
   defaultVoiceOverride,
+  effectiveEmbeddingConfig,
   effectiveRoleConfig,
   effectiveVoiceConfig,
+  EMBEDDING_DIMENSIONS,
+  embeddingProviderInfo,
   configFingerprint,
   getLLMConfigStatus,
   LLM_ROLE_GROUPS,
@@ -87,6 +92,9 @@ function routeProviderLabel(provider: string, kind?: LLMTestTargetKind): string 
   if (kind === "asr" || kind === "tts") {
     return voiceProviderInfo(provider).label;
   }
+  if (kind === "embedding") {
+    return embeddingProviderInfo(provider).label;
+  }
   return providerInfo(provider).label;
 }
 
@@ -101,6 +109,16 @@ function isTestable(config: LLMConfig): boolean {
 function isTestTargetReady(target: ReturnType<typeof testTargets>[number]): boolean {
   if (target.kind === "chat") {
     return Boolean(target.config && isTestable(target.config));
+  }
+  if (target.kind === "embedding") {
+    const embedding = target.embedding;
+    return Boolean(
+      embedding?.apiKey.trim() &&
+        embedding.model.trim() &&
+        embedding.dimensions === EMBEDDING_DIMENSIONS &&
+        (embeddingProviderInfo(embedding.provider).baseUrlMode !== "required" ||
+          embedding.baseUrl.trim()),
+    );
   }
   const voice = target.voice;
   return Boolean(voice?.apiKey.trim() && voice.model.trim());
@@ -145,8 +163,23 @@ function validateLLMConfig(config: LLMConfig): LLMValidation {
     }
   }
 
+  let embeddingIssue: string | null = null;
+  const embedding = effectiveEmbeddingConfig(config);
+  if (embedding.apiKey.trim()) {
+    if (!embedding.model.trim()) {
+      embeddingIssue = "资料理解能力已填写 Key，但缺少模型名称。";
+    } else if (embedding.dimensions !== EMBEDDING_DIMENSIONS) {
+      embeddingIssue = `资料理解能力维度必须是 ${EMBEDDING_DIMENSIONS}。`;
+    } else if (
+      embeddingProviderInfo(embedding.provider).baseUrlMode === "required" &&
+      !embedding.baseUrl.trim()
+    ) {
+      embeddingIssue = "资料理解能力使用的服务商需要 Base URL。";
+    }
+  }
+
   const saveMessage =
-    defaultErrors.model ?? defaultErrors.baseUrl ?? roleIssue ?? null;
+    defaultErrors.model ?? defaultErrors.baseUrl ?? roleIssue ?? embeddingIssue ?? null;
   const targets = testTargets(config);
   let canTestMessage: string | null = null;
   if (targets.length === 0) {
@@ -273,6 +306,18 @@ export function LLMSettingsDialog({ children }: { children: React.ReactNode }) {
         },
       };
     });
+    setTestError(null);
+  }
+
+  function updateEmbeddingOverride(patch: Partial<LLMEmbeddingOverrideConfig>) {
+    setConfig((prev) => ({
+      ...prev,
+      embeddingOverride: {
+        ...(prev.embeddingOverride ?? defaultEmbeddingOverride()),
+        ...patch,
+        dimensions: EMBEDDING_DIMENSIONS,
+      },
+    }));
     setTestError(null);
   }
 
@@ -484,6 +529,22 @@ export function LLMSettingsDialog({ children }: { children: React.ReactNode }) {
 
           <details className="group rounded-md border bg-background/40 p-4">
             <summary className="flex cursor-pointer list-none items-center justify-between gap-3 text-sm font-medium">
+              <span>资料理解能力</span>
+              <ChevronDown className="h-4 w-4 text-muted-foreground transition-transform group-open:rotate-180" />
+            </summary>
+            <p className="mt-2 text-xs text-muted-foreground">
+              帮面试官理解简历和自我介绍里的经历线索，默认使用 Qwen 资料理解模型。
+            </p>
+            <div className="mt-4">
+              <EmbeddingRouteCard
+                config={config}
+                onChange={updateEmbeddingOverride}
+              />
+            </div>
+          </details>
+
+          <details className="group rounded-md border bg-background/40 p-4">
+            <summary className="flex cursor-pointer list-none items-center justify-between gap-3 text-sm font-medium">
               <span>高级：按简历与面试环节配置模型</span>
               <ChevronDown className="h-4 w-4 text-muted-foreground transition-transform group-open:rotate-180" />
             </summary>
@@ -595,6 +656,21 @@ function ModelRouteSummary({ config }: { config: LLMConfig }) {
             : "默认配置",
       };
     }),
+    (() => {
+      const configured = config.embeddingOverride ?? defaultEmbeddingOverride();
+      const effective = effectiveEmbeddingConfig(config);
+      const provider = embeddingProviderInfo(effective.provider);
+      return {
+        id: "embedding-session-anchor",
+        label: "资料理解能力",
+        providerLabel: provider.label,
+        model: effective.model || provider.model,
+        source:
+          configured.apiKey.trim() || config.provider === effective.provider
+            ? "单独配置"
+            : "默认配置",
+      };
+    })(),
   ];
   return (
     <section className="rounded-md border bg-background/40 p-4">
@@ -649,6 +725,153 @@ function ModelStrategyHint() {
       <p className="mt-1">
         想进一步控制成本时，可以把简历/JD 解析交给理解力更强的模型，评分、提问和建议优先选择响应稳定的轻量模型。
       </p>
+    </div>
+  );
+}
+
+function EmbeddingRouteCard({
+  config,
+  onChange,
+}: {
+  config: LLMConfig;
+  onChange: (patch: Partial<LLMEmbeddingOverrideConfig>) => void;
+}) {
+  const [showEmbeddingKey, setShowEmbeddingKey] = useState(false);
+  const override = config.embeddingOverride ?? defaultEmbeddingOverride();
+  const effective = effectiveEmbeddingConfig(config);
+  const provider = embeddingProviderInfo(override.provider);
+  const effectiveProvider = embeddingProviderInfo(effective.provider);
+  const overrideEnabled = Boolean(override.enabled);
+  const inheritsDefaultKey =
+    !override.apiKey.trim() && config.provider === override.provider && config.apiKey.trim();
+
+  return (
+    <div
+      className={cn(
+        "rounded-md border p-3",
+        overrideEnabled ? "bg-secondary/20" : "bg-secondary/10",
+      )}
+    >
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <div className="text-sm font-medium">简历与自我介绍</div>
+          <p className="mt-1 text-xs text-muted-foreground">
+            把候选人的关键信息整理成可追问的资料线索，默认使用 Qwen。
+          </p>
+          <p className="mt-1 text-[11px] text-muted-foreground">
+            推荐：{effectiveProvider.label} {effective.model || effectiveProvider.model}
+          </p>
+        </div>
+        <label className="flex shrink-0 items-center gap-2 text-xs text-muted-foreground">
+          <input
+            type="checkbox"
+            checked={overrideEnabled}
+            onChange={(e) => {
+              if (e.target.checked) {
+                onChange({ ...defaultEmbeddingOverride(), enabled: true });
+              } else {
+                onChange({ enabled: false });
+              }
+            }}
+            className="h-4 w-4 accent-emerald-500"
+          />
+          单独配置
+        </label>
+      </div>
+
+      {overrideEnabled && (
+        <div className="mt-3 grid gap-3">
+          <div className="flex flex-wrap items-center gap-2">
+            <Button
+              type="button"
+              size="sm"
+              variant="secondary"
+              className="gap-1"
+              onClick={() => onChange(defaultEmbeddingOverride())}
+            >
+              <Sparkles className="h-3.5 w-3.5" />
+              使用建议配置
+            </Button>
+            <span className="text-[11px] text-muted-foreground">
+              当前有效模型：{effectiveProvider.label}{" "}
+              {effective.model || effectiveProvider.model}（{EMBEDDING_DIMENSIONS} 维）
+            </span>
+          </div>
+
+          <div className="grid gap-3 sm:grid-cols-2">
+            <div className="space-y-1.5">
+              <Label>服务商</Label>
+              <select
+                value={provider.id}
+                onChange={(e) => {
+                  const nextProvider = embeddingProviderInfo(e.target.value);
+                  onChange(defaultEmbeddingOverride(nextProvider.id));
+                }}
+                className={selectClass}
+              >
+                <option
+                  key={provider.id}
+                  value={provider.id}
+                  className="bg-background text-foreground"
+                >
+                  {provider.label}
+                </option>
+              </select>
+            </div>
+            <div className="space-y-1.5">
+              <Label>模型</Label>
+              <Input
+                placeholder={provider.model}
+                value={override.model}
+                onChange={(e) => onChange({ model: e.target.value })}
+              />
+            </div>
+          </div>
+
+          <div className="space-y-1.5">
+            <Label>API 密钥（可选）</Label>
+            <div className="relative">
+              <Input
+                type={showEmbeddingKey ? "text" : "password"}
+                placeholder={
+                  inheritsDefaultKey
+                    ? `沿用默认 ${provider.label} Key`
+                    : provider.keyPlaceholder
+                }
+                value={override.apiKey}
+                onChange={(e) => onChange({ apiKey: e.target.value })}
+                className="pr-10"
+              />
+              <button
+                type="button"
+                onClick={() => setShowEmbeddingKey(!showEmbeddingKey)}
+                className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                aria-label={showEmbeddingKey ? "隐藏 API 密钥" : "显示 API 密钥"}
+              >
+                {showEmbeddingKey ? (
+                  <EyeOff className="h-4 w-4" />
+                ) : (
+                  <Eye className="h-4 w-4" />
+                )}
+              </button>
+            </div>
+            <p className="text-[11px] text-muted-foreground">
+              {inheritsDefaultKey
+                ? `沿用默认 ${provider.label} Key；只在整理简历和自我介绍资料时使用。`
+                : `不填则沿用同为 ${provider.label} 的默认 Key；只在整理简历和自我介绍资料时使用。`}
+            </p>
+          </div>
+
+          <div className="space-y-1.5">
+            <Label>Base URL（基础地址）</Label>
+            <Input
+              placeholder={provider.baseUrl || "https://api.openai.com/v1"}
+              value={override.baseUrl}
+              onChange={(e) => onChange({ baseUrl: e.target.value })}
+            />
+          </div>
+        </div>
+      )}
     </div>
   );
 }

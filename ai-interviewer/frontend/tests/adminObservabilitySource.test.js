@@ -212,7 +212,8 @@ test("admin rag section labels knowledge and session-anchor panels distinctly", 
 
   assert.match(ragEval, /知识 RAG 评测/);
   assert.doesNotMatch(ragEval, /RAG 检索评测/);
-  assert.match(anchorCard, /候选人锚点 RAG/);
+  assert.match(anchorCard, /资料理解 RAG/);
+  assert.doesNotMatch(anchorCard, /PgVector/);
   assert.match(anchorCard, /getSessionAnchorRagSummary/);
   assert.match(anchorCard, /getSessionAnchorRagMetrics/);
   assert.match(anchorCard, /deleteSessionAnchorData/);

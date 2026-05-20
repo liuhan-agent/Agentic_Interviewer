@@ -321,19 +321,19 @@ def test_ask_question_simple_plan_is_generator_only_signed(monkeypatch):
     """Simple plan skips negotiation -> contract signed by generator only."""
     from app.engine.workflow.nodes import ask_question as ask_mod
 
+    captured: dict[str, Any] = {}
+
     def fake_retrieve(*, job_spec, dimension, previous_qa, top_k, mode):
         class _Ctx:
             as_prompt_block = "(stub)"
 
         return _Ctx()
 
-    def fake_retrieve_strategies(**kwargs):
-        return []
-
-    def fake_format_strategies(entries):
-        return "(no relevant strategy memories)"
+    def fail_retrieve_strategies(**_kwargs):
+        pytest.fail("simple plan must not retrieve strategy memories")
 
     def fake_generate_question(**kwargs):
+        captured.update(kwargs)
         return {
             "question": "Walk me through a recent project.",
             "dimension": kwargs["dimension"],
@@ -350,9 +350,16 @@ def test_ask_question_simple_plan_is_generator_only_signed(monkeypatch):
         pytest.fail("simple plan must not call negotiate_contract")
 
     monkeypatch.setattr(ask_mod, "retrieve_for_question", fake_retrieve)
-    monkeypatch.setattr(ask_mod, "retrieve_strategies", fake_retrieve_strategies)
+    monkeypatch.setattr(ask_mod, "retrieve_strategies", fail_retrieve_strategies)
     monkeypatch.setattr(
-        ask_mod, "format_strategies_for_prompt", fake_format_strategies
+        ask_mod,
+        "retrieve_skills",
+        lambda **_kwargs: [object()],
+    )
+    monkeypatch.setattr(
+        ask_mod,
+        "build_skills_block",
+        lambda _entries: "skill playbook guidance",
     )
     monkeypatch.setattr(ask_mod, "generate_question", fake_generate_question)
     monkeypatch.setattr(
@@ -365,6 +372,7 @@ def test_ask_question_simple_plan_is_generator_only_signed(monkeypatch):
     out = ask_mod.ask_question_node(state)  # type: ignore[arg-type]
     assert out["current_ask_plan"]["template"] == "simple"
     assert out["current_contract"]["signed_by"] == ["generator"]
+    assert captured["skill_block"] == "skill playbook guidance"
 
 
 # ---------------------------------------------------------------------------
