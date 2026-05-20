@@ -141,6 +141,7 @@ def vectorize_self_intro_anchor_cards(
 ) -> dict[str, Any]:
     """Clean, redact, embed, and persist opening self-intro anchor cards."""
 
+    strategy = _self_intro_strategy(sanitized_answer)
     try:
         model_version = current_embedding_model_version(embedding_override)
     except Exception as e:
@@ -154,6 +155,9 @@ def vectorize_self_intro_anchor_cards(
             "skipped_reason": None,
             "error": safe_error,
             "text_sha256": _sha256(sanitized_answer or ""),
+            "strategy": strategy,
+            "card_sources": {},
+            "card_count_by_kind": {},
             "status": "failed",
         }
     base_status = {
@@ -165,6 +169,9 @@ def vectorize_self_intro_anchor_cards(
         "skipped_reason": None,
         "error": None,
         "text_sha256": _sha256(sanitized_answer or ""),
+        "strategy": strategy,
+        "card_sources": {},
+        "card_count_by_kind": {},
     }
     if len(str(sanitized_answer or "").strip()) < int(
         get_settings().session_anchor_self_intro_min_chars or 200
@@ -186,6 +193,7 @@ def vectorize_self_intro_anchor_cards(
         }
 
     redacted_cards = [_redacted_card(card, index) for index, card in enumerate(cards)]
+    card_stats = _self_intro_card_stats(redacted_cards)
     try:
         vectors = embed_chunks(
             [card["text"] for card in redacted_cards],
@@ -225,6 +233,7 @@ def vectorize_self_intro_anchor_cards(
         _with_session(db_session, write)
         return {
             **base_status,
+            **card_stats,
             "status": "ready",
             "chunk_count": len(redacted_cards),
             "expires_at": expires_at.isoformat(),
@@ -234,6 +243,7 @@ def vectorize_self_intro_anchor_cards(
         log.warning("vectorize_self_intro failed: session=%s error=%s", session_id, safe_error)
         return {
             **base_status,
+            **card_stats,
             "status": "failed",
             "error": safe_error,
         }
@@ -252,6 +262,7 @@ def build_self_intro_fallback_cards(
                 "title": "Self-intro summary",
                 "text": summary,
                 "tech_keywords": extract_tech_keywords(summary),
+                "source": "fallback",
             }
         )
     for project in _as_text_list((profile or {}).get("emphasized_projects"), limit=2):
@@ -261,6 +272,7 @@ def build_self_intro_fallback_cards(
                 "title": project[:80],
                 "text": project,
                 "tech_keywords": extract_tech_keywords(project),
+                "source": "fallback",
             }
         )
     if not cards and str(sanitized_answer or "").strip():
@@ -273,6 +285,7 @@ def build_self_intro_fallback_cards(
                 "title": "Opening self-introduction",
                 "text": text,
                 "tech_keywords": extract_tech_keywords(text),
+                "source": "fallback",
             }
         )
     return cards[: int(get_settings().session_anchor_self_intro_max_cards or 8)]
@@ -305,11 +318,13 @@ def _clean_self_intro_cards(raw: Any) -> list[dict[str, Any]]:
         limit = int(get_settings().session_anchor_self_intro_card_max_chars or 500)
         cards.append(
             {
-                "kind": kind,
                 "title": title,
                 "text": text[:limit],
-                "tech_keywords": _as_text_list(item.get("tech_keywords"), limit=10),
+                "tech_keywords": _as_text_list(item.get("tech_keywords"), limit=10)
+                or extract_tech_keywords(text),
                 "project_name": title if kind == "project" else None,
+                "kind": kind,
+                "source": str(item.get("source") or "unknown").strip() or "unknown",
             }
         )
         if len(cards) >= int(get_settings().session_anchor_self_intro_max_cards or 8):
@@ -343,6 +358,31 @@ def _redacted_card(card: dict[str, Any], index: int) -> dict[str, Any]:
         "project_name": card.get("project_name"),
         "text": redacted,
         "tech_keywords": keywords,
+        "kind": str(card.get("kind") or "claim"),
+        "source": str(card.get("source") or "unknown"),
+    }
+
+
+def _self_intro_strategy(sanitized_answer: str) -> str:
+    length = len(str(sanitized_answer or "").strip())
+    if length < int(get_settings().session_anchor_self_intro_min_chars or 200):
+        return "short"
+    if length >= 800:
+        return "long"
+    return "medium"
+
+
+def _self_intro_card_stats(cards: list[dict[str, Any]]) -> dict[str, dict[str, int]]:
+    sources: dict[str, int] = {}
+    kinds: dict[str, int] = {}
+    for card in cards:
+        source = str(card.get("source") or "unknown")
+        kind = str(card.get("kind") or "claim")
+        sources[source] = sources.get(source, 0) + 1
+        kinds[kind] = kinds.get(kind, 0) + 1
+    return {
+        "card_sources": sources,
+        "card_count_by_kind": kinds,
     }
 
 
