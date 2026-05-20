@@ -1148,6 +1148,7 @@ export interface SessionAnchorRagSummary {
   by_source_type: Record<string, SessionAnchorRagCountBucket>;
   by_mode: Record<string, SessionAnchorRagCountBucket>;
   embedding_model_version?: string | null;
+  by_embedding_model_version?: Record<string, SessionAnchorRagCountBucket>;
   recent_sessions?: Array<{
     session_id: string;
     chunks: number;

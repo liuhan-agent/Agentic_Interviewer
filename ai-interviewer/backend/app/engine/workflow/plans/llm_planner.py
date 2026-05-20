@@ -37,6 +37,8 @@ log = get_logger(__name__)
 _ALLOWED_KINDS = {
     "retrieve_rag",
     "retrieve_strategy",
+    "retrieve_skills",
+    "retrieve_candidate_anchors",
     "draft_question",
     "negotiate_contract",
     "challenge_with_reference",
@@ -64,7 +66,8 @@ Allowed ``kind`` values: {allowed_kinds}
 Rules:
 - ``step_id`` must be strictly increasing.
 - The last step MUST be ``guardrail_check``.
-- Keep the plan to 2-6 steps.
+- Keep the plan to 2-8 steps.
+- Keep ``retrieve_skills`` before ``draft_question`` whenever it is present.
 - Do not invent unknown step kinds; if unsure, return BASE_TEMPLATE
   unchanged.
 

@@ -283,6 +283,50 @@ def build_question_seed_contract_hints(
     }
 
 
+def build_question_history_selection_artifacts(
+    current_question: dict[str, Any] | None,
+) -> dict[str, Any]:
+    """Return the minimal selector refs needed for future dedupe.
+
+    ``current_question.selection_artifacts`` is intentionally rich for admin
+    observability. ``qa_history`` only needs the actually injected question
+    skeleton, otherwise shadow top-k candidates would be treated as seen.
+    """
+
+    if not isinstance(current_question, dict):
+        return {}
+    artifacts = current_question.get("selection_artifacts")
+    if not isinstance(artifacts, dict):
+        return {}
+    items = artifacts.get("question_items")
+    if not isinstance(items, list):
+        return {}
+
+    history_items: list[dict[str, Any]] = []
+    for item in items:
+        if not isinstance(item, dict):
+            continue
+        if item.get("injected") is not True:
+            continue
+        if _int_or_none(item.get("rank")) != 1:
+            continue
+        seed_id = str(item.get("seed_id") or "").strip()
+        variant_id = str(item.get("variant_id") or "").strip()
+        if not seed_id and not variant_id:
+            continue
+        history_items.append(
+            {
+                "seed_id": seed_id,
+                "variant_id": variant_id,
+                "rank": 1,
+                "injected": True,
+            }
+        )
+    if not history_items:
+        return {}
+    return {"question_items": history_items}
+
+
 def record_question_usages(
     *,
     candidates: Sequence[QuestionCandidate],
@@ -546,8 +590,14 @@ def _extract_used_question_refs(
         items = artifacts.get("question_items") if isinstance(artifacts, dict) else None
         if not isinstance(items, list):
             continue
+        has_injected_marker = any(
+            isinstance(item, dict) and "injected" in item
+            for item in items
+        )
         for item in items:
             if not isinstance(item, dict):
+                continue
+            if has_injected_marker and item.get("injected") is not True:
                 continue
             seed_id = str(item.get("seed_id") or "").strip()
             variant_id = str(item.get("variant_id") or "").strip()
@@ -556,6 +606,15 @@ def _extract_used_question_refs(
             if variant_id:
                 variant_ids.add(variant_id)
     return seed_ids, variant_ids
+
+
+def _int_or_none(value: Any) -> int | None:
+    if isinstance(value, bool):
+        return None
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return None
 
 
 def _usage_id(

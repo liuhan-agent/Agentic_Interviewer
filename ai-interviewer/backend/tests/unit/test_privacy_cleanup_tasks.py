@@ -93,6 +93,7 @@ def test_fastapi_lifecycle_starts_and_stops_privacy_cleanup_scheduler(monkeypatc
         enable_outcome_sync=False,
         enable_bandit_decay=False,
         enable_strategy_dream=False,
+        enable_strategy_promotion_scheduler=False,
         enable_drift_maintenance_scheduler=False,
         enable_privacy_cleanup=True,
         privacy_cleanup_interval_hours=7,
@@ -105,3 +106,93 @@ def test_fastapi_lifecycle_starts_and_stops_privacy_cleanup_scheduler(monkeypatc
 
     app_main._run_shutdown(app)
     assert scheduler.shutdown_wait is False
+
+
+def test_fastapi_lifecycle_starts_and_stops_strategy_promotion_scheduler(
+    monkeypatch,
+) -> None:
+    calls: list[tuple[int, int]] = []
+
+    class _Scheduler:
+        def __init__(self) -> None:
+            self.shutdown_wait: bool | None = None
+
+        def shutdown(self, *, wait: bool) -> None:
+            self.shutdown_wait = wait
+
+    scheduler = _Scheduler()
+
+    def start_strategy_promotion_scheduler(
+        *,
+        interval_minutes: int,
+        startup_delay_minutes: int,
+    ):
+        calls.append((interval_minutes, startup_delay_minutes))
+        return scheduler
+
+    monkeypatch.setattr(app_main, "run_preflight", lambda settings: {})
+    monkeypatch.setattr(app_main, "init_db", lambda: None)
+    monkeypatch.setattr(
+        app_main,
+        "start_strategy_promotion_scheduler",
+        start_strategy_promotion_scheduler,
+        raising=False,
+    )
+    monkeypatch.setattr(
+        "app.services.session_manager.get_session_manager",
+        lambda: SimpleNamespace(rehydrate=lambda: 0),
+    )
+
+    app = SimpleNamespace(state=SimpleNamespace())
+    settings = SimpleNamespace(
+        rehydrate_bandit_on_start=False,
+        enable_outcome_sync=False,
+        enable_bandit_decay=False,
+        enable_strategy_dream=False,
+        enable_strategy_promotion_scheduler=True,
+        strategy_promotion_interval_minutes=7,
+        strategy_promotion_startup_delay_minutes=2,
+        enable_drift_maintenance_scheduler=False,
+        enable_privacy_cleanup=False,
+    )
+
+    app_main._run_startup(app, settings)
+    assert calls == [(7, 2)]
+    assert app.state.strategy_promotion_scheduler is scheduler
+
+    app_main._run_shutdown(app)
+    assert scheduler.shutdown_wait is False
+
+
+def test_fastapi_lifecycle_leaves_strategy_promotion_scheduler_off(
+    monkeypatch,
+) -> None:
+    calls: list[str] = []
+
+    monkeypatch.setattr(app_main, "run_preflight", lambda settings: {})
+    monkeypatch.setattr(app_main, "init_db", lambda: None)
+    monkeypatch.setattr(
+        app_main,
+        "start_strategy_promotion_scheduler",
+        lambda **_kwargs: calls.append("started"),
+        raising=False,
+    )
+    monkeypatch.setattr(
+        "app.services.session_manager.get_session_manager",
+        lambda: SimpleNamespace(rehydrate=lambda: 0),
+    )
+
+    app = SimpleNamespace(state=SimpleNamespace())
+    settings = SimpleNamespace(
+        rehydrate_bandit_on_start=False,
+        enable_outcome_sync=False,
+        enable_bandit_decay=False,
+        enable_strategy_dream=False,
+        enable_strategy_promotion_scheduler=False,
+        enable_drift_maintenance_scheduler=False,
+        enable_privacy_cleanup=False,
+    )
+
+    app_main._run_startup(app, settings)
+
+    assert calls == []

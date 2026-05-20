@@ -141,6 +141,129 @@ def test_llm_test_endpoint_checks_qwen_tts_route(
     assert "secret-key" not in resp.text
 
 
+def test_llm_test_endpoint_checks_embedding_route(
+    client: TestClient,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from app.api.v1 import llm as llm_api
+
+    captured: dict[str, Any] = {}
+
+    def fake_embed_query(text: str, **kwargs: Any) -> list[float]:
+        captured["text"] = text
+        captured["kwargs"] = kwargs
+        return [0.1] * 1536
+
+    monkeypatch.setattr(llm_api, "embed_query", fake_embed_query, raising=False)
+
+    resp = client.post(
+        "/api/v1/llm/test",
+        json={
+            "kind": "embedding",
+            "provider": "qwen",
+            "api_key": "secret-key",
+            "model": "text-embedding-v4",
+            "base_url": "https://dashscope.aliyuncs.com/compatible-mode/v1",
+            "dimensions": 1536,
+        },
+    )
+
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["ok"] is True
+    assert body["provider"] == "qwen"
+    assert body["model"] == "text-embedding-v4"
+    assert body["message"] == "embedding"
+    assert captured["text"] == "ping"
+    assert captured["kwargs"]["embedding_override"]["api_key"] == "secret-key"
+    assert captured["kwargs"]["embedding_override"]["dimensions"] == 1536
+    assert "secret-key" not in resp.text
+
+
+def test_llm_test_endpoint_rejects_embedding_dimension_mismatch(
+    client: TestClient,
+) -> None:
+    resp = client.post(
+        "/api/v1/llm/test",
+        json={
+            "kind": "embedding",
+            "provider": "qwen",
+            "api_key": "secret-key",
+            "model": "text-embedding-v4",
+            "base_url": "https://dashscope.aliyuncs.com/compatible-mode/v1",
+            "dimensions": 1024,
+        },
+    )
+
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["ok"] is False
+    assert body["error_kind"] == "misconfig"
+    assert "secret-key" not in resp.text
+
+
+def test_llm_test_endpoint_rejects_unsupported_embedding_provider_before_call(
+    client: TestClient,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from app.api.v1 import llm as llm_api
+
+    def fail_embed_query(text: str, **kwargs: Any) -> list[float]:
+        raise AssertionError("embedding provider should be rejected before call")
+
+    monkeypatch.setattr(llm_api, "embed_query", fail_embed_query, raising=False)
+
+    resp = client.post(
+        "/api/v1/llm/test",
+        json={
+            "kind": "embedding",
+            "provider": "openai",
+            "api_key": "secret-key",
+            "model": "text-embedding-3-small",
+            "dimensions": 1536,
+        },
+    )
+
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["ok"] is False
+    assert body["error_kind"] == "misconfig"
+    assert body["error"] == "unsupported embedding provider: openai"
+    assert "secret-key" not in resp.text
+
+
+def test_llm_test_endpoint_redacts_embedding_provider_errors(
+    client: TestClient,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from app.api.v1 import llm as llm_api
+    from app.services.resume_embedding import ResumeEmbeddingError
+
+    def fake_embed_query(text: str, **kwargs: Any) -> list[float]:
+        raise ResumeEmbeddingError("provider echoed secret-key with HTTP 401")
+
+    monkeypatch.setattr(llm_api, "embed_query", fake_embed_query, raising=False)
+
+    resp = client.post(
+        "/api/v1/llm/test",
+        json={
+            "kind": "embedding",
+            "provider": "qwen",
+            "api_key": "secret-key",
+            "model": "text-embedding-v4",
+            "base_url": "https://dashscope.aliyuncs.com/compatible-mode/v1",
+            "dimensions": 1536,
+        },
+    )
+
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["ok"] is False
+    assert body["error_kind"] == "auth"
+    assert body["error"] == "provider echoed [redacted-api-key] with HTTP 401"
+    assert "secret-key" not in resp.text
+
+
 def test_llm_test_endpoint_redacts_voice_provider_errors(
     client: TestClient,
     monkeypatch: pytest.MonkeyPatch,

@@ -136,6 +136,13 @@ export interface LLMConfigPayload {
       base_url?: string;
     };
   };
+  embedding_override?: {
+    provider?: "qwen" | "openai" | "openai_compatible";
+    api_key?: string;
+    model?: string;
+    base_url?: string;
+    dimensions?: number;
+  };
 }
 
 export interface StartSessionRequest {

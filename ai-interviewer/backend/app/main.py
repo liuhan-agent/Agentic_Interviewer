@@ -38,6 +38,7 @@ from app.tasks.outcome_sync_tasks import (
     start_decay_scheduler,
 )
 from app.tasks.privacy_cleanup_tasks import start_privacy_cleanup_scheduler
+from app.tasks.strategy_promotion_tasks import start_strategy_promotion_scheduler
 
 configure_logging()
 log = get_logger(__name__)
@@ -123,6 +124,19 @@ def _run_startup(app: FastAPI, settings: Settings) -> None:
         except Exception as e:  # pragma: no cover
             log.warning("strategy dream scheduler startup failed: %s", e)
 
+    if settings.enable_strategy_promotion_scheduler:
+        try:
+            app.state.strategy_promotion_scheduler = (
+                start_strategy_promotion_scheduler(
+                    interval_minutes=settings.strategy_promotion_interval_minutes,
+                    startup_delay_minutes=(
+                        settings.strategy_promotion_startup_delay_minutes
+                    ),
+                )
+            )
+        except Exception as e:  # pragma: no cover
+            log.warning("strategy promotion scheduler startup failed: %s", e)
+
     if settings.enable_drift_maintenance_scheduler:
         try:
             app.state.drift_maintenance_scheduler = (
@@ -153,6 +167,7 @@ def _run_shutdown(app: FastAPI) -> None:
         "scheduler",
         "decay_scheduler",
         "dream_scheduler",
+        "strategy_promotion_scheduler",
         "drift_maintenance_scheduler",
         "privacy_cleanup_scheduler",
     ):
@@ -216,6 +231,7 @@ def create_app() -> FastAPI:
     app.state.scheduler = None
     app.state.decay_scheduler = None
     app.state.dream_scheduler = None
+    app.state.strategy_promotion_scheduler = None
     app.state.drift_maintenance_scheduler = None
     app.state.privacy_cleanup_scheduler = None
 

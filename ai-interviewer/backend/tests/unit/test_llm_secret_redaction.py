@@ -98,6 +98,28 @@ class TestSafeLLMConfigMeta:
         assert tts_meta["voice"] == "alloy"
         assert meta["requires_reauth"] is True
 
+    def test_strips_nested_api_key_inside_embedding_override(self) -> None:
+        meta = _safe_llm_config_meta(
+            {
+                "provider": "qwen",
+                "embedding_override": {
+                    "provider": "qwen",
+                    "api_key": "sk-embedding-secret",
+                    "model": "text-embedding-v4",
+                    "base_url": "https://dashscope.aliyuncs.com/compatible-mode/v1",
+                    "dimensions": 1536,
+                },
+            }
+        )
+
+        assert meta is not None
+        embedding_meta = meta["embedding_override"]
+        assert "api_key" not in embedding_meta
+        assert embedding_meta["provider"] == "qwen"
+        assert embedding_meta["model"] == "text-embedding-v4"
+        assert embedding_meta["dimensions"] == 1536
+        assert meta["requires_reauth"] is True
+
 
 class TestRedactLLMSecrets:
     def test_returns_text_unchanged_when_text_empty(self) -> None:
@@ -127,6 +149,21 @@ class TestRedactLLMSecrets:
         redacted = redact_llm_secrets(text, config)
 
         assert "sk-ant-nested-secret" not in redacted
+        assert "[redacted-api-key]" in redacted
+
+    def test_replaces_nested_api_key_in_embedding_override(self) -> None:
+        text = "Embedding provider echoed sk-embedding-secret"
+        config = {
+            "embedding_override": {
+                "provider": "qwen",
+                "api_key": "sk-embedding-secret",
+                "model": "text-embedding-v4",
+            }
+        }
+
+        redacted = redact_llm_secrets(text, config)
+
+        assert "sk-embedding-secret" not in redacted
         assert "[redacted-api-key]" in redacted
 
     def test_replaces_nested_api_key_in_voice_overrides(self) -> None:

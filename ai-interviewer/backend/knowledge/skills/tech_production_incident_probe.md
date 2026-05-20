@@ -7,7 +7,7 @@ priority: 7
 direction_tags: [internet_tech]
 role_tags: [java_backend, frontend_web, sre, ai_fullstack, ai_agent, mobile, ai_algorithm, architect]
 dimensions: [problem_solving, technical_depth, project_experience, communication]
-job_levels: [mid, senior, staff, principal]
+job_levels: [junior, mid, senior, staff, principal]
 probe_intents: [debugging_probe, escalation_probe, performance_probe]
 failure_categories: [root_cause_missing, missing_risk_boundary, poor_communication]
 generator_moves:

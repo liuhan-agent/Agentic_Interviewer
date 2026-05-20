@@ -81,7 +81,7 @@ Claude Code 的 `scanMemoryFiles → formatMemoryManifest → sideQuery → sele
 | `app/engine/agents/llm_client.py` | 小改 | `AgentCallRole` Literal 加 `"memory_selector"`（已支持 `llm_model_per_agent` 路由） |
 | `app/memory/skill_store.py` | 小改 | `retrieve_skills` 加 `use_llm_selector: bool = False` kwarg；若 True 且 candidates 非空 → 调 `select_memories_with_llm`；LLM 失败则 fallback 原 top-N |
 | `app/memory/strategy_store.py` | 小改 | 同 `skill_store`，`retrieve_strategies` 加同款 kwarg |
-| `app/engine/workflow/nodes/ask_question.py` | 小改 | `_step_retrieve_strategy` 按 `settings.enable_llm_memory_selector` 决定是否开 LLM selector（skill + strategy 两处调用点一致） |
+| `app/engine/workflow/nodes/ask_question.py` | 小改 | `_step_retrieve_strategy` 与 `_step_retrieve_skills` 分别按 `settings.enable_llm_memory_selector` 决定是否开 LLM selector |
 | `tests/unit/test_llm_memory_selector.py` | 新增 | 6-8 case：manifest 构造 / JSON parsing / fallback / top_n 截断 / LLM stub 模式 |
 | `tests/unit/test_skill_store.py` | 小改 | 加 1 case 测试 `use_llm_selector=True` 路径（stub LLM） |
 | `tests/unit/test_strategy_store.py` | 视情况加 | 如果已有，加 1 case；否则本 plan 不新增 |
@@ -208,8 +208,8 @@ enable_llm_memory_selector: bool = False
 llm_memory_selector_top_n: int = 5
 ```
 
-`ask_question_node._step_retrieve_strategy` 的 skill 分支和 strategy 分支
-分别按 flag 调用：
+`ask_question_node._step_retrieve_strategy` 与独立的
+`_step_retrieve_skills` 分别按 flag 调用：
 
 ```python
 settings = get_settings()
@@ -221,7 +221,13 @@ strategies = retrieve_strategies(
     use_llm_selector=use_llm,
     recent_qa_summary="",  # 后续可从 state.qa_summary 提
 )
-# ... skill 分支同款
+
+skills = retrieve_skills(
+    dimension=ctx["dimension"],
+    job_level=job_level,
+    use_llm_selector=use_llm,
+    recent_qa_summary="",
+)
 
 ```
 
