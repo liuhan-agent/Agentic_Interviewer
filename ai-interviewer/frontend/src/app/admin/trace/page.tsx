@@ -1,5 +1,4 @@
-import Link from "next/link";
-
+import { PendingNavigationLink } from "@/components/navigation/PendingNavigationLink";
 import { TraceExplorer } from "@/components/admin/TraceExplorer";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -21,7 +20,7 @@ export default function TraceExplorerSearchPage({
             <p className="font-medium text-foreground">缺少 sessionId</p>
             <p>请从后台观测台的历史面试列表进入 Trace Explorer。</p>
             <Button asChild variant="outline" size="sm">
-              <Link href="/admin">返回后台观测台</Link>
+              <PendingNavigationLink href="/admin">返回后台观测台</PendingNavigationLink>
             </Button>
           </CardContent>
         </Card>

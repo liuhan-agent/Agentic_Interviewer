@@ -1,6 +1,5 @@
 "use client";
 
-import Link from "next/link";
 import { useEffect, useState, type ComponentType } from "react";
 import {
   ArrowLeft,
@@ -24,6 +23,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { CollapsibleAnswerBubble } from "@/components/interview/CollapsibleAnswerBubble";
+import { PendingNavigationLink } from "@/components/navigation/PendingNavigationLink";
 import { TrainingPlanSourceBadge } from "@/components/interview/TrainingPlanSourceBadge";
 import { ApiError } from "@/lib/api/client";
 import { getReplay } from "@/lib/api/interview";
@@ -118,10 +118,14 @@ export function ReplayView({ sessionId }: { sessionId: string }) {
           <p className="text-muted-foreground">{state.message}</p>
           <div className="flex flex-wrap gap-2">
             <Button asChild variant="outline" size="sm">
-              <Link href={`/interview/${sessionId}/report`}>返回报告</Link>
+              <PendingNavigationLink href={`/interview/${sessionId}/report`}>
+                返回报告
+              </PendingNavigationLink>
             </Button>
             <Button asChild variant="ghost" size="sm">
-              <Link href={`/interview/${sessionId}`}>返回面试页</Link>
+              <PendingNavigationLink href={`/interview/${sessionId}`}>
+                返回面试页
+              </PendingNavigationLink>
             </Button>
           </div>
         </CardContent>
@@ -146,23 +150,23 @@ export function ReplayView({ sessionId }: { sessionId: string }) {
       />
       <div className="flex flex-wrap items-center gap-2">
         <Button asChild variant="outline" className="gap-2">
-          <Link href={`/interview/${sessionId}/report`}>
+          <PendingNavigationLink href={`/interview/${sessionId}/report`}>
             <ArrowLeft className="h-4 w-4" />
             返回报告
-          </Link>
+          </PendingNavigationLink>
         </Button>
         <Button asChild className="gap-2 bg-emerald-600 hover:bg-emerald-500 text-white">
-          <Link href="/interview/setup">
+          <PendingNavigationLink href="/interview/setup">
             <Play className="h-4 w-4" />
             再练一场
-          </Link>
+          </PendingNavigationLink>
         </Button>
         {practiceHref && (
           <Button asChild className="gap-2 bg-emerald-600 hover:bg-emerald-500 text-white">
-            <Link href={practiceHref}>
+            <PendingNavigationLink href={practiceHref}>
               <Target className="h-4 w-4" />
               针对薄弱点专项练习
-            </Link>
+            </PendingNavigationLink>
           </Button>
         )}
       </div>

@@ -1,6 +1,5 @@
 "use client";
 
-import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import {
   AlertTriangle,
@@ -50,6 +49,7 @@ import {
 } from "@/components/ui/tooltip";
 import { InfoTooltip } from "@/components/interview/InfoTooltip";
 import { OutcomeFeedback } from "@/components/interview/OutcomeFeedback";
+import { PendingNavigationLink } from "@/components/navigation/PendingNavigationLink";
 import { TrainingPlanSourceBadge } from "@/components/interview/TrainingPlanSourceBadge";
 import { ApiError } from "@/lib/api/client";
 import { getReport } from "@/lib/api/interview";
@@ -254,10 +254,17 @@ export function ReportView({ sessionId }: { sessionId: string }) {
               重新加载报告
             </Button>
             <Button asChild variant="outline" size="sm">
-              <Link href="/interview/setup">重新开始一场</Link>
+              <PendingNavigationLink href="/interview/setup" pendingLabel="打开中...">
+                重新开始一场
+              </PendingNavigationLink>
             </Button>
             <Button asChild variant="ghost" size="sm">
-              <Link href={`/interview/${sessionId}`}>返回面试页</Link>
+              <PendingNavigationLink
+                href={`/interview/${sessionId}`}
+                pendingLabel="返回中..."
+              >
+                返回面试页
+              </PendingNavigationLink>
             </Button>
           </div>
           <details className="text-xs text-muted-foreground/70">
@@ -281,7 +288,12 @@ export function ReportView({ sessionId }: { sessionId: string }) {
           <Loader2 className="mr-2 inline h-4 w-4 animate-spin" />
           面试仍在进行中。返回会话：&nbsp;
           <Button asChild variant="link" className="h-auto px-1">
-            <Link href={`/interview/${sessionId}`}>继续面试</Link>
+            <PendingNavigationLink
+              href={`/interview/${sessionId}`}
+              pendingLabel="进入中..."
+            >
+              继续面试
+            </PendingNavigationLink>
           </Button>
         </CardContent>
       </Card>
@@ -1200,7 +1212,7 @@ function QualityCenter({
           </div>
           {showAdminLinks && (
             <Button asChild variant="outline" size="sm" className="shrink-0 gap-1.5 text-xs">
-              <Link href="/admin">查看后台观测</Link>
+              <PendingNavigationLink href="/admin">查看后台观测</PendingNavigationLink>
             </Button>
           )}
         </div>
@@ -1240,7 +1252,7 @@ function QualityCenter({
                           {formatCoverageWarningStatus(warning.status)}
                         </span>
                         {showDeepLink && (
-                          <Link
+                          <PendingNavigationLink
                             href={buildTraceDeepLink({
                               sessionId,
                               dimension,
@@ -1249,7 +1261,7 @@ function QualityCenter({
                             className="shrink-0 text-[11px] text-amber-300 underline-offset-2 hover:underline"
                           >
                             查看记录
-                          </Link>
+                          </PendingNavigationLink>
                         )}
                       </li>
                     );
@@ -1881,10 +1893,10 @@ function TrainingPlanCard({
       <CardContent className="space-y-5">
         {weakPracticeHref && (
           <Button asChild className="gap-2 bg-emerald-600 hover:bg-emerald-500 text-white">
-            <Link href={weakPracticeHref}>
+            <PendingNavigationLink href={weakPracticeHref}>
               <Target className="h-4 w-4" />
               针对本次弱项再来一场
-            </Link>
+            </PendingNavigationLink>
           </Button>
         )}
 
@@ -1958,10 +1970,10 @@ function TrainingPlanCard({
                       </div>
                       {focusHref && (
                         <Button asChild variant="ghost" size="sm" className="h-6 shrink-0 gap-1 px-2 text-[11px] text-emerald-400 hover:text-emerald-300">
-                          <Link href={focusHref}>
+                          <PendingNavigationLink href={focusHref}>
                             <Play className="h-3 w-3" />
                             练这个
-                          </Link>
+                          </PendingNavigationLink>
                         </Button>
                       )}
                     </div>
@@ -2042,10 +2054,10 @@ function TrainingPlanCard({
             asChild
             className="gap-2 bg-emerald-600 text-white hover:bg-emerald-500"
           >
-            <Link href={weakPracticeHref}>
+            <PendingNavigationLink href={weakPracticeHref}>
               <Target className="h-4 w-4" />
               针对本次弱项再来一场
-            </Link>
+            </PendingNavigationLink>
           </Button>
         )}
 
@@ -2077,10 +2089,10 @@ function TrainingPlanCard({
 
         {weakPracticeHref && (
           <Button asChild className="gap-2 bg-emerald-600 hover:bg-emerald-500 text-white">
-            <Link href={weakPracticeHref}>
+            <PendingNavigationLink href={weakPracticeHref}>
               <Target className="h-4 w-4" />
               针对本次弱项再来一场
-            </Link>
+            </PendingNavigationLink>
           </Button>
         )}
       </CardContent>
@@ -2226,30 +2238,30 @@ function Actions({
   return (
     <div className="flex flex-wrap items-center gap-2">
       <Button asChild variant="outline" className="gap-2">
-        <Link href={`/interview/${sessionId}`}>
+        <PendingNavigationLink href={`/interview/${sessionId}`}>
           <ArrowLeft className="h-4 w-4" />
           返回对话记录
-        </Link>
+        </PendingNavigationLink>
       </Button>
       <Button asChild className="gap-2 bg-emerald-600 hover:bg-emerald-500 text-white">
-        <Link href="/interview/setup">
+        <PendingNavigationLink href="/interview/setup">
           <Play className="h-4 w-4" />
           开始新面试
-        </Link>
+        </PendingNavigationLink>
       </Button>
       {weakPracticeHref && (
         <Button asChild className="gap-2 bg-emerald-600 hover:bg-emerald-500 text-white">
-          <Link href={weakPracticeHref}>
+          <PendingNavigationLink href={weakPracticeHref}>
             <Target className="h-4 w-4" />
             针对薄弱点专项练习
-          </Link>
+          </PendingNavigationLink>
         </Button>
       )}
       <Button asChild variant="secondary" className="gap-2">
-        <Link href={`/interview/${sessionId}/replay`}>
+        <PendingNavigationLink href={`/interview/${sessionId}/replay`}>
           <Sparkles className="h-4 w-4" />
           查看训练回放
-        </Link>
+        </PendingNavigationLink>
       </Button>
       <TooltipProvider delayDuration={150}>
         <UiTooltip>

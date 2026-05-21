@@ -1,10 +1,10 @@
 "use client";
 
-import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Activity, AlertTriangle, ArrowLeft, ChevronDown, ExternalLink, FileText, GitBranch, Loader2, RefreshCw, Timer } from "lucide-react";
 
 import { TraceAnnotationDialog } from "@/components/admin/TraceAnnotationDialog";
+import { PendingNavigationLink } from "@/components/navigation/PendingNavigationLink";
 import { WorkflowChainPanel } from "@/components/admin/WorkflowChainPanel";
 
 import { Badge } from "@/components/ui/badge";
@@ -478,16 +478,20 @@ function BackLinks({ sessionId }: { sessionId: string }) {
   return (
     <div className="flex flex-wrap gap-2">
       <Button asChild variant="outline" size="sm" className="gap-1.5">
-        <Link href="/admin">
+        <PendingNavigationLink href="/admin">
           <ArrowLeft className="h-3.5 w-3.5" />
           返回后台
-        </Link>
+        </PendingNavigationLink>
       </Button>
       <Button asChild variant="ghost" size="sm" className="gap-1.5">
-        <Link href={`/interview/${sessionId}/report`}>查看报告</Link>
+        <PendingNavigationLink href={`/interview/${sessionId}/report`}>
+          查看报告
+        </PendingNavigationLink>
       </Button>
       <Button asChild variant="ghost" size="sm" className="gap-1.5">
-        <Link href={`/interview/${sessionId}/replay`}>Replay</Link>
+        <PendingNavigationLink href={`/interview/${sessionId}/replay`}>
+          Replay
+        </PendingNavigationLink>
       </Button>
     </div>
   );

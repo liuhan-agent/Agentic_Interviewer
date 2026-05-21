@@ -1,6 +1,5 @@
 "use client";
 
-import Link from "next/link";
 import { useMemo, useState } from "react";
 import {
   CartesianGrid,
@@ -14,6 +13,7 @@ import {
 } from "recharts";
 import { ArrowRight, TrendingUp } from "lucide-react";
 
+import { PendingNavigationLink } from "@/components/navigation/PendingNavigationLink";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -120,10 +120,10 @@ export function ProgressChart({
           </div>
           {weakPracticeHref && (
             <Button asChild size="sm" className="gap-1.5 bg-emerald-600 text-white hover:bg-emerald-500">
-              <Link href={weakPracticeHref}>
+              <PendingNavigationLink href={weakPracticeHref} pendingLabel="打开中...">
                 针对薄弱点专项练习
                 <ArrowRight className="h-3.5 w-3.5" />
-              </Link>
+              </PendingNavigationLink>
             </Button>
           )}
         </div>
