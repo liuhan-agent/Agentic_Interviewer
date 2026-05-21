@@ -2072,16 +2072,7 @@ export function SetupForm() {
                 </div>
               </div>
               <div className="mt-4 h-1.5 overflow-hidden rounded-full bg-muted">
-                <motion.div
-                  className="h-full rounded-full bg-emerald-500"
-                  initial={{ width: "18%" }}
-                  animate={{ width: ["18%", "62%", "86%"] }}
-                  transition={{
-                    duration: 2.4,
-                    repeat: Number.POSITIVE_INFINITY,
-                    ease: "easeInOut",
-                  }}
-                />
+                <div className="h-full w-2/3 rounded-full animate-shimmer bg-shimmer bg-emerald-500/80" />
               </div>
             </motion.div>
           </motion.div>

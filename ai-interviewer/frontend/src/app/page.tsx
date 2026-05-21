@@ -1,6 +1,5 @@
 "use client";
 
-import Link from "next/link";
 import { useRef } from "react";
 import {
   ArrowRight,
@@ -17,6 +16,7 @@ import { motion, useInView } from "framer-motion";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { PendingNavigationLink } from "@/components/navigation/PendingNavigationLink";
 import {
   Card,
   CardContent,
@@ -124,10 +124,10 @@ function HeroSection() {
 
           <motion.div variants={fadeUp} className="flex flex-wrap gap-3 pt-2">
             <Button asChild size="lg" className="group glow-emerald-sm bg-emerald-600 hover:bg-emerald-500 text-white">
-              <Link href="/interview/setup">
+              <PendingNavigationLink href="/interview/setup" pendingLabel="打开中...">
                 开始面试
                 <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5" />
-              </Link>
+              </PendingNavigationLink>
             </Button>
             <Button asChild size="lg" variant="outline" className="group">
               <a href="#features">
@@ -307,10 +307,10 @@ function CtaSection() {
           按你的节奏来，没有任何压力。
         </p>
         <Button asChild size="lg" className="group glow-emerald-sm bg-emerald-600 hover:bg-emerald-500 text-white">
-          <Link href="/interview/setup">
+          <PendingNavigationLink href="/interview/setup" pendingLabel="打开中...">
             立即开始
             <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5" />
-          </Link>
+          </PendingNavigationLink>
         </Button>
       </motion.div>
     </section>

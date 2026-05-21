@@ -1,6 +1,5 @@
 "use client";
 
-import Link from "next/link";
 import React, { useCallback, useEffect, useState } from "react";
 import {
   Activity,
@@ -23,6 +22,7 @@ import {
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { PendingNavigationLink } from "@/components/navigation/PendingNavigationLink";
 import {
   Card,
   CardContent,
@@ -1097,7 +1097,7 @@ function RecentTracesByNode({
                       : "—"}
                   </span>
                   <Button asChild size="sm" variant="ghost" className="h-7 px-2 text-xs">
-                    <Link
+                    <PendingNavigationLink
                       href={`/admin/trace?sessionId=${encodeURIComponent(
                         item.session_id,
                       )}&node=${encodeURIComponent(item.node)}${
@@ -1107,7 +1107,7 @@ function RecentTracesByNode({
                       }`}
                     >
                       Trace
-                    </Link>
+                    </PendingNavigationLink>
                   </Button>
                 </div>
               </li>
@@ -1167,7 +1167,7 @@ function SystemOverview({
             </CardDescription>
           </div>
           <Button asChild variant="outline" size="sm" className="h-8 gap-1.5 text-xs">
-        <Link href="/interview/history">面试质量入口</Link>
+        <PendingNavigationLink href="/interview/history">面试质量入口</PendingNavigationLink>
           </Button>
         </div>
       </CardHeader>
@@ -1670,22 +1670,22 @@ function SessionLinks({ session }: { session: { session_id: string } }) {
   return (
     <div className="flex items-center justify-end gap-1.5">
       <Button asChild size="sm" variant="outline" className="h-7 gap-1.5 px-3 text-[11px]">
-        <Link href={`/interview/${session.session_id}/report`}>
+        <PendingNavigationLink href={`/interview/${session.session_id}/report`}>
           <ClipboardList className="h-3 w-3" />
           报告
-        </Link>
+        </PendingNavigationLink>
       </Button>
       <Button asChild size="sm" variant="ghost" className="h-7 gap-1 px-2.5 text-[11px] text-muted-foreground hover:text-foreground">
-        <Link href={`/interview/${session.session_id}/replay`}>
+        <PendingNavigationLink href={`/interview/${session.session_id}/replay`}>
           <Play className="h-3 w-3" />
           Replay
-        </Link>
+        </PendingNavigationLink>
       </Button>
       <Button asChild size="sm" variant="ghost" className="h-7 gap-1 px-2.5 text-[11px] text-muted-foreground hover:text-foreground">
-        <Link href={`/admin/trace?sessionId=${session.session_id}`}>
+        <PendingNavigationLink href={`/admin/trace?sessionId=${session.session_id}`}>
           <Waypoints className="h-3 w-3" />
           Trace
-        </Link>
+        </PendingNavigationLink>
       </Button>
     </div>
   );
@@ -2095,10 +2095,10 @@ function HistorySessionActions({
         )}
       >
         {session.has_report ? (
-          <Link href={`/interview/${session.session_id}/report`}>
+          <PendingNavigationLink href={`/interview/${session.session_id}/report`}>
             <ClipboardList className="h-3 w-3" />
             查看报告
-          </Link>
+          </PendingNavigationLink>
         ) : (
           <span>
             <ClipboardList className="h-3 w-3" />
@@ -2112,10 +2112,10 @@ function HistorySessionActions({
         variant="ghost"
         className="h-7 gap-1 px-2 text-[11px] text-muted-foreground hover:text-foreground"
       >
-        <Link href={`/interview/${session.session_id}/replay`}>
+        <PendingNavigationLink href={`/interview/${session.session_id}/replay`}>
           <Play className="h-3 w-3" />
           回放
-        </Link>
+        </PendingNavigationLink>
       </Button>
       <Button
         asChild
@@ -2123,10 +2123,10 @@ function HistorySessionActions({
         variant="ghost"
         className="h-7 gap-1 px-2 text-[11px] text-muted-foreground hover:text-foreground"
       >
-        <Link href={`/admin/trace?sessionId=${session.session_id}`}>
+        <PendingNavigationLink href={`/admin/trace?sessionId=${session.session_id}`}>
           <Waypoints className="h-3 w-3" />
           Trace
-        </Link>
+        </PendingNavigationLink>
       </Button>
       <div className="group/del relative">
         <Button

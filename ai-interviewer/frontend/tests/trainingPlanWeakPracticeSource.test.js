@@ -53,15 +53,16 @@ test("TrainingPlanCard accepts weakPracticeHref prop and renders gated", () => {
   assert.match(source, /weakPracticeHref\s*&&/);
 });
 
-test("TrainingPlanCard CTA copy and Link wiring", () => {
+test("TrainingPlanCard CTA copy and pending route link wiring", () => {
   const source = read("src/components/interview/ReportView.tsx");
 
   // Localised CTA copy ("针对本次弱项再来一场" or close variant) so the
   // user sees the practice intent in their own language.
   assert.match(source, /针对本次弱项/);
-  // Use Next.js ``<Link>`` (not raw <a>) for client-side navigation so
-  // the app shell + scroll position survive.
-  assert.match(source, /<Link\s+href=\{weakPracticeHref\}/);
+  // Use the shared pending wrapper over Next.js Link so the click gives
+  // immediate feedback while preserving client-side navigation.
+  assert.match(source, /PendingNavigationLink/);
+  assert.match(source, /<PendingNavigationLink\s+href=\{weakPracticeHref\}/);
 });
 
 test("Report frame threads weakPracticeHref into TrainingPlanCard once", () => {

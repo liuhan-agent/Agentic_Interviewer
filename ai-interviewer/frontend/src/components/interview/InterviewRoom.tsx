@@ -1,6 +1,5 @@
 "use client";
 
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 import React, { useCallback, useEffect, useRef, useState, useMemo } from "react";
 import {
@@ -38,6 +37,7 @@ import {
 } from "@/components/interview/NextQuestionLoader";
 import { SessionIdTooltip } from "@/components/interview/SessionIdTooltip";
 import { VoiceAnswerPanel } from "@/components/interview/VoiceAnswerPanel";
+import { PendingNavigationLink } from "@/components/navigation/PendingNavigationLink";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -817,12 +817,13 @@ export function InterviewRoom({
         <Card>
           <CardContent className="pt-6 text-sm text-muted-foreground">
             此会话已取消。{" "}
-            <Link
+            <PendingNavigationLink
               href="/interview/setup"
+              pendingLabel="打开中..."
               className="text-primary underline-offset-4 hover:underline"
             >
               开始新面试
-            </Link>
+            </PendingNavigationLink>
             。
           </CardContent>
         </Card>
