@@ -11,6 +11,7 @@ from sqlalchemy.orm import Session
 
 from app.models.base import get_session as get_db_session
 from app.models.session_anchor import SessionAnchorChunk
+from app.services.resume_anchor_cache import cleanup_expired_resume_anchor_cache_chunks
 from app.services.resume_parse_artifacts import cleanup_expired_resume_parse_artifacts
 
 
@@ -33,10 +34,16 @@ def run_cleanup(
         artifact_deleted = cleanup_expired_resume_parse_artifacts(
             db_session=session,
         )
+        cache_deleted = cleanup_expired_resume_anchor_cache_chunks(
+            db_session=session,
+            now=current,
+            batch_size=limit,
+        )
         return {
             "session_anchor_chunks_deleted": chunk_deleted,
             "resume_parse_artifacts_deleted": artifact_deleted,
-            "total_deleted": chunk_deleted + artifact_deleted,
+            "resume_anchor_cache_chunks_deleted": cache_deleted,
+            "total_deleted": chunk_deleted + artifact_deleted + cache_deleted,
             "batch_size": limit,
         }
 

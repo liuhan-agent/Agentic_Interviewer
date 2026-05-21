@@ -9,6 +9,7 @@ from sqlalchemy.orm import Session
 
 from app.core.settings import get_settings
 from app.models.base import Base, _tables_for_create_all
+from app.models.resume_anchor_cache import ResumeAnchorCacheChunk
 from app.models.session_anchor import SessionAnchorChunk
 
 
@@ -48,8 +49,20 @@ def test_session_anchor_chunk_model_exposes_source_and_revision_filters() -> Non
     assert columns.source_type.index is True
     assert columns.source_revision_id.index is True
     assert columns.embedding_model_version.index is True
+    assert columns.source_cache_key.index is True
     assert {"resume", "self_intro"}.issubset(
         set(SessionAnchorChunk.P0_SOURCE_TYPES)
+    )
+
+
+def test_resume_anchor_cache_chunk_model_exposes_cache_lookup_columns() -> None:
+    columns = ResumeAnchorCacheChunk.__table__.c
+
+    assert columns.cache_key.index is True
+    assert columns.embedding_model_version.index is True
+    assert columns.expires_at.index is True
+    assert columns.embedding.type.dim == int(
+        get_settings().resume_rag_embedding_dimension or 1536
     )
 
 
@@ -59,7 +72,9 @@ def test_sqlite_init_db_table_filter_skips_session_anchor_chunks() -> None:
     tables = _tables_for_create_all(engine)
 
     assert SessionAnchorChunk.__table__ not in tables
+    assert ResumeAnchorCacheChunk.__table__ not in tables
     assert "session_anchor_chunks" in Base.metadata.tables
+    assert "resume_anchor_cache_chunks" in Base.metadata.tables
 
 
 def test_session_anchor_chunk_round_trip_with_pgvector() -> None:

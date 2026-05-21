@@ -1742,6 +1742,80 @@ def test_anchor_rag_blocks_survive_structured_primary_seed_hit(monkeypatch) -> N
     assert ctx["candidate_anchor_rag_artifact"]["status"] == "primary"
 
 
+def test_ask_question_node_refreshes_pending_resume_vector_status(monkeypatch) -> None:
+    retrieval = RetrievalContext(docs=[], as_prompt_block="")
+    _install_default_patches(
+        monkeypatch,
+        retrieval=retrieval,
+        strategies=[],
+        skills=[],
+    )
+    monkeypatch.setattr(
+        ask_mod,
+        "get_settings",
+        lambda: SimpleNamespace(
+            enable_llm_memory_selector=False,
+            enable_skill_injection=True,
+            skill_retrieval_limit=3,
+            enable_generator_avoid_patterns=True,
+            drift_feedback_top_n=3,
+            drift_feedback_min_support=2,
+            enable_question_fit_profile=True,
+            enable_question_reranker_shadow=False,
+            question_reranker_timeout_ms=4000,
+            question_primary_role_tags=list(_COVERED_PRIMARY_ROLE_TAGS),
+            resume_rag_mode="primary",
+            resume_rag_session_sample_rate=1.0,
+        ),
+    )
+    monkeypatch.setattr(
+        ask_mod,
+        "refresh_resume_vector_status",
+        lambda **kwargs: {
+            "status": "ready",
+            "resume_source_id": kwargs["resume_source_id"],
+            "resume_revision_id": "rev_ready",
+            "chunk_count": 12,
+        },
+    )
+    captured: dict[str, Any] = {}
+
+    def fake_retrieve_candidate_anchors(**kwargs):
+        captured.update(kwargs)
+        return CandidateAnchorRagResult(
+            resume_block="[resume] Redis Lua coupon guard",
+            self_intro_block="",
+            hits=[],
+            latency_ms=12,
+            fallback_reason=None,
+            skipped=False,
+        )
+
+    monkeypatch.setattr(
+        ask_mod,
+        "retrieve_candidate_anchors",
+        fake_retrieve_candidate_anchors,
+    )
+
+    out = ask_mod.ask_question_node(
+        _base_state(
+            candidate={
+                "resume_parsed": {"summary": "candidate"},
+                "resume_source_id": "artifact_1",
+                "resume_vector_status": {
+                    "status": "pending_background",
+                    "resume_source_id": "artifact_1",
+                    "resume_revision_id": None,
+                },
+            },
+        )
+    )
+
+    assert out["candidate"]["resume_vector_status"]["status"] == "ready"
+    assert out["candidate"]["resume_vector_status"]["resume_revision_id"] == "rev_ready"
+    assert captured["resume_revision_id"] == "rev_ready"
+
+
 def test_challenge_with_reference_prefers_resume_then_self_intro_then_legacy() -> None:
     ctx = {
         "question_payload": {},

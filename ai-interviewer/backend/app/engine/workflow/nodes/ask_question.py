@@ -80,6 +80,7 @@ from app.services.question_selector import (
 from app.services.question_selector import (
     select_question_candidates as _select_question_candidates,
 )
+from app.services.resume_vector_jobs import refresh_resume_vector_status
 from app.services.session_anchor_retriever import retrieve_candidate_anchors
 
 log = get_logger(__name__)
@@ -770,6 +771,53 @@ def _ready_revision(status: dict[str, Any], key: str) -> str | None:
     return revision or None
 
 
+def _state_with_refreshed_resume_vector_status(
+    state: InterviewState,
+) -> tuple[InterviewState, dict[str, Any] | None]:
+    candidate = state.get("candidate") or {}
+    if not isinstance(candidate, dict):
+        return state, None
+    status = candidate.get("resume_vector_status") or {}
+    if not isinstance(status, dict):
+        return state, None
+    if status.get("status") not in {"pending_background", "pending_node"}:
+        return state, None
+    source_id = (
+        candidate.get("resume_source_id")
+        or status.get("resume_source_id")
+        or status.get("source_artifact_id")
+    )
+    if not source_id:
+        return state, None
+    latest = refresh_resume_vector_status(
+        session_id=str(state.get("session_id") or ""),
+        resume_source_id=str(source_id),
+        parsed=candidate.get("resume_parsed")
+        if isinstance(candidate.get("resume_parsed"), dict)
+        else None,
+        embedding_override=_runtime_embedding_override(),
+        current_status=status,
+    )
+    if latest.get("wait_timeout_ms") == 0:
+        latest.pop("wait_timed_out", None)
+        latest.pop("wait_timeout_ms", None)
+    refreshed = {**candidate, "resume_vector_status": latest}
+    return {**state, "candidate": refreshed}, refreshed  # type: ignore[return-value]
+
+
+def _runtime_embedding_override() -> dict[str, Any] | None:
+    try:
+        from app.services.session_manager import get_llm_override
+
+        llm_config = get_llm_override()
+    except Exception:
+        return None
+    if not isinstance(llm_config, dict):
+        return None
+    override = llm_config.get("embedding_override")
+    return override if isinstance(override, dict) else None
+
+
 def _used_project_names(state: InterviewState) -> list[str]:
     candidate = state.get("candidate") or {}
     parsed = candidate.get("resume_parsed") if isinstance(candidate, dict) else {}
@@ -1303,6 +1351,7 @@ def _resolve_plan(
 
 def ask_question_node(state: InterviewState) -> dict[str, Any]:
     node_started_at = time.perf_counter()
+    state, refreshed_candidate = _state_with_refreshed_resume_vector_status(state)
     runtime_config = state.get("runtime_config") or {}
     dimension = (
         state.get("current_dimension")
@@ -1455,6 +1504,8 @@ def ask_question_node(state: InterviewState) -> dict[str, Any]:
             }
         ],
     }
+    if refreshed_candidate is not None:
+        update["candidate"] = refreshed_candidate
     try:
         get_tracer().trace_node_event(
             {**state, **update},

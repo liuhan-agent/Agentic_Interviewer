@@ -13,6 +13,7 @@ from .question_bank import (
     QuestionUsage,
     QuestionVariant,
 )
+from .resume_anchor_cache import ResumeAnchorCacheChunk
 from .resume_parse_artifact import ResumeParseArtifact
 from .session_anchor import SessionAnchorChunk
 from .skill_playbook import SkillPlaybookCard
@@ -45,6 +46,7 @@ __all__ = [
     "QuestionReview",
     "QuestionUsage",
     "QuestionVariant",
+    "ResumeAnchorCacheChunk",
     "ResumeParseArtifact",
     "SessionAnchorChunk",
     "SkillPlaybookCard",

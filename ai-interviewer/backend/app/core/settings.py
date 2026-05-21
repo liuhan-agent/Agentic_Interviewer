@@ -130,8 +130,10 @@ class Settings(BaseSettings):
     session_anchor_self_intro_min_chars: int = 200
     session_anchor_self_intro_max_cards: int = 8
     session_anchor_self_intro_card_max_chars: int = 500
+    session_anchor_resume_ready_wait_ms: int = 12000
     resume_rag_session_sample_rate: float = 1.0
-    resume_rag_session_ttl_hours: int = 24
+    resume_rag_session_ttl_hours: int = 168
+    resume_anchor_cache_ttl_hours: int = 168
     resume_rag_parse_artifact_ttl_seconds: int = 3600
     resume_rag_embedding_endpoint: str = "https://api.openai.com/v1"
     resume_rag_embedding_model: str = "text-embedding-3-small"
