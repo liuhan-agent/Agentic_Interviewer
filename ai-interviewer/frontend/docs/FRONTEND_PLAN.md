@@ -41,6 +41,7 @@
 | 字体 | Inter（UI）+ JetBrains Mono（代码 / session_id / trace 区域）| 深色 + 技术感标配 |
 
 **暂不引入**：React Query、NextAuth、Radix Primitives 直接用（shadcn 已封装）、Framer Motion（MVP 不上动画，P1 再加）。
+若后续补登录 / 权限模块，先看 §5 的 P3 约束，尤其是后台观测台的 admin token 下发方式。
 
 ---
 
@@ -160,6 +161,17 @@ frontend/
 - [ ] `/admin` 面板：bandit snapshot 可视化（每个 context_key × action 的 α/β 热力/柱状）
 - [ ] trace 浏览器：按 session 看每一轮的 director 选择、evaluator verdict、verifier 意见
 - [ ] LangSmith 嵌入链接（深度跳转到后端已打通的 tracing 项目）
+
+### P3（后续）：登录 / 管理员权限模块
+
+当前产品形态仍是匿名 session token，不在 MVP / P1 / P2 中引入完整用户系统。若后续实现登录模块，需要把后台观测台权限一并纳入，而不是继续靠管理员手工复制同一串 `API_TOKEN`。
+
+- 登录模块要区分普通面试用户和管理员；普通用户即使已登录，也不应看到 `/admin` 导航或访问后台观测 API。
+- `API_TOKEN` 保留为部署级 bootstrap / 机器密钥，放在后端环境变量或部署平台 secret manager 中，不作为长期人工分发给每个管理员的登录凭证。
+- 管理员访问后台观测台时，应使用登录态或短期 admin session；后端按用户角色校验 `/admin/*`，前端不再要求管理员在页面里粘贴共享 `API_TOKEN`。
+- 若需要授予管理员权限，优先做一次性邀请 token 或由已有管理员在后台创建；邀请 token 必须有过期时间、一次性消费、可撤销，并且只用于换取个人管理员身份，不直接等同于 `API_TOKEN`。
+- 需要保留撤销与轮换能力：能禁用单个管理员、使其 session 失效、审计最近登录 / 后台操作；轮换 `API_TOKEN` 不应要求逐个通知所有管理员重新复制密钥。
+- 登录模块完成后，后台观测台的“后台设置 / 权限”区域应降级为调试 / fallback 入口，生产环境默认隐藏或仅在 bootstrap 模式下显示。
 
 ---
 

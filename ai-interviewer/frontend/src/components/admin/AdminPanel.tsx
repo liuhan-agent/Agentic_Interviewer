@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   Activity,
   AlertTriangle,
@@ -33,6 +33,12 @@ import {
 import { Input } from "@/components/ui/input";
 import { Separator } from "@/components/ui/separator";
 import { Skeleton } from "@/components/ui/skeleton";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { CandidateAnchorRagCard } from "@/components/admin/CandidateAnchorRagCard";
 import { RagEvalPanel } from "@/components/admin/RagEvalPanel";
 import {
@@ -111,6 +117,85 @@ type Loadable<T> =
   | { phase: "loading" }
   | { phase: "ready"; data: T }
   | { phase: "error"; message: string };
+
+type AdminTabId = "health" | "scoring" | "strategy";
+
+type AdminTabCssVars = React.CSSProperties & {
+  "--admin-tab-bg": string;
+  "--admin-tab-border": string;
+  "--admin-tab-rail": string;
+  "--admin-tab-ring": string;
+};
+
+type AdminTabTheme = {
+  id: AdminTabId;
+  label: string;
+  icon: typeof Activity;
+  tabActive: string;
+  tabInactive: string;
+  iconActive: string;
+  panelStyle: AdminTabCssVars;
+};
+
+const ADMIN_TAB_PANEL_CARD_THEME =
+  "[&_.rounded-xl.border.bg-card]:shadow-[0_0_0_1px_var(--admin-tab-ring)]";
+
+const ADMIN_TAB_THEMES: Record<AdminTabId, AdminTabTheme> = {
+  health: {
+    id: "health",
+    label: "运行健康",
+    icon: Activity,
+    tabActive:
+      "border-emerald-500/35 bg-emerald-500/10 text-emerald-700 shadow-sm dark:text-emerald-100",
+    tabInactive:
+      "border-transparent text-muted-foreground hover:bg-emerald-500/5 hover:text-emerald-700 dark:hover:text-emerald-100",
+    iconActive: "text-emerald-500 dark:text-emerald-300",
+    panelStyle: {
+      "--admin-tab-bg": "rgb(16 185 129 / 0.055)",
+      "--admin-tab-border": "rgb(16 185 129 / 0.28)",
+      "--admin-tab-rail": "rgb(16 185 129 / 0.78)",
+      "--admin-tab-ring": "rgb(16 185 129 / 0.14)",
+    },
+  },
+  scoring: {
+    id: "scoring",
+    label: "评分质量",
+    icon: ClipboardList,
+    tabActive:
+      "border-sky-500/35 bg-sky-500/10 text-sky-700 shadow-sm dark:text-sky-100",
+    tabInactive:
+      "border-transparent text-muted-foreground hover:bg-sky-500/5 hover:text-sky-700 dark:hover:text-sky-100",
+    iconActive: "text-sky-500 dark:text-sky-300",
+    panelStyle: {
+      "--admin-tab-bg": "rgb(14 165 233 / 0.055)",
+      "--admin-tab-border": "rgb(14 165 233 / 0.28)",
+      "--admin-tab-rail": "rgb(14 165 233 / 0.78)",
+      "--admin-tab-ring": "rgb(14 165 233 / 0.14)",
+    },
+  },
+  strategy: {
+    id: "strategy",
+    label: "策略学习",
+    icon: BookMarked,
+    tabActive:
+      "border-amber-500/35 bg-amber-500/10 text-amber-700 shadow-sm dark:text-amber-100",
+    tabInactive:
+      "border-transparent text-muted-foreground hover:bg-amber-500/5 hover:text-amber-700 dark:hover:text-amber-100",
+    iconActive: "text-amber-500 dark:text-amber-300",
+    panelStyle: {
+      "--admin-tab-bg": "rgb(245 158 11 / 0.055)",
+      "--admin-tab-border": "rgb(245 158 11 / 0.28)",
+      "--admin-tab-rail": "rgb(245 158 11 / 0.78)",
+      "--admin-tab-ring": "rgb(245 158 11 / 0.14)",
+    },
+  },
+};
+
+const ADMIN_TABS = [
+  ADMIN_TAB_THEMES.health,
+  ADMIN_TAB_THEMES.scoring,
+  ADMIN_TAB_THEMES.strategy,
+];
 
 function useAutoFetch<T>(
   fetcher: (signal?: AbortSignal) => Promise<T>,
@@ -200,12 +285,35 @@ function AdminScoringSection({
   );
 }
 
+function AdminTabPanel({
+  theme,
+  children,
+}: {
+  theme: AdminTabTheme;
+  children: React.ReactNode;
+}) {
+  return (
+    <section
+      style={theme.panelStyle}
+      className={cn(
+        "space-y-6 rounded-xl border p-3 transition-colors sm:p-4",
+        "border-[color:var(--admin-tab-border)] bg-[color:var(--admin-tab-bg)]",
+        "shadow-[inset_0_1px_0_var(--admin-tab-ring)]",
+        ADMIN_TAB_PANEL_CARD_THEME,
+      )}
+    >
+      <div className="h-1 w-24 rounded-full bg-[color:var(--admin-tab-rail)]" />
+      {children}
+    </section>
+  );
+}
+
 export function AdminPanel() {
   const [tokenInput, setTokenInput] = useState("");
   const [tokenSaved, setTokenSaved] = useState("");
   const [tick, setTick] = useState(0);
   const [recentNode, setRecentNode] = useState<string>("evaluator");
-  const [activeTab, setActiveTab] = useState<"health" | "scoring" | "strategy">("health");
+  const [activeTab, setActiveTab] = useState<AdminTabId>("health");
 
   useEffect(() => {
     const t = loadAdminToken();
@@ -352,12 +460,6 @@ export function AdminPanel() {
     setTick((t) => t + 1);
   }
 
-  const ADMIN_TABS = [
-    { id: "health" as const, label: "运行健康", icon: Activity },
-    { id: "scoring" as const, label: "评分质量", icon: ClipboardList },
-    { id: "strategy" as const, label: "策略学习", icon: BookMarked },
-  ];
-
   return (
     <div className="space-y-6">
       <TokenBar
@@ -376,72 +478,83 @@ export function AdminPanel() {
         strategies={strategies}
       />
 
-      <div className="flex gap-1 rounded-lg border bg-muted/40 p-1">
-        {ADMIN_TABS.map((tab) => (
+      <div className="grid grid-cols-3 gap-1 rounded-xl border bg-muted/40 p-1">
+        {ADMIN_TABS.map((theme) => (
           <button
-            key={tab.id}
-            onClick={() => setActiveTab(tab.id)}
+            key={theme.id}
+            onClick={() => setActiveTab(theme.id)}
+            aria-pressed={activeTab === theme.id}
             className={cn(
-              "flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium transition-colors",
-              activeTab === tab.id
-                ? "bg-background text-foreground shadow-sm"
-                : "text-muted-foreground hover:text-foreground",
+              "flex items-center justify-center gap-1.5 rounded-lg border px-3 py-2 text-sm font-medium transition-colors active:scale-[0.98]",
+              activeTab === theme.id ? theme.tabActive : theme.tabInactive,
             )}
           >
-            <tab.icon className="h-3.5 w-3.5" />
-            {tab.label}
+            <theme.icon
+              className={cn(
+                "h-3.5 w-3.5 transition-colors",
+                activeTab === theme.id
+                  ? theme.iconActive
+                  : "text-muted-foreground/80",
+              )}
+            />
+            {theme.label}
           </button>
         ))}
       </div>
 
       {activeTab === "health" && (
-        <AdminHealthSection
-          traceRollup={traceRollup}
-          fallbackRollup={fallbackRollup}
-          evidenceRollup={evidenceRollup}
-          questionQualityRollup={questionQualityRollup}
-          fallbackRates={fallbackRates}
-          sessions={sessions}
-          history={history}
-          onRefresh={() => setTick((t) => t + 1)}
-        />
+        <AdminTabPanel theme={ADMIN_TAB_THEMES.health}>
+          <AdminHealthSection
+            traceRollup={traceRollup}
+            fallbackRollup={fallbackRollup}
+            evidenceRollup={evidenceRollup}
+            questionQualityRollup={questionQualityRollup}
+            fallbackRates={fallbackRates}
+            sessions={sessions}
+            history={history}
+            onRefresh={() => setTick((t) => t + 1)}
+          />
+          <RecentTracesByNode
+            state={recentTraces}
+            node={recentNode}
+            onNodeChange={setRecentNode}
+          />
+        </AdminTabPanel>
       )}
 
       {activeTab === "scoring" && (
-        <AdminScoringSection
-          evidenceRollup={evidenceRollup}
-          questionQualityRollup={questionQualityRollup}
-          drift={drift}
-        />
+        <AdminTabPanel theme={ADMIN_TAB_THEMES.scoring}>
+          <AdminScoringSection
+            evidenceRollup={evidenceRollup}
+            questionQualityRollup={questionQualityRollup}
+            drift={drift}
+          />
+        </AdminTabPanel>
       )}
 
-      <RecentTracesByNode
-        state={recentTraces}
-        node={recentNode}
-        onNodeChange={setRecentNode}
-      />
-
-      <SessionsCard state={sessions} />
-      <HistoricalSessionsCard state={history} onRefresh={() => setTick((t) => t + 1)} />
-      <QuestionBankCard
-        state={questionSeeds}
-        usages={questionUsages}
-        rerankUsages={questionRerankUsages}
-        reviews={questionReviews}
-        onRefresh={() => setTick((t) => t + 1)}
-      />
-      <SkillsPlaybookCard
-        state={skillPlaybooks}
-        onRefresh={() => setTick((t) => t + 1)}
-      />
-      <StrategiesCard
-        state={strategies}
-        signals={strategySignals}
-        usages={strategyUsages}
-        stats={strategyStats}
-        onRefresh={() => setTick((t) => t + 1)}
-      />
-      <RagEvalSection />
+      {activeTab === "strategy" && (
+        <AdminTabPanel theme={ADMIN_TAB_THEMES.strategy}>
+          <BanditCard state={bandit} />
+          <QuestionBankCard
+            state={questionSeeds}
+            usages={questionUsages}
+            rerankUsages={questionRerankUsages}
+            reviews={questionReviews}
+            onRefresh={() => setTick((t) => t + 1)}
+          />
+          <SkillsPlaybookCard
+            state={skillPlaybooks}
+            onRefresh={() => setTick((t) => t + 1)}
+          />
+          <StrategiesCard
+            state={strategies}
+            signals={strategySignals}
+            usages={strategyUsages}
+            stats={strategyStats}
+            onRefresh={() => setTick((t) => t + 1)}
+          />
+        </AdminTabPanel>
+      )}
     </div>
   );
 }
@@ -1152,43 +1265,101 @@ function SystemOverview({
       : phaseLabel(drift);
   const sessionCount = sessions.phase === "ready" ? sessions.data.count : null;
   const strategyCount = strategies.phase === "ready" ? strategies.data.count : null;
+  const apiTone =
+    health.phase === "error"
+      ? "error"
+      : health.phase === "loading"
+        ? "loading"
+        : health.data.status === "ok"
+          ? "ok"
+          : "warn";
+  const banditTone =
+    bandit.phase === "error"
+      ? "error"
+      : bandit.phase === "loading"
+        ? "loading"
+        : armCount && armCount > 0
+          ? "ok"
+          : "idle";
+  const driftTone =
+    drift.phase === "error"
+      ? "error"
+      : drift.phase === "loading"
+        ? "loading"
+        : drift.data.enabled
+          ? "ok"
+          : "idle";
+  const sessionsTone =
+    sessions.phase === "error"
+      ? "error"
+      : sessions.phase === "loading"
+        ? "loading"
+        : sessionCount && sessionCount > 0
+          ? "ok"
+          : "idle";
+  const strategiesTone =
+    strategies.phase === "error"
+      ? "error"
+      : strategies.phase === "loading"
+        ? "loading"
+        : strategyCount && strategyCount > 0
+          ? "ok"
+          : "idle";
 
   return (
-    <Card>
-      <CardHeader>
-        <div className="flex items-start justify-between gap-3">
-          <div>
+    <Card className="overflow-hidden">
+      <CardContent className="space-y-3 p-4">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div className="min-w-0">
             <CardTitle className="flex items-center gap-2 text-base">
               <Activity className="h-4 w-4 text-emerald-400" />
-              系统状态总览
+              运行概览
             </CardTitle>
-            <CardDescription className="mt-1">
-              把后台技术指标翻译成可展示的运行状态，便于连接用户侧质量中心和开发者调试视图。
+            <CardDescription className="mt-1 text-xs">
+              关键后台状态灯，详细诊断在下方页签查看。
             </CardDescription>
           </div>
-          <Button asChild variant="outline" size="sm" className="h-8 gap-1.5 text-xs">
-        <PendingNavigationLink href="/interview/history">面试质量入口</PendingNavigationLink>
+          <Button
+            asChild
+            variant="outline"
+            size="sm"
+            className="h-8 shrink-0 gap-1.5 text-xs active:scale-[0.98]"
+          >
+            <PendingNavigationLink href="/interview/history">
+              面试质量入口
+            </PendingNavigationLink>
           </Button>
         </div>
-      </CardHeader>
-      <CardContent>
-        <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
-          <OverviewTile label="API" value={apiLabel} hint={runtimeLabel} />
-          <OverviewTile
+        <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-5">
+          <OverviewStatusLight
+            label="API"
+            value={apiLabel}
+            hint={runtimeLabel}
+            tone={apiTone}
+          />
+          <OverviewStatusLight
             label="策略学习"
             value={armCount === null ? phaseLabel(bandit) : `${armCount} 个臂`}
             hint="Thompson 策略后验"
+            tone={banditTone}
           />
-          <OverviewTile label="评分复核" value={driftLabel} hint="Verifier 漂移窗口" />
-          <OverviewTile
-            label="活跃会话"
+          <OverviewStatusLight
+            label="Verifier 监控"
+            value={driftLabel}
+            hint="drift 观测开关，不代表 Verifier 未运行"
+            tone={driftTone}
+          />
+          <OverviewStatusLight
+            label="运行中会话"
             value={sessionCount === null ? phaseLabel(sessions) : `${sessionCount} 个`}
-            hint="跑完一场面试后会出现"
+            hint="当前运行中的面试"
+            tone={sessionsTone}
           />
-          <OverviewTile
-            label="策略记忆"
+          <OverviewStatusLight
+            label="已入库策略"
             value={strategyCount === null ? phaseLabel(strategies) : `${strategyCount} 条`}
             hint="Generator 可复用经验"
+            tone={strategiesTone}
           />
         </div>
       </CardContent>
@@ -1196,25 +1367,64 @@ function SystemOverview({
   );
 }
 
-function OverviewTile({
+type OverviewTone = "ok" | "idle" | "warn" | "error" | "loading";
+
+function OverviewStatusLight({
   label,
   value,
   hint,
+  tone,
 }: {
   label: string;
   value: string;
   hint: string;
+  tone: OverviewTone;
 }) {
+  const toneClass = {
+    ok: "bg-emerald-400 shadow-[0_0_0_3px_rgba(52,211,153,0.16)]",
+    idle: "bg-muted-foreground/40",
+    warn: "bg-amber-400 shadow-[0_0_0_3px_rgba(251,191,36,0.16)]",
+    error: "bg-destructive shadow-[0_0_0_3px_hsl(var(--destructive)/0.16)]",
+    loading: "animate-pulse bg-sky-400 shadow-[0_0_0_3px_rgba(56,189,248,0.16)]",
+  }[tone];
+
   return (
-    <div className="rounded-lg border bg-card/50 p-3">
-      <div className="font-mono text-[10px] uppercase tracking-wider text-muted-foreground">
-        {label}
-      </div>
-      <div className="mt-1 text-sm font-medium">{value}</div>
-      <div className="mt-1 text-[11px] leading-relaxed text-muted-foreground">
-        {hint}
-      </div>
-    </div>
+    <TooltipProvider delayDuration={150}>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <button
+            type="button"
+            aria-label={`${label}: ${hint}`}
+            className="flex min-w-0 w-full items-center gap-3 rounded-lg border bg-muted/20 px-3 py-2 text-left transition-colors hover:bg-muted/30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          >
+            <span
+              className={cn("h-2 w-2 shrink-0 rounded-full", toneClass)}
+              aria-hidden="true"
+            />
+            <span className="min-w-0">
+              <span className="flex min-w-0 items-baseline gap-2">
+                <span className="shrink-0 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+                  {label}
+                </span>
+                <span className="truncate font-mono text-sm font-semibold text-foreground">
+                  {value}
+                </span>
+              </span>
+              <span className="block overflow-hidden text-ellipsis whitespace-nowrap text-[11px] leading-4 text-muted-foreground">
+                {hint}
+              </span>
+            </span>
+          </button>
+        </TooltipTrigger>
+        <TooltipContent
+          side="bottom"
+          align="start"
+          className="max-w-64 text-xs leading-relaxed"
+        >
+          {hint}
+        </TooltipContent>
+      </Tooltip>
+    </TooltipProvider>
   );
 }
 
@@ -1243,42 +1453,106 @@ function TokenBar({
   tokenSaved: string;
   onRefresh: () => void;
 }) {
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
+  const refreshTimerRef = useRef<number | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (refreshTimerRef.current !== null) {
+        window.clearTimeout(refreshTimerRef.current);
+      }
+    };
+  }, []);
+
+  function handleRefreshClick() {
+    setRefreshing(true);
+    onRefresh();
+
+    if (refreshTimerRef.current !== null) {
+      window.clearTimeout(refreshTimerRef.current);
+    }
+    refreshTimerRef.current = window.setTimeout(() => {
+      setRefreshing(false);
+      refreshTimerRef.current = null;
+    }, 900);
+  }
+
   return (
-    <Card>
-      <CardContent className="flex flex-col gap-3 pt-6 sm:flex-row sm:items-center">
-        <div className="flex items-center gap-2 text-xs text-muted-foreground">
-          <Key className="h-3.5 w-3.5" />
-          <span>管理员认证令牌</span>
+    <Card className="overflow-hidden">
+      <CardContent className="space-y-4 pt-5">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex items-start gap-3">
+            <div className="mt-0.5 rounded-md border bg-muted/50 p-2 text-muted-foreground">
+              <Key className="h-4 w-4" />
+            </div>
+            <div className="space-y-1">
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="text-sm font-medium">后台设置 / 权限</span>
+                <Badge variant="outline" className="text-[10px]">
+                  {tokenSaved ? "令牌已保存" : "本地开发可留空"}
+                </Badge>
+              </div>
+              <p className="text-xs leading-5 text-muted-foreground">
+                用于访问受保护的后台观测接口，本地开发可留空。
+              </p>
+            </div>
+          </div>
+          <div className="flex items-center gap-2 sm:justify-end">
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => setSettingsOpen((open) => !open)}
+            >
+              {settingsOpen ? "收起" : "设置"}
+            </Button>
+            <Button
+              size="sm"
+              variant="ghost"
+              onClick={handleRefreshClick}
+              className={cn(
+                "min-w-[5.75rem] justify-center gap-1.5 transition-colors active:scale-[0.98]",
+                refreshing &&
+                  "border border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-200",
+              )}
+              aria-busy={refreshing}
+              aria-label={`每 ${REFRESH_INTERVAL_MS / 1000} 秒自动刷新`}
+            >
+              <RefreshCw
+                className={cn("h-3.5 w-3.5", refreshing && "animate-spin")}
+              />
+              {refreshing ? "刷新中" : "刷新"}
+            </Button>
+          </div>
         </div>
-        <Input
-          type="password"
-          placeholder="本地开发可留空"
-          value={tokenInput}
-          onChange={(e) => setTokenInput(e.target.value)}
-          className="sm:max-w-xs"
-        />
-        <Button
-          size="sm"
-          variant={tokenInput !== tokenSaved ? "default" : "outline"}
-          onClick={onSave}
-          className={
-            tokenInput !== tokenSaved
-              ? "bg-emerald-600 hover:bg-emerald-500 text-white"
-              : ""
-          }
-        >
-          保存
-        </Button>
-        <Button
-          size="sm"
-          variant="ghost"
-          onClick={onRefresh}
-          className="gap-1.5"
-          aria-label={`每 ${REFRESH_INTERVAL_MS / 1000} 秒自动刷新`}
-        >
-          <RefreshCw className="h-3.5 w-3.5" />
-          刷新
-        </Button>
+        {settingsOpen && (
+          <div className="grid gap-3 border-t pt-4 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-end">
+            <label className="grid gap-2">
+              <span className="text-xs font-medium text-muted-foreground">
+                管理员认证令牌
+              </span>
+              <Input
+                type="password"
+                placeholder="本地开发可留空"
+                value={tokenInput}
+                onChange={(e) => setTokenInput(e.target.value)}
+                className="sm:max-w-md"
+              />
+            </label>
+            <Button
+              size="sm"
+              variant={tokenInput !== tokenSaved ? "default" : "outline"}
+              onClick={onSave}
+              className={
+                tokenInput !== tokenSaved
+                  ? "bg-emerald-600 hover:bg-emerald-500 text-white"
+                  : ""
+              }
+            >
+              保存
+            </Button>
+          </div>
+        )}
       </CardContent>
     </Card>
   );
