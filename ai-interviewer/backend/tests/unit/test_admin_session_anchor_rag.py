@@ -15,6 +15,7 @@ from sqlalchemy.pool import StaticPool
 from app.api.v1 import admin as admin_api
 from app.models.generation_trace import GenerationTrace
 from app.models.interview_session import InterviewSession
+from app.models.resume_anchor_cache import ResumeAnchorCacheChunk
 from app.models.resume_parse_artifact import ResumeParseArtifact
 from app.models.session_anchor import SessionAnchorChunk
 from app.services.resume_embedding import current_embedding_model_version
@@ -45,6 +46,7 @@ def _isolated_db(monkeypatch: pytest.MonkeyPatch):
     )
     for table in (
         SessionAnchorChunk.__table__,
+        ResumeAnchorCacheChunk.__table__,
         ResumeParseArtifact.__table__,
         InterviewSession.__table__,
         GenerationTrace.__table__,
@@ -96,6 +98,7 @@ def _chunk(**overrides: Any) -> SessionAnchorChunk:
         "embedding_model_version": current_embedding_model_version(),
         "embedding": _vec(),
         "expires_at": datetime.now(UTC) + timedelta(days=1),
+        "source_cache_key": None,
     }
     data.update(overrides)
     return SessionAnchorChunk(**data)
@@ -260,8 +263,42 @@ def test_admin_delete_session_anchor_data_wipes_chunks_artifacts_and_scrubs_snap
         with testing_session_local() as sess:
             sess.add_all(
                 [
-                    _chunk(session_id="sess_a", source_artifact_id="artifact_a"),
+                    _chunk(
+                        session_id="sess_a",
+                        source_artifact_id="artifact_a",
+                        source_cache_key="cache_a",
+                    ),
                     _chunk(session_id="sess_b", source_artifact_id="artifact_b"),
+                    ResumeAnchorCacheChunk(
+                        cache_key="cache_a",
+                        embedding_model_version=current_embedding_model_version(),
+                        chunk_index=0,
+                        tier="highlight",
+                        section_name="Projects",
+                        heading="Coupon consistency",
+                        project_name="Coupon Guard",
+                        text="Redis Lua coupon guard.",
+                        tech_keywords=["Redis", "Lua"],
+                        dimensions_hint=["system_design"],
+                        chunker_mode="A",
+                        embedding=_vec(),
+                        expires_at=now + timedelta(days=7),
+                    ),
+                    ResumeAnchorCacheChunk(
+                        cache_key="cache_b",
+                        embedding_model_version=current_embedding_model_version(),
+                        chunk_index=0,
+                        tier="highlight",
+                        section_name="Projects",
+                        heading="Other session",
+                        project_name="Other",
+                        text="Kafka risk platform.",
+                        tech_keywords=["Kafka"],
+                        dimensions_hint=["system_design"],
+                        chunker_mode="A",
+                        embedding=_vec(),
+                        expires_at=now + timedelta(days=7),
+                    ),
                     ResumeParseArtifact(
                         artifact_id="artifact_a",
                         redacted_text="old resume",
@@ -345,6 +382,7 @@ def test_admin_delete_session_anchor_data_wipes_chunks_artifacts_and_scrubs_snap
 
         with testing_session_local() as sess:
             remaining_chunks = sess.scalars(select(SessionAnchorChunk)).all()
+            remaining_cache = sess.scalars(select(ResumeAnchorCacheChunk)).all()
             session_row = sess.get(InterviewSession, "sess_a")
             trace_row = sess.scalars(select(GenerationTrace)).one()
             artifact_a = sess.get(ResumeParseArtifact, "artifact_a")
@@ -354,9 +392,12 @@ def test_admin_delete_session_anchor_data_wipes_chunks_artifacts_and_scrubs_snap
     body = resp.json()
     assert body["chunks_deleted"] == 1
     assert body["resume_artifacts_deleted"] == 1
+    assert body["resume_anchor_cache_deleted"] == 1
+    assert body["resume_anchor_cache_keys"] == ["cache_a"]
     assert body["sessions_scrubbed"] == 1
     assert body["traces_scrubbed"] == 1
     assert {chunk.session_id for chunk in remaining_chunks} == {"sess_b"}
+    assert {chunk.cache_key for chunk in remaining_cache} == {"cache_b"}
     assert artifact_a is None
     assert artifact_b is not None
     assert session_row is not None

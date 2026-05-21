@@ -6,6 +6,7 @@ from sqlalchemy import create_engine, select
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
 
+from app.models.resume_anchor_cache import ResumeAnchorCacheChunk
 from app.models.resume_parse_artifact import ResumeParseArtifact
 from app.models.session_anchor import SessionAnchorChunk
 from app.scripts.cleanup_session_anchor_chunks import run_cleanup
@@ -20,6 +21,7 @@ def _db():
         poolclass=StaticPool,
     )
     SessionAnchorChunk.__table__.create(engine)
+    ResumeAnchorCacheChunk.__table__.create(engine)
     ResumeParseArtifact.__table__.create(engine)
     return sessionmaker(bind=engine, expire_on_commit=False, autoflush=False)
 
@@ -54,6 +56,24 @@ def _artifact(*, artifact_id: str, expires_at: datetime) -> ResumeParseArtifact:
         filename=None,
         text_sha256=artifact_id,
         created_at=datetime.now(UTC),
+        expires_at=expires_at,
+    )
+
+
+def _cache_chunk(*, cache_key: str, expires_at: datetime) -> ResumeAnchorCacheChunk:
+    return ResumeAnchorCacheChunk(
+        cache_key=cache_key,
+        embedding_model_version=current_embedding_model_version(),
+        chunk_index=0,
+        tier="highlight",
+        section_name="Projects",
+        heading="Coupon consistency",
+        project_name="Coupon Guard",
+        text=f"{cache_key} Redis chunk",
+        tech_keywords=["Redis"],
+        dimensions_hint=["system_design"],
+        chunker_mode="A",
+        embedding=[0.1] * 1536,
         expires_at=expires_at,
     )
 
@@ -104,6 +124,32 @@ def test_cleanup_session_anchor_chunks_also_deletes_expired_parse_artifacts() ->
     assert report["total_deleted"] == 1
 
 
+def test_cleanup_session_anchor_chunks_also_deletes_expired_resume_anchor_cache() -> None:
+    session_local = _db()
+    now = datetime.now(UTC)
+    with session_local() as db_session:
+        db_session.add_all(
+            [
+                _cache_chunk(
+                    cache_key="expired_cache",
+                    expires_at=now - timedelta(seconds=1),
+                ),
+                _cache_chunk(
+                    cache_key="fresh_cache",
+                    expires_at=now + timedelta(seconds=1),
+                ),
+            ]
+        )
+        db_session.commit()
+
+        report = run_cleanup(db_session=db_session, now=now)
+        remaining = db_session.scalars(select(ResumeAnchorCacheChunk)).all()
+
+    assert report["resume_anchor_cache_chunks_deleted"] == 1
+    assert report["total_deleted"] == 1
+    assert {row.cache_key for row in remaining} == {"fresh_cache"}
+
+
 def test_privacy_cleanup_scheduler_runs_session_anchor_cleanup(monkeypatch) -> None:
     calls: list[str] = []
 
@@ -121,6 +167,7 @@ def test_privacy_cleanup_scheduler_runs_session_anchor_cleanup(monkeypatch) -> N
         or {
             "session_anchor_chunks_deleted": 1,
             "resume_parse_artifacts_deleted": 1,
+            "resume_anchor_cache_chunks_deleted": 1,
             "total_deleted": 2,
         },
     )
