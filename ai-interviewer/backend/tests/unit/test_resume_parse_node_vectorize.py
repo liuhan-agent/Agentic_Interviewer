@@ -37,7 +37,7 @@ def _db():
     return sessionmaker(bind=engine, expire_on_commit=False, autoflush=False)
 
 
-def test_resume_parse_node_vectorizes_when_source_id_present(monkeypatch) -> None:
+def test_resume_parse_node_starts_background_vector_job(monkeypatch) -> None:
     session_local = _db()
     with session_local() as db_session:
         artifact = create_resume_parse_artifact(
@@ -47,40 +47,56 @@ def test_resume_parse_node_vectorizes_when_source_id_present(monkeypatch) -> Non
             db_session=db_session,
         )
         assert artifact is not None
+        captured: dict[str, object] = {}
+
+        def fake_start_job(**kwargs):
+            captured.update(kwargs)
+            return {
+                "status": "pending_background",
+                "source_type": "resume",
+                "resume_source_id": kwargs["resume_source_id"],
+                "resume_revision_id": None,
+            }
+
         monkeypatch.setattr(
             resume_parse_mod,
-            "consume_resume_parse_artifact",
-            lambda artifact_id: consume_resume_parse_artifact(
+            "read_resume_parse_artifact",
+            lambda artifact_id: read_resume_parse_artifact(
                 artifact_id,
                 db_session=db_session,
             ),
         )
+        monkeypatch.setattr(resume_parse_mod, "start_resume_vector_job", fake_start_job)
         monkeypatch.setattr(
             resume_parse_mod,
             "vectorize_resume",
-            lambda **kw: {
-                "status": "ready",
-                "mode": "A",
-                "chunk_count": 12,
-                "resume_revision_id": kw["resume_revision_id"],
-                "embedding_model_version": "text-embedding-3-small@v1",
-            },
+            lambda **_kw: (_ for _ in ()).throw(
+                AssertionError("resume_parse_node must not vectorize synchronously")
+            ),
+            raising=False,
         )
 
         out = resume_parse_node(
             {
                 "session_id": "sess_a",
                 "job_spec": {"title": "Backend"},
-                "candidate": {"resume_source_id": artifact.artifact_id},
+                "candidate": {
+                    "resume_source_id": artifact.artifact_id,
+                    "resume_parsed": {"summary": "candidate copy"},
+                },
             }
         )
 
-        assert out["candidate"]["resume_vector_status"]["status"] == "ready"
-        assert out["candidate"]["resume_vector_status"]["resume_revision_id"]
+        status = out["candidate"]["resume_vector_status"]
+        assert status["status"] == "pending_background"
+        assert status["resume_source_id"] == artifact.artifact_id
+        assert captured["session_id"] == "sess_a"
+        assert captured["resume_source_id"] == artifact.artifact_id
+        assert captured["parsed"] == {"summary": "candidate copy"}
         assert read_resume_parse_artifact(
             artifact.artifact_id,
             db_session=db_session,
-        ) is None
+        ) is not None
 
 
 def test_resume_parse_node_skips_when_no_source_id() -> None:
@@ -111,8 +127,8 @@ def test_resume_parse_node_skips_when_artifact_already_consumed(monkeypatch) -> 
         consume_resume_parse_artifact(artifact.artifact_id, db_session=db_session)
         monkeypatch.setattr(
             resume_parse_mod,
-            "consume_resume_parse_artifact",
-            lambda artifact_id: consume_resume_parse_artifact(
+            "read_resume_parse_artifact",
+            lambda artifact_id: read_resume_parse_artifact(
                 artifact_id,
                 db_session=db_session,
             ),
@@ -132,44 +148,35 @@ def test_resume_parse_node_skips_when_artifact_already_consumed(monkeypatch) -> 
         )
 
 
-def test_resume_parse_node_returns_failed_on_vectorize_error(monkeypatch) -> None:
-    session_local = _db()
-    with session_local() as db_session:
-        artifact = create_resume_parse_artifact(
-            text=HIGH_STRUCTURE_TEXT,
-            parsed=None,
-            filename=None,
-            db_session=db_session,
-        )
-        assert artifact is not None
-        monkeypatch.setattr(
-            resume_parse_mod,
-            "consume_resume_parse_artifact",
-            lambda artifact_id: consume_resume_parse_artifact(
-                artifact_id,
-                db_session=db_session,
-            ),
-        )
-        monkeypatch.setattr(
-            resume_parse_mod,
-            "vectorize_resume",
-            lambda **kw: {
-                "status": "failed",
-                "error": "upstream 500",
-                "resume_revision_id": kw["resume_revision_id"],
-            },
-        )
+def test_resume_parse_node_returns_pending_when_background_job_start_fails(
+    monkeypatch,
+) -> None:
+    monkeypatch.setattr(
+        resume_parse_mod,
+        "read_resume_parse_artifact",
+        lambda artifact_id: type("Artifact", (), {"artifact_id": artifact_id})(),
+    )
+    monkeypatch.setattr(
+        resume_parse_mod,
+        "start_resume_vector_job",
+        lambda **_kw: {
+            "status": "failed",
+            "error": "executor unavailable",
+            "resume_source_id": "artifact_1",
+            "resume_revision_id": None,
+        },
+    )
 
-        out = resume_parse_node(
-            {
-                "session_id": "sess_a",
-                "job_spec": {"title": "Backend"},
-                "candidate": {"resume_source_id": artifact.artifact_id},
-            }
-        )
+    out = resume_parse_node(
+        {
+            "session_id": "sess_a",
+            "job_spec": {"title": "Backend"},
+            "candidate": {"resume_source_id": "artifact_1"},
+        }
+    )
 
-        assert out["candidate"]["resume_vector_status"]["status"] == "failed"
-        assert out["candidate"]["resume_vector_status"]["error"] == "upstream 500"
+    assert out["candidate"]["resume_vector_status"]["status"] == "failed"
+    assert out["candidate"]["resume_vector_status"]["error"] == "executor unavailable"
 
 
 def test_resume_parse_node_keeps_rubric_outputs_intact() -> None:

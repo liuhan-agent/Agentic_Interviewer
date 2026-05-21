@@ -1100,10 +1100,19 @@ def delete_session_anchor_data(session_id: str) -> dict[str, Any]:
     from app.models.interview_session import InterviewSession
     from app.models.resume_parse_artifact import ResumeParseArtifact
     from app.models.session_anchor import SessionAnchorChunk
+    from app.services.resume_anchor_cache import purge_resume_anchor_cache_keys
 
     with get_session() as sess:
         session_row = sess.get(InterviewSession, session_id)
         artifact_ids = _resume_artifact_ids_from_session(session_row)
+        cache_keys = set(
+            sess.scalars(
+                select(SessionAnchorChunk.source_cache_key).where(
+                    SessionAnchorChunk.session_id == session_id,
+                    SessionAnchorChunk.source_cache_key.isnot(None),
+                )
+            ).all()
+        )
         chunk_artifact_ids = set(
             sess.scalars(
                 select(SessionAnchorChunk.source_artifact_id).where(
@@ -1132,6 +1141,10 @@ def delete_session_anchor_data(session_id: str) -> dict[str, Any]:
                 ).rowcount
                 or 0
             )
+        cache_deleted = purge_resume_anchor_cache_keys(
+            {str(value) for value in cache_keys if value},
+            db_session=sess,
+        )
 
         sessions_scrubbed = 0
         if session_row is not None:
@@ -1163,11 +1176,14 @@ def delete_session_anchor_data(session_id: str) -> dict[str, Any]:
         "chunks_deleted": chunks_deleted,
         "resume_artifacts_deleted": artifacts_deleted,
         "resume_artifact_ids": sorted(artifact_ids),
+        "resume_anchor_cache_deleted": cache_deleted,
+        "resume_anchor_cache_keys": sorted(str(value) for value in cache_keys if value),
         "sessions_scrubbed": sessions_scrubbed,
         "traces_scrubbed": traces_scrubbed,
         "deleted": bool(
             chunks_deleted
             or artifacts_deleted
+            or cache_deleted
             or sessions_scrubbed
             or traces_scrubbed
         ),
@@ -1283,6 +1299,7 @@ _ANCHOR_SCRUB_KEYS = {
     "resume_rag_block",
     "resume_source_id",
     "resume_vector_status",
+    "source_cache_key",
     "self_intro_profile",
     "self_intro_rag_block",
     "self_intro_vector_status",

@@ -5,6 +5,7 @@ from types import SimpleNamespace
 from typing import Any
 
 from app.models.interview_session import InterviewSession
+from app.services import session_persistence as persistence_mod
 from app.services.session_persistence import SessionPersistence
 
 
@@ -110,6 +111,30 @@ def test_persist_completed_maps_error_state_and_clears_question() -> None:
         },
         "job_spec": {"title": "Backend Engineer", "level": "senior"},
     }
+
+
+def test_persist_completed_cleans_session_anchors_only_for_completed(
+    monkeypatch,
+) -> None:
+    calls: list[str] = []
+    monkeypatch.setattr(
+        persistence_mod,
+        "cleanup_completed_session_anchors",
+        lambda session_id: calls.append(session_id) or 2,
+    )
+    db = _FakeDb()
+    persistence = SessionPersistence(get_db_session_fn=_session_factory(db))
+
+    persistence.persist_completed(
+        _handle(),
+        {"status": "completed", "final_report": {"overall_score": 8.2}},
+    )
+    persistence.persist_completed(
+        _handle(session_id="sess-2"),
+        {"status": "errored", "error": "provider timed out"},
+    )
+
+    assert calls == ["sess-1"]
 
 
 def test_load_session_for_retry_returns_minimal_metadata() -> None:

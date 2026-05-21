@@ -246,3 +246,117 @@ def test_self_intro_parse_node_vectorizes_anchor_cards(monkeypatch) -> None:
     assert captured["anchor_cards"][0]["title"] == "Coupon"
     assert out["self_intro_vector_status"]["status"] == "ready"
     assert out["self_intro_vector_status"]["self_intro_revision_id"]
+
+
+def test_self_intro_parse_node_waits_for_resume_vector_status(monkeypatch) -> None:
+    captured: dict[str, object] = {}
+    monkeypatch.setattr(
+        self_intro_node_mod,
+        "parse_self_intro_profile",
+        lambda **_kwargs: {"summary": "Led Redis.", "anchor_cards": []},
+    )
+    monkeypatch.setattr(
+        self_intro_node_mod,
+        "vectorize_self_intro_anchor_cards",
+        lambda **kwargs: {
+            "status": "ready",
+            "self_intro_revision_id": kwargs["self_intro_revision_id"],
+            "chunk_count": 1,
+        },
+    )
+    monkeypatch.setattr(
+        self_intro_node_mod,
+        "get_settings",
+        lambda: SimpleNamespace(session_anchor_resume_ready_wait_ms=12000),
+    )
+
+    def fake_wait(**kwargs):
+        captured.update(kwargs)
+        return {
+            "status": "ready",
+            "resume_source_id": kwargs["resume_source_id"],
+            "resume_revision_id": "rev_ready",
+            "chunk_count": 12,
+        }
+
+    monkeypatch.setattr(self_intro_node_mod, "wait_for_resume_vector_status", fake_wait)
+
+    out = self_intro_parse_node(
+        {
+            "session_id": "sess_a",
+            "turn_idx": 0,
+            "current_answer": "Redis self intro",
+            "candidate": {
+                "resume_source_id": "artifact_1",
+                "resume_parsed": {"summary": "candidate"},
+                "resume_vector_status": {
+                    "status": "pending_background",
+                    "resume_source_id": "artifact_1",
+                    "resume_revision_id": None,
+                },
+            },
+            "job_spec": {},
+        }
+    )
+
+    assert captured["session_id"] == "sess_a"
+    assert captured["resume_source_id"] == "artifact_1"
+    assert captured["parsed"] == {"summary": "candidate"}
+    assert captured["timeout_ms"] == 12000
+    assert out["candidate"]["resume_vector_status"]["status"] == "ready"
+    assert out["candidate"]["resume_vector_status"]["resume_revision_id"] == "rev_ready"
+
+
+def test_self_intro_parse_node_preserves_timeout_resume_status(monkeypatch) -> None:
+    monkeypatch.setattr(
+        self_intro_node_mod,
+        "parse_self_intro_profile",
+        lambda **_kwargs: {"summary": "Led Redis.", "anchor_cards": []},
+    )
+    monkeypatch.setattr(
+        self_intro_node_mod,
+        "vectorize_self_intro_anchor_cards",
+        lambda **kwargs: {
+            "status": "ready",
+            "self_intro_revision_id": kwargs["self_intro_revision_id"],
+            "chunk_count": 1,
+        },
+    )
+    monkeypatch.setattr(
+        self_intro_node_mod,
+        "get_settings",
+        lambda: SimpleNamespace(session_anchor_resume_ready_wait_ms=12000),
+    )
+    monkeypatch.setattr(
+        self_intro_node_mod,
+        "wait_for_resume_vector_status",
+        lambda **kwargs: {
+            "status": "pending_background",
+            "resume_source_id": kwargs["resume_source_id"],
+            "resume_revision_id": None,
+            "wait_timed_out": True,
+            "wait_timeout_ms": kwargs["timeout_ms"],
+        },
+    )
+
+    out = self_intro_parse_node(
+        {
+            "session_id": "sess_a",
+            "turn_idx": 0,
+            "current_answer": "Redis self intro",
+            "candidate": {
+                "resume_source_id": "artifact_1",
+                "resume_vector_status": {
+                    "status": "pending_background",
+                    "resume_source_id": "artifact_1",
+                    "resume_revision_id": None,
+                },
+            },
+            "job_spec": {},
+        }
+    )
+
+    status = out["candidate"]["resume_vector_status"]
+    assert status["status"] == "pending_background"
+    assert status["wait_timed_out"] is True
+    assert status["wait_timeout_ms"] == 12000
