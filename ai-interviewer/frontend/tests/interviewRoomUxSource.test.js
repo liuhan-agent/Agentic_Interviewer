@@ -15,6 +15,10 @@ const shellSource = fs.readFileSync(
   path.join(__dirname, "..", "src", "components", "layout", "AppShell.tsx"),
   "utf8",
 );
+const layoutSource = fs.readFileSync(
+  path.join(__dirname, "..", "src", "app", "layout.tsx"),
+  "utf8",
+);
 const wheelSource = fs.readFileSync(
   path.join(__dirname, "..", "src", "components", "layout", "LightScrollWheel.tsx"),
   "utf8",
@@ -39,6 +43,8 @@ test("app shell mounts a global lightweight scroll wheel", () => {
   assert.match(wheelSource, /hover:opacity-100/);
   assert.match(wheelSource, /h-14 w-4 rounded-full/);
   assert.match(wheelSource, /role="scrollbar"/);
+  assert.match(layoutSource, /<main id="app-main-content"/);
+  assert.match(wheelSource, /aria-controls="app-main-content"/);
   assert.match(wheelSource, /aria-valuenow=\{Math\.round\(progress \* 100\)\}/);
   assert.match(wheelSource, /const draggingRef = useRef\(false\)/);
   assert.match(wheelSource, /const thumbRef = useRef<HTMLSpanElement>\(null\)/);

@@ -144,6 +144,7 @@ const RESUME_PROJECT_ANCHOR_MAX_COUNT = 8;
 const RESUME_PROJECT_ANCHOR_MAX_LENGTH = 160;
 const RESUME_FOCUS_AREAS_MAX_COUNT = 20;
 const RESUME_FOCUS_LABEL_MAX_LENGTH = 160;
+const START_INTERVIEW_PREFETCH_SESSION_ID = "__warmup_interview__";
 
 const emptyStringToUndefined = (value: unknown) =>
   value === "" ? undefined : value;
@@ -748,6 +749,7 @@ export function SetupForm() {
   const [enableVideoAnalysis, setEnableVideoAnalysis] = useState(false);
   const [llmStatus, setLlmStatus] = useState<LLMConfigStatus>("missing");
   const [serverDirections, setServerDirections] = useState<SetupDirection[]>([]);
+  const [isInterviewStartPending, setInterviewStartPending] = useState(false);
 
   // Resume upload state
   const [upload, setUpload] = useState<UploadStatus>({ kind: "idle" });
@@ -849,6 +851,22 @@ export function SetupForm() {
   const watchedSkills = watch("candidate_skills");
   const watchedHighlights = watch("candidate_highlights");
   const resumeFieldsLocked = upload.kind === "parsing";
+  const isStartingInterview = isSubmitting || isInterviewStartPending;
+
+  useEffect(() => {
+    if (step === STEPS.length - 1) {
+      router.prefetch(`/interview/${START_INTERVIEW_PREFETCH_SESSION_ID}`);
+    }
+  }, [router, step]);
+
+  useEffect(() => {
+    if (!isStartingInterview) return;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = previousOverflow;
+    };
+  }, [isStartingInterview]);
 
   useEffect(() => {
     jobTitleEditedRef.current = jobTitleEdited;
@@ -1546,13 +1564,16 @@ export function SetupForm() {
 
   const onSubmit = handleSubmit(
     async (values) => {
+      setInterviewStartPending(true);
       setServerError(null);
       if (resumeFieldsLocked) {
+        setInterviewStartPending(false);
         setServerError("AI 简历解析还在进行中，完成后会自动填入表单。");
         setStep(1);
         return;
       }
       if (selectedDims.length === 0) {
+        setInterviewStartPending(false);
         setServerError("请至少保留一个考察维度");
         setStep(2);
         return;
@@ -1650,10 +1671,12 @@ export function SetupForm() {
         safeSessionRemoveItem(RESUME_DRAFT_KEY);
         router.push(`/interview/${res.session_id}`);
       } catch (err) {
+        setInterviewStartPending(false);
         setServerError(friendlySetupError(err, "start"));
       }
     },
     (formErrors) => {
+      setInterviewStartPending(false);
       const first = firstFormError(formErrors);
       setServerError(first?.message ?? "请先补全必填信息");
       if (first) {
@@ -1669,7 +1692,14 @@ export function SetupForm() {
   // ---- Render -----------------------------------------------------------
 
   return (
-    <form onSubmit={onSubmit} className="space-y-6">
+    <div className="relative">
+      <form
+        onSubmit={onSubmit}
+        aria-busy={isStartingInterview}
+        className={`space-y-6 ${
+          isStartingInterview ? "pointer-events-none select-none" : ""
+        }`}
+      >
       <ExpectationBanner />
       {llmStatus === "missing" && <ApiKeyHintBanner />}
       {isProblemLLMStatus(llmStatus) && <ApiKeyProblemBanner status={llmStatus} />}
@@ -1981,7 +2011,7 @@ export function SetupForm() {
           type="button"
           variant="ghost"
           onClick={goPrev}
-          disabled={step === 0}
+          disabled={step === 0 || isStartingInterview}
           className="gap-1"
         >
           上一步
@@ -1991,6 +2021,7 @@ export function SetupForm() {
             <Button
               type="button"
               onClick={goNext}
+              disabled={isStartingInterview}
               className="gap-1 bg-emerald-600 hover:bg-emerald-500 text-white"
             >
               下一步
@@ -2000,17 +2031,63 @@ export function SetupForm() {
             <Button
               type="submit"
               size="lg"
-              disabled={isSubmitting || resumeFieldsLocked}
+              disabled={isStartingInterview || resumeFieldsLocked}
               className="gap-2 bg-emerald-600 hover:bg-emerald-500 text-white"
             >
-              {isSubmitting && <Loader2 className="h-4 w-4 animate-spin" />}
-              开始我的面试
-              <ArrowRight className="h-4 w-4" />
+              {isStartingInterview && <Loader2 className="h-4 w-4 animate-spin" />}
+              {isStartingInterview ? "正在创建面试环境" : "开始我的面试"}
+              {!isStartingInterview && <ArrowRight className="h-4 w-4" />}
             </Button>
           )}
         </div>
       </div>
-    </form>
+      </form>
+
+      <AnimatePresence>
+        {isStartingInterview && (
+          <motion.div
+            key="start-interview-pending"
+            role="status"
+            aria-live="polite"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 flex items-center justify-center bg-background/60 px-4 backdrop-blur-sm"
+          >
+            <motion.div
+              initial={{ opacity: 0, y: 8, scale: 0.98 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: 4, scale: 0.99 }}
+              className="w-full max-w-sm rounded-lg border border-emerald-500/30 bg-card p-4 shadow-2xl"
+            >
+              <div className="flex items-start gap-3">
+                <div className="mt-0.5 flex h-9 w-9 items-center justify-center rounded-lg bg-emerald-500/10">
+                  <Loader2 className="h-5 w-5 animate-spin text-emerald-400" />
+                </div>
+                <div>
+                  <p className="font-medium text-foreground">正在创建面试环境</p>
+                  <p className="mt-1 text-sm leading-relaxed text-muted-foreground">
+                    正在保存配置并打开面试页面，准备好后会自动进入。
+                  </p>
+                </div>
+              </div>
+              <div className="mt-4 h-1.5 overflow-hidden rounded-full bg-muted">
+                <motion.div
+                  className="h-full rounded-full bg-emerald-500"
+                  initial={{ width: "18%" }}
+                  animate={{ width: ["18%", "62%", "86%"] }}
+                  transition={{
+                    duration: 2.4,
+                    repeat: Number.POSITIVE_INFINITY,
+                    ease: "easeInOut",
+                  }}
+                />
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
   );
 }
 

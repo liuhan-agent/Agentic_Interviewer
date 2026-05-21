@@ -138,6 +138,8 @@ class Settings(BaseSettings):
     resume_rag_embedding_dimension: int = 1536
     resume_rag_embedding_api_key: str = ""
     resume_rag_embedding_concurrency: int = 4
+    resume_rag_embedding_timeout_ms: int = 10000
+    resume_rag_query_embedding_timeout_ms: int = 3000
     resume_rag_embedding_max_retries: int = 3
     resume_rag_embedding_retry_backoff_seconds: float = 1.0
     resume_rag_used_project_penalty: float = 0.05

@@ -236,6 +236,7 @@ def test_retrieve_candidate_anchors_uses_embedding_override_version(monkeypatch)
     assert "qwen embedded current resume row" in result.resume_block
     assert "server default row should not match" not in result.resume_block
     assert captured["kwargs"]["embedding_override"] == embedding_override
+    assert captured["kwargs"]["timeout_ms"] == 3000
 
 
 def test_retrieve_candidate_anchors_uses_self_intro_terms_in_query(monkeypatch) -> None:

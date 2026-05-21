@@ -105,6 +105,56 @@ test("session resume payload keeps candidate profile for setup snapshots", () =>
   });
 });
 
+test("session resume payload sanitizes parsed projects and focus areas", () => {
+  const parsed = resumeParsedForSession({
+    projects: [
+      {
+        id: "p".repeat(60),
+        name: ` ${"n".repeat(140)} `,
+        role: "r".repeat(100),
+        tech_stack: ["java"],
+        responsibilities: ["x".repeat(260)],
+        achievements: ["a"],
+        question_anchors: ["q".repeat(180)],
+        unexpected: "drop-me",
+      },
+    ],
+    focus_areas: [
+      {
+        id: "f".repeat(60),
+        label: ` ${"l".repeat(180)} `,
+        project_id: "p".repeat(60),
+        dimensions: ["system_design"],
+        skills: ["redis"],
+        priority: 2,
+        unexpected: "drop-me-too",
+      },
+    ],
+  });
+
+  assert.deepEqual(parsed.projects, [
+    {
+      id: "p".repeat(40),
+      name: "n".repeat(120),
+      role: "r".repeat(80),
+      tech_stack: ["java"],
+      responsibilities: ["x".repeat(240)],
+      achievements: ["a"],
+      question_anchors: ["q".repeat(160)],
+    },
+  ]);
+  assert.deepEqual(parsed.focus_areas, [
+    {
+      id: "f".repeat(40),
+      label: "l".repeat(160),
+      project_id: "p".repeat(40),
+      dimensions: ["system_design"],
+      skills: ["redis"],
+      priority: 2,
+    },
+  ]);
+});
+
 test("autofills job suggestion only before user edits job fields", () => {
   const profile = {
     suggested_job_title: "Java 后端开发工程师",

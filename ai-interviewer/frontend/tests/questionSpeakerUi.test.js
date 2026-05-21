@@ -78,8 +78,13 @@ test("text interview page auto reads each new question only after opt-in", () =>
 
   assert.match(source, /readQuestions/);
   assert.match(source, /lastSpokenQuestionRef/);
+  assert.match(source, /const handleSpeakQuestion = useCallback/);
   assert.match(source, /state\.phase !== "waiting_for_answer"/);
   assert.match(source, /void handleSpeakQuestion\(qText/);
+  assert.match(
+    source,
+    /paused,[\s\S]*readQuestions,[\s\S]*state\.phase,[\s\S]*state\.question,[\s\S]*state\.turnIdx,[\s\S]*handleSpeakQuestion,/,
+  );
   assert.match(source, /synthesizeQuestionAudio\(sessionId, text, turnIdx/);
 });
 

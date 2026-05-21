@@ -6,7 +6,11 @@ from types import SimpleNamespace
 
 import pytest
 
-from app.services.session_manager import SessionHandle, SessionManager
+from app.services.session_manager import (
+    SessionHandle,
+    SessionManager,
+    _sync_setup_snapshot_vector_status,
+)
 
 
 def test_wait_until_idle_blocks_until_segment_finally_clears_running():
@@ -120,6 +124,76 @@ def test_submit_answer_requires_byok_reauth_after_rehydrate():
 
     with pytest.raises(ValueError, match="reauth_required"):
         manager.submit_answer("sess-byok", "answer", turn_idx=2)
+
+
+def test_sync_setup_snapshot_vector_status_updates_runtime_statuses() -> None:
+    handle = SessionHandle(
+        session_id="sess-anchor",
+        trace_id="trace-anchor",
+        setup_snapshot={
+            "candidate": {
+                "name": "Ada",
+                "resume_parsed": {"summary": "Built payment systems."},
+            },
+            "job_spec": {"title": "Backend Engineer"},
+            "resume_vector_status": {
+                "status": "pending_node",
+                "resume_source_id": "artifact_1",
+                "resume_revision_id": None,
+            },
+        },
+    )
+    state = {
+        "candidate": {
+            "resume_vector_status": {
+                "status": "ready",
+                "resume_source_id": "artifact_1",
+                "resume_revision_id": "rev_1",
+                "chunk_count": 24,
+            }
+        },
+        "self_intro_vector_status": {
+            "status": "ready",
+            "self_intro_revision_id": "intro_rev_1",
+            "chunk_count": 5,
+        },
+    }
+
+    _sync_setup_snapshot_vector_status(handle, state)
+
+    assert handle.setup_snapshot is not None
+    assert handle.setup_snapshot["resume_vector_status"]["status"] == "ready"
+    assert handle.setup_snapshot["resume_vector_status"]["resume_revision_id"] == "rev_1"
+    assert handle.setup_snapshot["candidate"]["resume_vector_status"]["status"] == "ready"
+    assert handle.setup_snapshot["self_intro_vector_status"]["status"] == "ready"
+
+
+def test_sync_setup_snapshot_vector_status_can_rebuild_missing_snapshot() -> None:
+    handle = SessionHandle(session_id="sess-anchor", trace_id="trace-anchor")
+    state = {
+        "candidate": {
+            "name": "Ada",
+            "resume_parsed": {"summary": "Built payment systems."},
+            "resume_vector_status": {
+                "status": "ready",
+                "resume_source_id": "artifact_1",
+                "resume_revision_id": "rev_1",
+            },
+        },
+        "job_spec": {"title": "Backend Engineer"},
+        "self_intro_vector_status": {
+            "status": "ready",
+            "self_intro_revision_id": "intro_rev_1",
+        },
+    }
+
+    _sync_setup_snapshot_vector_status(handle, state)
+
+    assert handle.setup_snapshot is not None
+    assert handle.setup_snapshot["candidate"]["name"] == "Ada"
+    assert handle.setup_snapshot["job_spec"]["title"] == "Backend Engineer"
+    assert handle.setup_snapshot["resume_vector_status"]["status"] == "ready"
+    assert handle.setup_snapshot["self_intro_vector_status"]["status"] == "ready"
 
 
 def test_submit_answer_accepts_llm_config_for_reauth():
