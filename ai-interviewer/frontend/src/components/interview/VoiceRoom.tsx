@@ -1,6 +1,5 @@
 "use client";
 
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
@@ -67,6 +66,7 @@ export function VoiceRoom({ sessionId }: { sessionId: string }) {
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [reauthRequired, setReauthRequired] = useState(false);
   const [recordSecs, setRecordSecs] = useState(0);
+  const [switchingToText, setSwitchingToText] = useState(false);
 
   useEffect(() => {
     if (phase !== "recording") {
@@ -591,6 +591,7 @@ export function VoiceRoom({ sessionId }: { sessionId: string }) {
           variant="ghost"
           size="sm"
           className="gap-1.5"
+          disabled={switchingToText}
           onClick={() => {
             if (
               phase === "recording" &&
@@ -598,11 +599,16 @@ export function VoiceRoom({ sessionId }: { sessionId: string }) {
             ) {
               return;
             }
+            setSwitchingToText(true);
             router.push(`/interview/${sessionId}`);
           }}
         >
-          <Keyboard className="h-3.5 w-3.5" />
-          切换到文本
+          {switchingToText ? (
+            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+          ) : (
+            <Keyboard className="h-3.5 w-3.5" />
+          )}
+          {switchingToText ? "切换中..." : "切换到文本"}
         </Button>
       </div>
     </div>

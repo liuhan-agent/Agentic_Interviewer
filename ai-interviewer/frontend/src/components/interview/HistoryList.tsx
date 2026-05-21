@@ -1,6 +1,5 @@
 "use client";
 
-import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   AlertTriangle,
@@ -23,6 +22,7 @@ import { AnimatePresence, motion } from "framer-motion";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { PendingNavigationLink } from "@/components/navigation/PendingNavigationLink";
 import { ProgressChart } from "@/components/interview/ProgressChart";
 import { SessionIdTooltip } from "@/components/interview/SessionIdTooltip";
 import {
@@ -558,10 +558,13 @@ function SetupDraftCard({
         </div>
         <div className="flex shrink-0 items-center gap-2">
           <Button asChild size="sm" className="gap-1 bg-emerald-600 text-white hover:bg-emerald-500">
-            <Link href={`/interview/setup?draft_id=${encodeURIComponent(draft.draftId)}`}>
+            <PendingNavigationLink
+              href={`/interview/setup?draft_id=${encodeURIComponent(draft.draftId)}`}
+              pendingLabel="打开中..."
+            >
               继续填写
               <ArrowRight className="h-3 w-3" />
-            </Link>
+            </PendingNavigationLink>
           </Button>
           <Button
             type="button"
@@ -734,7 +737,10 @@ function HistoryCard({
                 : "gap-1"
             }
           >
-            <Link href={primaryHref}>
+            <PendingNavigationLink
+              href={primaryHref}
+              pendingLabel={entry.status === "running" ? "进入中..." : "打开中..."}
+            >
               {entry.status === "done" ? (
                 <ClipboardList className="h-3.5 w-3.5" />
               ) : entry.status === "failed" ? (
@@ -744,14 +750,17 @@ function HistoryCard({
               )}
               {primaryLabel}
               <ArrowRight className="h-3 w-3 transition-transform group-hover:translate-x-0.5" />
-            </Link>
+            </PendingNavigationLink>
           </Button>
           {entry.status === "done" && (
             <Button asChild size="sm" variant="secondary" className="gap-1">
-              <Link href={`/interview/${entry.sessionId}/replay`}>
+              <PendingNavigationLink
+                href={`/interview/${entry.sessionId}/replay`}
+                pendingLabel="打开中..."
+              >
                 <RotateCcw className="h-3.5 w-3.5" />
                 训练回放
-              </Link>
+              </PendingNavigationLink>
             </Button>
           )}
           <Button
@@ -947,10 +956,10 @@ function EmptyState() {
           </p>
         </div>
         <Button asChild className="gap-2 bg-emerald-600 hover:bg-emerald-500 text-white">
-          <Link href="/interview/setup">
+          <PendingNavigationLink href="/interview/setup" pendingLabel="打开中...">
             开始第一场面试
             <ArrowRight className="h-4 w-4" />
-          </Link>
+          </PendingNavigationLink>
         </Button>
       </CardContent>
     </Card>

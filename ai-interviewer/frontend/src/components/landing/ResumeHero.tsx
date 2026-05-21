@@ -1,10 +1,10 @@
 "use client";
 
-import Link from "next/link";
 import { useEffect, useState } from "react";
 import { ArrowRight, History } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 
+import { PendingNavigationLink } from "@/components/navigation/PendingNavigationLink";
 import { Button } from "@/components/ui/button";
 import {
   getMostRecentRunning,
@@ -48,10 +48,13 @@ export function ResumeHero() {
             你有一份 <span className="text-foreground">“{setupDraft.filename}”</span> 准备中的面试信息。
           </span>
           <Button asChild variant="link" className="h-auto gap-1 px-0 text-emerald-400">
-            <Link href={`/interview/setup?draft_id=${encodeURIComponent(setupDraft.draftId)}`}>
+            <PendingNavigationLink
+              href={`/interview/setup?draft_id=${encodeURIComponent(setupDraft.draftId)}`}
+              pendingLabel="打开中..."
+            >
               继续完善
               <ArrowRight className="h-3 w-3" />
-            </Link>
+            </PendingNavigationLink>
           </Button>
         </motion.div>
       )}
@@ -68,10 +71,13 @@ export function ResumeHero() {
             你有一场<span className="text-foreground">「{running.jdTitle}」</span>面试还没答完。
           </span>
           <Button asChild variant="link" className="h-auto gap-1 px-0 text-emerald-400">
-            <Link href={`/interview/${running.sessionId}`}>
+            <PendingNavigationLink
+              href={`/interview/${running.sessionId}`}
+              pendingLabel="进入中..."
+            >
               接着练
               <ArrowRight className="h-3 w-3" />
-            </Link>
+            </PendingNavigationLink>
           </Button>
           {totalCount > 1 && (
             <>
@@ -81,9 +87,9 @@ export function ResumeHero() {
                 variant="link"
                 className="h-auto gap-1 px-0 text-muted-foreground hover:text-foreground"
               >
-                <Link href="/interview/history">
+                <PendingNavigationLink href="/interview/history" pendingLabel="打开中...">
                   查看全部 {totalCount} 场
-                </Link>
+                </PendingNavigationLink>
               </Button>
             </>
           )}
@@ -102,10 +108,10 @@ export function ResumeHero() {
             你已经练习过 {totalCount} 场面试。
           </span>
           <Button asChild variant="link" className="h-auto gap-1 px-0">
-            <Link href="/interview/history">
+            <PendingNavigationLink href="/interview/history" pendingLabel="打开中...">
               查看记录
               <ArrowRight className="h-3 w-3" />
-            </Link>
+            </PendingNavigationLink>
           </Button>
         </motion.div>
       )}
