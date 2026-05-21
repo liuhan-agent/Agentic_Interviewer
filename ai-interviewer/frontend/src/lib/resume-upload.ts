@@ -4,6 +4,8 @@ import type {
   ResumeParseJobResponse,
   ParseResumeResponse,
   ResumeCandidateProfile,
+  ResumeFocusArea,
+  ResumeProject,
 } from "./api/types";
 
 type ParseResumeFn = (
@@ -35,6 +37,18 @@ export interface ResumeSourceRef {
 
 const QWEN_FLASH_MODEL = "qwen3.6-flash";
 const QWEN_PLUS_MODEL = "qwen3.6-plus";
+const CANDIDATE_SUMMARY_MAX_LENGTH = 1200;
+const CANDIDATE_SKILLS_MAX_COUNT = 40;
+const CANDIDATE_SKILL_MAX_LENGTH = 80;
+const CANDIDATE_HIGHLIGHTS_MAX_COUNT = 20;
+const CANDIDATE_HIGHLIGHT_MAX_LENGTH = 240;
+const RESUME_PROJECTS_MAX_COUNT = 12;
+const RESUME_PROJECT_NAME_MAX_LENGTH = 120;
+const RESUME_PROJECT_ROLE_MAX_LENGTH = 80;
+const RESUME_PROJECT_ANCHOR_MAX_COUNT = 8;
+const RESUME_PROJECT_ANCHOR_MAX_LENGTH = 160;
+const RESUME_FOCUS_AREAS_MAX_COUNT = 20;
+const RESUME_FOCUS_LABEL_MAX_LENGTH = 160;
 
 export function parseResumeForSetup(
   file: File,
@@ -73,22 +87,34 @@ export function resumeParsedForSession(args: {
 }): Candidate["resume_parsed"] {
   const resumeParsed: Candidate["resume_parsed"] = {};
   if (args.summary?.trim()) {
-    resumeParsed.summary = args.summary.trim();
+    resumeParsed.summary = clipString(args.summary, CANDIDATE_SUMMARY_MAX_LENGTH);
   }
   if (args.skills && args.skills.length > 0) {
-    resumeParsed.skills = args.skills;
+    resumeParsed.skills = sanitizeStringList(
+      args.skills,
+      CANDIDATE_SKILLS_MAX_COUNT,
+      CANDIDATE_SKILL_MAX_LENGTH,
+    );
   }
   if (args.highlights && args.highlights.length > 0) {
-    resumeParsed.highlights = args.highlights;
+    resumeParsed.highlights = sanitizeStringList(
+      args.highlights,
+      CANDIDATE_HIGHLIGHTS_MAX_COUNT,
+      CANDIDATE_HIGHLIGHT_MAX_LENGTH,
+    );
   }
   if (args.projects && args.projects.length > 0) {
-    resumeParsed.projects = args.projects;
+    resumeParsed.projects = sanitizeResumeProjects(args.projects);
   }
   if (args.focus_areas && args.focus_areas.length > 0) {
-    resumeParsed.focus_areas = args.focus_areas;
+    resumeParsed.focus_areas = sanitizeResumeFocusAreas(args.focus_areas);
   }
   if (args.concerns && args.concerns.length > 0) {
-    resumeParsed.concerns = args.concerns;
+    resumeParsed.concerns = sanitizeStringList(
+      args.concerns,
+      10,
+      RESUME_PROJECT_ANCHOR_MAX_LENGTH,
+    );
   }
   if (
     isPlainObject(args.candidate_profile) &&
@@ -98,6 +124,97 @@ export function resumeParsedForSession(args: {
       args.candidate_profile as ResumeCandidateProfile;
   }
   return resumeParsed;
+}
+
+function clipString(value: unknown, maxLength: number): string {
+  return String(value ?? "").trim().slice(0, maxLength);
+}
+
+function optionalClipString(value: unknown, maxLength: number): string | undefined {
+  const clipped = clipString(value, maxLength);
+  return clipped || undefined;
+}
+
+function sanitizeStringList(
+  items: unknown,
+  maxCount: number,
+  maxLength: number,
+): string[] {
+  if (!Array.isArray(items)) return [];
+  return items
+    .map((item) => clipString(item, maxLength))
+    .filter(Boolean)
+    .slice(0, maxCount);
+}
+
+function sanitizeResumeProjects(projects: unknown): ResumeProject[] {
+  if (!Array.isArray(projects)) return [];
+  return projects
+    .filter(isPlainObject)
+    .map((project, idx): ResumeProject | null => {
+      const name = clipString(project.name, RESUME_PROJECT_NAME_MAX_LENGTH);
+      if (!name) return null;
+      const role = optionalClipString(project.role, RESUME_PROJECT_ROLE_MAX_LENGTH);
+      return {
+        id:
+          optionalClipString(project.id, 40) ??
+          `proj-${idx + 1}`,
+        name,
+        ...(role ? { role } : {}),
+        tech_stack: sanitizeStringList(
+          project.tech_stack,
+          CANDIDATE_SKILLS_MAX_COUNT,
+          CANDIDATE_SKILL_MAX_LENGTH,
+        ),
+        responsibilities: sanitizeStringList(
+          project.responsibilities,
+          CANDIDATE_HIGHLIGHTS_MAX_COUNT,
+          CANDIDATE_HIGHLIGHT_MAX_LENGTH,
+        ),
+        achievements: sanitizeStringList(
+          project.achievements,
+          CANDIDATE_HIGHLIGHTS_MAX_COUNT,
+          CANDIDATE_HIGHLIGHT_MAX_LENGTH,
+        ),
+        question_anchors: sanitizeStringList(
+          project.question_anchors,
+          RESUME_PROJECT_ANCHOR_MAX_COUNT,
+          RESUME_PROJECT_ANCHOR_MAX_LENGTH,
+        ),
+      };
+    })
+    .filter((project): project is ResumeProject => project !== null)
+    .slice(0, RESUME_PROJECTS_MAX_COUNT);
+}
+
+function sanitizeResumeFocusAreas(focusAreas: unknown): ResumeFocusArea[] {
+  if (!Array.isArray(focusAreas)) return [];
+  return focusAreas
+    .filter(isPlainObject)
+    .map((focus, idx): ResumeFocusArea | null => {
+      const label = clipString(focus.label, RESUME_FOCUS_LABEL_MAX_LENGTH);
+      if (!label) return null;
+      const rawPriority = Number(focus.priority);
+      const priority = Number.isFinite(rawPriority)
+        ? Math.trunc(rawPriority)
+        : idx + 1;
+      return {
+        id:
+          optionalClipString(focus.id, 40) ??
+          `focus-${idx + 1}`,
+        label,
+        project_id: optionalClipString(focus.project_id, 40) ?? null,
+        dimensions: sanitizeStringList(focus.dimensions, 20, CANDIDATE_SKILL_MAX_LENGTH),
+        skills: sanitizeStringList(
+          focus.skills,
+          CANDIDATE_SKILLS_MAX_COUNT,
+          CANDIDATE_SKILL_MAX_LENGTH,
+        ),
+        priority,
+      };
+    })
+    .filter((focus): focus is ResumeFocusArea => focus !== null)
+    .slice(0, RESUME_FOCUS_AREAS_MAX_COUNT);
 }
 
 export function resumeJobAutofillValues(args: {

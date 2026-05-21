@@ -131,6 +131,7 @@ export function LightScrollWheel() {
         ref={trackRef}
         type="button"
         aria-label="拖动滚轮跳转页面位置"
+        aria-controls="app-main-content"
         aria-valuemax={100}
         aria-valuemin={0}
         aria-valuenow={Math.round(progress * 100)}

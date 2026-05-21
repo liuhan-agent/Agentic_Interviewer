@@ -32,20 +32,42 @@ test("NextQuestionLoader cleans up its interval on unmount", () => {
   assert.match(source, /clearInterval\(/);
 });
 
-test("NextQuestionLoader uses a 45000ms fallback when etaMs is missing", () => {
+test("NextQuestionLoader uses a 100000ms fallback when etaMs is missing", () => {
   const source = read("src/components/interview/NextQuestionLoader.tsx");
 
-  assert.match(source, /45000/);
-  assert.doesNotMatch(source, /const FALLBACK_ETA_MS = 7000/);
+  assert.match(source, /const FALLBACK_ETA_MS = 100_000/);
+  assert.doesNotMatch(source, /const FALLBACK_ETA_MS = 45000/);
+  assert.doesNotMatch(source, /const FALLBACK_ETA_MS = 45_000/);
 });
 
-test("NextQuestionLoader shows staged waiting copy for slow question generation", () => {
+test("NextQuestionLoader maps elapsed time to a non-linear waiting rhythm", () => {
+  const source = read("src/components/interview/NextQuestionLoader.tsx");
+
+  assert.match(source, /WAITING_PROGRESS_POINTS/);
+  assert.match(source, /timeMs: 10_000,\s*progress: 0\.1/);
+  assert.match(source, /timeMs: 45_000,\s*progress: 0\.52/);
+  assert.match(source, /timeMs: 80_000,\s*progress: 0\.86/);
+  assert.match(source, /timeMs: 100_000,\s*progress: 0\.94/);
+  assert.match(source, /timeMs: 110_000,\s*progress: PROGRESS_CAP/);
+  assert.match(source, /getQuestionPreparationProgress/);
+  assert.match(source, /lerpProgress/);
+});
+
+test("NextQuestionLoader keeps the waiting headline without a duplicate current-stage row", () => {
   const source = read("src/components/interview/NextQuestionLoader.tsx");
 
   assert.match(source, /QUESTION_STAGE_HEADLINES/);
-  assert.match(source, /elapsedMs < 10_000/);
-  assert.match(source, /elapsedMs < 30_000/);
-  assert.match(source, /elapsedMs < 60_000/);
+  assert.match(source, /thresholdMs: 12_000,\s*text: "正在整理你的回答"/);
+  assert.match(source, /thresholdMs: 35_000,\s*text: "正在梳理关键信息"/);
+  assert.match(source, /thresholdMs: 65_000,\s*text: "正在提炼本轮考察点"/);
+  assert.match(source, /thresholdMs: 90_000,\s*text: "正在组织下一题"/);
+  assert.match(source, /thresholdMs: 110_000,\s*text: "正在检查问题表达"/);
+  assert.match(source, /复杂回答需要多一点时间，仍在生成中/);
+  assert.match(source, /getWaitingHeadline/);
+  assert.match(source, /正在组织下一题/);
+  assert.doesNotMatch(source, /QUESTION_PREPARATION_STAGES/);
+  assert.doesNotMatch(source, /当前阶段/);
+  assert.doesNotMatch(source, /getWaitingStageLabel/);
 });
 
 test("NextQuestionLoader shows stable answer insight without fragile keywords", () => {
@@ -95,6 +117,8 @@ test("NextQuestionLoader selects tips by scope with default fallback and no pre-
 
   assert.match(source, /tips\.filter\(\(tip\) => tip\.scope === scope\)/);
   assert.match(source, /tips\.filter\(\(tip\) => tip\.scope === "default"\)/);
+  assert.match(source, /\[\.\.\.scoped, \.\.\.defaultTips\]/);
+  assert.match(source, /scope === "default"/);
   assert.match(source, /FALLBACK_WAITING_TIPS/);
   assert.match(source, /!displayedTipIds\?\.has\(tip\.id\)/);
   assert.match(source, /unused\.length > 0 \? unused : candidates/);

@@ -31,7 +31,7 @@ export default function RootLayout({
           disableTransitionOnChange
         >
           <AppShell>
-            <main className="flex-1">{children}</main>
+            <main id="app-main-content" className="flex-1">{children}</main>
             <Footer />
           </AppShell>
           <Toaster />

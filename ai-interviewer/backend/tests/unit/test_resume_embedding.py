@@ -20,6 +20,7 @@ class _MockHTTP:
         self._responses: list[Any] = []
         self.call_count = 0
         self.payloads: list[dict[str, Any]] = []
+        self.timeouts: list[float | None] = []
 
     def add_post(self, path: str, response: Any) -> None:
         assert path == "/embeddings"
@@ -36,6 +37,7 @@ class _MockHTTP:
         self.call_count += 1
         payload = dict(kwargs.get("json") or {})
         self.payloads.append(payload)
+        self.timeouts.append(kwargs.get("timeout"))
         if not self._responses:
             raise AssertionError("no mock response configured")
         response = self._responses.pop(0)
@@ -112,6 +114,43 @@ def test_embed_chunks_uses_qwen_embedding_override(mock_http: _MockHTTP) -> None
     assert mock_http.payloads[0]["dimensions"] == 1536
 
 
+def test_embed_chunks_uses_qwen_provider_batch_limit(mock_http: _MockHTTP) -> None:
+    for _ in range(3):
+        mock_http.add_post("/embeddings", lambda req: _ok_response(len(req["input"])))
+
+    vectors = embed_chunks(
+        ["Redis Lua atomic deduction"] * 24,
+        embedding_override={
+            "provider": "qwen",
+            "api_key": "sk-qwen-embedding",
+            "model": "text-embedding-v4",
+            "base_url": "https://dashscope.aliyuncs.com/compatible-mode/v1",
+            "dimensions": 1536,
+        },
+    )
+
+    assert len(vectors) == 24
+    assert [len(payload["input"]) for payload in mock_http.payloads] == [10, 10, 4]
+
+
+def test_embed_chunks_uses_longer_vectorization_timeout(
+    mock_http: _MockHTTP,
+) -> None:
+    mock_http.add_post("/embeddings", lambda req: _ok_response(len(req["input"])))
+
+    embed_chunks(["Redis Lua atomic deduction"])
+
+    assert mock_http.timeouts == [pytest.approx(10.0)]
+
+
+def test_embed_query_uses_query_embedding_timeout(mock_http: _MockHTTP) -> None:
+    mock_http.add_post("/embeddings", lambda req: _ok_response(len(req["input"])))
+
+    embed_query("Redis Lua atomic deduction")
+
+    assert mock_http.timeouts == [pytest.approx(3.0)]
+
+
 def test_embedding_provider_registry_allows_qwen_byok_only() -> None:
     from app.services.embedding_providers import (
         embedding_provider_spec,
@@ -123,6 +162,7 @@ def test_embedding_provider_registry_allows_qwen_byok_only() -> None:
     assert qwen.default_model == "text-embedding-v4"
     assert qwen.default_base_url == "https://dashscope.aliyuncs.com/compatible-mode/v1"
     assert qwen.supported_dimensions == frozenset({1536})
+    assert qwen.max_batch_size == 10
 
 
 def test_openai_embedding_override_is_reserved_for_future_provider_rollout() -> None:

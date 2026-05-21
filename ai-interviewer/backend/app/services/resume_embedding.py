@@ -15,6 +15,7 @@ from app.core.settings import get_settings
 from app.services.embedding_providers import (
     UnsupportedEmbeddingProviderError,
     browser_embedding_provider_spec,
+    embedding_provider_spec,
     embedding_provider_from_endpoint,
 )
 
@@ -41,6 +42,7 @@ class EmbeddingConfig:
     model: str
     api_key: str
     dimensions: int
+    max_batch_size: int = _MAX_BATCH_SIZE
 
     @property
     def model_version(self) -> str:
@@ -81,15 +83,17 @@ def embed_chunks(
             model=model,
             api_key=config.api_key,
             dimensions=config.dimensions,
+            max_batch_size=config.max_batch_size,
         )
     vectors: list[list[float]] = []
-    for start in range(0, len(clean_texts), _MAX_BATCH_SIZE):
-        batch = clean_texts[start : start + _MAX_BATCH_SIZE]
+    batch_size = _effective_batch_size(config)
+    for start in range(0, len(clean_texts), batch_size):
+        batch = clean_texts[start : start + batch_size]
         vectors.extend(
             _embed_batch_with_retries(
                 batch,
                 config=config,
-                timeout_ms=timeout_ms,
+                timeout_ms=_embedding_timeout_ms(timeout_ms),
             )
         )
     return vectors
@@ -114,6 +118,7 @@ def embed_query(
             model=model,
             api_key=config.api_key,
             dimensions=config.dimensions,
+            max_batch_size=config.max_batch_size,
         )
     model_version = config.model_version
     cache_token = str(cache_key or "").strip()
@@ -125,7 +130,7 @@ def embed_query(
         vectors = _embed_batch_with_retries(
             [str(text or "")],
             config=config,
-            timeout_ms=timeout_ms,
+            timeout_ms=_query_embedding_timeout_ms(timeout_ms),
         )
     except ResumeEmbeddingError as e:
         if raise_errors:
@@ -193,6 +198,7 @@ def resolve_embedding_config(
             model=model,
             api_key=str(override.get("api_key") or "").strip(),
             dimensions=dimensions,
+            max_batch_size=provider_spec.max_batch_size,
         )
 
     endpoint = str(settings.resume_rag_embedding_endpoint or "").strip()
@@ -202,12 +208,48 @@ def resolve_embedding_config(
         or settings.openai_api_key
         or ""
     ).strip()
+    provider = embedding_provider_from_endpoint(endpoint)
+    try:
+        provider_spec = embedding_provider_spec(provider)
+        max_batch_size = provider_spec.max_batch_size
+    except UnsupportedEmbeddingProviderError:
+        max_batch_size = _MAX_BATCH_SIZE
     return EmbeddingConfig(
-        provider=embedding_provider_from_endpoint(endpoint),
+        provider=provider,
         endpoint=endpoint,
         model=model,
         api_key=api_key,
         dimensions=expected_dim,
+        max_batch_size=max_batch_size,
+    )
+
+
+def _effective_batch_size(config: EmbeddingConfig) -> int:
+    try:
+        return max(1, int(config.max_batch_size or _MAX_BATCH_SIZE))
+    except (TypeError, ValueError):
+        return _MAX_BATCH_SIZE
+
+
+def _embedding_timeout_ms(timeout_ms: int | None) -> int:
+    if timeout_ms is not None:
+        return int(timeout_ms)
+    settings = get_settings()
+    return int(
+        getattr(settings, "resume_rag_embedding_timeout_ms", None)
+        or settings.resume_rag_timeout_ms
+        or 10000
+    )
+
+
+def _query_embedding_timeout_ms(timeout_ms: int | None) -> int:
+    if timeout_ms is not None:
+        return int(timeout_ms)
+    settings = get_settings()
+    return int(
+        getattr(settings, "resume_rag_query_embedding_timeout_ms", None)
+        or settings.resume_rag_timeout_ms
+        or 3000
     )
 
 
