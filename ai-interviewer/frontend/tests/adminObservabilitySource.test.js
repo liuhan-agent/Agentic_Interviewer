@@ -9,6 +9,20 @@ function read(relPath) {
   return fs.readFileSync(path.join(root, relPath), "utf8");
 }
 
+function countMatches(source, pattern) {
+  return Array.from(source.matchAll(pattern)).length;
+}
+
+function nearestActiveTabBefore(source, token) {
+  const tokenIndex = source.indexOf(token);
+  assert.notEqual(tokenIndex, -1, `${token} should be present`);
+  const candidates = ["health", "scoring", "strategy"].map((tab) => ({
+    tab,
+    index: source.lastIndexOf(`activeTab === "${tab}"`, tokenIndex),
+  }));
+  return candidates.sort((a, b) => b.index - a.index)[0].tab;
+}
+
 test("admin page is framed as an agent observability console", () => {
   const page = read("src/app/admin/page.tsx");
 
@@ -21,11 +35,33 @@ test("admin panel exposes system overview and productized card copy", () => {
   const panel = read("src/components/admin/AdminPanel.tsx");
 
   assert.match(panel, /SystemOverview/);
-  assert.match(panel, /系统状态总览/);
+  assert.match(panel, /运行概览/);
+  assert.match(panel, /关键后台状态灯/);
+  assert.match(panel, /OverviewStatusLight/);
+  assert.doesNotMatch(panel, /系统状态总览/);
   assert.match(panel, /策略学习/);
-  assert.match(panel, /评分复核/);
+  assert.match(panel, /Verifier 监控/);
+  assert.match(panel, /drift 观测开关，不代表 Verifier 未运行/);
+  assert.match(panel, /运行中会话/);
+  assert.match(panel, /已入库策略/);
   assert.match(panel, /面试质量入口/);
-  assert.match(panel, /跑完一场面试后会出现/);
+  assert.match(panel, /active:scale-\[0\.98\]/);
+});
+
+test("admin overview status hints reveal full copy with clear hierarchy", () => {
+  const panel = read("src/components/admin/AdminPanel.tsx");
+
+  assert.match(panel, /TooltipProvider delayDuration=\{150\}/);
+  assert.match(panel, /<TooltipTrigger asChild>/);
+  assert.match(panel, /<TooltipContent[\s\S]*?side="bottom"[\s\S]*?align="start"/);
+  assert.match(panel, /aria-label=\{`\$\{label\}: \$\{hint\}`\}/);
+  assert.match(panel, /text-\[10px\] font-semibold uppercase tracking-wide/);
+  assert.match(panel, /font-mono text-sm font-semibold/);
+  assert.match(panel, /text-\[11px\] leading-4 text-muted-foreground/);
+  assert.doesNotMatch(
+    panel,
+    /truncate text-\[11px\] text-muted-foreground">\{hint\}/,
+  );
 });
 
 test("admin active sessions link back to report and replay pages", () => {
@@ -225,4 +261,58 @@ test("admin rag section labels knowledge and session-anchor panels distinctly", 
   assert.ok(api.includes("/admin/sessions/${encodeURIComponent(sessionId)}/anchor-data"));
   assert.match(api, /SessionAnchorRagSummary/);
   assert.match(api, /SessionAnchorRagMetrics/);
+});
+
+test("admin panel mounts tab-scoped observability cards only once", () => {
+  const panel = read("src/components/admin/AdminPanel.tsx");
+
+  assert.equal(countMatches(panel, /<SessionsCard\b/g), 1);
+  assert.equal(countMatches(panel, /<HistoricalSessionsCard\b/g), 1);
+  assert.equal(countMatches(panel, /<RagEvalSection\b/g), 1);
+});
+
+test("admin tabs own every module below the tab switcher", () => {
+  const panel = read("src/components/admin/AdminPanel.tsx");
+
+  assert.equal(nearestActiveTabBefore(panel, "<RecentTracesByNode"), "health");
+  assert.equal(nearestActiveTabBefore(panel, "<QuestionBankCard"), "strategy");
+  assert.equal(nearestActiveTabBefore(panel, "<SkillsPlaybookCard"), "strategy");
+  assert.equal(nearestActiveTabBefore(panel, "<StrategiesCard"), "strategy");
+});
+
+test("admin tabs carry distinct theme colors into their content panels", () => {
+  const panel = read("src/components/admin/AdminPanel.tsx");
+
+  assert.match(panel, /ADMIN_TAB_THEMES/);
+  assert.match(panel, /emerald/);
+  assert.match(panel, /sky/);
+  assert.match(panel, /amber/);
+  assert.match(panel, /AdminTabPanel/);
+  assert.match(panel, /--admin-tab-border/);
+  assert.match(panel, /--admin-tab-bg/);
+  assert.match(panel, /--admin-tab-rail/);
+  assert.match(panel, /theme\.tabActive/);
+  assert.match(panel, /theme\.iconActive/);
+});
+
+test("admin token controls are folded into settings with helper copy", () => {
+  const panel = read("src/components/admin/AdminPanel.tsx");
+
+  assert.match(panel, /settingsOpen/);
+  assert.match(panel, /setSettingsOpen/);
+  assert.match(panel, /后台设置 \/ 权限/);
+  assert.match(panel, /用于访问受保护的后台观测接口，本地开发可留空。/);
+  assert.match(panel, /管理员认证令牌/);
+  assert.match(panel, /令牌已保存/);
+});
+
+test("admin refresh button gives immediate pending feedback", () => {
+  const panel = read("src/components/admin/AdminPanel.tsx");
+
+  assert.match(panel, /refreshing/);
+  assert.match(panel, /setRefreshing/);
+  assert.match(panel, /刷新中/);
+  assert.match(panel, /aria-busy=\{refreshing\}/);
+  assert.match(panel, /animate-spin/);
+  assert.match(panel, /min-w-\[/);
 });
