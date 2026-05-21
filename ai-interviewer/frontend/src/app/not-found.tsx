@@ -1,6 +1,5 @@
 import { ArrowLeft } from "lucide-react";
 
-import { PendingNavigationLink } from "@/components/navigation/PendingNavigationLink";
 import { Button } from "@/components/ui/button";
 
 export default function NotFound() {
@@ -14,10 +13,10 @@ export default function NotFound() {
         未找到该页面。会话 ID 较长，请检查 URL 是否正确。
       </p>
       <Button asChild variant="outline" className="gap-2">
-        <PendingNavigationLink href="/">
+        <a href="/">
           <ArrowLeft className="h-4 w-4" />
           返回首页
-        </PendingNavigationLink>
+        </a>
       </Button>
     </section>
   );
