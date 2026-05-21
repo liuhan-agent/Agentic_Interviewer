@@ -1,6 +1,5 @@
 "use client";
 
-import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
   Activity,
@@ -20,6 +19,7 @@ import { useTheme } from "next-themes";
 import { AnimatePresence, motion } from "framer-motion";
 
 import { cn } from "@/lib/utils";
+import { PendingNavigationLink } from "@/components/navigation/PendingNavigationLink";
 import { Button } from "@/components/ui/button";
 import { LLMSettingsDialog } from "@/components/layout/LLMSettingsDialog";
 import { LightScrollWheel } from "@/components/layout/LightScrollWheel";
@@ -144,17 +144,17 @@ function NavigationShortcuts({ pathname }: { pathname: string | null }) {
       <div className="container flex h-10 items-center gap-2 text-xs">
         {parentHref && parentHref !== "/" && (
           <Button asChild variant="ghost" size="sm" className="h-7 gap-1.5 px-2">
-            <Link href={parentHref}>
+            <PendingNavigationLink href={parentHref} pendingLabel="返回中...">
               <ArrowLeft className="h-3.5 w-3.5" />
               返回上一级
-            </Link>
+            </PendingNavigationLink>
           </Button>
         )}
         <Button asChild variant="ghost" size="sm" className="h-7 gap-1.5 px-2">
-          <Link href="/">
+          <PendingNavigationLink href="/" pendingLabel="返回中...">
             <Home className="h-3.5 w-3.5" />
             回到首页
-          </Link>
+          </PendingNavigationLink>
         </Button>
       </div>
     </div>
@@ -170,7 +170,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     <div className="flex min-h-dvh flex-col">
       <header className="sticky top-0 z-30 border-b bg-background/80 backdrop-blur-xl supports-[backdrop-filter]:bg-background/60">
         <div className="container flex h-16 items-center justify-between">
-          <Link href="/" className="flex items-center gap-2 font-semibold">
+          <PendingNavigationLink href="/" className="flex items-center gap-2 font-semibold">
             <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-emerald-500/10">
               <Activity className="h-4 w-4 text-emerald-400" />
             </div>
@@ -178,12 +178,13 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             <span className="hidden rounded-full bg-emerald-500/10 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wider text-emerald-400 sm:inline">
               预览版
             </span>
-          </Link>
+          </PendingNavigationLink>
 
           {/* Desktop nav */}
           <nav className="hidden items-center gap-4 sm:flex">
-            <Link
+            <PendingNavigationLink
               href="/interview/history"
+              pendingLabel="打开中..."
               className={cn(
                 "flex items-center gap-2.5 rounded-xl px-5 py-2.5 text-[15px] font-medium transition-colors",
                 pathname === "/interview/history"
@@ -193,14 +194,15 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             >
               <History className="h-[18px] w-[18px]" />
               我的面试
-            </Link>
-            <Link
+            </PendingNavigationLink>
+            <PendingNavigationLink
               href="/interview/setup"
+              pendingLabel="打开中..."
               className="flex items-center gap-2.5 rounded-xl bg-emerald-600 px-6 py-2.5 text-[15px] font-semibold text-white shadow-sm transition-colors hover:bg-emerald-500"
             >
               <Plus className="h-[18px] w-[18px]" />
               新面试
-            </Link>
+            </PendingNavigationLink>
             <span className="mx-1 h-6 w-px bg-border" />
             <LLMSettingsDialog>
               <button
@@ -216,8 +218,9 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               </button>
             </LLMSettingsDialog>
             {showAdminNav && (
-              <Link
+              <PendingNavigationLink
                 href="/admin"
+                pendingLabel="打开中..."
                 className={cn(
                   "flex items-center gap-1.5 rounded-lg px-3 py-2 text-sm transition-colors",
                   pathname === "/admin"
@@ -228,7 +231,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               >
                 <Gauge className="h-4 w-4" />
                 后台
-              </Link>
+              </PendingNavigationLink>
             )}
             <ThemeToggle />
           </nav>
@@ -255,17 +258,19 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               className="overflow-hidden border-t sm:hidden"
             >
               <nav className="container flex flex-col gap-2 py-4">
-                <Link
+                <PendingNavigationLink
                   href="/interview/setup"
                   onClick={() => setMobileOpen(false)}
+                  pendingLabel="打开中..."
                   className="flex items-center gap-2 rounded-lg bg-emerald-600 px-4 py-3 text-base font-medium text-white transition-colors hover:bg-emerald-500"
                 >
                   <Plus className="h-5 w-5" />
                   新面试
-                </Link>
-                <Link
+                </PendingNavigationLink>
+                <PendingNavigationLink
                   href="/interview/history"
                   onClick={() => setMobileOpen(false)}
+                  pendingLabel="打开中..."
                   className={cn(
                     "flex items-center gap-2 rounded-lg px-4 py-3 text-base font-medium transition-colors",
                     pathname === "/interview/history"
@@ -275,11 +280,12 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                 >
                   <History className="h-5 w-5" />
                   我的面试
-                </Link>
+                </PendingNavigationLink>
                 {showAdminNav && (
-                  <Link
+                  <PendingNavigationLink
                     href="/admin"
                     onClick={() => setMobileOpen(false)}
+                    pendingLabel="打开中..."
                     className={cn(
                       "flex items-center gap-2 rounded-lg px-4 py-2.5 text-sm transition-colors",
                       pathname === "/admin"
@@ -289,7 +295,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                   >
                     <Gauge className="h-4 w-4" />
                     后台观测
-                  </Link>
+                  </PendingNavigationLink>
                 )}
                 <LLMSettingsDialog>
                   <button
