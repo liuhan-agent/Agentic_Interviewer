@@ -8,35 +8,55 @@ import { cn } from "@/lib/utils";
 
 /**
  * Loading indicator shown between answer submission and the next
- * question's arrival. The progress bar uses a conservative window so
- * slower models do not look stuck after a few seconds. When the server
- * runs longer than the window the bar deliberately caps at 95% because
- * finishing before the next question arrives feels broken.
+ * question's arrival. The progress bar is an expectation cue, not an
+ * exact percent complete. It follows a slow non-linear rhythm and then
+ * caps at 95% so long model runs still feel active without pretending
+ * the next question is already done.
  *
  * Cleanup invariant: the interval is torn down on unmount and whenever
  * the effective ETA changes, so the timer never outlives a remount.
  */
 
 const TICK_MS = 100;
-const FALLBACK_ETA_MS = 45000;
+const FALLBACK_ETA_MS = 100_000;
 const PROGRESS_CAP = 0.95;
 const WAITING_TIP_ROTATION_MS = 10000;
-const FINAL_STAGE_HEADLINES = {
-  normal: "正在整理本场面试总结",
-  slow: "正在整理本场面试总结，内容比单题更完整",
-};
-const OPENING_STAGE_HEADLINES = {
-  early: "正在梳理你的开场介绍",
-  middle: "正在提取经历线索",
-  late: "正在组织第一道问题",
-  slow: "模型响应偏慢，仍在生成中",
-};
-const QUESTION_STAGE_HEADLINES = {
-  early: "AI 正在理解你的回答",
-  middle: "正在匹配简历项目和考察重点",
-  late: "正在组织下一题",
-  slow: "模型响应偏慢，仍在生成中",
-};
+const WAITING_PROGRESS_POINTS = [
+  { timeMs: 0, progress: 0 },
+  { timeMs: 10_000, progress: 0.1 },
+  { timeMs: 45_000, progress: 0.52 },
+  { timeMs: 80_000, progress: 0.86 },
+  { timeMs: 100_000, progress: 0.94 },
+  { timeMs: 110_000, progress: PROGRESS_CAP },
+] as const;
+const FINAL_STAGE_HEADLINES = [
+  { thresholdMs: 20_000, text: "正在汇总本场表现" },
+  { thresholdMs: 60_000, text: "正在整理多维度反馈" },
+  { thresholdMs: 100_000, text: "正在检查总结表达" },
+  { thresholdMs: Number.POSITIVE_INFINITY, text: "总结内容较完整，仍在生成中" },
+] as const;
+const OPENING_STAGE_HEADLINES = [
+  { thresholdMs: 12_000, text: "正在整理你的开场介绍" },
+  { thresholdMs: 35_000, text: "正在提取经历线索" },
+  { thresholdMs: 65_000, text: "正在匹配第一轮考察点" },
+  { thresholdMs: 90_000, text: "正在组织第一道问题" },
+  { thresholdMs: 110_000, text: "正在检查问题表达" },
+  {
+    thresholdMs: Number.POSITIVE_INFINITY,
+    text: "复杂回答需要多一点时间，仍在生成中",
+  },
+] as const;
+const QUESTION_STAGE_HEADLINES = [
+  { thresholdMs: 12_000, text: "正在整理你的回答" },
+  { thresholdMs: 35_000, text: "正在梳理关键信息" },
+  { thresholdMs: 65_000, text: "正在提炼本轮考察点" },
+  { thresholdMs: 90_000, text: "正在组织下一题" },
+  { thresholdMs: 110_000, text: "正在检查问题表达" },
+  {
+    thresholdMs: Number.POSITIVE_INFINITY,
+    text: "复杂回答需要多一点时间，仍在生成中",
+  },
+] as const;
 const FALLBACK_WAITING_TIPS: InterviewWaitingTip[] = [
   {
     id: "frontend_fallback_default_001",
@@ -99,8 +119,8 @@ export function NextQuestionLoader({
     };
   }, [effectiveEta]);
 
-  const progress = Math.min(elapsedMs / effectiveEta, PROGRESS_CAP);
-  const overrun = elapsedMs > effectiveEta;
+  const progress = getQuestionPreparationProgress(elapsedMs);
+  const isLongWait = elapsedMs >= WAITING_PROGRESS_POINTS.at(-1)!.timeMs;
   const elapsedSeconds = Math.max(1, Math.round(elapsedMs / 1000));
   const isOpeningTurn = Boolean(answerInsight?.isOpeningTurn);
   const tipScope = isFinalTurn
@@ -143,26 +163,15 @@ export function NextQuestionLoader({
     tipScope,
   ]);
 
-  const headline = isFinalTurn
-    ? overrun
-      ? FINAL_STAGE_HEADLINES.slow
-      : FINAL_STAGE_HEADLINES.normal
-    : isOpeningTurn
-      ? elapsedMs < 10_000
-        ? OPENING_STAGE_HEADLINES.early
-        : elapsedMs < 30_000
-          ? OPENING_STAGE_HEADLINES.middle
-          : elapsedMs < 60_000
-            ? OPENING_STAGE_HEADLINES.late
-            : OPENING_STAGE_HEADLINES.slow
-    : elapsedMs < 10_000
-      ? QUESTION_STAGE_HEADLINES.early
-      : elapsedMs < 30_000
-        ? QUESTION_STAGE_HEADLINES.middle
-        : elapsedMs < 60_000
-          ? QUESTION_STAGE_HEADLINES.late
-          : QUESTION_STAGE_HEADLINES.slow;
-  const elapsedLabel = overrun
+  const headline = getWaitingHeadline(
+    elapsedMs,
+    isFinalTurn
+      ? FINAL_STAGE_HEADLINES
+      : isOpeningTurn
+        ? OPENING_STAGE_HEADLINES
+        : QUESTION_STAGE_HEADLINES,
+  );
+  const elapsedLabel = isLongWait
     ? `已用时 ${elapsedSeconds}s · 仍在生成中`
     : `已用时 ${elapsedSeconds}s`;
   const subline = isFinalTurn
@@ -226,13 +235,54 @@ export function NextQuestionLoader({
       >
         <div
           className={cn(
-            "h-full rounded-full transition-[width] duration-200",
-            overrun ? "bg-amber-500" : "bg-emerald-500",
+            "h-full rounded-full transition-[width] duration-300 ease-out",
+            isLongWait
+              ? "animate-shimmer bg-shimmer bg-emerald-500/80"
+              : "bg-emerald-500",
           )}
           style={{ width: `${progress * 100}%` }}
         />
       </div>
     </motion.div>
+  );
+}
+
+function getQuestionPreparationProgress(elapsedMs: number): number {
+  const safeElapsedMs = Math.max(0, elapsedMs);
+  for (let index = 1; index < WAITING_PROGRESS_POINTS.length; index += 1) {
+    const previous = WAITING_PROGRESS_POINTS[index - 1];
+    const next = WAITING_PROGRESS_POINTS[index];
+    if (safeElapsedMs <= next.timeMs) {
+      return lerpProgress(safeElapsedMs, previous, next);
+    }
+  }
+  return PROGRESS_CAP;
+}
+
+function lerpProgress(
+  elapsedMs: number,
+  previous: (typeof WAITING_PROGRESS_POINTS)[number],
+  next: (typeof WAITING_PROGRESS_POINTS)[number],
+): number {
+  const segmentDuration = next.timeMs - previous.timeMs;
+  if (segmentDuration <= 0) {
+    return Math.min(next.progress, PROGRESS_CAP);
+  }
+  const segmentElapsed = elapsedMs - previous.timeMs;
+  const ratio = Math.min(Math.max(segmentElapsed / segmentDuration, 0), 1);
+  return Math.min(
+    previous.progress + (next.progress - previous.progress) * ratio,
+    PROGRESS_CAP,
+  );
+}
+
+function getWaitingHeadline(
+  elapsedMs: number,
+  headlines: readonly { thresholdMs: number; text: string }[],
+): string {
+  return (
+    headlines.find((headline) => elapsedMs < headline.thresholdMs)?.text ??
+    headlines.at(-1)!.text
   );
 }
 
@@ -245,11 +295,15 @@ function selectNextWaitingTip(
   const scoped = tips.filter((tip) => tip.scope === scope);
   const defaultTips = tips.filter((tip) => tip.scope === "default");
   const candidates =
-    scoped.length > 0
-      ? scoped
-      : defaultTips.length > 0
+    scope === "default"
+      ? defaultTips.length > 0
         ? defaultTips
-        : FALLBACK_WAITING_TIPS;
+        : FALLBACK_WAITING_TIPS
+      : scoped.length > 0
+        ? [...scoped, ...defaultTips]
+        : defaultTips.length > 0
+          ? defaultTips
+          : FALLBACK_WAITING_TIPS;
   const unused = candidates.filter((tip) => !displayedTipIds?.has(tip.id));
   const available = unused.length > 0 ? unused : candidates;
   return available.find((tip) => tip.id !== currentTipId) ?? available[0] ?? null;

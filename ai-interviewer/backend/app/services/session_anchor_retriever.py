@@ -122,7 +122,11 @@ def retrieve_candidate_anchors(
         )
     vector = embed_query(
         " ".join(query_terms),
-        timeout_ms=int(settings.resume_rag_timeout_ms or 300),
+        timeout_ms=int(
+            getattr(settings, "resume_rag_query_embedding_timeout_ms", None)
+            or settings.resume_rag_timeout_ms
+            or 3000
+        ),
         embedding_override=embedding_override,
         cache_key=_query_cache_key(
             dimension=dimension,

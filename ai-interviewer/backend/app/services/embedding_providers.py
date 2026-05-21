@@ -22,6 +22,7 @@ class EmbeddingProviderSpec:
     default_base_url: str
     requires_base_url: bool
     supported_dimensions: frozenset[int]
+    max_batch_size: int = 64
     allow_browser_override: bool = False
     aliases: tuple[str, ...] = ()
 
@@ -34,6 +35,7 @@ EMBEDDING_PROVIDER_SPECS: dict[str, EmbeddingProviderSpec] = {
         default_base_url="https://dashscope.aliyuncs.com/compatible-mode/v1",
         requires_base_url=False,
         supported_dimensions=frozenset({1536}),
+        max_batch_size=10,
         allow_browser_override=True,
         aliases=("dashscope",),
     ),

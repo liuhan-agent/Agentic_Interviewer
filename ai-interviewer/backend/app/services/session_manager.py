@@ -480,6 +480,42 @@ def _graph_config(
     return cfg
 
 
+def _sync_setup_snapshot_vector_status(
+    handle: SessionHandle,
+    state: dict[str, Any] | None,
+) -> None:
+    """Mirror runtime vectorization status into the persisted setup snapshot."""
+
+    snapshot = getattr(handle, "setup_snapshot", None)
+    if not isinstance(state, dict):
+        return
+    candidate_state = state.get("candidate") if isinstance(state.get("candidate"), dict) else {}
+    if not isinstance(snapshot, dict):
+        snapshot = {
+            "candidate": dict(candidate_state),
+            "job_spec": dict(state.get("job_spec"))
+            if isinstance(state.get("job_spec"), dict)
+            else {},
+        }
+        handle.setup_snapshot = snapshot
+    candidate_snapshot = snapshot.get("candidate")
+    if not isinstance(candidate_snapshot, dict):
+        candidate_snapshot = {}
+        snapshot["candidate"] = candidate_snapshot
+
+    resume_status = candidate_state.get("resume_vector_status")
+    if isinstance(resume_status, dict) and resume_status:
+        snapshot["resume_vector_status"] = dict(resume_status)
+        candidate_snapshot["resume_vector_status"] = dict(resume_status)
+        resume_source_id = resume_status.get("resume_source_id")
+        if resume_source_id:
+            candidate_snapshot["resume_source_id"] = resume_source_id
+
+    self_intro_status = state.get("self_intro_vector_status")
+    if isinstance(self_intro_status, dict) and self_intro_status:
+        snapshot["self_intro_vector_status"] = dict(self_intro_status)
+
+
 def _cost_summary_metadata(handle: SessionHandle) -> dict[str, Any]:
     """Project the handle's running LLM tallies into LangSmith metadata.
 
@@ -655,6 +691,7 @@ class SessionManager:
                     )
                     handle.final_state = {**last_state, "status": "cancelled"}
                     handle.done_event.set()
+                    _sync_setup_snapshot_vector_status(handle, handle.final_state)
                     self._persist_completed(handle, handle.final_state)
                     return
 
@@ -685,6 +722,7 @@ class SessionManager:
                     last_state.get("qa_history")
                 )
                 handle.question_event.set()
+                _sync_setup_snapshot_vector_status(handle, last_state)
                 self._persist_interrupt(handle, question, turn_idx)
                 log.info(
                     "session %s interrupted at turn %d",
@@ -695,6 +733,7 @@ class SessionManager:
                 # Graph reached END
                 handle.final_state = last_state
                 handle.done_event.set()
+                _sync_setup_snapshot_vector_status(handle, last_state)
                 self._persist_completed(handle, last_state)
                 log.info("session %s completed", handle.session_id)
 
@@ -1449,6 +1488,9 @@ class SessionManager:
                 enable_video_analysis=bool(
                     getattr(row, "enable_video_analysis", False)
                 ),
+                setup_snapshot=row.setup_snapshot
+                if isinstance(row.setup_snapshot, dict)
+                else None,
             )
             if row.current_question:
                 handle.question_event.set()

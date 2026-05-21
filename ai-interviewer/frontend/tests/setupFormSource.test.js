@@ -171,3 +171,44 @@ test("setup form stores browser recovery credential from start response", () => 
   assert.match(source, /recoveryToken: res\.recovery_token/);
   assert.match(source, /recoveryTokenExpiresAt: res\.recovery_token_expires_at/);
 });
+
+test("setup form locks the start action while creating the interview session", () => {
+  const source = fs.readFileSync(
+    path.join(__dirname, "..", "src", "components", "interview", "SetupForm.tsx"),
+    "utf8",
+  );
+
+  assert.match(source, /isInterviewStartPending/);
+  assert.match(source, /setInterviewStartPending\(true\)/);
+  assert.match(source, /const isStartingInterview = isSubmitting \|\| isInterviewStartPending/);
+  assert.match(source, /aria-busy=\{isStartingInterview\}/);
+  assert.match(source, /document\.body\.style\.overflow = "hidden"/);
+  assert.match(source, /正在创建面试环境/);
+  assert.match(source, /disabled=\{isStartingInterview \|\| resumeFieldsLocked\}/);
+});
+
+test("setup preloads the interview route and the interview page has a loading skeleton", () => {
+  const setupSource = fs.readFileSync(
+    path.join(__dirname, "..", "src", "components", "interview", "SetupForm.tsx"),
+    "utf8",
+  );
+  const loadingPath = path.join(
+    __dirname,
+    "..",
+    "src",
+    "app",
+    "interview",
+    "[sessionId]",
+    "loading.tsx",
+  );
+
+  assert.match(setupSource, /START_INTERVIEW_PREFETCH_SESSION_ID/);
+  assert.match(setupSource, /router\.prefetch\(`\/interview\/\$\{START_INTERVIEW_PREFETCH_SESSION_ID\}`\)/);
+  assert.match(setupSource, /step === STEPS\.length - 1/);
+  assert.equal(fs.existsSync(loadingPath), true);
+
+  const loadingSource = fs.readFileSync(loadingPath, "utf8");
+  assert.match(loadingSource, /function InterviewSessionLoading/);
+  assert.match(loadingSource, /aria-busy="true"/);
+  assert.match(loadingSource, /正在打开面试页面/);
+});

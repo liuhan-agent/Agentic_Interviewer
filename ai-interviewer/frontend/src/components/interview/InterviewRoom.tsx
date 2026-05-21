@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import React, { useEffect, useRef, useState, useMemo } from "react";
+import React, { useCallback, useEffect, useRef, useState, useMemo } from "react";
 import {
   Activity,
   AlertTriangle,
@@ -169,12 +169,120 @@ export function InterviewRoom({
     paused,
   });
 
+  const stopQuestionAudio = useCallback(() => {
+    const audio = questionAudioRef.current;
+    if (audio) {
+      audio.pause();
+      audio.removeAttribute("src");
+      audio.load();
+    }
+    if (questionAudioUrlRef.current) {
+      URL.revokeObjectURL(questionAudioUrlRef.current);
+      questionAudioUrlRef.current = null;
+    }
+  }, []);
+
+  const nextQuestionSpeechRunId = useCallback(() => {
+    questionSpeechRunRef.current += 1;
+    return questionSpeechRunRef.current;
+  }, []);
+
+  const resetQuestionSpeechState = useCallback((runId: number) => {
+    setQuestionSpeechState((current) =>
+      current.runId === runId
+        ? { key: null, status: "idle", runId: null }
+        : current,
+    );
+  }, []);
+
+  const markQuestionAudioUnavailable = useCallback(
+    (runId: number, message?: string) => {
+      if (questionSpeechRunRef.current !== runId) return;
+      stopQuestionAudio();
+      setQuestionSpeechState({ key: null, status: "idle", runId: null });
+      toast({
+        title: "题目语音合成不可用",
+        description:
+          message ??
+          "没有收到可播放的后端 TTS 音频。请检查语音合成 Key、模型和 Base URL。",
+      });
+    },
+    [stopQuestionAudio, toast],
+  );
+
+  const playQuestionAudio = useCallback(
+    async (blob: Blob, text: string, runId: number): Promise<boolean> => {
+      if (questionAudioUrlRef.current) {
+        URL.revokeObjectURL(questionAudioUrlRef.current);
+        questionAudioUrlRef.current = null;
+      }
+      const audio = questionAudioRef.current ?? new Audio();
+      questionAudioRef.current = audio;
+      const url = URL.createObjectURL(blob);
+      questionAudioUrlRef.current = url;
+      audio.onended = () => {
+        if (questionSpeechRunRef.current === runId) {
+          resetQuestionSpeechState(runId);
+        }
+      };
+      audio.onerror = () => {
+        if (questionSpeechRunRef.current === runId) {
+          markQuestionAudioUnavailable(runId, "题目音频加载失败，无法播放。");
+        }
+      };
+      audio.dataset.questionText = text;
+      audio.src = url;
+      try {
+        await audio.play();
+        return true;
+      } catch {
+        stopQuestionAudio();
+        return false;
+      }
+    },
+    [markQuestionAudioUnavailable, resetQuestionSpeechState, stopQuestionAudio],
+  );
+
+  const handleSpeakQuestion = useCallback(
+    async (text: string, turnIdx?: number | null) => {
+      const speechKey = questionSpeechKey(text);
+      const runId = nextQuestionSpeechRunId();
+      setQuestionSpeechState({ key: speechKey, status: "speaking", runId });
+      stopQuestionAudio();
+      if (turnIdx === null || turnIdx === undefined) {
+        markQuestionAudioUnavailable(runId, "当前题目状态还没准备好，暂时无法合成语音。");
+        return;
+      }
+      try {
+        const blob = await synthesizeQuestionAudio(sessionId, text, turnIdx);
+        if (questionSpeechRunRef.current !== runId) return;
+        if (blob.size > 0 && (await playQuestionAudio(blob, text, runId))) {
+          return;
+        }
+        markQuestionAudioUnavailable(runId, "后端返回的题目音频为空或无法播放。");
+      } catch (error) {
+        const message =
+          error instanceof Error
+            ? `后端题目语音接口失败：${error.message}`
+            : "后端题目语音接口失败。";
+        markQuestionAudioUnavailable(runId, message);
+      }
+    },
+    [
+      markQuestionAudioUnavailable,
+      nextQuestionSpeechRunId,
+      playQuestionAudio,
+      sessionId,
+      stopQuestionAudio,
+    ],
+  );
+
   useEffect(() => {
     setReadQuestions(loadQuestionSpeechEnabled());
     return () => {
       stopQuestionAudio();
     };
-  }, []);
+  }, [stopQuestionAudio]);
 
   useEffect(() => {
     let active = true;
@@ -313,119 +421,16 @@ export function InterviewRoom({
     state.phase,
     state.question,
     state.turnIdx,
+    handleSpeakQuestion,
   ]);
 
   function handleWaitingTipShown(tipId: string) {
     displayedWaitingTipIdsRef.current.add(tipId);
   }
 
-  function notifySpeechUnavailable() {
-    toast({
-      title: "当前浏览器不支持朗读问题",
-      description: "可以继续手动查看题目，或换一个支持语音合成的浏览器。",
-    });
-  }
-
-  function markQuestionAudioUnavailable(runId: number, message?: string) {
-    if (questionSpeechRunRef.current !== runId) return;
-    stopQuestionAudio();
-    setQuestionSpeechState({ key: null, status: "idle", runId: null });
-    toast({
-      title: "题目语音合成不可用",
-      description:
-        message ??
-        "没有收到可播放的后端 TTS 音频。请检查语音合成 Key、模型和 Base URL。",
-    });
-  }
-
-  async function handleSpeakQuestion(text: string, turnIdx?: number | null) {
-    const speechKey = questionSpeechKey(text);
-    const runId = nextQuestionSpeechRunId();
-    setQuestionSpeechState({ key: speechKey, status: "speaking", runId });
-    stopQuestionAudio();
-    if (turnIdx === null || turnIdx === undefined) {
-      markQuestionAudioUnavailable(runId, "当前题目状态还没准备好，暂时无法合成语音。");
-      return;
-    }
-    try {
-      const blob = await synthesizeQuestionAudio(sessionId, text, turnIdx);
-      if (questionSpeechRunRef.current !== runId) return;
-      if (blob.size > 0 && (await playQuestionAudio(blob, text, runId))) {
-        return;
-      }
-      markQuestionAudioUnavailable(runId, "后端返回的题目音频为空或无法播放。");
-    } catch (error) {
-      const message =
-        error instanceof Error
-          ? `后端题目语音接口失败：${error.message}`
-          : "后端题目语音接口失败。";
-      markQuestionAudioUnavailable(runId, message);
-    }
-  }
-
-  async function playQuestionAudio(
-    blob: Blob,
-    text: string,
-    runId: number,
-  ): Promise<boolean> {
-    if (questionAudioUrlRef.current) {
-      URL.revokeObjectURL(questionAudioUrlRef.current);
-      questionAudioUrlRef.current = null;
-    }
-    const audio = questionAudioRef.current ?? new Audio();
-    questionAudioRef.current = audio;
-    const url = URL.createObjectURL(blob);
-    questionAudioUrlRef.current = url;
-    audio.onended = () => {
-      if (questionSpeechRunRef.current === runId) {
-        resetQuestionSpeechState(runId);
-      }
-    };
-    audio.onerror = () => {
-      if (questionSpeechRunRef.current === runId) {
-        markQuestionAudioUnavailable(runId, "题目音频加载失败，无法播放。");
-      }
-    };
-    audio.dataset.questionText = text;
-    audio.src = url;
-    try {
-      await audio.play();
-      return true;
-    } catch {
-      stopQuestionAudio();
-      return false;
-    }
-  }
-
-  function nextQuestionSpeechRunId() {
-    questionSpeechRunRef.current += 1;
-    return questionSpeechRunRef.current;
-  }
-
-  function resetQuestionSpeechState(runId: number) {
-    setQuestionSpeechState((current) =>
-      current.runId === runId
-        ? { key: null, status: "idle", runId: null }
-        : current,
-    );
-  }
-
   function handleStopQuestionSpeech() {
     stopQuestionAudio();
     setQuestionSpeechState({ key: null, status: "idle", runId: null });
-  }
-
-  function stopQuestionAudio() {
-    const audio = questionAudioRef.current;
-    if (audio) {
-      audio.pause();
-      audio.removeAttribute("src");
-      audio.load();
-    }
-    if (questionAudioUrlRef.current) {
-      URL.revokeObjectURL(questionAudioUrlRef.current);
-      questionAudioUrlRef.current = null;
-    }
   }
 
   function handlePauseQuestionSpeech() {
