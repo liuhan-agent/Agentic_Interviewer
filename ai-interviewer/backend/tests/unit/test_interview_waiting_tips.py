@@ -5,6 +5,7 @@ from pathlib import Path
 
 import pytest
 
+from app.services import interview_waiting_tips as waiting_tips_service
 from app.services.interview_waiting_tips import (
     WaitingTipsCatalogError,
     list_waiting_tips_payload,
@@ -116,3 +117,48 @@ def test_configured_dimension_scopes_have_multiple_waiting_tips() -> None:
         for scope in sorted(dimension_ids)
         if counts.get(scope, 0) < 2
     } == {}
+
+
+def test_waiting_tips_have_enough_default_content_for_long_generation() -> None:
+    counts: dict[str, int] = {}
+    for tip in list_waiting_tips_payload()["tips"]:
+        counts[tip["scope"]] = counts.get(tip["scope"], 0) + 1
+
+    assert counts.get("default", 0) >= 10
+    assert counts.get("self_intro", 0) >= 6
+    assert counts.get("final", 0) >= 6
+
+
+def test_list_waiting_tips_payload_reflects_catalog_file_updates(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    catalog_path = tmp_path / "interview_waiting_tips.json"
+    monkeypatch.setattr(waiting_tips_service, "_CATALOG_PATH", catalog_path)
+    if hasattr(waiting_tips_service.list_waiting_tips_payload, "cache_clear"):
+        waiting_tips_service.list_waiting_tips_payload.cache_clear()
+
+    catalog_path.write_text(
+        json.dumps(
+            {
+                "version": "v1",
+                "rotation_interval_ms": 10_000,
+                "tips": [{"id": "default_001", "scope": "default", "text": "先讲结论。"}],
+            },
+            ensure_ascii=False,
+        ),
+        encoding="utf-8",
+    )
+    assert waiting_tips_service.list_waiting_tips_payload()["version"] == "v1"
+
+    catalog_path.write_text(
+        json.dumps(
+            {
+                "version": "v2",
+                "rotation_interval_ms": 10_000,
+                "tips": [{"id": "default_002", "scope": "default", "text": "再讲过程。"}],
+            },
+            ensure_ascii=False,
+        ),
+        encoding="utf-8",
+    )
+    assert waiting_tips_service.list_waiting_tips_payload()["version"] == "v2"

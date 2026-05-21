@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import json
-from functools import lru_cache
 from pathlib import Path
 from typing import Any
 
@@ -59,7 +58,6 @@ def parse_waiting_tips_catalog(raw: Any) -> dict[str, Any]:
     }
 
 
-@lru_cache(maxsize=1)
 def list_waiting_tips_payload() -> dict[str, Any]:
     with _CATALOG_PATH.open("r", encoding="utf-8") as f:
         raw = json.load(f)
