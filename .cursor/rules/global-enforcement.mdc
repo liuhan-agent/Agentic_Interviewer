@@ -1,0 +1,92 @@
+---
+description: 全局强制规则 — 技能调用/任务分层/修改铁律
+globs:
+alwaysApply: true
+---
+
+# 全局强制规则
+
+## G1. 核心铁律
+
+### G1.1 先读后改
+- 修改任何文件前**必须**先用 Read / Grep 确认现状
+- StrReplace 的 `old_string` 必须与文件实际内容一致
+- 创建新文件前先确认目标目录存在且不会覆盖已有文件
+
+### G1.2 证据驱动
+- 声称"已修复"前必须有验证输出（命令结果 / ReadLints）
+- 禁止"应该没问题" / "理论上正确"——用证据代替推测
+
+### G1.3 任务分层
+
+| 层级 | 条件 | 行为 |
+|------|------|------|
+| 极简 | 单文件 ≤3 行改动 | 直接改 + ReadLints |
+| 标准 | 多文件或逻辑变更 | 读 → 计划 → 改 → 验证 |
+| 复杂 | 跨模块 / 架构级 | 读 → 设计 → 分步实施 → 逐步验证 |
+
+### G1.4 输出极简
+- 回复聚焦：改了什么、为什么改、验证结果
+- 不重复粘贴大段未修改代码
+- 不添加纯叙述性注释
+
+### G1.5 修改执行铁律
+- 每次 StrReplace 后检查 ReadLints
+- 引入 linter 错误必须立即修复
+- 禁止在代码注释中解释修改意图
+
+## G2. 技能体系（8 分类 64 技能 · 本地化）
+
+### G2.1 加载机制
+技能文件存储在 `mcp-server/role-skills/<分类>/<slug>.md`。MCP Server 在 `wait_message` 返回时自动附加 `[ROLE SKILL]` 段，AI 无需手动读取。非分发模式下可按需用 Read 工具加载。
+
+### G2.2 分类速查
+
+| 分类 | 目录 | 技能列表 |
+|------|------|----------|
+| **AI 运营** | `ai-ops/` | academic-writing · ai-content-marketing · ai-engineering · ai-image-prompt · legal-counsel · product-manager · product-marketing · project-promo-writer · research · social-media-ops |
+| **端侧开发** | `client-side/` | alipay-miniprogram · android-dev · apple-development · autojs-automation · douyin-miniprogram · electron-dev · flutter-development · kotlin-dev · tauri-dev · uniapp-dev · wechat-miniprogram |
+| **后端 API** | `backend-api/` | alipay-pay · api-design · backend-engineering · graphql-grpc-events · observability-sre · wechat-pay |
+| **数据与云** | `data-cloud/` | cloud-native · data-engineering · db-design · finops · iac-terraform · perf-engineering · platform-engineering |
+| **安全** | `security/` | devsecops · mobile-security · protocol-analysis · reverse-engineering · web-security |
+| **设计** | `design/` | design-director · design-md-builder · icon-design · image-to-ui · ui-architect · ui-design |
+| **测试与发布** | `test-release/` | code-audit · git-workflow · project-learning · release-engineering · test-engineering |
+| **编程语言** | `languages/` | cpp-dev · dotnet-dev · elixir-dev · go-dev · java-dev · js-ts-dev · lua-dev · php-dev · python-dev · r-dev · ruby-dev · rust-dev · scala-dev · shell-scripting |
+
+### G2.3 触发词映射
+
+**语言**：Go → `go-dev` · Python → `python-dev` · Java → `java-dev` · Rust → `rust-dev` · C++ → `cpp-dev` · TS/JS → `js-ts-dev` · PHP → `php-dev` · Ruby → `ruby-dev` · Scala → `scala-dev` · Elixir → `elixir-dev` · Lua → `lua-dev` · R → `r-dev` · .NET/C# → `dotnet-dev` · Shell/Bash → `shell-scripting`
+
+**端侧**：Flutter → `flutter-development` · Android → `android-dev` · iOS/Swift → `apple-development` · Kotlin → `kotlin-dev` · Electron → `electron-dev` · Tauri → `tauri-dev` · UniApp → `uniapp-dev` · 微信小程序 → `wechat-miniprogram` · 支付宝小程序 → `alipay-miniprogram` · 抖音小程序 → `douyin-miniprogram` · AutoJS → `autojs-automation`
+
+**后端**：API 设计 → `api-design` · 后端工程 → `backend-engineering` · GraphQL/gRPC → `graphql-grpc-events` · 可观测/SRE → `observability-sre` · 微信支付 → `wechat-pay` · 支付宝支付 → `alipay-pay`
+
+**安全**：DevSecOps → `devsecops` · Web 安全 → `web-security` · 移动安全 → `mobile-security` · 逆向 → `reverse-engineering` · 协议分析 → `protocol-analysis`
+
+**设计**：UI 设计 → `ui-design` · UI 架构 → `ui-architect` · 设计总监 → `design-director` · 图标 → `icon-design` · 图转 UI → `image-to-ui` · 设计文档 → `design-md-builder`
+
+**数据/云**：K8s/云原生 → `cloud-native` · 数据工程 → `data-engineering` · DB 设计 → `db-design` · FinOps → `finops` · Terraform → `iac-terraform` · 性能工程 → `perf-engineering` · 平台工程 → `platform-engineering`
+
+**测试/发布**：代码审计 → `code-audit` · Git 工作流 → `git-workflow` · 项目学习 → `project-learning` · 发布工程 → `release-engineering` · 测试工程 → `test-engineering`
+
+**AI 运营**：AI 工程 → `ai-engineering` · AI 图像 → `ai-image-prompt` · 学术写作 → `academic-writing` · 内容营销 → `ai-content-marketing` · 产品经理 → `product-manager` · 产品营销 → `product-marketing` · 项目推广 → `project-promo-writer` · 研究 → `research` · 社媒运营 → `social-media-ops` · 法律顾问 → `legal-counsel`
+
+### G2.4 组合顺序
+
+| 场景 | 调用链 |
+|------|--------|
+| Bug 修复 | `code-audit` → 语言技能 → `test-engineering` |
+| 后端功能 | `api-design` → `backend-engineering` → 语言技能 → `test-engineering` |
+| 前端功能 | `js-ts-dev` → `ui-design` → `test-engineering` |
+| 全栈功能 | `api-design` → `backend-engineering` → `js-ts-dev` → `test-engineering` |
+| 云部署 | `cloud-native` → `iac-terraform` → `devsecops` |
+| 安全审计 | `code-audit` → `web-security` → `devsecops` |
+| AI 功能 | `ai-engineering` → 语言技能 → `test-engineering` |
+
+### G2.5 分发/非分发兼容
+- **非分发**（单会话 / 分发开关关闭）：
+  - AI 按任务关键词自动匹配技能（§G2.3 触发词映射），用 Read 加载 `mcp-server/role-skills/<分类>/<slug>.md` 对应技能文件
+  - **角色不构成执行边界**：无论会话被分配了什么 role（后端/前端/安全/设计…），都必须直接执行用户任务，禁止以"不匹配我的角色"为由拒绝
+  - `[ROLE SKILL]` 自动附带的技能仅为默认参考；若任务需要其它技能，**主动 Read 加载**对应技能文件后执行
+  - **禁止**输出"这个任务更适合 X 角色 / 建议派给 Y 专家"等推脱话术——分发关闭意味着没有专家可派
+- **分发**（多 agent · 分发开关开启）：主控按触发词映射匹配专家角色；每个 agent 的 `wait_message` 自动附带角色技能全文；此时角色约束生效，鼓励聚焦本职
