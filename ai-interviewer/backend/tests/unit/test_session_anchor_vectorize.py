@@ -238,6 +238,34 @@ def test_vectorize_resume_uses_embedding_override_version(monkeypatch) -> None:
         assert captured["kw"]["embedding_override"] == embedding_override
 
 
+def test_vectorize_resume_writes_source_cache_key(monkeypatch) -> None:
+    session_local = _db()
+    with session_local() as db_session:
+        monkeypatch.setattr(
+            "app.services.session_anchor_vectorize.embed_chunks",
+            lambda texts, **_kw: [[0.1] * 1536 for _ in texts],
+        )
+
+        status = vectorize_resume(
+            session_id="sess_cache",
+            resume_revision_id="rev_cache",
+            source_artifact_id="artifact_cache",
+            raw_text=HIGH_STRUCTURE_TEXT,
+            parsed=None,
+            db_session=db_session,
+            source_cache_key="cache_a",
+        )
+        rows = db_session.scalars(
+            select(SessionAnchorChunk).where(
+                SessionAnchorChunk.session_id == "sess_cache"
+            )
+        ).all()
+
+        assert status["status"] == "ready"
+        assert status["source_cache_key"] == "cache_a"
+        assert {row.source_cache_key for row in rows} == {"cache_a"}
+
+
 def test_vectorize_resume_returns_failed_on_embedding_error(monkeypatch) -> None:
     session_local = _db()
     with session_local() as db_session:

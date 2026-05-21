@@ -13,14 +13,13 @@ reference, regardless of how the upstream extraction was produced.
 """
 from __future__ import annotations
 
-import secrets
 from typing import Any
 
 from app.core.logging import get_logger
 from app.core.tracer import get_tracer
 from app.engine.workflow.state import InterviewState
-from app.services.resume_parse_artifacts import consume_resume_parse_artifact
-from app.services.session_anchor_vectorize import vectorize_resume
+from app.services.resume_parse_artifacts import read_resume_parse_artifact
+from app.services.resume_vector_jobs import start_resume_vector_job
 
 log = get_logger(__name__)
 
@@ -62,7 +61,7 @@ def _vectorize_resume_for_node(
     session_id: str,
     candidate: dict[str, Any],
 ) -> dict[str, Any]:
-    """Consume a setup parse artifact and vectorize it, never raising."""
+    """Start setup parse artifact vectorization in the background."""
 
     prior = candidate.get("resume_vector_status") or {}
     source_id = candidate.get("resume_source_id") or prior.get("resume_source_id")
@@ -74,7 +73,7 @@ def _vectorize_resume_for_node(
             "resume_revision_id": None,
         }
     try:
-        artifact = consume_resume_parse_artifact(str(source_id))
+        artifact = read_resume_parse_artifact(str(source_id))
         if artifact is None:
             return {
                 "status": "skipped",
@@ -82,16 +81,14 @@ def _vectorize_resume_for_node(
                 "resume_source_id": source_id,
                 "resume_revision_id": None,
             }
-        revision_id = secrets.token_urlsafe(18)
-        status = vectorize_resume(
+        status = start_resume_vector_job(
             session_id=session_id,
-            resume_revision_id=revision_id,
-            source_artifact_id=artifact.artifact_id,
-            raw_text=artifact.redacted_text,
-            parsed=candidate.get("resume_parsed") or artifact.parsed,
+            resume_source_id=artifact.artifact_id,
+            parsed=candidate.get("resume_parsed") or getattr(artifact, "parsed", {}),
+            embedding_override=_runtime_embedding_override(),
         )
         status.setdefault("resume_source_id", artifact.artifact_id)
-        status.setdefault("resume_revision_id", revision_id)
+        status.setdefault("resume_revision_id", None)
         return status
     except Exception as exc:  # pragma: no cover - workflow must degrade
         log.warning("resume_parse vectorization failed: %s", exc)
@@ -101,3 +98,16 @@ def _vectorize_resume_for_node(
             "resume_source_id": source_id,
             "resume_revision_id": None,
         }
+
+
+def _runtime_embedding_override() -> dict[str, Any] | None:
+    try:
+        from app.services.session_manager import get_llm_override
+
+        llm_config = get_llm_override()
+    except Exception:
+        return None
+    if not isinstance(llm_config, dict):
+        return None
+    override = llm_config.get("embedding_override")
+    return override if isinstance(override, dict) else None

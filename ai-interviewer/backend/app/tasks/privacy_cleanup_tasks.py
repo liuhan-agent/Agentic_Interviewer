@@ -45,9 +45,10 @@ def _run_cleanup(*, batch_size: int | None = None) -> None:
             )
         if anchor_result.get("total_deleted", 0) > 0:
             log.info(
-                "session anchor cleanup: chunks=%d artifacts=%d",
+                "session anchor cleanup: chunks=%d artifacts=%d resume_cache=%d",
                 anchor_result.get("session_anchor_chunks_deleted", 0),
                 anchor_result.get("resume_parse_artifacts_deleted", 0),
+                anchor_result.get("resume_anchor_cache_chunks_deleted", 0),
             )
     except Exception:
         log.exception("privacy cleanup tick failed")

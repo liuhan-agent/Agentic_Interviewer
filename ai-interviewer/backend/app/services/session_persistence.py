@@ -5,6 +5,7 @@ from typing import Any
 
 from app.core.logging import get_logger
 from app.models.interview_session import InterviewSession
+from app.services.session_anchor_retention import cleanup_completed_session_anchors
 
 log = get_logger(__name__)
 
@@ -83,7 +84,8 @@ class SessionPersistence:
                 row.enable_video_analysis = bool(
                     getattr(handle, "enable_video_analysis", False)
                 )
-                row.status = status if status != "running" else "completed"
+                final_status = status if status != "running" else "completed"
+                row.status = final_status
                 row.final_report = (final_state or {}).get("final_report")
                 if status in {"error", "errored", "failed", "stale"}:
                     row.error = (final_state or {}).get("error") or handle.error
@@ -96,6 +98,14 @@ class SessionPersistence:
                     row.error_kind = None
                     row.retryable = False
                 row.current_question = None
+            if final_status == "completed":
+                deleted = cleanup_completed_session_anchors(handle.session_id)
+                if deleted:
+                    log.info(
+                        "cleaned %d session anchor chunk(s) after completion: %s",
+                        deleted,
+                        handle.session_id,
+                    )
         except Exception as e:
             log.warning("persist_completed failed for %s: %s", handle.session_id, e)
 

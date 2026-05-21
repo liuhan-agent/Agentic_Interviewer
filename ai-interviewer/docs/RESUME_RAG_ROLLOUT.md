@@ -59,6 +59,23 @@ not only a UI config edit.
 Without a browser-supplied embedding key, the backend falls back to the
 server-side `resume_rag_embedding_*` settings.
 
+## Resume Anchor Vector Cache
+
+Resume anchors use a global copy-on-bind cache. The first session for a resume
+still chunks and embeds normally; when the same redacted resume text, parsed
+chunk-affecting fields, chunker version, and embedding model version appear
+again, the backend copies cached rows into the new session's
+`session_anchor_chunks` with a fresh `resume_revision_id`.
+
+This keeps retrieval session-scoped while avoiding repeated remote embedding
+calls. A cache hit is reported as `resume_vector_status.cache_hit=true`; a miss
+reports `cache_hit=false` and stores the generated vectors for later sessions.
+The default cache retention is 7 days (`resume_anchor_cache_ttl_hours=168`).
+
+Subject deletion remains strict: `DELETE /admin/sessions/{session_id}/anchor-data`
+deletes the session rows and also purges any global resume cache rows referenced
+by that session's `source_cache_key`.
+
 ## Primary Promotion Gates
 
 Both gates must pass independently per mode. High hit-rate alone is not enough.
@@ -106,7 +123,16 @@ DELETE /admin/sessions/{session_id}/anchor-data
 ```
 
 It removes session anchor chunks, parse artifacts, and trace payload references
-for the session.
+for the session. If the session used cached resume anchors, the same request
+also removes the corresponding global resume anchor cache rows.
+
+Interrupted or still-running interviews keep session anchor rows for about eight
+days by default (`resume_rag_session_ttl_hours=168`, plus the existing 24h grace
+window) so browser recovery can continue to use resume/self-intro RAG. Once an
+interview completes, the backend deletes that session's `session_anchor_chunks`
+immediately. This completion cleanup does not purge the global resume vector
+cache; the cache remains available for later sessions until its 7-day TTL or an
+explicit subject deletion.
 
 ## Local Postgres Parity Check
 

@@ -149,6 +149,9 @@ _SQLITE_UPGRADES: dict[str, dict[str, str]] = {
 }
 
 _POSTGRES_UPGRADES: dict[str, dict[str, str]] = {
+    "session_anchor_chunks": {
+        "source_cache_key": "VARCHAR(96)",
+    },
     "interview_sessions": {
         "session_token_hash": "VARCHAR(128)",
         "session_token_expires_at": "TIMESTAMP WITH TIME ZONE",
@@ -199,7 +202,7 @@ _POSTGRES_TYPE_UPGRADES: dict[str, dict[str, str]] = {
     },
 }
 
-_SQLITE_SKIP_TABLES = {"session_anchor_chunks"}
+_SQLITE_SKIP_TABLES = {"session_anchor_chunks", "resume_anchor_cache_chunks"}
 
 
 def _tables_for_create_all(
@@ -242,6 +245,12 @@ def _ensure_pgvector_indexes(eng: Engine) -> None:
                 "CREATE INDEX IF NOT EXISTS ix_session_anchor_chunks_embedding_hnsw "
                 "ON session_anchor_chunks USING hnsw "
                 "(embedding vector_cosine_ops)"
+            )
+        )
+        conn.execute(
+            text(
+                "CREATE INDEX IF NOT EXISTS ix_session_anchor_chunks_source_cache_key "
+                "ON session_anchor_chunks (source_cache_key)"
             )
         )
 
@@ -386,6 +395,7 @@ def init_db() -> None:
         interview_session,
         outcome_record,
         question_bank,
+        resume_anchor_cache,
         resume_parse_artifact,
         session_anchor,
         skill_playbook,

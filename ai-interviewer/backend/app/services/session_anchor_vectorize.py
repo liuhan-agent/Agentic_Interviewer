@@ -36,6 +36,7 @@ def vectorize_resume(
     parsed: dict | None,
     db_session: Session | None = None,
     embedding_override: dict[str, Any] | None = None,
+    source_cache_key: str | None = None,
 ) -> dict[str, Any]:
     """Normalize, chunk, redact, embed, and persist resume anchor rows."""
 
@@ -54,6 +55,7 @@ def vectorize_resume(
             "skipped_reason": None,
             "error": safe_error,
             "text_sha256": _sha256(raw_text or ""),
+            "source_cache_key": source_cache_key,
             "status": "failed",
         }
     base_status = {
@@ -66,6 +68,7 @@ def vectorize_resume(
         "skipped_reason": None,
         "error": None,
         "text_sha256": _sha256(raw_text or ""),
+        "source_cache_key": source_cache_key,
     }
     if mode is ResumeChunkerMode.D:
         return {
@@ -94,6 +97,7 @@ def vectorize_resume(
                             source_type="resume",
                             source_revision_id=resume_revision_id,
                             source_artifact_id=source_artifact_id,
+                            source_cache_key=source_cache_key,
                             source_turn_id=None,
                             chunk_index=chunk.chunk_index,
                             tier=chunk.tier,
@@ -112,10 +116,32 @@ def vectorize_resume(
                 session.flush()
 
         _with_session(db_session, write)
+        cache_stored_count = 0
+        if source_cache_key:
+            try:
+                from app.services.resume_anchor_cache import (
+                    store_resume_anchor_cache_chunks,
+                )
+
+                cache_stored_count = store_resume_anchor_cache_chunks(
+                    cache_key=source_cache_key,
+                    embedding_model_version=model_version,
+                    session_id=session_id,
+                    resume_revision_id=resume_revision_id,
+                    db_session=db_session,
+                )
+            except Exception as cache_error:  # pragma: no cover - store is fail-open
+                log.warning(
+                    "resume anchor cache store failed: session=%s error=%s",
+                    session_id,
+                    cache_error,
+                )
         return {
             **base_status,
             "status": "ready",
             "chunk_count": len(redacted_chunks),
+            "cache_hit": False,
+            "cache_stored_count": cache_stored_count,
             "expires_at": expires_at.isoformat(),
         }
     except Exception as e:
@@ -210,6 +236,7 @@ def vectorize_self_intro_anchor_cards(
                             source_type="self_intro",
                             source_revision_id=self_intro_revision_id,
                             source_artifact_id=None,
+                            source_cache_key=None,
                             source_turn_id=turn_idx,
                             chunk_index=card["chunk_index"],
                             tier="anchor_card",
