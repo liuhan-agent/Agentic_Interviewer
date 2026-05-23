@@ -21,7 +21,7 @@ export default function AdminPage() {
         <h1 className="text-3xl font-semibold tracking-tight">后台观测台</h1>
         <p className="mt-2 max-w-2xl text-sm leading-relaxed text-muted-foreground">
           连接用户侧质量中心和后端 Agentic Workflow：查看策略学习、评分复核、
-          活跃会话和策略记忆。面板每 15 秒自动刷新。
+          内存会话和策略记忆。面板每 15 秒自动刷新。
         </p>
       </div>
       <AdminPanel />
