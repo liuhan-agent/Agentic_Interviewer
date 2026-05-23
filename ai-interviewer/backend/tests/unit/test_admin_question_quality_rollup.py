@@ -30,15 +30,22 @@ class _FakeTraceRow:
         question: str = "How would you design this?",
         payload: dict[str, Any] | None = None,
         state: dict[str, Any] | None = None,
+        has_session: bool = True,
     ) -> None:
         self.node = node
         self.question = question
         self.state_snapshot = {"payload": payload or {}, "state": state or {}}
+        self.has_session = has_session
 
 
 class _FakeQuery:
     def __init__(self, rows: list[Any]) -> None:
         self._rows = rows
+        self._joined_to_sessions = False
+
+    def join(self, *_args: Any, **_kwargs: Any) -> _FakeQuery:
+        self._joined_to_sessions = True
+        return self
 
     def filter(self, *_args: Any, **_kwargs: Any) -> _FakeQuery:
         return self
@@ -47,6 +54,8 @@ class _FakeQuery:
         return self
 
     def all(self) -> list[Any]:
+        if self._joined_to_sessions:
+            return [row for row in self._rows if getattr(row, "has_session", True)]
         return list(self._rows)
 
 
@@ -73,6 +82,17 @@ def test_question_quality_rollup_counts_grounding_and_contract_signals(
         "app.core.settings.get_settings", lambda: _settings_with_open_admin()
     )
     rows = [
+        _FakeTraceRow(
+            payload={
+                "plan_template": "deep_probe",
+                "signed_by": ["generator", "evaluator"],
+                "contract_acceptance_check_count": 5,
+                "target_skills": ["orphan"],
+                "skill_focus": {"primary": "ignored"},
+            },
+            state={"retrieval_block": "Should not count"},
+            has_session=False,
+        ),
         _FakeTraceRow(
             payload={
                 "plan_template": "deep_probe",

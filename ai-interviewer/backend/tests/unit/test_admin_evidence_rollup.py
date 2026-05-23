@@ -38,15 +38,22 @@ class _FakeTraceRow:
         node: str,
         evaluation: dict[str, Any] | None = None,
         payload: dict[str, Any] | None = None,
+        has_session: bool = True,
     ) -> None:
         self.node = node
         self.evaluation = evaluation
         self.state_snapshot = {"payload": payload or {}}
+        self.has_session = has_session
 
 
 class _FakeQuery:
     def __init__(self, rows: list[Any]) -> None:
         self._rows = rows
+        self._joined_to_sessions = False
+
+    def join(self, *_args: Any, **_kwargs: Any) -> _FakeQuery:
+        self._joined_to_sessions = True
+        return self
 
     def filter(self, *_args: Any, **_kwargs: Any) -> _FakeQuery:
         return self
@@ -55,6 +62,8 @@ class _FakeQuery:
         return self
 
     def all(self) -> list[Any]:
+        if self._joined_to_sessions:
+            return [row for row in self._rows if getattr(row, "has_session", True)]
         return list(self._rows)
 
 
@@ -79,6 +88,20 @@ def test_evidence_rollup_counts_evaluator_and_verifier_coverage(
 ) -> None:
     _patch_open_admin(monkeypatch)
     rows = [
+        _FakeTraceRow(
+            node="evaluator",
+            evaluation={
+                "source": "llm",
+                "acceptance_check_results": {
+                    "Orphan trace": {
+                        "verdict": "yes",
+                        "evidence": ["should not count"],
+                        "evidence_spans": [{"match": "exact"}],
+                    }
+                },
+            },
+            has_session=False,
+        ),
         _FakeTraceRow(
             node="evaluator",
             evaluation={

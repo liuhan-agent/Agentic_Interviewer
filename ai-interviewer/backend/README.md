@@ -419,7 +419,7 @@ LANGSMITH_PROJECT=agentic-interviewer
 | `ENABLE_GENERATOR_AVOID_PATTERNS` | `false` | 给 Generator 注入需规避的浅层回答模式 |
 | `ENABLE_SKILL_INJECTION` | `false` | 注入 `knowledge/skills/*.md` 技能卡 |
 | `ENABLE_LLM_MEMORY_SELECTOR` | `false` | 用轻量 LLM side query 精选 skill / strategy memory |
-| `EVIDENCE_SPAN_ALIGNMENT` | `false` | 为 evidence quote 增加文本位置对齐信息 |
+| `EVIDENCE_SPAN_ALIGNMENT` | `true` | 为 evidence quote 增加文本位置对齐信息 |
 | `ENABLE_BANDIT_DECAY` | `false` | 开启 bandit 非平稳衰减 |
 | `ENABLE_OUTCOME_SYNC` | `false` | 周期性回填 delayed reward |
 

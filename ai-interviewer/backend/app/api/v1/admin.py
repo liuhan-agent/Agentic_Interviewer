@@ -18,7 +18,7 @@ from pathlib import Path
 from typing import Any
 from urllib.parse import urlparse, urlunparse
 
-from fastapi import APIRouter, Depends, Header, HTTPException, Response, status
+from fastapi import APIRouter, Depends, Header, HTTPException, Query, Response, status
 
 from app.core.logging import get_logger
 from app.core.settings import get_settings
@@ -30,6 +30,10 @@ router = APIRouter(prefix="/admin", include_in_schema=False, tags=["admin"])
 api_v1_router = APIRouter(
     prefix="/api/v1/admin", include_in_schema=False, tags=["admin"]
 )
+
+_HISTORY_STATUS_FILTERS = {"running", "completed", "cancelled", "errored"}
+_HISTORY_TRACE_HEALTH_FILTERS = {"missing", "partial", "complete"}
+_HISTORY_SINCE_HOURS = {"24h": 24, "7d": 24 * 7, "30d": 24 * 30}
 
 
 def _langsmith_web_url(api_endpoint: str | None) -> str:
@@ -638,85 +642,243 @@ def list_sessions() -> dict[str, Any]:
     }
 
 
-def _recent_interview_sessions(limit: int = 20) -> list[dict[str, Any]]:
-    """Return recent persisted interview sessions for admin history."""
+def _history_filter_value(
+    value: str | None,
+    *,
+    allowed: set[str],
+    name: str,
+) -> str | None:
+    text = (value or "").strip().lower()
+    if not text or text == "all":
+        return None
+    if text not in allowed:
+        raise HTTPException(
+            status_code=422,
+            detail=f"{name} must be one of: {', '.join(sorted(allowed))}",
+        )
+    return text
+
+
+def _history_since_value(value: str | None) -> str | None:
+    text = (value or "").strip().lower()
+    if not text or text == "all":
+        return None
+    if text not in _HISTORY_SINCE_HOURS:
+        raise HTTPException(
+            status_code=422,
+            detail=f"since must be one of: {', '.join(_HISTORY_SINCE_HOURS)}",
+        )
+    return text
+
+
+def _history_search_value(value: str | None) -> str | None:
+    text = " ".join(str(value or "").split())
+    return text[:120] or None
+
+
+def _apply_history_db_filters(
+    query: Any,
+    InterviewSession: Any,
+    *,
+    status_filter: str | None = None,
+    q: str | None = None,
+    since: str | None = None,
+) -> Any:
+    from sqlalchemy import or_
+
+    if status_filter:
+        query = query.filter(InterviewSession.status == status_filter)
+    if since:
+        cutoff = datetime.now(UTC) - timedelta(hours=_HISTORY_SINCE_HOURS[since])
+        query = query.filter(InterviewSession.created_at >= cutoff)
+    if q:
+        pattern = f"%{q}%"
+        query = query.filter(
+            or_(
+                InterviewSession.session_id.ilike(pattern),
+                InterviewSession.candidate_name.ilike(pattern),
+                InterviewSession.job_title.ilike(pattern),
+            )
+        )
+    return query
+
+
+def _trace_counts_for_sessions(
+    sess: Any,
+    session_ids: list[str],
+) -> dict[str, dict[str, int]]:
     from sqlalchemy import func
 
-    from app.models import GenerationTrace, InterviewSession, get_session
+    from app.models import GenerationTrace
+
+    trace_counts: dict[str, dict[str, int]] = {session_id: {} for session_id in session_ids}
+    if not session_ids:
+        return trace_counts
+    for session_id, node, count in (
+        sess.query(
+            GenerationTrace.session_id,
+            GenerationTrace.node,
+            func.count(GenerationTrace.id),
+        )
+        .filter(GenerationTrace.session_id.in_(session_ids))
+        .group_by(GenerationTrace.session_id, GenerationTrace.node)
+        .all()
+    ):
+        trace_counts.setdefault(str(session_id), {})[str(node)] = int(count)
+    return trace_counts
+
+
+def _session_history_item(row: Any, node_counts: dict[str, int]) -> dict[str, Any]:
+    report = row.final_report or {}
+    trace_count = sum(node_counts.values())
+    evaluator_trace_count = int(node_counts.get("evaluator", 0))
+    reward_trace_count = int(node_counts.get("reward_update", 0))
+    final_report_trace_count = int(node_counts.get("final_report", 0))
+    trace_health = _trace_health(
+        [
+            {"node": node}
+            for node, count in node_counts.items()
+            for _ in range(max(0, count))
+        ],
+        session_status=row.status,
+    )
+    return {
+        "session_id": row.session_id,
+        "trace_id": row.trace_id,
+        "candidate_name": row.candidate_name,
+        "job_title": row.job_title,
+        "job_level": row.job_level,
+        "mode": row.mode,
+        "status": row.status,
+        "turn_idx": row.turn_idx,
+        "asked_turn": row.asked_turn,
+        "created_at": row.created_at.isoformat() if row.created_at else None,
+        "updated_at": row.updated_at.isoformat() if row.updated_at else None,
+        "has_report": bool(report),
+        "overall_score": report.get("overall_score"),
+        "overall_verdict": report.get("overall_verdict") or report.get("verdict"),
+        "trace_count": trace_count,
+        "evaluator_trace_count": evaluator_trace_count,
+        "reward_trace_count": reward_trace_count,
+        "final_report_trace_count": final_report_trace_count,
+        "trace_health": trace_health,
+        "error_kind": row.error_kind,
+        "retryable": bool(row.retryable),
+        "cost_summary": report.get("cost_summary"),
+    }
+
+
+def _recent_interview_sessions(
+    limit: int = 20,
+    offset: int = 0,
+    *,
+    status_filter: str | None = None,
+    trace_health_filter: str | None = None,
+    has_report_filter: bool | None = None,
+    q: str | None = None,
+    since: str | None = None,
+) -> list[dict[str, Any]]:
+    """Return recent persisted interview sessions for admin history."""
+    from app.models import InterviewSession, get_session
 
     capped_limit = max(1, min(int(limit or 20), 100))
+    safe_offset = max(0, min(int(offset or 0), 10_000))
     try:
         with get_session() as sess:
-            rows = (
-                sess.query(InterviewSession)
-                .order_by(InterviewSession.created_at.desc())
-                .limit(capped_limit)
-                .all()
+            query = _apply_history_db_filters(
+                sess.query(InterviewSession),
+                InterviewSession,
+                status_filter=status_filter,
+                q=q,
+                since=since,
+            ).order_by(InterviewSession.created_at.desc())
+            needs_python_filter = (
+                trace_health_filter is not None or has_report_filter is not None
             )
-            session_ids = [row.session_id for row in rows]
-            trace_counts: dict[str, dict[str, int]] = {
-                session_id: {} for session_id in session_ids
-            }
-            if session_ids:
-                for session_id, node, count in (
-                    sess.query(
-                        GenerationTrace.session_id,
-                        GenerationTrace.node,
-                        func.count(GenerationTrace.id),
-                    )
-                    .filter(GenerationTrace.session_id.in_(session_ids))
-                    .group_by(GenerationTrace.session_id, GenerationTrace.node)
-                    .all()
-                ):
-                    trace_counts.setdefault(str(session_id), {})[str(node)] = int(count)
+            rows = (
+                query.all()
+                if needs_python_filter
+                else query.offset(safe_offset).limit(capped_limit).all()
+            )
+            trace_counts = _trace_counts_for_sessions(
+                sess,
+                [row.session_id for row in rows],
+            )
     except Exception as e:  # pragma: no cover - admin remains best-effort
         log.warning("admin interview sessions lookup failed: %s", e)
         return []
 
     items: list[dict[str, Any]] = []
     for row in rows:
-        report = row.final_report or {}
-        node_counts = trace_counts.get(row.session_id, {})
-        trace_count = sum(node_counts.values())
-        evaluator_trace_count = int(node_counts.get("evaluator", 0))
-        reward_trace_count = int(node_counts.get("reward_update", 0))
-        final_report_trace_count = int(node_counts.get("final_report", 0))
-        trace_health = _trace_health(
-            [
-                {"node": node}
-                for node, count in node_counts.items()
-                for _ in range(max(0, count))
-            ],
-            session_status=row.status,
-        )
-        items.append(
-            {
-                "session_id": row.session_id,
-                "trace_id": row.trace_id,
-                "candidate_name": row.candidate_name,
-                "job_title": row.job_title,
-                "job_level": row.job_level,
-                "mode": row.mode,
-                "status": row.status,
-                "turn_idx": row.turn_idx,
-                "asked_turn": row.asked_turn,
-                "created_at": row.created_at.isoformat() if row.created_at else None,
-                "updated_at": row.updated_at.isoformat() if row.updated_at else None,
-                "has_report": bool(report),
-                "overall_score": report.get("overall_score"),
-                "overall_verdict": report.get("overall_verdict")
-                or report.get("verdict"),
-                "trace_count": trace_count,
-                "evaluator_trace_count": evaluator_trace_count,
-                "reward_trace_count": reward_trace_count,
-                "final_report_trace_count": final_report_trace_count,
-                "trace_health": trace_health,
-                "error_kind": row.error_kind,
-                "retryable": bool(row.retryable),
-                "cost_summary": report.get("cost_summary"),
-            }
-        )
+        item = _session_history_item(row, trace_counts.get(row.session_id, {}))
+        if has_report_filter is not None and item["has_report"] is not has_report_filter:
+            continue
+        if trace_health_filter is not None and item["trace_health"] != trace_health_filter:
+            continue
+        items.append(item)
+    if needs_python_filter:
+        return items[safe_offset : safe_offset + capped_limit]
     return items
+
+
+def _interview_session_total_count(
+    *,
+    status_filter: str | None = None,
+    trace_health_filter: str | None = None,
+    has_report_filter: bool | None = None,
+    q: str | None = None,
+    since: str | None = None,
+) -> int:
+    """Return total persisted interview session rows, independent of page limit."""
+    from sqlalchemy import func
+
+    from app.models import InterviewSession, get_session
+
+    try:
+        with get_session() as sess:
+            base_query = _apply_history_db_filters(
+                sess.query(InterviewSession),
+                InterviewSession,
+                status_filter=status_filter,
+                q=q,
+                since=since,
+            )
+            needs_python_filter = (
+                trace_health_filter is not None or has_report_filter is not None
+            )
+            if not needs_python_filter:
+                return int(
+                    base_query.with_entities(
+                        func.count(InterviewSession.session_id)
+                    ).scalar()
+                    or 0
+                )
+            rows = base_query.all()
+            trace_counts = _trace_counts_for_sessions(
+                sess,
+                [row.session_id for row in rows],
+            )
+            total = 0
+            for row in rows:
+                item = _session_history_item(
+                    row,
+                    trace_counts.get(row.session_id, {}),
+                )
+                if (
+                    has_report_filter is not None
+                    and item["has_report"] is not has_report_filter
+                ):
+                    continue
+                if (
+                    trace_health_filter is not None
+                    and item["trace_health"] != trace_health_filter
+                ):
+                    continue
+                total += 1
+            return total
+    except Exception as e:  # pragma: no cover - admin remains best-effort
+        log.warning("admin interview session count lookup failed: %s", e)
+        return 0
 
 
 def _trace_health(
@@ -842,11 +1004,58 @@ def _interview_session_trace_payload(
 
 
 @router.get("/interview-sessions", dependencies=[Depends(require_admin_token)])
-def list_interview_sessions(limit: int = 20) -> dict[str, Any]:
+def list_interview_sessions(
+    limit: int = Query(default=20, ge=1, le=100),
+    offset: int = Query(default=0, ge=0, le=10_000),
+    status: str | None = Query(default=None),
+    trace_health: str | None = Query(default=None),
+    has_report: bool | None = Query(default=None),
+    q: str | None = Query(default=None, max_length=120),
+    since: str | None = Query(default=None),
+) -> dict[str, Any]:
     """Return recent persisted interview sessions from the database."""
-    sessions = _recent_interview_sessions(limit=limit)
+    capped_limit = max(1, min(int(limit or 20), 100))
+    safe_offset = max(0, min(int(offset or 0), 10_000))
+    status_filter = _history_filter_value(
+        status,
+        allowed=_HISTORY_STATUS_FILTERS,
+        name="status",
+    )
+    trace_health_filter = _history_filter_value(
+        trace_health,
+        allowed=_HISTORY_TRACE_HEALTH_FILTERS,
+        name="trace_health",
+    )
+    since_filter = _history_since_value(since)
+    search_filter = _history_search_value(q)
+    sessions = _recent_interview_sessions(
+        limit=capped_limit,
+        offset=safe_offset,
+        status_filter=status_filter,
+        trace_health_filter=trace_health_filter,
+        has_report_filter=has_report,
+        q=search_filter,
+        since=since_filter,
+    )
+    total_count = _interview_session_total_count(
+        status_filter=status_filter,
+        trace_health_filter=trace_health_filter,
+        has_report_filter=has_report,
+        q=search_filter,
+        since=since_filter,
+    )
     return {
         "count": len(sessions),
+        "total_count": max(total_count, safe_offset + len(sessions)),
+        "limit": capped_limit,
+        "offset": safe_offset,
+        "filters": {
+            "status": status_filter,
+            "trace_health": trace_health_filter,
+            "has_report": has_report,
+            "q": search_filter,
+            "since": since_filter,
+        },
         "sessions": sessions,
     }
 
@@ -1105,6 +1314,129 @@ def session_anchor_metrics(window_hours: int = 24) -> dict[str, Any]:
     }
 
 
+@router.get(
+    "/session-anchors/sessions",
+    dependencies=[Depends(require_admin_token)],
+)
+def session_anchor_sessions(since: str = Query(default="24h")) -> dict[str, Any]:
+    """Return session-level candidate-anchor RAG runtime observability."""
+    from app.models.generation_trace import GenerationTrace
+    from app.models.interview_session import InterviewSession
+    from app.models.session_anchor import SessionAnchorChunk
+
+    if since not in _HISTORY_SINCE_HOURS:
+        raise HTTPException(
+            status_code=400,
+            detail=f"since must be one of: {', '.join(_HISTORY_SINCE_HOURS)}",
+        )
+    hours = _HISTORY_SINCE_HOURS[since]
+    cutoff = datetime.now(UTC) - timedelta(hours=hours)
+
+    with get_session() as sess:
+        sessions = (
+            sess.query(InterviewSession)
+            .filter(InterviewSession.created_at >= cutoff)
+            .order_by(InterviewSession.created_at.desc(), InterviewSession.session_id.asc())
+            .all()
+        )
+        session_ids = [str(row.session_id) for row in sessions]
+        chunks = (
+            sess.query(SessionAnchorChunk)
+            .filter(SessionAnchorChunk.session_id.in_(session_ids))
+            .all()
+            if session_ids
+            else []
+        )
+        traces = (
+            sess.query(GenerationTrace)
+            .filter(GenerationTrace.session_id.in_(session_ids))
+            .filter(GenerationTrace.node == "ask_question")
+            .filter(GenerationTrace.created_at >= cutoff)
+            .order_by(GenerationTrace.created_at.asc(), GenerationTrace.id.asc())
+            .all()
+            if session_ids
+            else []
+        )
+
+    buckets = {
+        session_id: _new_session_anchor_session_bucket()
+        for session_id in session_ids
+    }
+    for chunk in chunks:
+        bucket = buckets.get(str(chunk.session_id))
+        if bucket is None:
+            continue
+        source = str(chunk.source_type or "unknown")
+        bucket["total_chunks"] += 1
+        bucket["chunks_by_source"][source] = bucket["chunks_by_source"].get(source, 0) + 1
+        mode = str(chunk.chunker_mode or "").strip()
+        if mode:
+            bucket["chunker_modes"].add(mode)
+        version = str(chunk.embedding_model_version or "").strip()
+        if version:
+            bucket["embedding_model_versions"].add(version)
+
+    for trace in traces:
+        bucket = buckets.get(str(trace.session_id))
+        if bucket is None:
+            continue
+        artifact = _candidate_anchor_artifact(trace)
+        if not artifact:
+            continue
+        trace_created_at = getattr(trace, "created_at", None)
+        if trace_created_at is not None:
+            previous = bucket.get("last_trace_at")
+            if previous is None or trace_created_at > previous:
+                bucket["last_trace_at"] = trace_created_at
+
+        status_value = str(artifact.get("status") or "unknown")
+        status_counts = bucket["rag_status_distribution"]
+        status_counts[status_value] = int(status_counts.get(status_value) or 0) + 1
+        if status_value == "off":
+            continue
+
+        bucket["retrieval_attempts"] += 1
+        latency = _coerce_int(artifact.get("latency_ms"))
+        if latency is not None:
+            bucket["latencies"].append(latency)
+        hits = [hit for hit in artifact.get("hits") or [] if isinstance(hit, dict)]
+        bucket["total_hit_items"] += len(hits)
+        if hits:
+            bucket["hit_count"] += 1
+            for hit in hits:
+                source = str(hit.get("source_type") or "unknown")
+                source_hits = bucket["source_hit_counts"]
+                source_hits[source] = int(source_hits.get(source) or 0) + 1
+        else:
+            bucket["fallback_count"] += 1
+            reason = str(artifact.get("fallback_reason") or "empty").strip() or "empty"
+            reasons = bucket["fallback_reasons"]
+            reasons[reason] = int(reasons.get(reason) or 0) + 1
+
+    rows = [
+        _finalize_session_anchor_session_row(session_row, buckets[str(session_row.session_id)])
+        for session_row in sessions
+    ]
+    session_count = len(rows)
+    indexed_sessions = sum(1 for row in rows if row["total_chunks"] > 0)
+    hit_sessions = sum(1 for row in rows if row["hit_count"] > 0)
+    fallback_sessions = sum(1 for row in rows if row["fallback_count"] > 0)
+    return {
+        "window": since,
+        "window_hours": hours,
+        "session_count": session_count,
+        "summary": {
+            "indexed_sessions": indexed_sessions,
+            "indexed_session_rate": _rate(indexed_sessions, session_count),
+            "hit_sessions": hit_sessions,
+            "hit_session_rate": _rate(hit_sessions, session_count),
+            "fallback_sessions": fallback_sessions,
+            "fallback_session_rate": _rate(fallback_sessions, session_count),
+        },
+        "sessions": rows,
+    }
+
+
 @router.delete(
     "/sessions/{session_id}/anchor-data",
     dependencies=[Depends(require_admin_token)],
@@ -1217,6 +1549,73 @@ def _new_anchor_metric_bucket() -> dict[str, Any]:
             reason: 0 for reason in _ANCHOR_FALLBACK_REASONS
         },
         "_latencies": [],
+    }
+
+
+def _new_session_anchor_session_bucket() -> dict[str, Any]:
+    return {
+        "total_chunks": 0,
+        "chunks_by_source": {source: 0 for source in _ANCHOR_SOURCE_TYPES},
+        "chunker_modes": set(),
+        "embedding_model_versions": set(),
+        "retrieval_attempts": 0,
+        "hit_count": 0,
+        "total_hit_items": 0,
+        "source_hit_counts": {source: 0 for source in _ANCHOR_SOURCE_TYPES},
+        "fallback_count": 0,
+        "fallback_reasons": {},
+        "latencies": [],
+        "rag_status_distribution": {},
+        "last_trace_at": None,
+    }
+
+
+def _ordered_anchor_modes(values: set[str]) -> list[str]:
+    ordered = [mode for mode in _ANCHOR_CHUNKER_MODES if mode in values]
+    extras = sorted(mode for mode in values if mode not in _ANCHOR_CHUNKER_MODES)
+    return [*ordered, *extras]
+
+
+def _clean_count_map(values: dict[str, int]) -> dict[str, int]:
+    return {str(key): int(value or 0) for key, value in values.items() if int(value or 0) > 0}
+
+
+def _finalize_session_anchor_session_row(session_row: Any, bucket: dict[str, Any]) -> dict[str, Any]:
+    attempts = int(bucket.get("retrieval_attempts") or 0)
+    hit_count = int(bucket.get("hit_count") or 0)
+    total_hit_items = int(bucket.get("total_hit_items") or 0)
+    latencies = sorted(int(v) for v in bucket.get("latencies") or [] if isinstance(v, int))
+    chunks_by_source = _clean_count_map(bucket.get("chunks_by_source") or {})
+    source_hit_counts = _clean_count_map(bucket.get("source_hit_counts") or {})
+    return {
+        "session_id": str(getattr(session_row, "session_id", "") or ""),
+        "candidate_name": getattr(session_row, "candidate_name", None),
+        "job_title": getattr(session_row, "job_title", None),
+        "session_status": str(getattr(session_row, "status", "") or "unknown"),
+        "created_at": _iso_or_none(getattr(session_row, "created_at", None)),
+        "updated_at": _iso_or_none(getattr(session_row, "updated_at", None)),
+        "has_resume_chunks": bool((bucket.get("chunks_by_source") or {}).get("resume")),
+        "has_self_intro_chunks": bool((bucket.get("chunks_by_source") or {}).get("self_intro")),
+        "total_chunks": int(bucket.get("total_chunks") or 0),
+        "chunks_by_source": chunks_by_source,
+        "chunker_modes": _ordered_anchor_modes(bucket.get("chunker_modes") or set()),
+        "embedding_model_versions": sorted(bucket.get("embedding_model_versions") or []),
+        "retrieval_attempts": attempts,
+        "hit_count": hit_count,
+        "hit_rate": round(hit_count / attempts, 3) if attempts else 0.0,
+        "source_hit_counts": source_hit_counts,
+        "avg_hits_per_attempt": round(total_hit_items / attempts, 3) if attempts else 0.0,
+        "fallback_count": int(bucket.get("fallback_count") or 0),
+        "fallback_reasons": _clean_count_map(bucket.get("fallback_reasons") or {}),
+        "latency_ms": {
+            "p50": _percentile_nearest(latencies, 0.50),
+            "p95": _percentile_nearest(latencies, 0.95),
+            "p99": _percentile_nearest(latencies, 0.99),
+        },
+        "rag_status_distribution": _clean_count_map(
+            bucket.get("rag_status_distribution") or {}
+        ),
+        "last_trace_at": _iso_or_none(bucket.get("last_trace_at")),
     }
 
 
@@ -1565,7 +1964,7 @@ def credibility_rollup() -> dict[str, Any]:
 def _compute_evidence_rollup(*, since: str) -> dict[str, Any]:
     from datetime import UTC, datetime, timedelta
 
-    from app.models import GenerationTrace, get_session
+    from app.models import GenerationTrace, InterviewSession, get_session
     from app.services.scoring_quality import acceptance_evidence_quality
 
     cutoff = datetime.now(UTC) - timedelta(hours=_ROLLUP_WINDOWS_HOURS[since])
@@ -1573,7 +1972,11 @@ def _compute_evidence_rollup(*, since: str) -> dict[str, Any]:
         with get_session() as sess:
             rows = (
                 sess.query(GenerationTrace)
-                .filter(GenerationTrace.created_at >= cutoff)
+                .join(
+                    InterviewSession,
+                    GenerationTrace.session_id == InterviewSession.session_id,
+                )
+                .filter(InterviewSession.created_at >= cutoff)
                 .limit(5000)
                 .all()
             )
@@ -1819,14 +2222,18 @@ def question_quality_rollup(since: str = "24h") -> dict[str, Any]:
 def _compute_question_quality_rollup(*, since: str) -> dict[str, Any]:
     from datetime import UTC, datetime, timedelta
 
-    from app.models import GenerationTrace, get_session
+    from app.models import GenerationTrace, InterviewSession, get_session
 
     cutoff = datetime.now(UTC) - timedelta(hours=_ROLLUP_WINDOWS_HOURS[since])
     try:
         with get_session() as sess:
             rows = (
                 sess.query(GenerationTrace)
-                .filter(GenerationTrace.created_at >= cutoff)
+                .join(
+                    InterviewSession,
+                    GenerationTrace.session_id == InterviewSession.session_id,
+                )
+                .filter(InterviewSession.created_at >= cutoff)
                 .limit(5000)
                 .all()
             )
