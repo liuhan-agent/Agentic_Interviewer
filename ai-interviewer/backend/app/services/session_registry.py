@@ -37,9 +37,9 @@ class SessionRegistry:
         with self.lock:
             return session_id in self.sessions
 
-    def remove(self, session_id: str) -> None:
+    def remove(self, session_id: str) -> bool:
         with self.lock:
-            self.sessions.pop(session_id, None)
+            return self.sessions.pop(session_id, None) is not None
 
     def snapshot_pairs(self) -> list[tuple[str, Any]]:
         with self.lock:
@@ -49,8 +49,6 @@ class SessionRegistry:
         victims: list[str] = []
         with self.lock:
             for sid, handle in self.sessions.items():
-                if handle.done_event.is_set():
-                    continue
                 if (now - handle.last_activity_at) > ttl:
                     victims.append(sid)
         return victims

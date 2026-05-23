@@ -611,21 +611,35 @@ class SessionManager:
                 log.warning("session reaper pass failed: %s", e)
 
     def _reap_once(self) -> int:
-        """Cancel + evict any handle idle beyond the configured TTL."""
+        """Evict handles idle beyond the configured TTL, cancelling live work first."""
         settings = get_settings()
         ttl = timedelta(minutes=settings.session_idle_ttl_minutes)
         now = datetime.now(UTC)
-        victims = self._session_registry().expired_session_ids(now=now, ttl=ttl)
+        registry = self._session_registry()
+        victims = registry.expired_session_ids(now=now, ttl=ttl)
         if not victims:
             return 0
+        removed = 0
         for sid in victims:
-            log.warning("session reaper: cancelling idle session %s", sid)
-            try:
-                self.cancel(sid)
-            except Exception as e:
-                log.warning("session reaper: cancel %s failed: %s", sid, e)
-            self.remove(sid)
-        return len(victims)
+            handle = registry.get(sid, touch=False)
+            if handle is None:
+                continue
+            terminal = (
+                handle.done_event.is_set()
+                or handle.cancelled
+                or handle.error is not None
+            )
+            if terminal:
+                log.warning("session reaper: evicting idle terminal session %s", sid)
+            else:
+                log.warning("session reaper: cancelling idle session %s", sid)
+                try:
+                    self.cancel(sid)
+                except Exception as e:
+                    log.warning("session reaper: cancel %s failed: %s", sid, e)
+            if self.remove(sid):
+                removed += 1
+        return removed
 
     def shutdown(self) -> None:
         """Signal the reaper to stop.  Used by tests and process shutdown."""
@@ -1207,8 +1221,8 @@ class SessionManager:
                 )
         return cancel_resume_started
 
-    def remove(self, session_id: str) -> None:
-        self._session_registry().remove(session_id)
+    def remove(self, session_id: str) -> bool:
+        return self._session_registry().remove(session_id)
 
     def snapshot(self) -> list[dict[str, Any]]:
         """Return a read-only serialisable view of active sessions."""
