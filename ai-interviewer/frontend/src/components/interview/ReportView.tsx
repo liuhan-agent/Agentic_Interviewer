@@ -1489,7 +1489,20 @@ function dimensionScoreLabel(score: RubricScore): string {
 
 function dimensionScoreBreakdownLabel(score: RubricScore): string | null {
   const breakdown = score.score_breakdown;
-  if (!breakdown || !(breakdown.scored_turn_count > 1)) return null;
+  if (!breakdown) return null;
+  const hasMultipleAnchors =
+    typeof breakdown.anchor_count === "number" && breakdown.anchor_count > 1;
+  if (!hasMultipleAnchors && !(breakdown.scored_turn_count > 1)) return null;
+  if (hasMultipleAnchors) {
+    const anchorValues = [
+      breakdown.anchor_average_score,
+      breakdown.best_anchor_score,
+      breakdown.adopted_score,
+    ];
+    if (anchorValues.every((value) => Number.isFinite(value))) {
+      return `本维度综合了 ${breakdown.anchor_count} 个简历锚点，锚点均值 ${breakdown.anchor_average_score!.toFixed(1)}，最佳锚点 ${breakdown.best_anchor_score!.toFixed(1)}；综合分 ${breakdown.adopted_score.toFixed(1)}。`;
+    }
+  }
   const values = [
     breakdown.latest_score,
     breakdown.best_score,

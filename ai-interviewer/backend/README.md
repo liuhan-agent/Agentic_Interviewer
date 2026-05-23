@@ -237,10 +237,16 @@ CREATE EXTENSION vector;
 默认模式是：
 
 ```env
+RESUME_RAG_MODE=primary
+```
+
+Primary 模式会把锚点化的简历与自我介绍检索块注入 Generator。若只想记录检索结果和指标、不影响出题，可回退到：
+
+```env
 RESUME_RAG_MODE=shadow
 ```
 
-Shadow 模式只记录检索结果和指标，不把检索块注入 Generator。紧急回滚：
+紧急关闭：
 
 ```env
 RESUME_RAG_MODE=off
@@ -273,8 +279,8 @@ python -m app.scripts.cleanup_session_anchor_chunks
 | `RESUME_PARSER_LLM_TIMEOUT_SECONDS` | `120` | 同步简历上传时等待 LLM 精修的秒数 |
 | `RESUME_PARSE_JOB_LLM_TIMEOUT_SECONDS` | `300` | 异步简历解析 job 等待 LLM 精修的秒数 |
 | `RESUME_PARSE_JOB_TTL_SECONDS` | `3600` | 异步简历解析 job 在进程内保留的秒数 |
-| `RESUME_RAG_MODE` | `shadow` | 候选人锚点 RAG 模式；回滚设为 `RESUME_RAG_MODE=off` |
-| `RESUME_RAG_SESSION_SAMPLE_RATE` | `1.0` | Shadow rollout 的 session 稳定采样率 |
+| `RESUME_RAG_MODE` | `primary` | 候选人锚点 RAG 模式；观测回退设为 `RESUME_RAG_MODE=shadow`，关闭设为 `RESUME_RAG_MODE=off` |
+| `RESUME_RAG_SESSION_SAMPLE_RATE` | `1.0` | Session 稳定采样率 |
 | `OPENAI_API_KEY` | 空 | OpenAI key |
 | `ANTHROPIC_API_KEY` | 空 | Anthropic key |
 | `EMBEDDING_PROVIDER` | `openai` | `openai` 或 `stub` |

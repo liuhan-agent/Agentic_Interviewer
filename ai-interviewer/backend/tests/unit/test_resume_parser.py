@@ -197,6 +197,40 @@ Java Backend Engineer
     assert parsed.focus_areas[0]["label"]
 
 
+def test_focus_areas_normalise_runtime_dimensions_and_anchor_key() -> None:
+    focus = rp._normalise_focus_areas(
+        [
+            {
+                "id": "1",
+                "label": "高并发库存扣减与一致性保障",
+                "project_id": "proj-2",
+                "dimensions": [
+                    "architecture-design",
+                    "cache-strategy",
+                    "sql-tuning",
+                ],
+                "skills": ["redis", "lua", "mysql"],
+                "priority": 1,
+            },
+            {
+                "id": "payment-consistency",
+                "label": "支付迁移中的幂等和一致性",
+                "project_id": "proj-1",
+                "dimensions": ["system_design", "technical_depth"],
+                "skills": ["kafka", "redis"],
+                "priority": 2,
+            },
+        ]
+    )
+
+    assert focus[0]["anchor_key"].startswith("focus-proj-2-")
+    assert set(focus[0]["dimensions"]) <= rp.RUNTIME_RESUME_FOCUS_DIMENSIONS
+    assert "system_design" in focus[0]["dimensions"]
+    assert "technical_depth" in focus[0]["dimensions"]
+    assert "architecture-design" not in focus[0]["dimensions"]
+    assert focus[1]["anchor_key"] == "focus-payment-consistency"
+
+
 def test_heuristic_keeps_chinese_dot_bullets_under_project() -> None:
     """Chinese resume PDFs often extract bullets as leading dots.
 
@@ -317,6 +351,9 @@ def test_llm_refine_requests_chinese_user_visible_text(
     user_msg = next(msg for msg in messages if msg.role == "user")
     assert "简体中文" in system_msg.content
     assert "简体中文" in user_msg.content
+    assert "focus_areas[].dimensions" in system_msg.content
+    assert "architecture-design" in system_msg.content
+    assert "不要输出" in system_msg.content
 
 
 def test_llm_refine_clips_large_resume_before_calling_model(

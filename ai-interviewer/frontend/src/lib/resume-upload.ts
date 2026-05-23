@@ -202,6 +202,9 @@ function sanitizeResumeFocusAreas(focusAreas: unknown): ResumeFocusArea[] {
         id:
           optionalClipString(focus.id, 40) ??
           `focus-${idx + 1}`,
+        ...(optionalClipString(focus.anchor_key, 160)
+          ? { anchor_key: optionalClipString(focus.anchor_key, 160) }
+          : {}),
         label,
         project_id: optionalClipString(focus.project_id, 40) ?? null,
         dimensions: sanitizeStringList(focus.dimensions, 20, CANDIDATE_SKILL_MAX_LENGTH),

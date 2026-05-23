@@ -10,6 +10,7 @@ from __future__ import annotations
 from typing import Literal
 
 from app.core.logging import get_logger
+from app.engine.resume_plan import has_available_resume_anchor_slot
 from app.engine.workflow.eval_helpers import is_evaluator_fallback
 from app.engine.workflow.state import InterviewState
 
@@ -28,6 +29,21 @@ def _all_dims_done(state: InterviewState) -> bool:
     if not dims:
         return True
     return all(status.get(d) == "passed" for d in dims)
+
+
+def _has_anchor_expansion_slot(state: InterviewState) -> bool:
+    rc = state.get("runtime_config") or {}
+    depth = str(rc.get("interview_depth") or "standard")
+    if depth not in {"standard", "deep"}:
+        return False
+    return has_available_resume_anchor_slot(
+        candidate=state.get("candidate", {}) or {},
+        job_spec=state.get("job_spec", {}) or {},
+        qa_history=list(state.get("qa_history") or []),
+        interview_depth=depth,
+        focus_dimensions=list(state.get("focus_dimensions") or []),
+        self_intro_profile=state.get("self_intro_profile") or {},
+    )
 
 
 def _max_refines_per_dimension(state: InterviewState) -> int:
@@ -120,9 +136,12 @@ def route_after_skip(state: InterviewState) -> AfterSkip:
             budget,
         )
         return "end"
-    if _all_dims_done(state):
+    if _all_dims_done(state) and not _has_anchor_expansion_slot(state):
         log.info("router: end after skip (all dims passed)")
         return "end"
+    if _all_dims_done(state):
+        log.info("router: next_question after skip (anchor expansion)")
+        return "next_question"
     return "next_question"
 
 
@@ -153,9 +172,12 @@ def route_after_eval(state: InterviewState) -> AfterEval:
         )
         return "end"
 
-    if _all_dims_done(state):
+    if _all_dims_done(state) and not _has_anchor_expansion_slot(state):
         log.info("router: end (all dims passed)")
         return "end"
+    if _all_dims_done(state):
+        log.info("router: next_question (anchor expansion)")
+        return "next_question"
 
     recommended = evaluation.get("recommended_next")
     if evaluation.get("source") == "fallback" or evaluation.get("fallback_reason"):

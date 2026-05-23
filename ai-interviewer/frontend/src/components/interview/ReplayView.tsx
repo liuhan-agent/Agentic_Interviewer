@@ -573,7 +573,11 @@ function TimelineCard({ turns }: { turns: ReplayTurn[] }) {
           </CardHeader>
           <CardContent className="space-y-4 text-sm">
             <Block title="问题" value={turn.question} />
-            <QuestionBasisBlock basis={turn.question_basis} />
+            <QuestionBasisBlock
+              basis={turn.question_basis}
+              resumeAnchorLabel={turn.resume_anchor_label}
+            />
+            <AnchorFollowupNotice followup={turn.anchor_followup} />
             {turn.answer && (
               <div>
                 <SectionLabel title="你的回答" />
@@ -610,20 +614,43 @@ function TimelineCard({ turns }: { turns: ReplayTurn[] }) {
   );
 }
 
+function AnchorFollowupNotice({
+  followup,
+}: {
+  followup?: ReplayTurn["anchor_followup"];
+}) {
+  if (!followup) return null;
+  if (followup.max_attempts < 2 || followup.attempt < 1) return null;
+  return (
+    <div className="inline-flex max-w-full items-center gap-1.5 rounded-md border border-amber-500/20 bg-amber-500/5 px-2.5 py-1.5 text-xs text-amber-200/90">
+      <GitBranch className="h-3.5 w-3.5 shrink-0 text-amber-300" />
+      <span>
+        当前锚点第 {followup.attempt}/{followup.max_attempts} 轮追问
+      </span>
+    </div>
+  );
+}
+
 function QuestionBasisBlock({
   basis,
+  resumeAnchorLabel,
 }: {
   basis?: ReplayTurn["question_basis"];
+  resumeAnchorLabel?: ReplayTurn["resume_anchor_label"];
 }) {
   if (!basis) return null;
   const chipGroups = splitQuestionBasisChips(basis.chips);
+  const anchorLabel = String(resumeAnchorLabel || "").trim();
+  const anchorChips = anchorLabel ? [anchorLabel] : [];
+  const hasGroups = basis.chips.length > 0 || anchorChips.length > 0;
   return (
     <div className="rounded-md border border-sky-500/20 bg-sky-500/5 p-3">
       <p className="mb-1 text-xs font-medium text-sky-400">{basis.title}</p>
       <p className="text-muted-foreground">{basis.summary}</p>
-      {basis.chips.length > 0 && (
-        <div className="mt-3 grid gap-2 sm:grid-cols-3">
+      {hasGroups && (
+        <div className="mt-3 grid gap-2 sm:grid-cols-4">
           <QuestionBasisChipGroup label="依据来源" chips={chipGroups.sources} />
+          <QuestionBasisChipGroup label="关联经历" chips={anchorChips} />
           <QuestionBasisChipGroup
             label="匹配维度"
             chips={chipGroups.dimensions}
@@ -665,6 +692,7 @@ function QuestionBasisChipGroup({
 
 function getQuestionBasisGroupIcon(label: string) {
   if (label === "依据来源") return GitBranch;
+  if (label === "关联经历") return FileText;
   if (label === "匹配维度") return Layers3;
   return Tags;
 }

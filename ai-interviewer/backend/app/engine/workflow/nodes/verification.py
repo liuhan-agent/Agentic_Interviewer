@@ -28,7 +28,7 @@ from __future__ import annotations
 
 import time
 from datetime import UTC, datetime
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from app.core.logging import get_logger
 from app.core.settings import get_settings
@@ -40,10 +40,14 @@ from app.engine.workflow.evaluation_consistency import (
 )
 from app.engine.workflow.state import InterviewState
 from app.models import get_session
+from app.services.strategy_learning_facts import upsert_interview_turn
 
 from .wait_answer import get_raw_answer_for_state
 
 log = get_logger(__name__)
+
+if TYPE_CHECKING:
+    from app.ml.drift.verifier_drift import DriftEvent
 
 
 def _min_override_confidence() -> float:
@@ -143,7 +147,7 @@ def _compose_drift_event(
     verification: dict[str, Any],
     dimension: str,
     job_level: str,
-) -> "DriftEvent":
+) -> DriftEvent:
     """Build the :class:`DriftEvent` payload shared by monitor + DB sinks.
 
     Pulled out of :func:`_record_drift_event` so PR2's DB persistence
@@ -209,7 +213,7 @@ def _record_drift_event(
     verification: dict[str, Any],
     dimension: str,
     job_level: str,
-) -> "DriftEvent":
+) -> DriftEvent:
     """Push one :class:`DriftEvent` into the rolling monitor and return it.
 
     The monitor is observation-only so the caller still wraps this in a
@@ -264,7 +268,7 @@ def _drift_event_id(
 
 def _persist_drift_event(
     *,
-    event: "DriftEvent",
+    event: DriftEvent,
     session_id: str,
     trace_id: str | None,
     turn_idx: int,
@@ -415,6 +419,13 @@ def verification_node(state: InterviewState) -> dict[str, Any]:
             )
         except Exception as e:  # pragma: no cover - side channel
             log.warning("verification tracer side-channel failed: %s", e)
+        _persist_verification_turn_fact(
+            state=state,
+            turn_idx=_fact_turn_idx(state),
+            evaluation=evaluation,
+            verification={},
+            triggered=False,
+        )
         return {}
 
     question_payload = state.get("current_question") or {}
@@ -537,4 +548,81 @@ def verification_node(state: InterviewState) -> dict[str, Any]:
         )
     except Exception as e:  # pragma: no cover - side channel
         log.warning("verification tracer side-channel failed: %s", e)
+    _persist_verification_turn_fact(
+        state=state,
+        turn_idx=_fact_turn_idx(state),
+        evaluation=updated_evaluation,
+        verification=verification,
+        triggered=True,
+    )
     return update
+
+
+def _persist_verification_turn_fact(
+    *,
+    state: InterviewState,
+    turn_idx: int,
+    evaluation: dict[str, Any],
+    verification: dict[str, Any],
+    triggered: bool,
+) -> None:
+    try:
+        with get_session() as session:
+            upsert_interview_turn(
+                session,
+                session_id=str(state.get("session_id") or ""),
+                turn_idx=turn_idx,
+                trace_id=_optional_str(state.get("trace_id")),
+                dimension=str(
+                    ((state.get("current_question") or {}).get("dimension"))
+                    or state.get("current_dimension")
+                    or "unknown"
+                ),
+                job_level=_optional_str((state.get("job_spec") or {}).get("level")),
+                evaluation=dict(evaluation),
+                failure_categories=_failure_categories(evaluation),
+                score=_optional_float(evaluation.get("score")),
+                passed=_optional_bool(evaluation.get("passed")),
+                verification=dict(verification),
+                verifier_triggered=triggered,
+                verifier_forced_refine=bool(evaluation.get("verifier_forced_refine")),
+                verifier_abstained=bool(evaluation.get("verifier_abstained")),
+                verifier_verdict=_optional_str(verification.get("verdict")),
+            )
+    except Exception as e:  # pragma: no cover - fact persistence is side-channel
+        log.warning("verification turn fact persistence failed: %s", e)
+
+
+def _fact_turn_idx(state: InterviewState) -> int:
+    raw = state.get("formal_turn_idx", state.get("turn_idx", 0))
+    try:
+        return max(0, int(raw) - 1)
+    except (TypeError, ValueError):
+        return 0
+
+
+def _failure_categories(evaluation: dict[str, Any]) -> list[str]:
+    raw = evaluation.get("failure_categories")
+    if not isinstance(raw, list):
+        return []
+    return [str(value) for value in raw if isinstance(value, str) and value.strip()]
+
+
+def _optional_str(value: Any) -> str | None:
+    text = str(value or "").strip()
+    return text or None
+
+
+def _optional_float(value: Any) -> float | None:
+    if value is None or isinstance(value, bool):
+        return None
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return None
+
+
+def _optional_bool(value: Any) -> bool | None:
+    if value is None:
+        return None
+    return bool(value)

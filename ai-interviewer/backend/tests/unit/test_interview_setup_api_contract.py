@@ -136,6 +136,20 @@ def test_resume_parse_upload_response_contract(monkeypatch) -> None:
     assert resp.json()["resume_source_expires_at"]
 
 
+def test_resume_focus_area_accepts_anchor_key() -> None:
+    focus = interview_api.ResumeFocusArea(
+        id="1",
+        anchor_key="focus-proj-1-abc123",
+        label="支付迁移中的幂等和一致性",
+        project_id="proj-1",
+        dimensions=["system_design"],
+        skills=["redis"],
+        priority=1,
+    )
+
+    assert focus.model_dump()["anchor_key"] == "focus-proj-1-abc123"
+
+
 def test_resume_parse_upload_domain_error_contract(monkeypatch) -> None:
     http = _client(monkeypatch)
 

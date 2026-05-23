@@ -10,6 +10,7 @@ export interface ResumeProject {
 
 export interface ResumeFocusArea {
   id: string;
+  anchor_key?: string;
   label: string;
   project_id?: string | null;
   dimensions?: string[];
@@ -34,6 +35,7 @@ export interface ResumeCandidateProfile {
 
 export interface ResumeAnchor {
   focus_id?: string | null;
+  anchor_key?: string;
   label?: string;
   project_id?: string | null;
   project_name?: string;
@@ -327,6 +329,19 @@ export interface ScoreSummary {
   total_dimension_count: number;
 }
 
+export interface AnchorScoreBreakdown {
+  anchor_key: string;
+  anchor_label?: string;
+  resume_project_id?: string | null;
+  turn_indices?: number[];
+  scored_turn_count: number;
+  latest_score: number;
+  best_score: number;
+  average_score: number;
+  adopted_score: number;
+  scoring_policy: "weighted_recent" | string;
+}
+
 export interface ScoreBreakdown {
   scored_turn_count: number;
   latest_score: number;
@@ -334,6 +349,10 @@ export interface ScoreBreakdown {
   average_score: number;
   adopted_score: number;
   scoring_policy: "weighted_recent" | string;
+  anchor_count?: number;
+  anchor_average_score?: number;
+  best_anchor_score?: number;
+  anchor_breakdowns?: AnchorScoreBreakdown[];
 }
 
 export interface RubricScore {
@@ -439,11 +458,19 @@ export interface ReplayQuestionBasis {
   chips: string[];
 }
 
+export interface ReplayAnchorFollowup {
+  attempt: number;
+  max_attempts: number;
+}
+
 export interface ReplayTurn {
   turn_idx: number;
   dimension?: string | null;
   question?: string | null;
   answer?: string | null;
+  resume_anchor_key?: string | null;
+  resume_anchor_label?: string | null;
+  resume_project_id?: string | null;
   score?: number | null;
   passed?: boolean | null;
   rationale?: string;
@@ -452,6 +479,7 @@ export interface ReplayTurn {
   next_step?: string;
   followup_reason?: ReplayFollowupReason | null;
   question_basis?: ReplayQuestionBasis | null;
+  anchor_followup?: ReplayAnchorFollowup | null;
 }
 
 export interface ResumeHistoryTurn extends Omit<ReplayTurn, "turn_idx"> {
