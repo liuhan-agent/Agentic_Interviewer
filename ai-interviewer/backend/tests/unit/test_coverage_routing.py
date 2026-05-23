@@ -35,6 +35,31 @@ def _fallback_turn(turn_idx: int, dimension: str) -> dict[str, Any]:
     }
 
 
+def _candidate_with_focus() -> dict[str, Any]:
+    return {
+        "resume_parsed": {
+            "projects": [
+                {
+                    "id": "proj_coupon",
+                    "name": "Coupon Guard",
+                    "tech_stack": ["Redis"],
+                }
+            ],
+            "focus_areas": [
+                {
+                    "id": "focus_coupon_design",
+                    "anchor_key": "focus-coupon-design",
+                    "project_id": "proj_coupon",
+                    "label": "Coupon consistency",
+                    "priority": 1,
+                    "skills": ["Redis"],
+                    "dimensions": ["system_design"],
+                }
+            ],
+        }
+    }
+
+
 def test_route_after_eval_advances_when_refine_cap_reached() -> None:
     state = {
         "status": "running",
@@ -78,6 +103,73 @@ def test_route_after_eval_keeps_refining_before_cap() -> None:
     }
 
     assert route_after_eval(state) == "refine"  # type: ignore[arg-type]
+
+
+def test_route_after_eval_continues_for_standard_anchor_expansion() -> None:
+    state = {
+        "status": "running",
+        "evaluation": {"passed": True},
+        "current_dimension": "system_design",
+        "turn_idx": 2,
+        "formal_turn_idx": 2,
+        "max_turns": 8,
+        "turn_budget_remaining": 6,
+        "runtime_config": {"interview_depth": "standard"},
+        "candidate": _candidate_with_focus(),
+        "job_spec": {
+            "required_skills": ["Redis"],
+            "rubric_dimensions": ["system_design", "technical_depth"],
+        },
+        "dimensions": ["system_design", "technical_depth"],
+        "dimension_status": {
+            "system_design": "passed",
+            "technical_depth": "passed",
+        },
+        "qa_history": [
+            {
+                **_scored_turn(0, "system_design", passed=True),
+                "resume_anchor": {"anchor_key": "focus-coupon-design"},
+            },
+            _scored_turn(1, "technical_depth", passed=True),
+        ],
+    }
+
+    assert route_after_eval(state) == "next_question"  # type: ignore[arg-type]
+
+
+def test_route_after_eval_ends_when_anchor_expansion_exhausted() -> None:
+    state = {
+        "status": "running",
+        "evaluation": {"passed": True},
+        "current_dimension": "system_design",
+        "turn_idx": 2,
+        "formal_turn_idx": 2,
+        "max_turns": 8,
+        "turn_budget_remaining": 6,
+        "runtime_config": {"interview_depth": "standard"},
+        "candidate": _candidate_with_focus(),
+        "job_spec": {
+            "required_skills": ["Redis"],
+            "rubric_dimensions": ["system_design", "technical_depth"],
+        },
+        "dimensions": ["system_design", "technical_depth"],
+        "dimension_status": {
+            "system_design": "passed",
+            "technical_depth": "passed",
+        },
+        "qa_history": [
+            {
+                **_scored_turn(0, "system_design", passed=True),
+                "resume_anchor": {"anchor_key": "focus-coupon-design"},
+            },
+            {
+                **_scored_turn(1, "technical_depth", passed=True),
+                "resume_anchor": {"anchor_key": "focus-coupon-design"},
+            },
+        ],
+    }
+
+    assert route_after_eval(state) == "end"  # type: ignore[arg-type]
 
 
 def test_director_forces_switch_when_refine_cap_reached(monkeypatch) -> None:
@@ -289,6 +381,62 @@ def test_director_allows_deepening_after_all_dimensions_have_scores(
 
     assert out["selected_action"]["id"] == PLAN_DEEP_PROBE.id
     assert out["current_dimension"] == "technical_depth"
+
+
+def test_director_targets_anchor_dimension_after_all_dimensions_passed(
+    monkeypatch,
+) -> None:
+    from app.engine.workflow.nodes import director_sample as director_mod
+
+    class _Bandit:
+        def observation_count(self, *_args: Any, **_kwargs: Any) -> int:
+            return 10
+
+        def select(self, *_args: Any, **_kwargs: Any):
+            return PLAN_DEEP_PROBE, {"mode": "test_anchor_expansion"}
+
+    monkeypatch.setattr(director_mod, "get_bandit", lambda: _Bandit())
+
+    state = {
+        "session_id": "sess-anchor-expansion",
+        "trace_id": "trace-anchor-expansion",
+        "candidate": _candidate_with_focus(),
+        "job_spec": {
+            "level": "senior",
+            "required_skills": ["Redis"],
+            "rubric_dimensions": ["system_design", "technical_depth"],
+        },
+        "dimensions": ["system_design", "technical_depth"],
+        "dimension_status": {
+            "system_design": "passed",
+            "technical_depth": "passed",
+        },
+        "current_dimension": "technical_depth",
+        "turn_idx": 2,
+        "formal_turn_idx": 2,
+        "turn_budget_remaining": 6,
+        "evaluation": {"passed": True},
+        "qa_history": [
+            {
+                **_scored_turn(0, "system_design", passed=True),
+                "resume_anchor": {"anchor_key": "focus-coupon-design"},
+            },
+            _scored_turn(1, "technical_depth", passed=True),
+        ],
+        "runtime_config": {
+            "policy_mode": "template",
+            "interview_depth": "standard",
+        },
+        "refine_mode": False,
+    }
+
+    out = director_mod.director_sample_node(state)  # type: ignore[arg-type]
+
+    assert out["selected_action"]["diagnostics"]["mode"] == "anchor_expansion"
+    assert out["selected_action"]["diagnostics"]["target_anchor_key"] == "focus-coupon-design"
+    assert out["current_dimension"] == "system_design"
+    assert out["dimension_status"]["system_design"] == "passed"
+    assert out["dimension_status"]["technical_depth"] == "passed"
 
 
 def test_director_does_not_count_fallback_as_dimension_coverage(monkeypatch) -> None:

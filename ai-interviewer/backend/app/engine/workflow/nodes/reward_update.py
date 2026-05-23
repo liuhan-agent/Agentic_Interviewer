@@ -9,6 +9,7 @@ from typing import Any
 from sqlalchemy import select
 
 from app.core.logging import get_logger
+from app.core.settings import get_settings
 from app.core.timing import get_latest_db_write_ms
 from app.core.tracer import get_tracer
 from app.engine.workflow.policy_context import policy_context_keys
@@ -19,6 +20,10 @@ from app.ml.rl.thompson import get_bandit
 from app.models import get_session
 from app.models.question_bank import QuestionUsage
 from app.models.strategy_memory import StrategyMemoryUsage
+from app.services.strategy_learning_facts import (
+    apply_bandit_posterior_update,
+    upsert_interview_turn,
+)
 
 log = get_logger(__name__)
 
@@ -74,6 +79,14 @@ def reward_update_node(state: InterviewState) -> dict[str, Any]:
         for context_key in keys:
             bandit.update(context_key, alias, reward)
 
+    _record_strategy_learning_reward(
+        state=state,
+        evaluation=evaluation,
+        action_id=str(action_id),
+        context_keys=keys,
+        reward=reward,
+        turn_idx=_fact_turn_idx(state, answer_turn_idx),
+    )
     _record_strategy_memory_usage(
         state=state,
         question=question,
@@ -130,6 +143,57 @@ def reward_update_node(state: InterviewState) -> dict[str, Any]:
     except Exception as e:  # pragma: no cover - side channel
         log.warning("reward_update tracer side-channel failed: %s", e)
     return update
+
+
+def _record_strategy_learning_reward(
+    *,
+    state: InterviewState,
+    evaluation: dict[str, Any],
+    action_id: str,
+    context_keys: list[str],
+    reward: float,
+    turn_idx: int,
+) -> None:
+    try:
+        s = get_settings()
+        alias = ALIAS_MAP.get(action_id)
+        action_ids = [action_id]
+        if alias and alias != action_id:
+            action_ids.append(alias)
+
+        with get_session() as session:
+            for context_key in context_keys:
+                for aid in action_ids:
+                    apply_bandit_posterior_update(
+                        session,
+                        context_key=context_key,
+                        action_id=aid,
+                        reward=reward,
+                        reward_kind="immediate",
+                        session_id=_optional_str(state.get("session_id")),
+                        turn_idx=turn_idx,
+                        default_alpha=float(s.bandit_default_alpha),
+                        default_beta=float(s.bandit_default_beta),
+                    )
+            upsert_interview_turn(
+                session,
+                session_id=str(state.get("session_id") or ""),
+                turn_idx=turn_idx,
+                trace_id=_optional_str(state.get("trace_id")),
+                dimension=str(
+                    ((state.get("current_question") or {}).get("dimension"))
+                    or state.get("current_dimension")
+                    or "unknown"
+                ),
+                job_level=_optional_str((state.get("job_spec") or {}).get("level")),
+                evaluation=dict(evaluation),
+                failure_categories=_failure_categories(evaluation),
+                score=_optional_float(evaluation.get("score")),
+                passed=_optional_bool(evaluation.get("passed")),
+                immediate_reward=reward,
+            )
+    except Exception as e:  # pragma: no cover - fact persistence is side-channel
+        log.warning("strategy learning reward persistence failed: %s", e)
 
 
 def _record_strategy_memory_usage(
@@ -254,6 +318,23 @@ def _question_text_hash(value: Any) -> str | None:
         return None
     digest = hashlib.sha1(text.encode("utf-8"), usedforsecurity=False).hexdigest()
     return f"sha1:{digest}"
+
+
+def _fact_turn_idx(state: InterviewState, fallback: int) -> int:
+    raw = state.get("formal_turn_idx")
+    if raw is None:
+        return int(fallback)
+    try:
+        return max(0, int(raw) - 1)
+    except (TypeError, ValueError):
+        return int(fallback)
+
+
+def _failure_categories(evaluation: dict[str, Any]) -> list[str]:
+    raw = evaluation.get("failure_categories")
+    if not isinstance(raw, list):
+        return []
+    return [str(value) for value in raw if isinstance(value, str) and value.strip()]
 
 
 def _optional_str(value: Any) -> str | None:

@@ -130,6 +130,16 @@ def test_runtime_config_defaults() -> None:
     assert runtime["rag_top_k"] == 5
     assert runtime["rag_mode"] == "vector"
     assert runtime["llm_temperature"] is None
+    assert runtime["interview_depth"] == "standard"
+
+
+def test_runtime_config_preserves_interview_depth() -> None:
+    req = _base_request(None)
+    req["interview_depth"] = "deep"
+
+    _, _, state = translate_request(req)
+
+    assert state["runtime_config"]["interview_depth"] == "deep"
 
 
 def test_runtime_config_clamps_rag_top_k_above_upper_bound() -> None:

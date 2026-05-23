@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from contextlib import contextmanager
 from typing import Any
 
 
@@ -33,16 +34,35 @@ def test_evaluator_node_does_not_update_bandit_before_verification(monkeypatch):
             self.kwargs.update(kwargs)
 
     tracer = _Tracer()
+    persisted_turn: dict[str, Any] = {}
+
+    @contextmanager
+    def fake_get_session():
+        yield object()
+
+    def fake_upsert_interview_turn(_session, **kwargs: Any) -> None:
+        persisted_turn.update(kwargs)
+
     monkeypatch.setattr(evaluator_node_mod, "evaluate_answer", fake_evaluate)
     monkeypatch.setattr(evaluator_node_mod, "get_bandit", lambda: _Bandit())
     monkeypatch.setattr(evaluator_node_mod, "get_tracer", lambda: tracer)
+    monkeypatch.setattr(evaluator_node_mod, "get_session", fake_get_session)
+    monkeypatch.setattr(evaluator_node_mod, "upsert_interview_turn", fake_upsert_interview_turn)
 
     state = {
         "session_id": "sess-reward",
         "trace_id": "trace-reward",
         "turn_idx": 0,
         "formal_turn_idx": 0,
-        "current_question": {"question": "Q", "dimension": "system_design"},
+        "current_question": {
+            "question": "Q",
+            "dimension": "system_design",
+            "resume_anchor": {
+                "anchor_key": "focus-payment-consistency",
+                "label": "支付迁移中的幂等和一致性",
+                "project_id": "proj-payment",
+            },
+        },
         "current_dimension": "system_design",
         "current_answer": "A concrete answer.",
         "scores_per_dim": {},
@@ -61,6 +81,9 @@ def test_evaluator_node_does_not_update_bandit_before_verification(monkeypatch):
 
     assert updates == []
     assert tracer.kwargs["immediate_reward_applied"] is False
+    assert persisted_turn["resume_anchor_key"] == "focus-payment-consistency"
+    assert persisted_turn["resume_anchor_label"] == "支付迁移中的幂等和一致性"
+    assert persisted_turn["resume_project_id"] == "proj-payment"
 
 
 def test_reward_update_uses_post_verification_evaluation(monkeypatch):

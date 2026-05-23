@@ -98,6 +98,30 @@ def test_start_session_returns_video_capability(monkeypatch) -> None:
     assert manager.started[0][2]["runtime_config"]["enable_video_analysis"] is True
 
 
+def test_start_session_accepts_interview_depth(monkeypatch) -> None:
+    client, manager = _client_with_fake_manager(monkeypatch)
+
+    resp = client.post(
+        "/api/v1/interview/sessions",
+        json=_payload(interview_depth="deep"),
+    )
+
+    assert resp.status_code == 200
+    assert manager.started[0][2]["runtime_config"]["interview_depth"] == "deep"
+
+
+def test_start_session_rejects_unknown_interview_depth(monkeypatch) -> None:
+    client, manager = _client_with_fake_manager(monkeypatch)
+
+    resp = client.post(
+        "/api/v1/interview/sessions",
+        json=_payload(interview_depth="marathon"),
+    )
+
+    assert resp.status_code == 422
+    assert manager.started == []
+
+
 def test_start_session_passes_sanitized_setup_snapshot(monkeypatch) -> None:
     client, manager = _client_with_fake_manager(monkeypatch)
 
@@ -169,6 +193,51 @@ def test_start_session_passes_sanitized_setup_snapshot(monkeypatch) -> None:
     ]
     assert "llm_config" not in manager.setup_snapshots[0]
     assert "api_key" not in str(manager.setup_snapshots[0])
+
+
+def test_start_session_setup_snapshot_normalises_resume_focus_areas(monkeypatch) -> None:
+    client, manager = _client_with_fake_manager(monkeypatch)
+
+    resp = client.post(
+        "/api/v1/interview/sessions",
+        json=_payload(
+            candidate={
+                "name": "Ada",
+                "resume_parsed": {
+                    "summary": "Built coupon systems.",
+                    "projects": [
+                        {
+                            "id": "proj-2",
+                            "name": "Coupon Platform",
+                            "tech_stack": ["Redis", "RabbitMQ"],
+                            "question_anchors": ["库存扣减一致性"],
+                        }
+                    ],
+                    "focus_areas": [
+                        {
+                            "id": "2",
+                            "anchor_key": "",
+                            "label": "高并发库存扣减与一致性保障",
+                            "project_id": "proj-2",
+                            "dimensions": ["cache-strategy", "message-queue"],
+                            "skills": ["Redis", "RabbitMQ"],
+                            "priority": 1,
+                        }
+                    ],
+                },
+            },
+            job_spec={
+                "title": "Backend Engineer",
+                "level": "senior",
+                "rubric_dimensions": ["technical_depth", "system_design"],
+            },
+        ),
+    )
+
+    assert resp.status_code == 200
+    focus = manager.setup_snapshots[0]["candidate"]["resume_parsed"]["focus_areas"][0]
+    assert focus["anchor_key"].startswith("focus-proj-2-")
+    assert focus["dimensions"] == ["system_design", "technical_depth"]
 
 
 def test_explicit_body_trace_id_overrides_traceparent(monkeypatch) -> None:

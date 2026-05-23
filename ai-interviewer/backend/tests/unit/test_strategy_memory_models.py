@@ -9,6 +9,7 @@ from app.models.strategy_memory import (
     StrategyMemoryUsage,
     StrategySignal,
 )
+from app.models.strategy_learning import BanditPosterior, InterviewTurn
 
 
 def _session_factory():
@@ -140,3 +141,77 @@ def test_strategy_signal_and_usage_round_trip_rewards() -> None:
     assert usage.passed is True
     assert usage.immediate_reward == 0.82
     assert usage.delayed_reward == 0.7
+
+
+def test_strategy_fact_models_round_trip_turns_and_posteriors() -> None:
+    Session = _session_factory()
+    with Session() as sess:
+        sess.add(
+            InterviewTurn(
+                session_id="sess-facts",
+                turn_idx=1,
+                trace_id="trace-facts",
+                dimension="system_design",
+                job_level="senior",
+                question="How would you design a feed?",
+                answer="Sanitised candidate answer",
+                resume_anchor_key="focus-feed-architecture",
+                resume_anchor_label="Feed 架构演进",
+                resume_project_id="proj-feed",
+                selected_action="plan_deep_probe",
+                policy_context_keys=[
+                    "java_backend:senior:system_design",
+                    "senior:system_design",
+                ],
+                evaluation={
+                    "score": 8.5,
+                    "passed": True,
+                    "failure_categories": ["missing_tradeoff"],
+                },
+                failure_categories=["missing_tradeoff"],
+                verifier_triggered=True,
+                verifier_forced_refine=False,
+                verifier_verdict="agree",
+                immediate_reward=0.84,
+                selection_artifacts={"question_selector_mode": "structured_primary"},
+            )
+        )
+        sess.add(
+            BanditPosterior(
+                context_key="java_backend:senior:system_design",
+                action_id="plan_deep_probe",
+                alpha=8.0,
+                beta=2.0,
+                observation_count=8,
+                immediate_update_count=8,
+                delayed_update_count=0,
+                last_reward=0.75,
+                last_session_id="sess-facts",
+                last_turn_idx=1,
+            )
+        )
+        sess.commit()
+
+        turn = sess.scalar(select(InterviewTurn))
+        posterior = sess.scalar(select(BanditPosterior))
+
+    assert turn is not None
+    assert turn.answer == "Sanitised candidate answer"
+    assert turn.resume_anchor_key == "focus-feed-architecture"
+    assert turn.resume_anchor_label == "Feed 架构演进"
+    assert turn.resume_project_id == "proj-feed"
+    assert turn.policy_context_keys == [
+        "java_backend:senior:system_design",
+        "senior:system_design",
+    ]
+    assert turn.evaluation["score"] == 8.5
+    assert turn.failure_categories == ["missing_tradeoff"]
+    assert turn.verifier_triggered is True
+    assert turn.immediate_reward == 0.84
+
+    assert posterior is not None
+    assert posterior.context_key == "java_backend:senior:system_design"
+    assert posterior.action_id == "plan_deep_probe"
+    assert posterior.alpha == 8.0
+    assert posterior.beta == 2.0
+    assert posterior.observation_count == 8

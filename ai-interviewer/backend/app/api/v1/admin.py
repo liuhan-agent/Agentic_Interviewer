@@ -184,10 +184,27 @@ def bandit_snapshot() -> dict[str, Any]:
     panels against it without re-parsing JSON every release.
     """
     from app.ml.rl.thompson import get_bandit
+    from app.services.strategy_learning_facts import bandit_posterior_snapshot
 
     s = get_settings()
+    priors = get_bandit().snapshot()
+    try:
+        posterior_summary = bandit_posterior_snapshot(limit=10)
+    except Exception as e:  # pragma: no cover - admin summary is best-effort
+        log.warning("bandit posterior summary unavailable: %s", e)
+        posterior_summary = {
+            "persisted_prior_count": 0,
+            "top_posteriors": [],
+        }
+    persisted_prior_count = int(posterior_summary.get("persisted_prior_count") or 0)
     return {
-        "priors": get_bandit().snapshot(),
+        "priors": priors,
+        "memory_prior_count": len(priors),
+        "persisted_prior_count": persisted_prior_count,
+        "top_posteriors": list(posterior_summary.get("top_posteriors") or []),
+        "posterior_source": (
+            "db_aggregate" if persisted_prior_count > 0 else "memory_only"
+        ),
         "policy_mode": s.policy_mode,
         "exploration_rate": s.thompson_exploration_rate,
         "decay": {

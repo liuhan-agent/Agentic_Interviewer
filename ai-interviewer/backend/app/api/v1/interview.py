@@ -153,6 +153,7 @@ from app.services.resume_parser import (
     ResumeParseError,
     extract_text,  # noqa: F401 - module-level monkeypatch hook for parser tests.
     extract_text_with_timeout,
+    normalise_resume_parsed_focus_areas,
     parse_resume,
 )
 from app.services.resume_parser import (
@@ -203,6 +204,7 @@ RESUME_PROJECT_ANCHORS_MAX_COUNT = 8
 RESUME_PROJECT_ANCHOR_MAX_LENGTH = 160
 RESUME_FOCUS_AREAS_MAX_COUNT = 20
 RESUME_FOCUS_LABEL_MAX_LENGTH = 160
+RESUME_FOCUS_ANCHOR_KEY_MAX_LENGTH = 160
 RESUME_CONCERNS_MAX_COUNT = 10
 ANSWER_TEXT_MAX_LENGTH = 8000
 SessionIdPath = Annotated[
@@ -221,6 +223,7 @@ SkillText = Annotated[str, Field(max_length=CANDIDATE_SKILL_MAX_LENGTH)]
 HighlightText = Annotated[str, Field(max_length=CANDIDATE_HIGHLIGHT_MAX_LENGTH)]
 QuestionAnchorText = Annotated[str, Field(max_length=RESUME_PROJECT_ANCHOR_MAX_LENGTH)]
 FocusLabelText = Annotated[str, Field(max_length=RESUME_FOCUS_LABEL_MAX_LENGTH)]
+FocusAnchorKeyText = Annotated[str, Field(max_length=RESUME_FOCUS_ANCHOR_KEY_MAX_LENGTH)]
 
 
 class LLMRoleOverride(BaseModel):
@@ -373,6 +376,7 @@ class ResumeProject(BaseModel):
 class ResumeFocusArea(BaseModel):
     model_config = ConfigDict(extra="forbid")
     id: str = Field(default="", max_length=40)
+    anchor_key: FocusAnchorKeyText = ""
     label: FocusLabelText = ""
     project_id: str | None = None
     dimensions: list[str] = Field(default_factory=list, max_length=20)
@@ -439,6 +443,7 @@ class StartSessionRequest(BaseModel):
     resume_source_id: str | None = Field(default=None, max_length=128)
     mode: str = "mixed"
     enable_video_analysis: bool = False
+    interview_depth: Literal["short", "standard", "deep"] = "standard"
     focus_dimensions: list[str] = Field(default_factory=list)
     max_turns: int | None = Field(default=None, ge=1, le=MAX_SESSION_TURNS)
     quality_threshold: float | None = Field(default=None, ge=0, le=10)
@@ -640,8 +645,12 @@ def _session_metadata_from_handle(session_id: str, handle: Any) -> dict[str, Any
 
 def _setup_snapshot_from_request(req: StartSessionRequest) -> dict[str, Any]:
     """Persist only setup fields needed to resume practice setup later."""
+    candidate = req.candidate.model_dump(exclude_none=True)
+    candidate["resume_parsed"] = normalise_resume_parsed_focus_areas(
+        candidate.get("resume_parsed") or {}
+    )
     return {
-        "candidate": req.candidate.model_dump(exclude_none=True),
+        "candidate": candidate,
         "job_spec": req.job_spec.model_dump(exclude_none=False),
     }
 

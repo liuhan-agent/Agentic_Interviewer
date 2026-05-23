@@ -7,15 +7,17 @@ evolve request shape without touching the graph.
 """
 from __future__ import annotations
 
-from datetime import UTC, datetime
 import uuid
+from datetime import UTC, datetime
 from typing import Any
 
 from app.core.request_context import current_traceparent_trace_id
 from app.core.settings import get_settings
 from app.engine.workflow.state import InterviewState, build_initial_state
+from app.services.resume_parser import normalise_resume_parsed_focus_areas
 
 _ALLOWED_MODES = {"tech", "behavioral", "mixed"}
+_ALLOWED_INTERVIEW_DEPTHS = {"short", "standard", "deep"}
 _MAX_TURNS_LIMIT = 20
 _MAX_TURN_BUDGET_LIMIT = 30
 _ALLOWED_RAG_MODES = {"vector", "hybrid"}
@@ -97,6 +99,12 @@ def _normalise_llm_temperature(value: Any) -> float | None:
     return max(_LLM_TEMPERATURE_MIN, min(_LLM_TEMPERATURE_MAX, candidate))
 
 
+def _normalise_interview_depth(value: Any) -> str:
+    if isinstance(value, str) and value in _ALLOWED_INTERVIEW_DEPTHS:
+        return value
+    return "standard"
+
+
 def _execution_config(req: dict[str, Any]) -> dict[str, Any]:
     """Top-level graph knobs that can change the loop control."""
     settings = get_settings()
@@ -144,6 +152,7 @@ def _runtime_config(req: dict[str, Any]) -> dict[str, Any]:
         ),
         "rag_mode": _normalise_rag_mode(req.get("rag_mode")),
         "llm_temperature": _normalise_llm_temperature(req.get("llm_temperature")),
+        "interview_depth": _normalise_interview_depth(req.get("interview_depth")),
         "mode": req.get("mode", "mixed"),
         "use_sync_provider": bool(req.get("use_sync_provider", False)),
     }
@@ -181,6 +190,16 @@ def _focus_dimensions(req: dict[str, Any], job_spec: dict[str, Any]) -> list[str
     return focus
 
 
+def _candidate_with_normalised_focus_areas(candidate: Any) -> dict[str, Any]:
+    if not isinstance(candidate, dict):
+        return {}
+    out = dict(candidate)
+    out["resume_parsed"] = normalise_resume_parsed_focus_areas(
+        out.get("resume_parsed") or {}
+    )
+    return out
+
+
 def translate_request(req: dict[str, Any]) -> tuple[str, str, InterviewState]:
     """Build ``(session_id, trace_id, initial_state)`` from a request dict.
 
@@ -200,7 +219,7 @@ def translate_request(req: dict[str, Any]) -> tuple[str, str, InterviewState]:
     mode = mode_aliased if mode_aliased in _ALLOWED_MODES else "mixed"
     if req.get("enable_video_analysis"):
         runtime["enable_video_analysis"] = True
-    candidate = req.get("candidate") or {}
+    candidate = _candidate_with_normalised_focus_areas(req.get("candidate") or {})
     job_spec = req.get("job_spec") or {}
     initial = build_initial_state(
         session_id=session_id,

@@ -106,17 +106,97 @@ def test_real_evaluation_still_updates_score_and_status(
     state = _state_with_dim("technical_depth", prev_score=6.0, prev_status="pending")
     update = evaluator_node_mod.evaluator_node(state)
 
-    # Running 70/30 average: 0.7 * 6.0 + 0.3 * 8.0 = 4.2 + 2.4 = 6.6
-    assert update["scores_per_dim"]["technical_depth"] == 6.6
-    assert update["score_breakdowns"]["technical_depth"] == {
-        "scored_turn_count": 2,
+    assert update["scores_per_dim"]["technical_depth"] == 8.0
+    breakdown = update["score_breakdowns"]["technical_depth"]
+    assert breakdown == {
+        "scored_turn_count": 1,
         "latest_score": 8.0,
         "best_score": 8.0,
-        "average_score": 7.0,
-        "adopted_score": 6.6,
-        "scoring_policy": "weighted_recent",
+        "average_score": 8.0,
+        "adopted_score": 8.0,
+        "scoring_policy": "anchor_weighted_recent",
+        "anchor_count": 1,
+        "anchor_average_score": 8.0,
+        "best_anchor_score": 8.0,
+        "anchor_breakdowns": [
+            {
+                "scored_turn_count": 1,
+                "latest_score": 8.0,
+                "best_score": 8.0,
+                "average_score": 8.0,
+                "adopted_score": 8.0,
+                "scoring_policy": "weighted_recent",
+                "anchor_key": "unanchored:technical_depth",
+                "anchor_label": "\u672a\u5173\u8054\u7b80\u5386\u951a\u70b9",
+                "resume_project_id": None,
+                "turn_indices": [0],
+            }
+        ],
     }
     assert update["dimension_status"]["technical_depth"] == "passed"
+
+
+def test_real_evaluation_rebuilds_score_from_qa_history(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    real = _fake_evaluation(fallback=False, score=8.0, passed=False)
+    monkeypatch.setattr(evaluator_node_mod, "evaluate_answer", lambda **_: real)
+
+    resume_anchor = {
+        "anchor_key": "focus-td",
+        "label": "Technical depth anchor",
+        "project_id": "proj-td",
+    }
+    state = _state_with_dim(
+        "technical_depth",
+        prev_score=5.0,
+        prev_status="passed",
+        score_breakdown={
+            "scored_turn_count": 99,
+            "latest_score": 5.0,
+            "best_score": 5.0,
+            "average_score": 5.0,
+            "adopted_score": 5.0,
+            "scoring_policy": "weighted_recent",
+        },
+    )
+    state["current_question"]["resume_anchor"] = resume_anchor
+    state["turn_idx"] = 4
+    state["formal_turn_idx"] = 4
+    state["qa_history"] = [
+        {
+            "turn_idx": idx,
+            "dimension": "technical_depth",
+            "resume_anchor": resume_anchor,
+            "evaluation": {"score": 9.0},
+            "answer_intent": "normal",
+        }
+        for idx in range(4)
+    ]
+
+    update = evaluator_node_mod.evaluator_node(state)
+
+    assert update["scores_per_dim"]["technical_depth"] == 8.7
+    breakdown = update["score_breakdowns"]["technical_depth"]
+    assert breakdown["scored_turn_count"] == 5
+    assert breakdown["latest_score"] == 8.0
+    assert breakdown["best_score"] == 9.0
+    assert breakdown["average_score"] == 8.7
+    assert breakdown["adopted_score"] == 8.7
+    assert breakdown["scoring_policy"] == "anchor_weighted_recent"
+    assert breakdown["anchor_count"] == 1
+    assert breakdown["anchor_breakdowns"][0] == {
+        "scored_turn_count": 5,
+        "latest_score": 8.0,
+        "best_score": 9.0,
+        "average_score": 8.8,
+        "adopted_score": 8.7,
+        "scoring_policy": "weighted_recent",
+        "anchor_key": "focus-td",
+        "anchor_label": "Technical depth anchor",
+        "resume_project_id": "proj-td",
+        "turn_indices": [0, 1, 2, 3, 4],
+    }
 
 
 def test_real_high_score_with_complete_checks_promotes_status_to_passed(
@@ -192,12 +272,29 @@ def test_real_zero_score_is_recorded_as_a_valid_dimension_score(
         "best_score": 0.0,
         "average_score": 0.0,
         "adopted_score": 0.0,
-        "scoring_policy": "weighted_recent",
+        "scoring_policy": "anchor_weighted_recent",
+        "anchor_count": 1,
+        "anchor_average_score": 0.0,
+        "best_anchor_score": 0.0,
+        "anchor_breakdowns": [
+            {
+                "scored_turn_count": 1,
+                "latest_score": 0.0,
+                "best_score": 0.0,
+                "average_score": 0.0,
+                "adopted_score": 0.0,
+                "scoring_policy": "weighted_recent",
+                "anchor_key": "unanchored:coding_quality",
+                "anchor_label": "\u672a\u5173\u8054\u7b80\u5386\u951a\u70b9",
+                "resume_project_id": None,
+                "turn_indices": [0],
+            }
+        ],
     }
     assert update["dimension_status"]["coding_quality"] == "active"
 
 
-def test_real_evaluation_updates_existing_score_breakdown(
+def test_real_evaluation_does_not_extend_legacy_breakdown_without_qa_history(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     real = _fake_evaluation(fallback=False, score=8.0, passed=False)
@@ -218,14 +315,21 @@ def test_real_evaluation_updates_existing_score_breakdown(
     )
     update = evaluator_node_mod.evaluator_node(state)
 
-    assert update["scores_per_dim"]["technical_depth"] == 8.7
-    assert update["score_breakdowns"]["technical_depth"] == {
-        "scored_turn_count": 5,
+    assert update["scores_per_dim"]["technical_depth"] == 8.0
+    breakdown = update["score_breakdowns"]["technical_depth"]
+    assert breakdown["scored_turn_count"] == 1
+    assert breakdown["anchor_count"] == 1
+    assert breakdown["anchor_breakdowns"][0] == {
+        "scored_turn_count": 1,
         "latest_score": 8.0,
-        "best_score": 9.0,
-        "average_score": 8.8,
-        "adopted_score": 8.7,
+        "best_score": 8.0,
+        "average_score": 8.0,
+        "adopted_score": 8.0,
         "scoring_policy": "weighted_recent",
+        "anchor_key": "unanchored:technical_depth",
+        "anchor_label": "\u672a\u5173\u8054\u7b80\u5386\u951a\u70b9",
+        "resume_project_id": None,
+        "turn_indices": [0],
     }
 
 

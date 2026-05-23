@@ -30,7 +30,9 @@ from app.ml.rl.thompson import (
     reset_bandit_for_tests,
 )
 from app.models import (
+    BanditPosterior,
     GenerationTrace,
+    InterviewTurn,
     OutcomeRecord,
     get_session,
     init_db,
@@ -41,12 +43,16 @@ from app.models import (
 def _fresh_db_and_bandit():
     init_db()
     with get_session() as sess:
+        sess.execute(delete(BanditPosterior))
         sess.execute(delete(GenerationTrace))
+        sess.execute(delete(InterviewTurn))
         sess.execute(delete(OutcomeRecord))
     reset_bandit_for_tests()
     yield
     with get_session() as sess:
+        sess.execute(delete(BanditPosterior))
         sess.execute(delete(GenerationTrace))
+        sess.execute(delete(InterviewTurn))
         sess.execute(delete(OutcomeRecord))
     reset_bandit_for_tests()
 

@@ -17,6 +17,7 @@ from .resume_anchor_cache import ResumeAnchorCacheChunk
 from .resume_parse_artifact import ResumeParseArtifact
 from .session_anchor import SessionAnchorChunk
 from .skill_playbook import SkillPlaybookCard
+from .strategy_learning import BanditPosterior, InterviewTurn
 from .strategy_memory import (
     StrategyMemory,
     StrategyMemoryStats,
@@ -50,6 +51,8 @@ __all__ = [
     "ResumeParseArtifact",
     "SessionAnchorChunk",
     "SkillPlaybookCard",
+    "BanditPosterior",
+    "InterviewTurn",
     "StrategyMemory",
     "StrategyMemoryStats",
     "StrategyMemoryUsage",

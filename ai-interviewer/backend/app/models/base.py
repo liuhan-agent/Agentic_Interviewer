@@ -136,6 +136,11 @@ _SQLITE_UPGRADES: dict[str, dict[str, str]] = {
     "strategy_memories": {
         "quality_reason": "VARCHAR(512)",
     },
+    "interview_turns": {
+        "resume_anchor_key": "VARCHAR(160)",
+        "resume_anchor_label": "VARCHAR(160)",
+        "resume_project_id": "VARCHAR(64)",
+    },
     "skill_playbook_cards": {
         "generator_moves": "JSON DEFAULT '[]'",
         "watch_for": "JSON DEFAULT '[]'",
@@ -183,6 +188,11 @@ _POSTGRES_UPGRADES: dict[str, dict[str, str]] = {
     },
     "strategy_memories": {
         "quality_reason": "VARCHAR(512)",
+    },
+    "interview_turns": {
+        "resume_anchor_key": "VARCHAR(160)",
+        "resume_anchor_label": "VARCHAR(160)",
+        "resume_project_id": "VARCHAR(64)",
     },
     "skill_playbook_cards": {
         "generator_moves": "JSONB DEFAULT '[]'::jsonb",
@@ -399,6 +409,7 @@ def init_db() -> None:
         resume_parse_artifact,
         session_anchor,
         skill_playbook,
+        strategy_learning,
         strategy_memory,
         verifier_drift,
     )

@@ -226,7 +226,7 @@ class ThompsonBandit:
             from sqlalchemy import or_, select
             from sqlalchemy.exc import SQLAlchemyError
 
-            from app.models import GenerationTrace, get_session
+            from app.models import BanditPosterior, GenerationTrace, get_session
         except Exception as e:  # pragma: no cover - defensive
             log.warning("bandit rehydrate skipped (imports failed: %s)", e)
             return 0
@@ -234,6 +234,31 @@ class ThompsonBandit:
         applied = 0
         try:
             with get_session() as sess:
+                posterior_rows = list(
+                    sess.execute(
+                        select(
+                            BanditPosterior.context_key,
+                            BanditPosterior.action_id,
+                            BanditPosterior.alpha,
+                            BanditPosterior.beta,
+                        ).order_by(BanditPosterior.id.asc())
+                    )
+                )
+                if posterior_rows:
+                    for ctx_key, action_id, alpha, beta in posterior_rows:
+                        if not ctx_key or not action_id:
+                            continue
+                        self.priors[(str(ctx_key), str(action_id))] = BetaParams(
+                            alpha=float(alpha),
+                            beta=float(beta),
+                        )
+                        applied += 1
+                    log.info(
+                        "bandit rehydrated from %d persisted posterior rows",
+                        applied,
+                    )
+                    return applied
+
                 # Pull both reward columns so we can fuse them in a
                 # single pass without issuing two queries.  The filter
                 # keeps rows where at least one of the two flags fired.
