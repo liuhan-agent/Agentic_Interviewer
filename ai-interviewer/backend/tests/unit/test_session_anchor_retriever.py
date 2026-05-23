@@ -276,6 +276,287 @@ def test_retrieve_candidate_anchors_uses_self_intro_terms_in_query(monkeypatch) 
     assert "seed_coupon" in captured["cache_key"]
 
 
+def test_retrieve_candidate_anchors_query_is_anchor_centric(monkeypatch) -> None:
+    captured: dict[str, Any] = {"texts": []}
+
+    def fake_embed_query(text: str, **kwargs: Any) -> list[float]:
+        captured["texts"].append(text)
+        captured["cache_key"] = kwargs.get("cache_key")
+        return _vec(0.0, 1.0) if "Checkout Recovery" in text else _vec(1.0)
+
+    monkeypatch.setattr(
+        "app.services.session_anchor_retriever.embed_query",
+        fake_embed_query,
+    )
+    session_local = _db()
+    with session_local() as db_session:
+        _add_chunk(db_session)
+
+        result = retrieve_candidate_anchors(
+            session_id="sess_a",
+            resume_revision_id="rev_1",
+            self_intro_revision_id=None,
+            dimension="system_design",
+            seed={"id": "seed_tradeoff", "scenario_brief": "generic tradeoff"},
+            target_skills=["Java"],
+            rule_anchor={
+                "anchor_key": "focus-payment-consistency",
+                "label": "Coupon deduction consistency",
+                "project_name": "Coupon Guard",
+                "skills": ["Redis", "Lua"],
+                "tech_stack": ["Spring Boot"],
+                "question_anchors": ["rollback safety", "hot key protection"],
+                "dimensions": ["system_design", "technical_depth"],
+            },
+            self_intro_profile={
+                "emphasized_projects": ["Checkout Recovery"],
+                "emphasized_skills": ["compensation"],
+                "preferred_focus": ["candidate priority"],
+            },
+            db_session=db_session,
+        )
+
+    artifact = result.as_artifact(mode="primary")
+    assert len(captured["texts"]) == 2
+    anchor_text, boost_text = captured["texts"]
+    assert anchor_text.startswith("Coupon deduction consistency Coupon Guard")
+    assert "Redis Lua Spring Boot" in anchor_text
+    assert "rollback safety" in anchor_text
+    assert "technical_depth" in anchor_text
+    assert "payment consistency" in anchor_text
+    assert "Checkout Recovery" not in anchor_text
+    assert boost_text.startswith("Coupon deduction consistency Coupon Guard")
+    assert "Checkout Recovery" in boost_text
+    assert "generic tradeoff" not in boost_text
+    assert artifact["anchor_query_text"] == anchor_text
+    assert artifact["boost_query_text"] == boost_text
+    assert artifact["constraint_query_text"] == "system_design Java generic tradeoff"
+    assert artifact["anchor_terms"][:2] == [
+        "Coupon deduction consistency",
+        "Coupon Guard",
+    ]
+    assert "payment consistency" in artifact["anchor_terms"]
+    assert artifact["boost_terms"] == [
+        "Checkout Recovery",
+        "compensation",
+        "candidate priority",
+    ]
+    assert artifact["constraint_terms"] == [
+        "system_design",
+        "Java",
+        "generic tradeoff",
+    ]
+    assert artifact["query_terms"] == (
+        artifact["anchor_terms"]
+        + artifact["boost_terms"]
+        + artifact["constraint_terms"]
+    )
+    assert artifact["query_text"] == " ".join(artifact["query_terms"])
+
+
+def test_retrieve_candidate_anchors_merges_queries_and_reranks_with_constraints(
+    monkeypatch,
+) -> None:
+    captured_texts: list[str] = []
+
+    def fake_embed_query(text: str, **_kwargs: Any) -> list[float]:
+        captured_texts.append(text)
+        return _vec(0.0, 1.0) if "Checkout Recovery" in text else _vec(1.0)
+
+    monkeypatch.setattr(
+        "app.services.session_anchor_retriever.embed_query",
+        fake_embed_query,
+    )
+    session_local = _db()
+    with session_local() as db_session:
+        _add_chunk(
+            db_session,
+            chunk_index=0,
+            heading="Anchor exact",
+            text="Coupon consistency architecture overview.",
+            tech_keywords=[],
+            dimensions_hint=[],
+            embedding=_vec(1.0, 0.0),
+        )
+        _add_chunk(
+            db_session,
+            chunk_index=1,
+            heading="Boost exact",
+            text="Checkout Recovery compensation work.",
+            tech_keywords=[],
+            dimensions_hint=[],
+            embedding=_vec(0.0, 1.0),
+        )
+        _add_chunk(
+            db_session,
+            chunk_index=2,
+            heading="Constraint rich",
+            text="Redis Lua rollback safety in system design.",
+            tech_keywords=["Redis", "Lua"],
+            dimensions_hint=["system_design"],
+            embedding=_vec(0.8, 0.6),
+        )
+
+        result = retrieve_candidate_anchors(
+            session_id="sess_a",
+            resume_revision_id="rev_1",
+            self_intro_revision_id=None,
+            dimension="system_design",
+            seed={"scenario_brief": "rollback safety"},
+            target_skills=["Redis", "Lua"],
+            rule_anchor={
+                "label": "Coupon deduction consistency",
+                "project_name": "Coupon Guard",
+            },
+            self_intro_profile={
+                "emphasized_projects": ["Checkout Recovery"],
+            },
+            db_session=db_session,
+        )
+
+    artifact = result.as_artifact(mode="primary")
+    assert len(captured_texts) == 2
+    assert artifact["ranking_weights"] == {
+        "anchor": 0.7,
+        "boost": 0.2,
+        "constraint": 0.1,
+    }
+    resume_hits = [hit for hit in artifact["hits"] if hit["source_type"] == "resume"]
+    assert [hit["heading"] for hit in resume_hits[:2]] == [
+        "Constraint rich",
+        "Anchor exact",
+    ]
+    rich = resume_hits[0]
+    assert rich["anchor_score"] > 0
+    assert rich["boost_score"] > 0
+    assert rich["constraint_match"] == 1.0
+    assert rich["matched_target_skills"] == ["redis", "lua"]
+    assert rich["matched_dimensions"] == ["system_design"]
+    assert rich["matched_seed_terms"] == ["rollback", "safety"]
+    assert rich["final_score"] == rich["score"]
+    assert rich["raw_score"] == max(rich["anchor_score"], rich["boost_score"])
+
+
+def test_retrieve_candidate_anchors_skips_boost_embedding_without_boost_terms(
+    monkeypatch,
+) -> None:
+    captured_texts: list[str] = []
+
+    def fake_embed_query(text: str, **_kwargs: Any) -> list[float]:
+        captured_texts.append(text)
+        return _vec(1.0)
+
+    monkeypatch.setattr(
+        "app.services.session_anchor_retriever.embed_query",
+        fake_embed_query,
+    )
+    session_local = _db()
+    with session_local() as db_session:
+        _add_chunk(db_session)
+
+        result = retrieve_candidate_anchors(
+            session_id="sess_a",
+            resume_revision_id="rev_1",
+            self_intro_revision_id=None,
+            dimension="system_design",
+            seed=None,
+            target_skills=[],
+            rule_anchor={
+                "label": "Coupon deduction consistency",
+                "project_name": "Coupon Guard",
+            },
+            self_intro_profile={},
+            db_session=db_session,
+        )
+
+    artifact = result.as_artifact(mode="primary")
+    assert captured_texts == ["Coupon deduction consistency Coupon Guard"]
+    assert artifact["boost_query_text"] == ""
+    assert artifact["boost_fallback_reason"] is None
+
+
+def test_retrieve_candidate_anchors_boost_timeout_keeps_anchor_hits(
+    monkeypatch,
+) -> None:
+    captured_texts: list[str] = []
+
+    def fake_embed_query(text: str, **_kwargs: Any) -> list[float] | None:
+        captured_texts.append(text)
+        if "Checkout Recovery" in text:
+            return None
+        return _vec(1.0)
+
+    monkeypatch.setattr(
+        "app.services.session_anchor_retriever.embed_query",
+        fake_embed_query,
+    )
+    session_local = _db()
+    with session_local() as db_session:
+        _add_chunk(db_session, text="Redis Lua coupon guard anchor row.")
+
+        result = retrieve_candidate_anchors(
+            session_id="sess_a",
+            resume_revision_id="rev_1",
+            self_intro_revision_id=None,
+            dimension="system_design",
+            seed=None,
+            target_skills=[],
+            rule_anchor={
+                "label": "Coupon deduction consistency",
+                "project_name": "Coupon Guard",
+            },
+            self_intro_profile={
+                "emphasized_projects": ["Checkout Recovery"],
+            },
+            db_session=db_session,
+        )
+
+    artifact = result.as_artifact(mode="primary")
+    assert len(captured_texts) == 2
+    assert result.fallback_reason is None
+    assert "Redis Lua coupon guard" in result.resume_block
+    assert artifact["boost_fallback_reason"] == "timeout"
+
+
+def test_retrieve_candidate_anchors_ignores_hash_anchor_key_in_query(
+    monkeypatch,
+) -> None:
+    captured: dict[str, Any] = {}
+
+    def fake_embed_query(text: str, **_kwargs: Any) -> list[float]:
+        captured["text"] = text
+        return _vec(1.0)
+
+    monkeypatch.setattr(
+        "app.services.session_anchor_retriever.embed_query",
+        fake_embed_query,
+    )
+    session_local = _db()
+    with session_local() as db_session:
+        _add_chunk(db_session)
+
+        result = retrieve_candidate_anchors(
+            session_id="sess_a",
+            resume_revision_id="rev_1",
+            self_intro_revision_id=None,
+            dimension="system_design",
+            seed=None,
+            target_skills=[],
+            rule_anchor={
+                "anchor_key": "focus-proj-coupon-a1b2c3d4e5f6",
+                "label": "Coupon deduction consistency",
+                "project_name": "Coupon Guard",
+            },
+            self_intro_profile={},
+            db_session=db_session,
+        )
+
+    artifact = result.as_artifact(mode="primary")
+    assert "a1b2c3d4e5f6" not in captured["text"]
+    assert "proj coupon" not in captured["text"]
+    assert "a1b2c3d4e5f6" not in " ".join(artifact["anchor_terms"])
+
+
 def test_retrieve_candidate_anchors_returns_timeout_fallback(monkeypatch) -> None:
     monkeypatch.setattr(
         "app.services.session_anchor_retriever.embed_query",

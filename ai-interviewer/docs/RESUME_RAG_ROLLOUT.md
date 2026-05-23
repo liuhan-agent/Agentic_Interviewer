@@ -12,25 +12,28 @@ ships behind `RESUME_RAG_MODE`.
 | `shadow` | Retrieve anchors and write artifacts/metrics. | Generator still uses the rule-based resume anchor path. |
 | `primary` | Retrieve anchors and write artifacts/metrics. | Generator receives the resume and self-intro anchor slots. |
 
-Default rollout state is `RESUME_RAG_MODE=shadow`. Emergency rollback is
+Default rollout state is `RESUME_RAG_MODE=primary`, using the selected
+`resume_anchor` as the main semantic query for resume/self-intro RAG. For
+observability-only fallback, set `RESUME_RAG_MODE=shadow`. Emergency rollback is
 `RESUME_RAG_MODE=off`.
 
 ## Sampling Ramp
 
-Use `resume_rag_session_sample_rate` to ramp shadow traffic before promoting any
-mode:
+Use `resume_rag_session_sample_rate` to ramp primary traffic or to validate a
+shadow fallback before promoting any mode:
 
 | Stage | Value | Hold time | Check |
 | --- | --- | --- | --- |
 | Smoke | `0.05` | 1 day or 20 sessions | No errors, p99 retrieval latency acceptable. |
 | Partial | `0.3` | 2-3 days | Hit-rate and fallback reasons are stable. |
-| Full shadow | `1.0` | 7 days | Promotion gates can be evaluated per mode. |
+| Full primary/shadow | `1.0` | 7 days | Promotion gates can be evaluated per mode. |
 
-The sampler is session-stable, so a session stays either in or out of shadow.
+The sampler is session-stable, so a session stays either in or out of RAG
+retrieval.
 
 ## Shadow Metrics
 
-Verify shadow data in the Admin "Candidate Anchor RAG" card and through:
+Verify RAG data in the Admin "Candidate Anchor RAG" card and through:
 
 - `GET /admin/session-anchors/summary`
 - `GET /admin/session-anchors/metrics`
@@ -104,8 +107,8 @@ the rule-only baseline.
 python -m app.scripts.cleanup_session_anchor_chunks
 ```
 
-If a promoted mode later exceeds the duplicate-rewrite baseline, demote that
-mode back to shadow without forcing a full `off` rollback.
+If primary later exceeds the duplicate-rewrite baseline, demote back to
+`RESUME_RAG_MODE=shadow` without forcing a full `off` rollback.
 
 ## Cleanup And Privacy
 
@@ -143,7 +146,7 @@ supports it.
 
 Before declaring rollout ready:
 
-1. Start the backend with `RESUME_RAG_MODE=shadow`.
+1. Start the backend with `RESUME_RAG_MODE=primary`.
 2. Upload a resume, create a session, complete self-introduction, and run one
    formal `ask_question` turn.
 3. Open Admin and confirm total chunks > 0, hit-rate rows exist, fallback reasons

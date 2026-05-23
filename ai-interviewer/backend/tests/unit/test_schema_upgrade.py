@@ -92,6 +92,42 @@ def _create_legacy_generation_traces(engine) -> None:
         )
 
 
+def _create_legacy_interview_turns(engine) -> None:
+    with engine.begin() as conn:
+        conn.execute(
+            text(
+                """
+                CREATE TABLE interview_turns (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    session_id VARCHAR(64),
+                    turn_idx INTEGER,
+                    trace_id VARCHAR(64),
+                    dimension VARCHAR(64),
+                    job_level VARCHAR(32),
+                    question TEXT,
+                    answer TEXT,
+                    selected_action VARCHAR(64),
+                    policy_context_keys JSON,
+                    selection_artifacts JSON,
+                    evaluation JSON,
+                    failure_categories JSON,
+                    score FLOAT,
+                    passed BOOLEAN,
+                    verification JSON,
+                    verifier_triggered BOOLEAN DEFAULT 0,
+                    verifier_forced_refine BOOLEAN DEFAULT 0,
+                    verifier_abstained BOOLEAN DEFAULT 0,
+                    verifier_verdict VARCHAR(32),
+                    immediate_reward FLOAT,
+                    delayed_reward FLOAT,
+                    created_at DATETIME,
+                    updated_at DATETIME
+                )
+                """
+            )
+        )
+
+
 def test_upgrade_adds_langsmith_run_id_on_sqlite(tmp_path) -> None:
     eng = _sqlite_engine(tmp_path)
     _create_legacy_generation_traces(eng)
@@ -115,6 +151,23 @@ def test_upgrade_adds_langsmith_run_id_on_sqlite(tmp_path) -> None:
         "enable_video_analysis",
         "setup_snapshot",
     } <= sess_cols
+
+
+def test_upgrade_adds_resume_anchor_columns_on_sqlite(tmp_path) -> None:
+    eng = _sqlite_engine(tmp_path)
+    _create_legacy_interview_turns(eng)
+
+    pre_cols = {c["name"] for c in inspect(eng).get_columns("interview_turns")}
+    assert "resume_anchor_key" not in pre_cols
+
+    base_mod._upgrade_schema(eng)
+
+    post_cols = {c["name"] for c in inspect(eng).get_columns("interview_turns")}
+    assert {
+        "resume_anchor_key",
+        "resume_anchor_label",
+        "resume_project_id",
+    } <= post_cols
 
 
 def test_upgrade_is_idempotent_on_sqlite(tmp_path) -> None:
@@ -261,9 +314,11 @@ def test_postgres_upgrade_converts_legacy_answer_varchar_to_text(
 
     class _FakeInspector:
         def get_table_names(self) -> list[str]:
-            return ["generation_traces"]
+            return ["generation_traces", "interview_turns"]
 
         def get_columns(self, table: str) -> list[dict[str, Any]]:
+            if table == "interview_turns":
+                return [{"name": "id"}, {"name": "session_id"}]
             return [
                 {"name": "id"},
                 {"name": "answer", "type": String(8192)},
@@ -295,5 +350,10 @@ def test_postgres_upgrade_converts_legacy_answer_varchar_to_text(
 
     assert any(
         "ALTER TABLE generation_traces ALTER COLUMN answer TYPE TEXT" in stmt
+        for stmt in executed
+    )
+    assert any(
+        "ALTER TABLE interview_turns ADD COLUMN IF NOT EXISTS resume_anchor_key VARCHAR(160)"
+        in stmt
         for stmt in executed
     )

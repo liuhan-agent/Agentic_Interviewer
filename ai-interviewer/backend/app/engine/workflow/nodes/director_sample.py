@@ -27,6 +27,7 @@ from typing import Any
 from app.core.logging import get_logger
 from app.core.settings import get_settings
 from app.core.tracer import get_tracer
+from app.engine.resume_plan import select_resume_anchor_with_schedule
 from app.engine.workflow.difficulty_adapter import compute_target_difficulty
 from app.engine.workflow.policy_context import policy_context_keys
 from app.engine.workflow.routers import should_advance_for_coverage
@@ -51,6 +52,12 @@ from app.ml.rl.action_space import (
 from app.ml.rl.thompson import get_bandit
 
 log = get_logger(__name__)
+
+
+def _all_dims_done(state: InterviewState) -> bool:
+    status = state.get("dimension_status", {}) or {}
+    dims = state.get("dimensions", []) or []
+    return bool(dims) and all(status.get(dim) == "passed" for dim in dims)
 
 
 def _pick_next_dimension(state: InterviewState) -> str:
@@ -259,11 +266,47 @@ def _coverage_priority_target(
     return None, unscored
 
 
+def _anchor_expansion_target(
+    state: InterviewState,
+) -> tuple[str | None, dict[str, Any] | None]:
+    if not _all_dims_done(state):
+        return None, None
+    rc = state.get("runtime_config") or {}
+    depth = str(rc.get("interview_depth") or "standard")
+    if depth not in {"standard", "deep"}:
+        return None, None
+    selection = select_resume_anchor_with_schedule(
+        candidate=state.get("candidate", {}) or {},
+        job_spec=state.get("job_spec", {}) or {},
+        dimension="",
+        qa_history=list(state.get("qa_history") or []),
+        turn_idx=int(state.get("formal_turn_idx", state.get("turn_idx", 0)) or 0),
+        self_intro_profile=state.get("self_intro_profile") or {},
+        interview_depth=depth,
+        focus_dimensions=list(state.get("focus_dimensions") or []),
+    )
+    anchor = selection.get("resume_anchor")
+    scheduler = selection.get("scheduler")
+    if not isinstance(anchor, dict) or not (scheduler or {}).get("available"):
+        return None, None
+    dims = [dim for dim in anchor.get("dimensions") or [] if isinstance(dim, str)]
+    allowed_dims = list(state.get("dimensions") or [])
+    target = next((dim for dim in dims if dim in allowed_dims), None)
+    if target is None:
+        target = dims[0] if dims else state.get("current_dimension")
+    if not target:
+        return None, None
+    return str(target), selection
+
+
 def director_sample_node(state: InterviewState) -> dict[str, Any]:
     turn_idx = state.get("turn_idx", 0)
     job_spec = state.get("job_spec", {})
 
     current_dim = state.get("current_dimension") or _pick_next_dimension(state)
+    anchor_target, anchor_selection = _anchor_expansion_target(state)
+    if anchor_target:
+        current_dim = anchor_target
     refine_locked = bool(state.get("refine_mode"))
 
     mode, allowed = _resolve_mode_and_actions(
@@ -304,6 +347,17 @@ def director_sample_node(state: InterviewState) -> dict[str, Any]:
         }
     else:
         action, diagnostics = bandit.select(context_key, mask=allowed)
+        if anchor_target and anchor_selection:
+            anchor = anchor_selection.get("resume_anchor") or {}
+            scheduler = anchor_selection.get("scheduler") or {}
+            diagnostics = {
+                **diagnostics,
+                "mode": "anchor_expansion",
+                "target_dimension": anchor_target,
+                "target_anchor_key": anchor.get("anchor_key"),
+                "anchor_attempt": scheduler.get("anchor_attempt"),
+                "max_anchor_attempts": scheduler.get("max_anchor_attempts"),
+            }
 
     # ``pending_plan_template`` is a direct evaluator hint. It wins
     # over the bandit's template mapping for the *upcoming* ask round
@@ -319,6 +373,9 @@ def director_sample_node(state: InterviewState) -> dict[str, Any]:
         current_dim,
         forced_target=coverage_target,
     )
+    if anchor_target and not coverage_target:
+        new_current_dim = anchor_target
+        new_status = dict(state.get("dimension_status", {}) or {})
     # If the dimension rotated, update dimension_status for the new
     # active dimension too.
     if new_current_dim != current_dim:
@@ -394,7 +451,6 @@ def apply_action_side_effects(state: InterviewState) -> dict[str, Any]:
         return {}
     if action.dimension_effect != "switch":
         return {}
-    dims = state.get("dimensions", []) or []
     status = dict(state.get("dimension_status", {}) or {})
     current = state.get("current_dimension")
     if current and status.get(current) == "active":

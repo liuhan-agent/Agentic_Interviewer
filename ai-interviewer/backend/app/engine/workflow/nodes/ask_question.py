@@ -34,7 +34,7 @@ from app.engine.agents.contract import negotiate_contract_via_evaluator
 from app.engine.agents.generator import generate_question
 from app.engine.agents.security import check_question
 from app.engine.rag.retriever import retrieve_for_question
-from app.engine.resume_plan import select_resume_anchor
+from app.engine.resume_plan import select_resume_anchor_with_schedule
 from app.engine.workflow.difficulty_adapter import difficulty_to_bar_level
 from app.engine.workflow.plans import build_llm_ask_plan, resolve_ask_plan
 from app.engine.workflow.policy_context import policy_context_keys
@@ -424,6 +424,14 @@ def _build_selection_artifacts(ctx: dict[str, Any]) -> dict[str, Any]:
         ),
         "candidate_anchor_rag": ctx.get("candidate_anchor_rag_artifact")
         or {"status": "off"},
+        "anchor_scheduler": ctx.get("anchor_scheduler")
+        or {
+            "available": False,
+            "anchor_key": None,
+            "anchor_attempt": 0,
+            "max_anchor_attempts": 0,
+            "expansion_reason": "none",
+        },
     }
     if ctx.get("question_fit_profile_artifact") is not None:
         artifacts["question_fit_profile"] = ctx["question_fit_profile_artifact"]
@@ -1090,6 +1098,82 @@ def _has_coverage_pressure(
     )
 
 
+_TECH_SECOND_PASS_PROBES = (
+    "debugging_probe",
+    "performance_probe",
+    "metric_probe",
+    "architecture_challenge",
+)
+_BUSINESS_SECOND_PASS_PROBES = (
+    "case_study_probe",
+    "stakeholder_pushback_probe",
+    "process_design_probe",
+)
+_BUSINESS_DIMENSIONS = {
+    "communication",
+    "customer_discovery",
+    "objection_handling",
+    "negotiation",
+    "pipeline_management",
+    "stakeholder_management",
+    "customer_empathy",
+    "service_orientation",
+}
+
+
+def _anchor_key_of_turn(turn: dict[str, Any]) -> str:
+    anchor = turn.get("resume_anchor")
+    if not isinstance(anchor, dict):
+        return ""
+    return str(anchor.get("anchor_key") or anchor.get("focus_id") or "").strip()
+
+
+def _used_probe_intents_for_anchor(
+    qa_history: list[dict[str, Any]],
+    anchor_key: str,
+) -> set[str]:
+    used: set[str] = set()
+    if not anchor_key:
+        return used
+    for turn in qa_history:
+        if _anchor_key_of_turn(turn) != anchor_key:
+            continue
+        probe = turn.get("probe_intent")
+        if not probe and isinstance(turn.get("current_question"), dict):
+            probe = turn["current_question"].get("probe_intent")
+        if probe:
+            used.add(str(probe))
+    return used
+
+
+def _rotate_second_pass_probe_intent(
+    *,
+    probe_intent: str | None,
+    dimension: str,
+    scheduler: dict[str, Any] | None,
+    qa_history: list[dict[str, Any]],
+) -> str | None:
+    scheduler = scheduler or {}
+    try:
+        anchor_attempt = int(scheduler.get("anchor_attempt") or 0)
+    except (TypeError, ValueError):
+        anchor_attempt = 0
+    if anchor_attempt <= 1:
+        return probe_intent
+
+    anchor_key = str(scheduler.get("anchor_key") or "").strip()
+    used = _used_probe_intents_for_anchor(qa_history, anchor_key)
+    candidates = (
+        _BUSINESS_SECOND_PASS_PROBES
+        if dimension in _BUSINESS_DIMENSIONS
+        else _TECH_SECOND_PASS_PROBES
+    )
+    for candidate in candidates:
+        if candidate != probe_intent and candidate not in used:
+            return candidate
+    return probe_intent
+
+
 def _normalise_question_text(value: Any) -> str:
     return " ".join(str(value or "").strip().lower().split())
 
@@ -1376,17 +1460,21 @@ def ask_question_node(state: InterviewState) -> dict[str, Any]:
         turn_budget_remaining=state.get("turn_budget_remaining"),
         uncovered_dimensions=uncovered,
     )
+    anchor_selection = select_resume_anchor_with_schedule(
+        candidate=state.get("candidate", {}),
+        job_spec=state.get("job_spec", {}),
+        dimension=dimension,
+        qa_history=state.get("qa_history", []),
+        turn_idx=state.get("formal_turn_idx", state.get("turn_idx", 0)),
+        self_intro_profile=state.get("self_intro_profile") or {},
+        interview_depth=str(runtime_config.get("interview_depth") or "standard"),
+        focus_dimensions=list(state.get("focus_dimensions") or []),
+    )
     ctx: dict[str, Any] = {
         "dimension": dimension,
         "qa_history": state.get("qa_history", []),
-        "resume_anchor": select_resume_anchor(
-            candidate=state.get("candidate", {}),
-            job_spec=state.get("job_spec", {}),
-            dimension=dimension,
-            qa_history=state.get("qa_history", []),
-            turn_idx=state.get("formal_turn_idx", state.get("turn_idx", 0)),
-            self_intro_profile=state.get("self_intro_profile") or {},
-        ),
+        "resume_anchor": anchor_selection.get("resume_anchor"),
+        "anchor_scheduler": anchor_selection.get("scheduler") or {},
         "retrieval_block": "",
         "strategy_block": "(no relevant strategy memories)",
         "skill_block": "(no relevant interview skills)",
@@ -1420,6 +1508,12 @@ def ask_question_node(state: InterviewState) -> dict[str, Any]:
             turn_budget_remaining=state.get("turn_budget_remaining"),
             uncovered_dimensions=uncovered,
         ),
+    )
+    probe_intent = _rotate_second_pass_probe_intent(
+        probe_intent=probe_intent,
+        dimension=dimension,
+        scheduler=ctx.get("anchor_scheduler"),
+        qa_history=state.get("qa_history", []),
     )
     ctx["probe_intent"] = probe_intent
 

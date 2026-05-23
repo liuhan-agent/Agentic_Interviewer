@@ -1255,8 +1255,15 @@ function SystemOverview({
           health.data.llm_provider ?? "llm"
         }${health.data.stub_mode === "True" ? " stub" : ""}`
       : "等待健康检查";
-  const armCount =
-    bandit.phase === "ready" ? Object.keys(bandit.data.priors || {}).length : null;
+  const memoryPriorCount =
+    bandit.phase === "ready"
+      ? (bandit.data.memory_prior_count ??
+        Object.keys(bandit.data.priors || {}).length)
+      : null;
+  const persistedPriorCount =
+    bandit.phase === "ready"
+      ? (bandit.data.persisted_prior_count ?? memoryPriorCount)
+      : null;
   const driftLabel =
     drift.phase === "ready"
       ? drift.data.enabled
@@ -1278,7 +1285,7 @@ function SystemOverview({
       ? "error"
       : bandit.phase === "loading"
         ? "loading"
-        : armCount && armCount > 0
+        : persistedPriorCount && persistedPriorCount > 0
           ? "ok"
           : "idle";
   const driftTone =
@@ -1339,8 +1346,12 @@ function SystemOverview({
           />
           <OverviewStatusLight
             label="策略学习"
-            value={armCount === null ? phaseLabel(bandit) : `${armCount} 个臂`}
-            hint="Thompson 策略后验"
+            value={
+              persistedPriorCount === null
+                ? phaseLabel(bandit)
+                : `${persistedPriorCount} 个策略状态`
+            }
+            hint="来自 bandit_posteriors；Director 运行时仍读内存后验"
             tone={banditTone}
           />
           <OverviewStatusLight
@@ -1578,7 +1589,8 @@ function BanditCard({ state }: { state: Loadable<BanditSnapshot> }) {
           </div>
           {state.phase === "ready" && (
             <Badge variant="outline" className="font-mono text-[10px]">
-              {Object.keys(state.data.priors || {}).length} 个臂
+              {state.data.persisted_prior_count ??
+                Object.keys(state.data.priors || {}).length} 个策略状态
             </Badge>
           )}
         </div>
@@ -1639,7 +1651,7 @@ function BanditTable({
   if (rows.length === 0) {
     return (
       <p className="text-xs text-muted-foreground">
-        暂无后验数据，这不是错误。跑完一场面试后会出现 context::arm 策略学习数据。
+        暂无后验数据，这不是错误。跑完一场面试后会出现 context::action 策略状态数据。
       </p>
     );
   }
@@ -1649,7 +1661,7 @@ function BanditTable({
       <table className="w-full text-xs">
         <thead className="bg-secondary/50 text-[10px] uppercase tracking-wider text-muted-foreground">
           <tr>
-            <th className="px-3 py-2 text-left">context::arm</th>
+            <th className="px-3 py-2 text-left">context::action</th>
             <th className="px-3 py-2 text-right">α</th>
             <th className="px-3 py-2 text-right">β</th>
             <th className="px-3 py-2 text-right">均值</th>

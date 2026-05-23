@@ -17,7 +17,7 @@ from sqlalchemy import delete
 
 from app.ml.rl.action_space import DEEPEN_TECHNICAL, SWITCH_DIMENSION
 from app.ml.rl.thompson import ThompsonBandit
-from app.models import GenerationTrace, get_session, init_db
+from app.models import BanditPosterior, GenerationTrace, get_session, init_db
 
 
 @pytest.fixture(autouse=True)
@@ -25,9 +25,11 @@ def _ensure_schema():
     init_db()
     with get_session() as sess:
         sess.execute(delete(GenerationTrace))
+        sess.execute(delete(BanditPosterior))
     yield
     with get_session() as sess:
         sess.execute(delete(GenerationTrace))
+        sess.execute(delete(BanditPosterior))
 
 
 def _insert_applied_trace(
@@ -139,3 +141,32 @@ def test_rehydrate_replays_all_policy_context_keys():
 
     assert bandit._params(direction_ctx, DEEPEN_TECHNICAL.id).alpha == pytest.approx(2.0)
     assert bandit._params(global_ctx, DEEPEN_TECHNICAL.id).alpha == pytest.approx(2.0)
+
+
+def test_rehydrate_prefers_persisted_bandit_posteriors_over_trace_replay():
+    """The aggregate table is the primary restart source once present."""
+    ctx = "senior:technical_depth"
+    with get_session() as sess:
+        sess.add(
+            BanditPosterior(
+                context_key=ctx,
+                action_id=DEEPEN_TECHNICAL.id,
+                alpha=9.0,
+                beta=3.0,
+                observation_count=10,
+                immediate_update_count=10,
+                delayed_update_count=0,
+                last_reward=0.8,
+                last_session_id="sess-posterior",
+                last_turn_idx=2,
+            )
+        )
+    _insert_applied_trace("sess-trace-fallback", 0, ctx, DEEPEN_TECHNICAL.id, 1.0)
+
+    bandit = ThompsonBandit(exploration_rate=0.0, rng=random.Random(0))
+    count = bandit.rehydrate_from_db()
+
+    assert count == 1
+    params = bandit._params(ctx, DEEPEN_TECHNICAL.id)
+    assert params.alpha == pytest.approx(9.0)
+    assert params.beta == pytest.approx(3.0)
