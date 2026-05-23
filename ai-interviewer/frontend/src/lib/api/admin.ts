@@ -130,7 +130,25 @@ export interface InterviewSessionHistoryItem {
 
 export interface InterviewSessionHistory {
   count: number;
+  total_count?: number;
+  limit?: number;
+  offset?: number;
+  filters?: {
+    status?: string | null;
+    trace_health?: TraceHealth | null;
+    has_report?: boolean | null;
+    q?: string | null;
+    since?: string | null;
+  };
   sessions: InterviewSessionHistoryItem[];
+}
+
+export interface InterviewSessionHistoryFilters {
+  status?: string;
+  traceHealth?: string;
+  hasReport?: boolean;
+  since?: string;
+  query?: string;
 }
 
 export interface TraceExplorerNode {
@@ -578,8 +596,27 @@ export function getAdminSessions(
 
 export function getInterviewSessionsHistory(
   signal?: AbortSignal,
+  options?: {
+    offset?: number;
+    limit?: number;
+    filters?: InterviewSessionHistoryFilters;
+  },
 ): Promise<InterviewSessionHistory> {
-  return adminGet<InterviewSessionHistory>("/admin/interview-sessions", signal);
+  const params = new URLSearchParams();
+  if (options?.offset) params.set("offset", String(options.offset));
+  if (options?.limit) params.set("limit", String(options.limit));
+  if (options?.filters?.status) params.set("status", options.filters.status);
+  if (options?.filters?.traceHealth)
+    params.set("trace_health", options.filters.traceHealth);
+  if (typeof options?.filters?.hasReport === "boolean")
+    params.set("has_report", String(options.filters.hasReport));
+  if (options?.filters?.since) params.set("since", options.filters.since);
+  if (options?.filters?.query) params.set("q", options.filters.query);
+  const qs = params.toString();
+  return adminGet<InterviewSessionHistory>(
+    `/admin/interview-sessions${qs ? `?${qs}` : ""}`,
+    signal,
+  );
 }
 
 export function getTraceExplorer(
@@ -1190,6 +1227,51 @@ export interface SessionAnchorRagMetrics {
   by_status?: Record<string, number>;
 }
 
+export interface SessionAnchorSessionRow {
+  session_id: string;
+  candidate_name?: string | null;
+  job_title?: string | null;
+  session_status: string;
+  created_at?: string | null;
+  updated_at?: string | null;
+  completed_at?: string | null;
+  has_resume_chunks: boolean;
+  has_self_intro_chunks: boolean;
+  total_chunks: number;
+  chunks_by_source: Record<string, number>;
+  chunker_modes: string[];
+  embedding_model_versions: string[];
+  retrieval_attempts: number;
+  hit_count: number;
+  hit_rate: number;
+  source_hit_counts: Record<string, number>;
+  avg_hits_per_attempt: number;
+  fallback_count: number;
+  fallback_reasons: Record<string, number>;
+  latency_ms: {
+    p50?: number | null;
+    p95?: number | null;
+    p99?: number | null;
+  };
+  rag_status_distribution: Record<string, number>;
+  last_trace_at?: string | null;
+}
+
+export interface SessionAnchorSessionsResponse {
+  window: string;
+  window_hours: number;
+  session_count: number;
+  summary: {
+    indexed_sessions: number;
+    indexed_session_rate: number;
+    hit_sessions: number;
+    hit_session_rate: number;
+    fallback_sessions: number;
+    fallback_session_rate: number;
+  };
+  sessions: SessionAnchorSessionRow[];
+}
+
 export interface DeleteSessionAnchorDataResponse {
   session_id: string;
   deleted: boolean;
@@ -1214,6 +1296,18 @@ export function getSessionAnchorRagMetrics(
 ): Promise<SessionAnchorRagMetrics> {
   return adminGet<SessionAnchorRagMetrics>(
     "/admin/session-anchors/metrics",
+    signal,
+  );
+}
+
+export function getSessionAnchorSessions(
+  options?: { since?: string },
+  signal?: AbortSignal,
+): Promise<SessionAnchorSessionsResponse> {
+  const since = options?.since ?? "24h";
+  const params = new URLSearchParams({ since });
+  return adminGet<SessionAnchorSessionsResponse>(
+    `/admin/session-anchors/sessions?${params.toString()}`,
     signal,
   );
 }

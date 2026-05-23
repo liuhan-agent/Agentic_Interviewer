@@ -104,11 +104,35 @@ def _chunk(**overrides: Any) -> SessionAnchorChunk:
     return SessionAnchorChunk(**data)
 
 
-def _trace(*, payload: dict[str, Any], created_at: datetime | None = None) -> GenerationTrace:
+def _session(**overrides: Any) -> InterviewSession:
+    now = datetime.now(UTC)
+    data = {
+        "session_id": "sess_a",
+        "trace_id": "trace-anchor",
+        "candidate_name": "Ada",
+        "job_title": "Backend",
+        "job_level": "senior",
+        "mode": "mixed",
+        "status": "running",
+        "created_at": now,
+        "updated_at": now,
+    }
+    data.update(overrides)
+    return InterviewSession(**data)
+
+
+def _trace(
+    *,
+    payload: dict[str, Any],
+    created_at: datetime | None = None,
+    session_id: str = "sess_a",
+    trace_id: str = "trace-anchor",
+    turn_idx: int = 0,
+) -> GenerationTrace:
     return GenerationTrace(
-        trace_id="trace-anchor",
-        session_id="sess_a",
-        turn_idx=0,
+        trace_id=trace_id,
+        session_id=session_id,
+        turn_idx=turn_idx,
         node="ask_question",
         dimension="system_design",
         action_id=None,
@@ -252,6 +276,206 @@ def test_admin_session_anchor_metrics_groups_hits_and_fallbacks(
     assert body["by_mode"]["A"]["hit_count"] == 1
     assert body["by_mode"]["SI"]["hit_count"] == 1
     assert body["by_mode"]["unknown"]["fallback_distribution"]["low_score"] == 1
+
+
+def test_admin_session_anchor_sessions_returns_recent_session_level_rollup(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(admin_api, "get_settings", lambda: _settings())
+    now = datetime.now(UTC)
+    with _isolated_db(monkeypatch) as testing_session_local:
+        with testing_session_local() as sess:
+            sess.add_all(
+                [
+                    _session(
+                        session_id="sess_hit",
+                        trace_id="trace-hit",
+                        candidate_name="Ada",
+                        job_title="Backend Engineer",
+                        status="completed",
+                        created_at=now - timedelta(hours=2),
+                        updated_at=now - timedelta(hours=1),
+                    ),
+                    _session(
+                        session_id="sess_off",
+                        trace_id="trace-off",
+                        candidate_name="Grace",
+                        job_title="ML Engineer",
+                        status="running",
+                        created_at=now - timedelta(hours=3),
+                        updated_at=now - timedelta(hours=2),
+                    ),
+                    _session(
+                        session_id="sess_empty",
+                        trace_id="trace-empty",
+                        candidate_name="Lin",
+                        job_title="Frontend Engineer",
+                        status="errored",
+                        created_at=now - timedelta(hours=4),
+                        updated_at=now - timedelta(hours=3),
+                    ),
+                    _session(
+                        session_id="sess_notrace",
+                        trace_id="trace-notrace",
+                        candidate_name="NoTrace",
+                        job_title="Product Engineer",
+                        status="running",
+                        created_at=now - timedelta(hours=5),
+                        updated_at=now - timedelta(hours=4),
+                    ),
+                    _session(
+                        session_id="sess_old",
+                        trace_id="trace-old",
+                        candidate_name="Old",
+                        job_title="Expired",
+                        status="completed",
+                        created_at=now - timedelta(days=2),
+                        updated_at=now - timedelta(days=2),
+                    ),
+                    _chunk(session_id="sess_hit", source_type="resume", chunker_mode="A"),
+                    _chunk(
+                        session_id="sess_hit",
+                        source_type="self_intro",
+                        source_revision_id="intro_rev",
+                        source_artifact_id=None,
+                        source_turn_id=0,
+                        chunker_mode="SI",
+                        tier="anchor_card",
+                    ),
+                    _trace(
+                        session_id="sess_hit",
+                        trace_id="trace-hit",
+                        turn_idx=0,
+                        created_at=now - timedelta(hours=1, minutes=30),
+                        payload={
+                            "selection_artifacts": {
+                                "candidate_anchor_rag": {
+                                    "status": "primary",
+                                    "fallback_reason": None,
+                                    "latency_ms": 100,
+                                    "hits": [
+                                        {"source_type": "resume", "chunker_mode": "A"},
+                                        {"source_type": "self_intro", "chunker_mode": "SI"},
+                                    ],
+                                }
+                            }
+                        },
+                    ),
+                    _trace(
+                        session_id="sess_hit",
+                        trace_id="trace-hit",
+                        turn_idx=1,
+                        created_at=now - timedelta(hours=1),
+                        payload={
+                            "selection_artifacts": {
+                                "candidate_anchor_rag": {
+                                    "status": "shadow",
+                                    "fallback_reason": "low_score",
+                                    "latency_ms": 300,
+                                    "hits": [],
+                                }
+                            }
+                        },
+                    ),
+                    _trace(
+                        session_id="sess_off",
+                        trace_id="trace-off",
+                        created_at=now - timedelta(hours=2),
+                        payload={
+                            "selection_artifacts": {
+                                "candidate_anchor_rag": {
+                                    "status": "off",
+                                    "hits": [],
+                                }
+                            }
+                        },
+                    ),
+                    _trace(
+                        session_id="sess_empty",
+                        trace_id="trace-empty",
+                        created_at=now - timedelta(hours=3),
+                        payload={
+                            "selection_artifacts": {
+                                "candidate_anchor_rag": {
+                                    "status": "shadow",
+                                    "fallback_reason": "sampled_out",
+                                    "latency_ms": 20,
+                                    "hits": [],
+                                }
+                            }
+                        },
+                    ),
+                    _trace(
+                        session_id="sess_old",
+                        trace_id="trace-old",
+                        created_at=now - timedelta(days=2),
+                        payload={
+                            "selection_artifacts": {
+                                "candidate_anchor_rag": {
+                                    "status": "primary",
+                                    "latency_ms": 50,
+                                    "hits": [{"source_type": "resume", "chunker_mode": "A"}],
+                                }
+                            }
+                        },
+                    ),
+                ]
+            )
+            sess.commit()
+
+        resp = _client().get("/admin/session-anchors/sessions?since=24h")
+
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["window"] == "24h"
+    assert body["session_count"] == 4
+    assert body["summary"]["indexed_sessions"] == 1
+    assert body["summary"]["hit_sessions"] == 1
+    assert body["summary"]["fallback_sessions"] == 2
+    assert [row["session_id"] for row in body["sessions"]] == [
+        "sess_hit",
+        "sess_off",
+        "sess_empty",
+        "sess_notrace",
+    ]
+
+    hit = body["sessions"][0]
+    assert hit["candidate_name"] == "Ada"
+    assert hit["job_title"] == "Backend Engineer"
+    assert hit["session_status"] == "completed"
+    assert hit["has_resume_chunks"] is True
+    assert hit["has_self_intro_chunks"] is True
+    assert hit["total_chunks"] == 2
+    assert hit["chunks_by_source"] == {"resume": 1, "self_intro": 1}
+    assert hit["chunker_modes"] == ["A", "SI"]
+    assert hit["retrieval_attempts"] == 2
+    assert hit["hit_count"] == 1
+    assert hit["hit_rate"] == 0.5
+    assert hit["source_hit_counts"] == {"resume": 1, "self_intro": 1}
+    assert hit["avg_hits_per_attempt"] == 1.0
+    assert hit["fallback_count"] == 1
+    assert hit["fallback_reasons"] == {"low_score": 1}
+    assert hit["latency_ms"] == {"p50": 100, "p95": 300, "p99": 300}
+    assert hit["rag_status_distribution"] == {"primary": 1, "shadow": 1}
+    assert hit["last_trace_at"] is not None
+
+    off = body["sessions"][1]
+    assert off["retrieval_attempts"] == 0
+    assert off["hit_rate"] == 0.0
+    assert off["rag_status_distribution"] == {"off": 1}
+
+    empty = body["sessions"][2]
+    assert empty["total_chunks"] == 0
+    assert empty["retrieval_attempts"] == 1
+    assert empty["fallback_reasons"] == {"sampled_out": 1}
+
+    notrace = body["sessions"][3]
+    assert notrace["total_chunks"] == 0
+    assert notrace["retrieval_attempts"] == 0
+    assert notrace["hit_count"] == 0
+    assert notrace["fallback_count"] == 0
+    assert notrace["rag_status_distribution"] == {}
+    assert notrace["last_trace_at"] is None
 
 
 def test_admin_delete_session_anchor_data_wipes_chunks_artifacts_and_scrubs_snapshots(
