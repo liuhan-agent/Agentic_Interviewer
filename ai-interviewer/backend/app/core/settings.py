@@ -120,7 +120,7 @@ class Settings(BaseSettings):
     resume_parse_cache_backend: Literal["redis", "memory", "off"] = "redis"
     resume_parse_cache_ttl_seconds: int = 86400
     resume_parse_cache_redis_prefix: str = "agentic_interviewer:resume_parse"
-    resume_rag_mode: Literal["off", "shadow", "primary"] = "shadow"
+    resume_rag_mode: Literal["off", "shadow", "primary"] = "primary"
     session_anchor_top_k_resume: int = 2
     session_anchor_top_k_self_intro: int = 1
     resume_rag_distance_threshold: float = 0.45

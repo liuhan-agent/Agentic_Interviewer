@@ -85,6 +85,55 @@ def _next_step_text(recommended_next: Any, recommended_next_plan: Any = None) ->
     return _user_text(plan_text)
 
 
+def _resume_anchor_display_fields(turn: dict[str, Any]) -> dict[str, str]:
+    anchor = turn.get("resume_anchor") if isinstance(turn.get("resume_anchor"), dict) else {}
+    anchor_key = str(
+        anchor.get("anchor_key") or turn.get("resume_anchor_key") or ""
+    ).strip()
+    anchor_label = str(
+        anchor.get("label")
+        or anchor.get("project_name")
+        or turn.get("resume_anchor_label")
+        or ""
+    ).strip()
+    project_id = str(
+        anchor.get("project_id") or turn.get("resume_project_id") or ""
+    ).strip()
+    out: dict[str, str] = {}
+    if anchor_key:
+        out["resume_anchor_key"] = anchor_key
+    if anchor_label:
+        out["resume_anchor_label"] = anchor_label
+    if project_id:
+        out["resume_project_id"] = project_id
+    return out
+
+
+def _anchor_followup_display_fields(turn: dict[str, Any]) -> dict[str, dict[str, int]]:
+    artifacts = (
+        turn.get("selection_artifacts")
+        if isinstance(turn.get("selection_artifacts"), dict)
+        else {}
+    )
+    scheduler = (
+        artifacts.get("anchor_scheduler")
+        if isinstance(artifacts.get("anchor_scheduler"), dict)
+        else {}
+    )
+    attempt = _int_or_none(scheduler.get("anchor_attempt"))
+    max_attempts = _int_or_none(scheduler.get("max_anchor_attempts"))
+    if attempt is None or max_attempts is None:
+        return {}
+    if attempt < 1 or max_attempts < 2:
+        return {}
+    return {
+        "anchor_followup": {
+            "attempt": min(attempt, max_attempts),
+            "max_attempts": max_attempts,
+        }
+    }
+
+
 def _int_or_none(value: Any) -> int | None:
     if isinstance(value, bool):
         return None
@@ -205,6 +254,8 @@ def _turn_payload(trace: GenerationTrace) -> dict[str, Any]:
             evaluation.get("recommended_next_plan"),
         ),
     }
+    payload.update(_resume_anchor_display_fields(qa_turn))
+    payload.update(_anchor_followup_display_fields(qa_turn))
     followup_reason = sanitize_replay_followup_reason(
         evaluation.get("followup_reason")
     ) or sanitize_replay_followup_reason(qa_evaluation.get("followup_reason"))
@@ -248,6 +299,7 @@ def _timeline_from_report(report: dict[str, Any]) -> list[dict[str, Any]]:
                     evidence.get("recommended_next_plan"),
                 ),
             }
+            payload.update(_resume_anchor_display_fields(evidence))
             followup_reason = sanitize_replay_followup_reason(
                 evidence.get("followup_reason")
             )
@@ -260,12 +312,14 @@ def _timeline_from_report(report: dict[str, Any]) -> list[dict[str, Any]]:
                 payload["question_basis"] = question_basis
             timeline.append(payload)
 
-    return sorted(
-        timeline,
-        key=lambda item: (
-            item.get("turn_idx") is None,
-            int(item.get("turn_idx") or 0),
-        ),
+    return _annotate_anchor_followups(
+        sorted(
+            timeline,
+            key=lambda item: (
+                item.get("turn_idx") is None,
+                int(item.get("turn_idx") or 0),
+            ),
+        )
     )
 
 
@@ -298,7 +352,34 @@ def _timeline_from_traces(
             continue
         payload["turn_idx"] = turn_idx
         by_turn_idx[turn_idx] = payload
-    return [by_turn_idx[idx] for idx in sorted(by_turn_idx)] + unindexed
+    return _annotate_anchor_followups(
+        [by_turn_idx[idx] for idx in sorted(by_turn_idx)] + unindexed
+    )
+
+
+def _annotate_anchor_followups(timeline: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    totals: dict[str, int] = {}
+    for turn in timeline:
+        anchor_key = str(turn.get("resume_anchor_key") or "").strip()
+        if anchor_key:
+            totals[anchor_key] = totals.get(anchor_key, 0) + 1
+
+    seen: dict[str, int] = {}
+    for turn in timeline:
+        anchor_key = str(turn.get("resume_anchor_key") or "").strip()
+        if not anchor_key:
+            continue
+        seen[anchor_key] = seen.get(anchor_key, 0) + 1
+        if turn.get("anchor_followup"):
+            continue
+        total = totals.get(anchor_key, 0)
+        if total < 2 or seen[anchor_key] < 2:
+            continue
+        turn["anchor_followup"] = {
+            "attempt": seen[anchor_key],
+            "max_attempts": total,
+        }
+    return timeline
 
 
 def build_resume_history(

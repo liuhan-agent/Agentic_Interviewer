@@ -15,9 +15,12 @@ const apiTypesSource = fs.readFileSync(
 test("Replay API types expose context and question basis", () => {
   assert.match(apiTypesSource, /export interface ReplayContextBasis/);
   assert.match(apiTypesSource, /export interface ReplayQuestionBasis/);
+  assert.match(apiTypesSource, /export interface ReplayAnchorFollowup/);
   assert.match(apiTypesSource, /dimension_source_label\?:\s*string/);
   assert.match(apiTypesSource, /context_basis\?:\s*ReplayContextBasis\s*\|\s*null/);
   assert.match(apiTypesSource, /question_basis\?:\s*ReplayQuestionBasis\s*\|\s*null/);
+  assert.match(apiTypesSource, /anchor_followup\?:\s*ReplayAnchorFollowup\s*\|\s*null/);
+  assert.match(apiTypesSource, /resume_anchor_label\?:\s*string\s*\|\s*null/);
 });
 
 test("Replay API types expose grouped priority items", () => {
@@ -32,11 +35,20 @@ test("ReplayView renders the two-layer basis UI", () => {
   assert.match(replaySource, /<ContextBasisCard basis=\{replay\.context_basis\}/);
   assert.match(replaySource, /function ContextBasisCard/);
   assert.match(replaySource, /<details/);
-  assert.match(replaySource, /<QuestionBasisBlock basis=\{turn\.question_basis\}/);
+  assert.match(
+    replaySource,
+    /<QuestionBasisBlock\s+basis=\{turn\.question_basis\}\s+resumeAnchorLabel=\{turn\.resume_anchor_label\}/,
+  );
+  assert.match(replaySource, /<AnchorFollowupNotice followup=\{turn\.anchor_followup\}/);
   assert.match(replaySource, /function QuestionBasisBlock/);
+  assert.match(replaySource, /resumeAnchorLabel\?:\s*ReplayTurn\["resume_anchor_label"\]/);
+  assert.match(replaySource, /<QuestionBasisChipGroup label="关联经历" chips=\{anchorChips\}/);
+  assert.match(replaySource, /function AnchorFollowupNotice/);
+  assert.match(replaySource, /当前锚点第 \{followup\.attempt\}\/\{followup\.max_attempts\} 轮追问/);
   assert.match(replaySource, /function splitQuestionBasisChips/);
   assert.match(replaySource, /function getQuestionBasisGroupIcon/);
   assert.match(replaySource, /依据来源/);
+  assert.match(replaySource, /关联经历/);
   assert.match(replaySource, /匹配维度/);
   assert.match(replaySource, /具体线索/);
   assert.match(replaySource, /LabelIcon className="h-3\.5 w-3\.5/);
@@ -103,8 +115,9 @@ test("ReplayView gives turn section labels a light icon treatment", () => {
 
 test("ReplayView does not expose internal basis fields", () => {
   assert.doesNotMatch(replaySource, /basis\.self_intro\?\.summary/);
+  assert.doesNotMatch(replaySource, /\bresume_anchor\b/);
   assert.doesNotMatch(
     replaySource,
-    /resume_anchor|skill_focus|focus_source|pending_contract_hints|recommended_probe_intent/,
+    /skill_focus|focus_source|pending_contract_hints|recommended_probe_intent/,
   );
 });

@@ -122,6 +122,7 @@ test("session resume payload sanitizes parsed projects and focus areas", () => {
     focus_areas: [
       {
         id: "f".repeat(60),
+        anchor_key: "focus-proj-1-abc123",
         label: ` ${"l".repeat(180)} `,
         project_id: "p".repeat(60),
         dimensions: ["system_design"],
@@ -146,6 +147,7 @@ test("session resume payload sanitizes parsed projects and focus areas", () => {
   assert.deepEqual(parsed.focus_areas, [
     {
       id: "f".repeat(40),
+      anchor_key: "focus-proj-1-abc123",
       label: "l".repeat(160),
       project_id: "p".repeat(40),
       dimensions: ["system_design"],

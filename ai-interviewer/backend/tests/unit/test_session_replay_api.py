@@ -1065,6 +1065,168 @@ def test_replay_trace_projects_display_question_basis(
     assert resp.json()["timeline"][0]["question_basis"] == QUESTION_BASIS
 
 
+def test_replay_trace_projects_resume_anchor_display_fields(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    with _isolated_db(monkeypatch) as testing_session_local:
+        _seed_session(testing_session_local)
+        with testing_session_local() as sess:
+            trace = (
+                sess.query(GenerationTrace)
+                .filter(GenerationTrace.session_id == "sess-replay")
+                .filter(GenerationTrace.node == "evaluator")
+                .one()
+            )
+            trace.state_snapshot = {
+                "qa_history": [
+                    {
+                        "turn_idx": 0,
+                        "question": trace.question,
+                        "answer": trace.answer,
+                        "resume_anchor": {
+                            "anchor_key": "focus-coupon-design",
+                            "label": "Coupon consistency",
+                            "project_id": "proj_coupon",
+                            "skills": ["Redis"],
+                        },
+                    }
+                ]
+            }
+            sess.commit()
+        client = _client(monkeypatch)
+
+        resp = client.get("/api/v1/interview/sessions/sess-replay/replay")
+
+    turn = resp.json()["timeline"][0]
+    assert resp.status_code == 200
+    assert turn["resume_anchor_key"] == "focus-coupon-design"
+    assert turn["resume_anchor_label"] == "Coupon consistency"
+    assert turn["resume_project_id"] == "proj_coupon"
+    assert "resume_anchor" not in turn
+
+
+def test_replay_trace_projects_anchor_followup_display_fields(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    with _isolated_db(monkeypatch) as testing_session_local:
+        _seed_session(testing_session_local)
+        with testing_session_local() as sess:
+            trace = (
+                sess.query(GenerationTrace)
+                .filter(GenerationTrace.session_id == "sess-replay")
+                .filter(GenerationTrace.node == "evaluator")
+                .one()
+            )
+            trace.state_snapshot = {
+                "qa_history": [
+                    {
+                        "turn_idx": 0,
+                        "question": trace.question,
+                        "answer": trace.answer,
+                        "selection_artifacts": {
+                            "anchor_scheduler": {
+                                "available": True,
+                                "anchor_attempt": 2,
+                                "max_anchor_attempts": 2,
+                                "expansion_reason": "high_value_second_pass",
+                            }
+                        },
+                    }
+                ]
+            }
+            sess.commit()
+        client = _client(monkeypatch)
+
+        resp = client.get("/api/v1/interview/sessions/sess-replay/replay")
+
+    turn = resp.json()["timeline"][0]
+    assert resp.status_code == 200
+    assert turn["anchor_followup"] == {
+        "attempt": 2,
+        "max_attempts": 2,
+    }
+    assert "anchor_scheduler" not in turn
+
+
+def test_replay_derives_anchor_followup_from_repeated_anchor_history(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    with _isolated_db(monkeypatch) as testing_session_local:
+        _seed_session(testing_session_local)
+        with testing_session_local() as sess:
+            trace = (
+                sess.query(GenerationTrace)
+                .filter(GenerationTrace.session_id == "sess-replay")
+                .filter(GenerationTrace.node == "evaluator")
+                .one()
+            )
+            trace.state_snapshot = {
+                "qa_history": [
+                    {
+                        "turn_idx": 1,
+                        "question": trace.question,
+                        "answer": trace.answer,
+                        "resume_anchor": {
+                            "anchor_key": "focus-coupon-design",
+                            "label": "Coupon consistency",
+                        },
+                    }
+                ]
+            }
+            sess.add(
+                GenerationTrace(
+                    trace_id="trace-replay",
+                    session_id="sess-replay",
+                    turn_idx=2,
+                    node="evaluator",
+                    dimension="system_design",
+                    action_id="internal-action",
+                    policy_id="policy",
+                    context_key="junior:system_design",
+                    score=8.5,
+                    passed=True,
+                    immediate_reward=0.5,
+                    delayed_reward=None,
+                    applied_to_bandit=False,
+                    immediate_reward_applied=True,
+                    state_snapshot={
+                        "qa_history": [
+                            {
+                                "turn_idx": 2,
+                                "question": "Second pass on the same anchor?",
+                                "answer": "I would add a capacity drill.",
+                                "resume_anchor": {
+                                    "anchor_key": "focus-coupon-design",
+                                    "label": "Coupon consistency",
+                                },
+                            }
+                        ]
+                    },
+                    question="Second pass on the same anchor?",
+                    answer="I would add a capacity drill.",
+                    evaluation={
+                        "score": 8.5,
+                        "passed": True,
+                        "strengths": [],
+                        "weaknesses": [],
+                    },
+                    created_at=SESSION_UPDATED_AT,
+                )
+            )
+            sess.commit()
+        client = _client(monkeypatch)
+
+        resp = client.get("/api/v1/interview/sessions/sess-replay/replay")
+
+    timeline = resp.json()["timeline"]
+    assert resp.status_code == 200
+    assert "anchor_followup" not in timeline[0]
+    assert timeline[1]["anchor_followup"] == {
+        "attempt": 2,
+        "max_attempts": 2,
+    }
+
+
 def test_replay_report_fallback_projects_display_question_basis(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

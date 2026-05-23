@@ -14,13 +14,6 @@ from app.core.metrics import estimate_llm_cost_usd
 from app.core.settings import get_settings
 from app.core.tracer import get_tracer
 from app.core.video_signals_schema import normalize_video_signals
-from app.services.scoring_quality import (
-    acceptance_counts as _quality_acceptance_counts,
-    build_scoring_quality_summary,
-    evidence_summary as _quality_evidence_summary,
-    merge_contract_checks as _quality_merge_contract_checks,
-    verdict_of as _quality_verdict_of,
-)
 from app.engine.workflow.eval_helpers import (
     is_evaluator_fallback as _is_evaluator_fallback,
 )
@@ -31,7 +24,21 @@ from app.engine.workflow.followup_reason import sanitize_replay_followup_reason
 from app.engine.workflow.replay_basis import sanitize_replay_question_basis
 from app.engine.workflow.score_aggregation import build_score_breakdowns_from_qa
 from app.engine.workflow.state import InterviewState
-from app.services.scoring_credibility import compute_credibility
+from app.services.scoring_quality import (
+    acceptance_counts as _quality_acceptance_counts,
+)
+from app.services.scoring_quality import (
+    build_scoring_quality_summary,
+)
+from app.services.scoring_quality import (
+    evidence_summary as _quality_evidence_summary,
+)
+from app.services.scoring_quality import (
+    merge_contract_checks as _quality_merge_contract_checks,
+)
+from app.services.scoring_quality import (
+    verdict_of as _quality_verdict_of,
+)
 
 log = get_logger(__name__)
 
@@ -179,8 +186,8 @@ def _build_dimension_scores(
     """
     turn_meta = _dimension_turn_meta(qa_history or [])
     rebuilt_breakdowns = build_score_breakdowns_from_qa(qa_history or [])
-    available_breakdowns = dict(rebuilt_breakdowns)
-    available_breakdowns.update(score_breakdowns or {})
+    available_breakdowns = dict(score_breakdowns or {})
+    available_breakdowns.update(rebuilt_breakdowns)
     out: dict[str, dict[str, Any]] = {}
     dims = (
         set(scores_per_dim.keys())
@@ -243,6 +250,60 @@ def _normalise_score_breakdown(value: Any) -> dict[str, Any] | None:
         count = 0
     if adopted is None or latest is None or best is None or average is None or count <= 0:
         return None
+    normalised = {
+        "scored_turn_count": count,
+        "latest_score": latest,
+        "best_score": best,
+        "average_score": average,
+        "adopted_score": adopted,
+        "scoring_policy": str(value.get("scoring_policy") or "weighted_recent"),
+    }
+    anchor_count = _int_or_none(value.get("anchor_count"))
+    anchor_average = _finite_score(value.get("anchor_average_score"))
+    best_anchor = _finite_score(value.get("best_anchor_score"))
+    raw_anchors = value.get("anchor_breakdowns")
+    if anchor_count is not None and anchor_count > 0:
+        normalised["anchor_count"] = anchor_count
+    if anchor_average is not None:
+        normalised["anchor_average_score"] = anchor_average
+    if best_anchor is not None:
+        normalised["best_anchor_score"] = best_anchor
+    if isinstance(raw_anchors, list):
+        anchors = [
+            anchor
+            for raw_anchor in raw_anchors
+            if (anchor := _normalise_anchor_score_breakdown(raw_anchor)) is not None
+        ]
+        if anchors:
+            normalised["anchor_breakdowns"] = anchors
+    return normalised
+
+
+def _int_or_none(value: Any) -> int | None:
+    if value is None or isinstance(value, bool):
+        return None
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return None
+
+
+def _normalise_anchor_score_breakdown(value: Any) -> dict[str, Any] | None:
+    if not isinstance(value, dict):
+        return None
+    adopted = _finite_score(value.get("adopted_score"))
+    latest = _finite_score(value.get("latest_score"))
+    best = _finite_score(value.get("best_score"))
+    average = _finite_score(value.get("average_score"))
+    count = _int_or_none(value.get("scored_turn_count")) or 0
+    if adopted is None or latest is None or best is None or average is None or count <= 0:
+        return None
+    raw_turn_indices = value.get("turn_indices")
+    turn_indices = [
+        turn_idx
+        for raw_turn_idx in raw_turn_indices
+        if (turn_idx := _int_or_none(raw_turn_idx)) is not None
+    ] if isinstance(raw_turn_indices, list) else []
     return {
         "scored_turn_count": count,
         "latest_score": latest,
@@ -250,6 +311,14 @@ def _normalise_score_breakdown(value: Any) -> dict[str, Any] | None:
         "average_score": average,
         "adopted_score": adopted,
         "scoring_policy": str(value.get("scoring_policy") or "weighted_recent"),
+        "anchor_key": str(value.get("anchor_key") or ""),
+        "anchor_label": str(value.get("anchor_label") or ""),
+        "resume_project_id": (
+            str(value.get("resume_project_id"))
+            if value.get("resume_project_id") is not None
+            else None
+        ),
+        "turn_indices": turn_indices,
     }
 
 
@@ -401,6 +470,28 @@ def _followup_reason(evaluation: dict[str, Any]) -> str | None:
     return f"refine -> {plan}"
 
 
+def _resume_anchor_display_fields(qa: dict[str, Any]) -> dict[str, str]:
+    anchor = qa.get("resume_anchor") if isinstance(qa.get("resume_anchor"), dict) else {}
+    anchor_key = str(anchor.get("anchor_key") or qa.get("resume_anchor_key") or "").strip()
+    anchor_label = str(
+        anchor.get("label")
+        or anchor.get("project_name")
+        or qa.get("resume_anchor_label")
+        or ""
+    ).strip()
+    project_id = str(
+        anchor.get("project_id") or qa.get("resume_project_id") or ""
+    ).strip()
+    out: dict[str, str] = {}
+    if anchor_key:
+        out["resume_anchor_key"] = anchor_key
+    if anchor_label:
+        out["resume_anchor_label"] = anchor_label
+    if project_id:
+        out["resume_project_id"] = project_id
+    return out
+
+
 def _turn_evidence(qa: dict[str, Any]) -> dict[str, Any]:
     evaluation = qa.get("evaluation") or {}
     evidence = {
@@ -423,6 +514,7 @@ def _turn_evidence(qa: dict[str, Any]) -> dict[str, Any]:
         "recommended_next_plan": evaluation.get("recommended_next_plan"),
         "soft_warnings": evaluation.get("soft_warnings") or [],
     }
+    evidence.update(_resume_anchor_display_fields(qa))
     followup_reason = sanitize_replay_followup_reason(
         evaluation.get("followup_reason")
     )

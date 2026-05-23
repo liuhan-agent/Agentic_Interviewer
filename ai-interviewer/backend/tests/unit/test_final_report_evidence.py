@@ -307,6 +307,33 @@ def test_turn_evidence_preserves_display_question_basis() -> None:
     assert evidence["question_basis"] == question_basis
 
 
+def test_turn_evidence_projects_resume_anchor_display_fields() -> None:
+    qa = {
+        "turn_idx": 6,
+        "dimension": "system_design",
+        "question": "How did Coupon Guard work?",
+        "answer": "I used Redis and Lua.",
+        "resume_anchor": {
+            "anchor_key": "focus-coupon-design",
+            "label": "Coupon consistency",
+            "project_id": "proj_coupon",
+            "skills": ["Redis"],
+        },
+        "evaluation": {
+            "score": 8.0,
+            "passed": True,
+            "acceptance_check_results": {},
+        },
+    }
+
+    evidence = _turn_evidence(qa)
+
+    assert evidence["resume_anchor_key"] == "focus-coupon-design"
+    assert evidence["resume_anchor_label"] == "Coupon consistency"
+    assert evidence["resume_project_id"] == "proj_coupon"
+    assert "resume_anchor" not in evidence
+
+
 def test_turn_evidence_separates_evaluator_fallback_from_candidate_weaknesses() -> None:
     qa = {
         "turn_idx": 1,
@@ -414,8 +441,9 @@ def _mk_qa_turn(
     passed: bool,
     score: float,
     acceptance: dict[str, Any],
+    resume_anchor: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
-    return {
+    turn = {
         "turn_idx": turn_idx,
         "dimension": dimension,
         "question": f"Q{turn_idx}?",
@@ -434,6 +462,9 @@ def _mk_qa_turn(
             "soft_warnings": [],
         },
     }
+    if resume_anchor is not None:
+        turn["resume_anchor"] = resume_anchor
+    return turn
 
 
 def _mk_skipped_turn(*, turn_idx: int, dimension: str) -> dict[str, Any]:
@@ -1081,10 +1112,98 @@ def test_final_report_rebuilds_multiturn_score_breakdown_from_qa_history(
         "scored_turn_count": 5,
         "latest_score": 8.0,
         "best_score": 9.0,
-        "average_score": 8.8,
+        "average_score": 8.7,
         "adopted_score": 8.7,
-        "scoring_policy": "weighted_recent",
+        "scoring_policy": "anchor_weighted_recent",
+        "anchor_count": 1,
+        "anchor_average_score": 8.7,
+        "best_anchor_score": 8.7,
+        "anchor_breakdowns": [
+            {
+                "scored_turn_count": 5,
+                "latest_score": 8.0,
+                "best_score": 9.0,
+                "average_score": 8.8,
+                "adopted_score": 8.7,
+                "scoring_policy": "weighted_recent",
+                "anchor_key": "unanchored:technical_depth",
+                "anchor_label": "\u672a\u5173\u8054\u7b80\u5386\u951a\u70b9",
+                "resume_project_id": None,
+                "turn_indices": [0, 1, 2, 3, 4],
+            }
+        ],
     }
+
+
+def test_final_report_rebuilds_multi_anchor_dimension_score_from_qa_history(
+    monkeypatch,
+) -> None:
+    monkeypatch.setattr(fr, "get_tracer", lambda: _NoopTracer())
+
+    anchor_a = {
+        "anchor_key": "focus-a",
+        "label": "Payment consistency",
+        "project_id": "proj-pay",
+    }
+    anchor_b = {
+        "anchor_key": "focus-b",
+        "label": "Cache failover",
+        "project_id": "proj-cache",
+    }
+    qa_history = [
+        _mk_qa_turn(
+            turn_idx=0,
+            dimension="technical_depth",
+            passed=True,
+            score=8.0,
+            acceptance={"Explains root cause.": "yes"},
+            resume_anchor=anchor_a,
+        ),
+        _mk_qa_turn(
+            turn_idx=1,
+            dimension="technical_depth",
+            passed=True,
+            score=9.0,
+            acceptance={"Explains root cause.": "yes"},
+            resume_anchor=anchor_a,
+        ),
+        _mk_qa_turn(
+            turn_idx=2,
+            dimension="technical_depth",
+            passed=False,
+            score=7.0,
+            acceptance={"Explains root cause.": "partial"},
+            resume_anchor=anchor_b,
+        ),
+    ]
+    state = _mk_state(qa_history)
+    state["scores_per_dim"] = {"technical_depth": None}
+    state["dimension_status"] = {"technical_depth": "active"}
+    state["quality_threshold"] = 7.0
+    state["score_breakdowns"] = {
+        "technical_depth": {
+            "scored_turn_count": 1,
+            "latest_score": 4.0,
+            "best_score": 4.0,
+            "average_score": 4.0,
+            "adopted_score": 4.0,
+            "scoring_policy": "weighted_recent",
+        }
+    }
+
+    out = fr.final_report_node(state)  # type: ignore[arg-type]
+    report = out["final_report"]
+
+    assert report["dimension_scores"]["technical_depth"]["score"] == 7.78
+    breakdown = report["dimension_scores"]["technical_depth"]["score_breakdown"]
+    assert breakdown["anchor_count"] == 2
+    assert breakdown["scoring_policy"] == "anchor_weighted_recent"
+    assert breakdown["anchor_average_score"] == 7.65
+    assert breakdown["best_anchor_score"] == 8.3
+    assert [a["anchor_key"] for a in breakdown["anchor_breakdowns"]] == [
+        "focus-a",
+        "focus-b",
+    ]
 
 
 def test_final_report_null_overall_when_no_valid_scores(monkeypatch) -> None:

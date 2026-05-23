@@ -97,6 +97,43 @@ def test_admin_open_when_explicitly_allowed(client, monkeypatch):
     assert body["policy_mode"] in {"template", "legacy"}
 
 
+def test_admin_bandit_snapshot_includes_persisted_posterior_summary(
+    client,
+    monkeypatch,
+):
+    _set_token(monkeypatch, None, allow_open_admin=True)
+
+    monkeypatch.setattr(
+        "app.ml.rl.thompson.get_bandit",
+        lambda: _FakeBandit({"senior:system_design::plan_deep_probe": {}}),
+    )
+    monkeypatch.setattr(
+        "app.services.strategy_learning_facts.bandit_posterior_snapshot",
+        lambda limit=10: {
+            "persisted_prior_count": 2,
+            "top_posteriors": [
+                {
+                    "context_key": "senior:system_design",
+                    "action_id": "plan_deep_probe",
+                    "alpha": 8.0,
+                    "beta": 2.0,
+                    "mean_reward": 0.8,
+                    "observation_count": 8,
+                }
+            ],
+        },
+    )
+
+    resp = client.get("/admin/bandit/snapshot")
+
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["memory_prior_count"] == 1
+    assert body["persisted_prior_count"] == 2
+    assert body["posterior_source"] == "db_aggregate"
+    assert body["top_posteriors"][0]["action_id"] == "plan_deep_probe"
+
+
 def test_admin_rejects_requests_when_prod_token_missing(client, monkeypatch):
     """Production misconfig must not silently expose admin surfaces."""
     _set_token(monkeypatch, None, app_env="prod")
@@ -462,5 +499,8 @@ class _FakeBandit:
     serialisable shape the route happens to json.dumps.
     """
 
+    def __init__(self, priors: dict[str, Any] | None = None) -> None:
+        self._priors = priors or {}
+
     def snapshot(self) -> dict[str, Any]:
-        return {}
+        return self._priors

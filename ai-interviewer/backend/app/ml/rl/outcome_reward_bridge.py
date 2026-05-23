@@ -23,6 +23,10 @@ from app.core.settings import get_settings
 from app.ml.rl.action_space import ALIAS_MAP
 from app.ml.rl.thompson import get_bandit
 from app.models import GenerationTrace, OutcomeRecord, StrategyMemoryUsage, get_session
+from app.services.strategy_learning_facts import (
+    apply_bandit_posterior_update,
+    upsert_interview_turn,
+)
 
 log = get_logger(__name__)
 
@@ -157,6 +161,7 @@ def backfill_once() -> dict[str, int]:
     applied: list[tuple[list[str], str, float]] = []
 
     with get_session() as sess:
+        settings = get_settings()
         outcomes = list(sess.scalars(select(OutcomeRecord)))
         if not outcomes:
             return counters
@@ -173,6 +178,32 @@ def backfill_once() -> dict[str, int]:
             reward = _delayed_reward(outcome)
             t.delayed_reward = reward
             t.applied_to_bandit = True
+            action_ids = [str(t.action_id)]
+            alias = ALIAS_MAP.get(str(t.action_id))
+            if alias and alias != t.action_id:
+                action_ids.append(alias)
+            for context_key in keys:
+                for action_id in action_ids:
+                    apply_bandit_posterior_update(
+                        sess,
+                        context_key=context_key,
+                        action_id=action_id,
+                        reward=reward,
+                        reward_kind="delayed",
+                        session_id=t.session_id,
+                        turn_idx=t.turn_idx,
+                        default_alpha=float(settings.bandit_default_alpha),
+                        default_beta=float(settings.bandit_default_beta),
+                    )
+            upsert_interview_turn(
+                sess,
+                session_id=t.session_id,
+                turn_idx=t.turn_idx,
+                trace_id=t.trace_id,
+                dimension=t.dimension or "unknown",
+                selected_action=t.action_id,
+                delayed_reward=reward,
+            )
             counters["strategy_usages"] += _backfill_strategy_usage_delayed_reward(
                 sess,
                 t,

@@ -4,6 +4,7 @@ from __future__ import annotations
 import hashlib
 import json
 import math
+import re
 import time
 from collections import Counter
 from dataclasses import dataclass, field
@@ -20,6 +21,10 @@ from app.services.resume_embedding import (
     embed_query,
 )
 
+_ANCHOR_WEIGHT = 0.7
+_BOOST_WEIGHT = 0.2
+_CONSTRAINT_WEIGHT = 0.1
+
 
 @dataclass
 class CandidateAnchorHit:
@@ -35,6 +40,13 @@ class CandidateAnchorHit:
     score: float
     distance: float
     adjusted_score: float
+    anchor_score: float = 0.0
+    boost_score: float = 0.0
+    constraint_match: float = 0.0
+    final_score: float = 0.0
+    matched_target_skills: list[str] = field(default_factory=list)
+    matched_dimensions: list[str] = field(default_factory=list)
+    matched_seed_terms: list[str] = field(default_factory=list)
     deduped: bool = False
     dedupe_reason: str | None = None
 
@@ -54,7 +66,61 @@ class CandidateAnchorHit:
             "deduped": self.deduped,
             "dedupe_reason": self.dedupe_reason,
             "excerpt": self.text[:240],
+            "anchor_score": round(self.anchor_score, 6),
+            "boost_score": round(self.boost_score, 6),
+            "constraint_match": round(self.constraint_match, 6),
+            "final_score": round(self.final_score, 6),
+            "matched_target_skills": list(self.matched_target_skills),
+            "matched_dimensions": list(self.matched_dimensions),
+            "matched_seed_terms": list(self.matched_seed_terms),
         }
+
+
+@dataclass
+class CandidateAnchorQueryProfile:
+    anchor_terms: list[str] = field(default_factory=list)
+    anchor_identity_terms: list[str] = field(default_factory=list)
+    boost_terms: list[str] = field(default_factory=list)
+    constraint_terms: list[str] = field(default_factory=list)
+    dimension_terms: list[str] = field(default_factory=list)
+    target_skill_terms: list[str] = field(default_factory=list)
+    seed_terms: list[str] = field(default_factory=list)
+    seed_match_terms: list[str] = field(default_factory=list)
+    anchor_key: str = ""
+
+    @property
+    def query_terms(self) -> list[str]:
+        return [
+            *self.anchor_terms,
+            *self.boost_terms,
+            *self.constraint_terms,
+        ]
+
+    @property
+    def query_text(self) -> str:
+        return " ".join(self.query_terms).strip()
+
+    @property
+    def anchor_query_text(self) -> str:
+        return " ".join(self.anchor_terms).strip()
+
+    @property
+    def boost_query_text(self) -> str:
+        if not self.boost_terms:
+            return ""
+        return " ".join(_dedupe_texts([*self.anchor_identity_terms, *self.boost_terms])).strip()
+
+    @property
+    def constraint_query_text(self) -> str:
+        return " ".join(self.constraint_terms).strip()
+
+
+@dataclass
+class ConstraintMatch:
+    score: float = 0.0
+    matched_target_skills: list[str] = field(default_factory=list)
+    matched_dimensions: list[str] = field(default_factory=list)
+    matched_seed_terms: list[str] = field(default_factory=list)
 
 
 @dataclass
@@ -66,6 +132,16 @@ class CandidateAnchorRagResult:
     fallback_reason: str | None
     skipped: bool
     query_terms: list[str] = field(default_factory=list)
+    anchor_terms: list[str] = field(default_factory=list)
+    boost_terms: list[str] = field(default_factory=list)
+    constraint_terms: list[str] = field(default_factory=list)
+    query_text: str = ""
+    anchor_query_text: str = ""
+    boost_query_text: str = ""
+    constraint_query_text: str = ""
+    anchor_key: str = ""
+    boost_fallback_reason: str | None = None
+    ranking_weights: dict[str, float] = field(default_factory=dict)
 
     def as_artifact(self, *, mode: str) -> dict[str, Any]:
         return {
@@ -74,6 +150,16 @@ class CandidateAnchorRagResult:
             "fallback_reason": self.fallback_reason,
             "latency_ms": self.latency_ms,
             "query_terms": list(self.query_terms),
+            "anchor_terms": list(self.anchor_terms),
+            "boost_terms": list(self.boost_terms),
+            "constraint_terms": list(self.constraint_terms),
+            "query_text": self.query_text,
+            "anchor_query_text": self.anchor_query_text,
+            "boost_query_text": self.boost_query_text,
+            "constraint_query_text": self.constraint_query_text,
+            "anchor_key": self.anchor_key,
+            "boost_fallback_reason": self.boost_fallback_reason,
+            "ranking_weights": dict(self.ranking_weights),
             "hits": [hit.as_artifact() for hit in self.hits],
             "resume_hit_count": sum(1 for hit in self.hits if hit.source_type == "resume"),
             "self_intro_hit_count": sum(
@@ -104,13 +190,14 @@ def retrieve_candidate_anchors(
             skipped=True,
         )
 
-    query_terms = _query_terms(
+    query_profile = _query_profile(
         dimension=dimension,
         seed=seed,
         target_skills=target_skills,
         rule_anchor=rule_anchor,
         self_intro_profile=self_intro_profile,
     )
+    query_terms = query_profile.query_terms
     settings = get_settings()
     try:
         model_version = current_embedding_model_version(embedding_override)
@@ -118,10 +205,11 @@ def retrieve_candidate_anchors(
         return _result(
             started,
             fallback_reason="misconfig",
-            query_terms=query_terms,
+            query_profile=query_profile,
         )
-    vector = embed_query(
-        " ".join(query_terms),
+    anchor_query_text = query_profile.anchor_query_text or query_profile.query_text
+    anchor_vector = embed_query(
+        anchor_query_text,
         timeout_ms=int(
             getattr(settings, "resume_rag_query_embedding_timeout_ms", None)
             or settings.resume_rag_timeout_ms
@@ -132,16 +220,40 @@ def retrieve_candidate_anchors(
             dimension=dimension,
             seed=seed,
             target_skills=target_skills or [],
-            query_terms=query_terms,
+            query_terms=query_profile.anchor_terms or query_terms,
             embedding_model_version=model_version,
         ),
     )
-    if vector is None:
+    if anchor_vector is None:
         return _result(
             started,
             fallback_reason="timeout",
-            query_terms=query_terms,
+            query_profile=query_profile,
         )
+    boost_vector: list[float] | None = None
+    boost_fallback_reason: str | None = None
+    boost_query_text = query_profile.boost_query_text
+    if query_profile.anchor_query_text and boost_query_text:
+        boost_vector = embed_query(
+            boost_query_text,
+            timeout_ms=int(
+                getattr(settings, "resume_rag_query_embedding_timeout_ms", None)
+                or settings.resume_rag_timeout_ms
+                or 3000
+            ),
+            embedding_override=embedding_override,
+            cache_key=_query_cache_key(
+                dimension=dimension,
+                seed=seed,
+                target_skills=target_skills or [],
+                query_terms=_dedupe_texts(
+                    [*query_profile.anchor_identity_terms, *query_profile.boost_terms]
+                ),
+                embedding_model_version=model_version,
+            ),
+        )
+        if boost_vector is None:
+            boost_fallback_reason = "timeout"
 
     rows = _with_session(
         db_session,
@@ -160,7 +272,9 @@ def retrieve_candidate_anchors(
         if (
             hit := _hit_from_row(
                 row,
-                query_vector=vector,
+                anchor_vector=anchor_vector,
+                boost_vector=boost_vector,
+                query_profile=query_profile,
                 distance_threshold=threshold,
                 used_project_names=used_project_names or [],
             )
@@ -171,7 +285,8 @@ def retrieve_candidate_anchors(
         return _result(
             started,
             fallback_reason="low_score" if rows else "empty",
-            query_terms=query_terms,
+            query_profile=query_profile,
+            boost_fallback_reason=boost_fallback_reason,
         )
 
     resume_hits = _dedupe_resume_hits(
@@ -196,7 +311,8 @@ def retrieve_candidate_anchors(
         return _result(
             started,
             fallback_reason="empty",
-            query_terms=query_terms,
+            query_profile=query_profile,
+            boost_fallback_reason=boost_fallback_reason,
         )
 
     block_max = int(settings.resume_rag_block_max_chars or 800)
@@ -208,7 +324,8 @@ def retrieve_candidate_anchors(
             max_chars=min(500, block_max),
         ),
         hits=kept,
-        query_terms=query_terms,
+        query_profile=query_profile,
+        boost_fallback_reason=boost_fallback_reason,
     )
 
 
@@ -255,15 +372,35 @@ def _fetch_rows(
 def _hit_from_row(
     row: SessionAnchorChunk,
     *,
-    query_vector: list[float],
+    anchor_vector: list[float],
+    boost_vector: list[float] | None,
+    query_profile: CandidateAnchorQueryProfile,
     distance_threshold: float,
     used_project_names: list[str],
 ) -> CandidateAnchorHit | None:
-    distance = _cosine_distance(query_vector, _vector(row.embedding))
-    if distance >= distance_threshold:
+    row_vector = _vector(row.embedding)
+    anchor_distance = _cosine_distance(anchor_vector, row_vector)
+    anchor_score = _score_for_distance(anchor_distance, distance_threshold)
+    boost_distance = math.inf
+    boost_score = 0.0
+    if boost_vector is not None:
+        boost_distance = _cosine_distance(boost_vector, row_vector)
+        boost_score = _score_for_distance(boost_distance, distance_threshold)
+    if anchor_score <= 0.0 and boost_score <= 0.0:
         return None
-    score = max(0.0, 1.0 - distance)
-    adjusted_score = score
+    constraint = _constraint_match(row, query_profile)
+    score = max(anchor_score, boost_score)
+    distance = min(
+        anchor_distance if anchor_score > 0.0 else math.inf,
+        boost_distance if boost_score > 0.0 else math.inf,
+    )
+    if math.isinf(distance):
+        distance = min(anchor_distance, boost_distance)
+    adjusted_score = (
+        _ANCHOR_WEIGHT * anchor_score
+        + _BOOST_WEIGHT * boost_score
+        + _CONSTRAINT_WEIGHT * constraint.score
+    )
     project = str(row.project_name or "").strip()
     if row.source_type == "resume" and project:
         used_counts = Counter(
@@ -272,7 +409,7 @@ def _hit_from_row(
         count = used_counts.get(project.lower(), 0)
         if count:
             penalty = float(get_settings().resume_rag_used_project_penalty or 0.05)
-            adjusted_score = score * ((1 - penalty) ** count)
+            adjusted_score = max(0.0, adjusted_score - (penalty * count))
     return CandidateAnchorHit(
         id=int(row.id or 0),
         source_type=str(row.source_type or ""),
@@ -286,6 +423,13 @@ def _hit_from_row(
         score=score,
         distance=distance,
         adjusted_score=adjusted_score,
+        anchor_score=anchor_score,
+        boost_score=boost_score,
+        constraint_match=constraint.score,
+        final_score=adjusted_score,
+        matched_target_skills=constraint.matched_target_skills,
+        matched_dimensions=constraint.matched_dimensions,
+        matched_seed_terms=constraint.matched_seed_terms,
     )
 
 
@@ -327,32 +471,203 @@ def _render_block(hits: list[CandidateAnchorHit], *, max_chars: int) -> str:
     return rendered[:max_chars]
 
 
-def _query_terms(
+def _query_profile(
     *,
     dimension: str,
     seed: dict | None,
     target_skills: list[str] | None,
     rule_anchor: dict | None,
     self_intro_profile: dict | None,
-) -> list[str]:
+) -> CandidateAnchorQueryProfile:
+    return CandidateAnchorQueryProfile(
+        anchor_terms=_anchor_query_terms(rule_anchor),
+        anchor_identity_terms=_anchor_identity_terms(rule_anchor),
+        boost_terms=_boost_query_terms(self_intro_profile),
+        **_constraint_query_terms(
+            dimension=dimension,
+            seed=seed,
+            target_skills=target_skills,
+        ),
+        anchor_key=_anchor_key(rule_anchor),
+    )
+
+
+def _anchor_query_terms(rule_anchor: dict | None) -> list[str]:
+    if not isinstance(rule_anchor, dict):
+        return []
     terms: list[str] = []
+    terms.extend(_anchor_identity_terms(rule_anchor))
+    for key in ("skills", "tech_stack", "question_anchors", "dimensions"):
+        terms.extend(str(item).strip() for item in _as_text_list(rule_anchor.get(key)))
+    terms.extend(_semantic_anchor_key_terms(_anchor_key(rule_anchor)))
+    return _dedupe_texts(terms)
+
+
+def _anchor_identity_terms(rule_anchor: dict | None) -> list[str]:
+    if not isinstance(rule_anchor, dict):
+        return []
+    return _dedupe_texts(
+        [str(rule_anchor.get(key) or "").strip() for key in ("label", "project_name")]
+    )
+
+
+def _boost_query_terms(self_intro_profile: dict | None) -> list[str]:
+    terms: list[str] = []
+    if isinstance(self_intro_profile, dict):
+        for key in ("emphasized_projects", "emphasized_skills", "preferred_focus"):
+            terms.extend(str(item).strip() for item in _as_text_list(self_intro_profile.get(key)))
+    return _dedupe_texts(terms)
+
+
+def _constraint_query_terms(
+    *,
+    dimension: str,
+    seed: dict | None,
+    target_skills: list[str] | None,
+) -> dict[str, list[str]]:
+    dimension_terms = _dedupe_texts([str(dimension or "").strip()])
+    target_skill_terms = _dedupe_texts(
+        [str(skill).strip() for skill in (target_skills or [])]
+    )
+    seed_terms: list[str] = []
+    seed_match_terms: list[str] = []
     seed = seed or {}
     if isinstance(seed, dict):
         for key in ("scenario_brief", "title", "intent"):
             value = str(seed.get(key) or "").strip()
             if value:
-                terms.append(value)
-                break
-    terms.append(str(dimension or "").strip())
-    terms.extend(str(skill).strip() for skill in (target_skills or []))
-    if isinstance(rule_anchor, dict):
-        terms.append(str(rule_anchor.get("project_name") or "").strip())
-    if isinstance(self_intro_profile, dict):
-        for key in ("emphasized_projects", "emphasized_skills", "preferred_focus"):
-            values = self_intro_profile.get(key)
-            if isinstance(values, list):
-                terms.extend(str(item).strip() for item in values)
-    return _dedupe_texts(terms)
+                seed_terms.append(value)
+                seed_match_terms.extend(_term_tokens(value))
+    return {
+        "constraint_terms": _dedupe_texts(
+            [*dimension_terms, *target_skill_terms, *seed_terms]
+        ),
+        "dimension_terms": dimension_terms,
+        "target_skill_terms": target_skill_terms,
+        "seed_terms": _dedupe_texts(seed_terms),
+        "seed_match_terms": _dedupe_texts(seed_match_terms),
+    }
+
+
+def _anchor_key(rule_anchor: dict | None) -> str:
+    if not isinstance(rule_anchor, dict):
+        return ""
+    return str(rule_anchor.get("anchor_key") or "").strip()
+
+
+def _semantic_anchor_key_terms(anchor_key: str) -> list[str]:
+    key = str(anchor_key or "").strip().lower()
+    if not key:
+        return []
+    raw_parts = [part for part in key.replace("_", "-").split("-") if part]
+    if not raw_parts:
+        return []
+    if any(_looks_like_hash(part) for part in raw_parts):
+        return []
+    if raw_parts[0] == "focus":
+        raw_parts = raw_parts[1:]
+    ignored = {"global", "project", "proj"}
+    semantic = [part for part in raw_parts if part not in ignored and not part.isdigit()]
+    if len(semantic) < 2:
+        return []
+    return [" ".join(semantic)]
+
+
+def _looks_like_hash(value: str) -> bool:
+    text = str(value or "").strip().lower()
+    return len(text) >= 8 and all(ch in "0123456789abcdef" for ch in text)
+
+
+def _score_for_distance(distance: float, threshold: float) -> float:
+    if distance >= threshold:
+        return 0.0
+    return max(0.0, 1.0 - distance)
+
+
+def _constraint_match(
+    row: SessionAnchorChunk,
+    query_profile: CandidateAnchorQueryProfile,
+) -> ConstraintMatch:
+    target_matches = _matched_terms(
+        query_profile.target_skill_terms,
+        _row_search_blob(row, include_dimensions=False),
+    )
+    dimension_matches = _matched_terms(
+        query_profile.dimension_terms,
+        _row_search_blob(row, include_dimensions=True),
+    )
+    seed_matches = _matched_terms(
+        query_profile.seed_match_terms,
+        _row_search_blob(row, include_dimensions=False),
+    )
+    target_score = _ratio(target_matches, query_profile.target_skill_terms)
+    dimension_score = _ratio(dimension_matches, query_profile.dimension_terms)
+    seed_score = _ratio(seed_matches, query_profile.seed_match_terms)
+    score = (
+        0.5 * target_score
+        + 0.3 * dimension_score
+        + 0.2 * seed_score
+    )
+    return ConstraintMatch(
+        score=round(score, 6),
+        matched_target_skills=target_matches,
+        matched_dimensions=dimension_matches,
+        matched_seed_terms=seed_matches,
+    )
+
+
+def _matched_terms(terms: list[str], blob: str) -> list[str]:
+    matches: list[str] = []
+    for term in terms:
+        normalized = _normalise_match_text(term)
+        artifact_term = _artifact_match_term(term)
+        if normalized and normalized in blob and artifact_term not in matches:
+            matches.append(artifact_term)
+    return matches
+
+
+def _ratio(matches: list[str], terms: list[str]) -> float:
+    normalized_terms = [_normalise_match_text(term) for term in terms]
+    normalized_terms = [term for term in normalized_terms if term]
+    if not normalized_terms:
+        return 0.0
+    return min(1.0, len(matches) / len(set(normalized_terms)))
+
+
+def _row_search_blob(row: SessionAnchorChunk, *, include_dimensions: bool) -> str:
+    parts = [
+        str(row.heading or ""),
+        str(row.project_name or ""),
+        str(row.text or ""),
+        " ".join(_as_text_list(row.tech_keywords)),
+    ]
+    if include_dimensions:
+        parts.append(" ".join(_as_text_list(row.dimensions_hint)))
+    return _normalise_match_text(" ".join(parts))
+
+
+def _normalise_match_text(value: str) -> str:
+    text = str(value or "").strip().lower()
+    text = text.replace("_", " ").replace("-", " ")
+    return re.sub(r"\s+", " ", text)
+
+
+def _artifact_match_term(value: str) -> str:
+    return re.sub(r"\s+", "_", str(value or "").strip().lower())
+
+
+def _term_tokens(value: str) -> list[str]:
+    text = _normalise_match_text(value)
+    return re.findall(r"[\w\u4e00-\u9fff]+", text)
+
+
+def _as_text_list(value: Any) -> list[str]:
+    if isinstance(value, list | tuple):
+        return [str(item).strip() for item in value if str(item).strip()]
+    if value is None:
+        return []
+    text = str(value).strip()
+    return [text] if text else []
 
 
 def _query_cache_key(
@@ -424,8 +739,10 @@ def _result(
     hits: list[CandidateAnchorHit] | None = None,
     fallback_reason: str | None = None,
     skipped: bool = False,
-    query_terms: list[str] | None = None,
+    query_profile: CandidateAnchorQueryProfile | None = None,
+    boost_fallback_reason: str | None = None,
 ) -> CandidateAnchorRagResult:
+    query_profile = query_profile or CandidateAnchorQueryProfile()
     return CandidateAnchorRagResult(
         resume_block=resume_block,
         self_intro_block=self_intro_block,
@@ -433,7 +750,21 @@ def _result(
         latency_ms=int((time.perf_counter() - started) * 1000),
         fallback_reason=fallback_reason,
         skipped=skipped,
-        query_terms=query_terms or [],
+        query_terms=query_profile.query_terms,
+        anchor_terms=query_profile.anchor_terms,
+        boost_terms=query_profile.boost_terms,
+        constraint_terms=query_profile.constraint_terms,
+        query_text=query_profile.query_text,
+        anchor_query_text=query_profile.anchor_query_text,
+        boost_query_text=query_profile.boost_query_text,
+        constraint_query_text=query_profile.constraint_query_text,
+        anchor_key=query_profile.anchor_key,
+        boost_fallback_reason=boost_fallback_reason,
+        ranking_weights={
+            "anchor": _ANCHOR_WEIGHT,
+            "boost": _BOOST_WEIGHT,
+            "constraint": _CONSTRAINT_WEIGHT,
+        },
     )
 
 

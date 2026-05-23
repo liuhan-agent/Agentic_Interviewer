@@ -14,6 +14,22 @@ export type { TraceHealth };
 
 export interface BanditSnapshot {
   priors: Record<string, { alpha: number; beta: number }>;
+  memory_prior_count?: number;
+  persisted_prior_count?: number;
+  posterior_source?: string;
+  top_posteriors?: Array<{
+    context_key?: string;
+    action_id?: string;
+    alpha?: number;
+    beta?: number;
+    mean_reward?: number | null;
+    observation_count?: number;
+    last_reward?: number | null;
+    last_reward_kind?: string | null;
+    last_session_id?: string | null;
+    last_turn_idx?: number | null;
+    updated_at?: string | null;
+  }>;
   policy_mode?: string;
   exploration_rate?: number;
   decay?: {

@@ -8,9 +8,9 @@ RUNBOOK = ROOT.parent / "docs" / "RESUME_RAG_ROLLOUT.md"
 SETTINGS = ROOT / "app" / "core" / "settings.py"
 
 
-def test_settings_default_resume_rag_mode_is_shadow() -> None:
+def test_settings_default_resume_rag_mode_is_primary() -> None:
     text = SETTINGS.read_text(encoding="utf-8")
-    assert 'resume_rag_mode: Literal["off", "shadow", "primary"] = "shadow"' in text
+    assert 'resume_rag_mode: Literal["off", "shadow", "primary"] = "primary"' in text
 
 
 def test_readme_contains_pgvector_image() -> None:
@@ -19,6 +19,7 @@ def test_readme_contains_pgvector_image() -> None:
 
 def test_readme_contains_resume_rag_mode_rollback() -> None:
     text = README.read_text(encoding="utf-8")
+    assert "RESUME_RAG_MODE=primary" in text
     assert "RESUME_RAG_MODE=off" in text
     assert "RESUME_RAG_MODE=shadow" in text
 
@@ -46,6 +47,7 @@ def test_rollout_doc_includes_duplicate_rewrite_gate() -> None:
 
 def test_rollout_doc_includes_sampling_ramp_and_rollback() -> None:
     text = RUNBOOK.read_text(encoding="utf-8")
+    assert "RESUME_RAG_MODE=primary" in text
     assert "resume_rag_session_sample_rate" in text
     assert "0.05" in text and "0.3" in text and "1.0" in text
     assert "RESUME_RAG_MODE=off" in text

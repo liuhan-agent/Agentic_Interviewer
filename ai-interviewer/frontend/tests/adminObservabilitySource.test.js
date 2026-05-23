@@ -64,6 +64,18 @@ test("admin overview status hints reveal full copy with clear hierarchy", () => 
   );
 });
 
+test("admin overview uses DB-backed bandit posterior counts", () => {
+  const panel = read("src/components/admin/AdminPanel.tsx");
+  const api = read("src/lib/api/admin.ts");
+
+  assert.match(api, /persisted_prior_count\?: number/);
+  assert.match(api, /top_posteriors\?: Array/);
+  assert.match(panel, /persistedPriorCount/);
+  assert.match(panel, /bandit_posteriors/);
+  assert.match(panel, /个策略状态/);
+  assert.doesNotMatch(panel, /armCount/);
+});
+
 test("admin active sessions link back to report and replay pages", () => {
   const panel = read("src/components/admin/AdminPanel.tsx");
 

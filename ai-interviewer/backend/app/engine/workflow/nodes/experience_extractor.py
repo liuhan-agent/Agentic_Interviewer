@@ -20,6 +20,8 @@ from __future__ import annotations
 import hashlib
 from typing import Any
 
+from sqlalchemy import select
+
 from app.core.logging import get_logger
 from app.core.settings import get_settings
 from app.core.tracer import get_tracer
@@ -28,6 +30,7 @@ from app.engine.workflow.state import FailureCategory, InterviewState
 from app.ml.rl.action_space import ACTIONS_BY_ID
 from app.ml.rl.thompson import get_bandit
 from app.models import get_session
+from app.models.strategy_learning import BanditPosterior, InterviewTurn
 from app.models.strategy_memory import StrategySignal
 from app.tasks.dream_tasks import increment_session_count
 
@@ -67,13 +70,73 @@ def _last_turn_failure_categories(
     return []
 
 
+def _load_qa_history_for_extraction(
+    state: InterviewState,
+) -> tuple[list[dict[str, Any]], str]:
+    session_id = str(state.get("session_id") or "").strip()
+    if session_id:
+        try:
+            with get_session() as session:
+                rows = list(
+                    session.scalars(
+                        select(InterviewTurn)
+                        .where(InterviewTurn.session_id == session_id)
+                        .order_by(InterviewTurn.turn_idx.asc())
+                    )
+                )
+            if rows:
+                return [_turn_row_to_qa(row) for row in rows], "db"
+        except Exception as e:  # pragma: no cover - extraction is best-effort
+            log.warning("experience_extractor: interview_turns DB read failed: %s", e)
+
+    return list(state.get("qa_history") or []), "state"
+
+
+def _turn_row_to_qa(row: InterviewTurn) -> dict[str, Any]:
+    evaluation = dict(row.evaluation or {})
+    if row.score is not None and "score" not in evaluation:
+        evaluation["score"] = row.score
+    if row.passed is not None and "passed" not in evaluation:
+        evaluation["passed"] = row.passed
+    if row.failure_categories and "failure_categories" not in evaluation:
+        evaluation["failure_categories"] = list(row.failure_categories)
+    qa = {
+        "turn_idx": row.turn_idx,
+        "dimension": row.dimension,
+        "question": row.question,
+        "answer": row.answer,
+        "selected_action": row.selected_action or "",
+        "evaluation": evaluation,
+        "selection_artifacts": dict(row.selection_artifacts or {}),
+    }
+    resume_anchor = _turn_row_resume_anchor(row)
+    if resume_anchor:
+        qa["resume_anchor"] = resume_anchor
+    return qa
+
+
+def _turn_row_resume_anchor(row: InterviewTurn) -> dict[str, Any]:
+    anchor: dict[str, Any] = {}
+    if row.resume_anchor_key:
+        anchor["anchor_key"] = row.resume_anchor_key
+    if row.resume_anchor_label:
+        anchor["label"] = row.resume_anchor_label
+    if row.resume_project_id:
+        anchor["project_id"] = row.resume_project_id
+    return anchor
+
+
 def _safe_key_part(value: Any) -> str:
     return str(value or "unknown").strip().replace(" ", "_") or "unknown"
 
 
-def _extract_qa_patterns(state: InterviewState) -> list[dict[str, Any]]:
+def _extract_qa_patterns(
+    state: InterviewState,
+    *,
+    qa_history: list[dict[str, Any]] | None = None,
+) -> list[dict[str, Any]]:
     """Identify notable patterns from this session's QA history."""
-    qa_history = state.get("qa_history", [])
+    qa_history = qa_history if qa_history is not None else state.get("qa_history", [])
     if len(qa_history) < 2:
         return []
 
@@ -153,13 +216,38 @@ def _extract_qa_patterns(state: InterviewState) -> list[dict[str, Any]]:
     return patterns
 
 
-def _extract_bandit_insights() -> list[dict[str, Any]]:
-    """Query bandit posteriors for arms with strong evidence."""
+def _extract_bandit_insights() -> tuple[list[dict[str, Any]], str]:
+    """Query persisted posteriors first, with memory fallback for legacy tests."""
     s = get_settings()
     min_obs = float(s.experience_min_observations)
     high_mean = float(s.experience_high_reward_mean)
     low_mean = float(s.experience_low_reward_mean)
 
+    db_insights, had_db_rows = _extract_bandit_insights_from_db(
+        min_obs=min_obs,
+        high_mean=high_mean,
+        low_mean=low_mean,
+    )
+    if had_db_rows:
+        return db_insights, "db"
+
+    return (
+        _extract_bandit_insights_from_memory(
+            min_obs=min_obs,
+            high_mean=high_mean,
+            low_mean=low_mean,
+        ),
+        "memory",
+    )
+
+
+def _extract_bandit_insights_from_memory(
+    *,
+    min_obs: float,
+    high_mean: float,
+    low_mean: float,
+) -> list[dict[str, Any]]:
+    """Query in-memory bandit posteriors for legacy fallback coverage."""
     bandit = get_bandit()
     insights: list[dict[str, Any]] = []
 
@@ -205,6 +293,96 @@ def _extract_bandit_insights() -> list[dict[str, Any]]:
     return insights
 
 
+def _extract_bandit_insights_from_db(
+    *,
+    min_obs: float,
+    high_mean: float,
+    low_mean: float,
+) -> tuple[list[dict[str, Any]], bool]:
+    insights: list[dict[str, Any]] = []
+    try:
+        with get_session() as session:
+            rows = list(
+                session.scalars(
+                    select(BanditPosterior)
+                    .order_by(BanditPosterior.observation_count.desc())
+                )
+            )
+    except Exception as e:  # pragma: no cover - extraction is best-effort
+        log.warning("experience_extractor: posterior DB read failed: %s", e)
+        return [], False
+
+    for row in rows:
+        total = int(row.observation_count or 0)
+        if total < min_obs:
+            continue
+        mean = _posterior_mean(row.alpha, row.beta)
+        if mean is None:
+            continue
+        if mean >= high_mean:
+            insights.append(
+                _posterior_insight(
+                    row,
+                    signal_type="high_reward_arm",
+                    mean=mean,
+                    observations=total,
+                    low_reward=False,
+                )
+            )
+        if mean <= low_mean:
+            insights.append(
+                _posterior_insight(
+                    row,
+                    signal_type="low_reward_arm",
+                    mean=mean,
+                    observations=total,
+                    low_reward=True,
+                )
+            )
+    return insights, bool(rows)
+
+
+def _posterior_mean(alpha: float | None, beta: float | None) -> float | None:
+    a = float(alpha or 0.0)
+    b = float(beta or 0.0)
+    total = a + b
+    if total <= 0:
+        return None
+    return a / total
+
+
+def _posterior_insight(
+    row: BanditPosterior,
+    *,
+    signal_type: str,
+    mean: float,
+    observations: int,
+    low_reward: bool,
+) -> dict[str, Any]:
+    action = ACTIONS_BY_ID.get(row.action_id)
+    action_label = action.label if action else row.action_id
+    if low_reward:
+        detail = (
+            f"Action '{action_label}' in context '{row.context_key}' has "
+            f"low mean reward {mean:.3f} over {observations} observations. "
+            f"Consider avoiding this action in similar contexts."
+        )
+    else:
+        detail = (
+            f"Action '{action_label}' in context '{row.context_key}' has "
+            f"mean reward {mean:.3f} over {observations} observations."
+        )
+    return {
+        "type": signal_type,
+        "context_key": row.context_key,
+        "action_id": row.action_id,
+        "action_label": action_label,
+        "mean_reward": round(mean, 3),
+        "observations": observations,
+        "detail": detail,
+    }
+
+
 def strategy_memory_key_for_pattern(pattern: dict[str, Any]) -> str:
     ptype = _safe_key_part(pattern.get("type"))
     dim = _safe_key_part(pattern.get("dimension"))
@@ -235,6 +413,8 @@ def _signal_id(signal_key: str) -> str:
 def _signal_payload_from_qa_pattern(
     state: InterviewState,
     pattern: dict[str, Any],
+    *,
+    qa_history: list[dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
     ptype = str(pattern.get("type") or "unknown")
     action_id = (
@@ -245,18 +425,19 @@ def _signal_payload_from_qa_pattern(
     group_key = strategy_memory_key_for_pattern(pattern)
     session_id = str(state.get("session_id") or "unknown")
     dimension = str(pattern.get("dimension") or "unknown")
+    qa_history = qa_history if qa_history is not None else state.get("qa_history", [])
     return {
         "signal_key": f"{session_id}:{group_key}",
         "group_key": group_key,
         "session_id": session_id,
-        "turn_idx": int(state.get("turn_idx", len(state.get("qa_history", [])))),
+        "turn_idx": int(state.get("turn_idx", len(qa_history))),
         "dimension": dimension,
         "job_level": str(pattern.get("job_level") or "mid"),
         "action_id": str(action_id or ""),
         "plan_template": str(action_id or "") or None,
         "probe_intent": None,
         "failure_categories": _last_turn_failure_categories(
-            state.get("qa_history", []),
+            qa_history,
             dimension,
         ),
         "score_before": _optional_float(pattern.get("score_before")),
@@ -273,17 +454,20 @@ def _signal_payload_from_qa_pattern(
 def _signal_payload_from_bandit_insight(
     state: InterviewState,
     insight: dict[str, Any],
+    *,
+    qa_history: list[dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
     group_key = strategy_memory_key_for_insight(insight)
     session_id = str(state.get("session_id") or "unknown")
     ctx = str(insight.get("context_key") or "")
     parsed_context = parse_policy_context_key(ctx)
     action_id = str(insight.get("action_id") or "")
+    qa_history = qa_history if qa_history is not None else state.get("qa_history", [])
     return {
         "signal_key": f"{session_id}:{group_key}",
         "group_key": group_key,
         "session_id": session_id,
-        "turn_idx": int(state.get("turn_idx", len(state.get("qa_history", [])))),
+        "turn_idx": int(state.get("turn_idx", len(qa_history))),
         "dimension": parsed_context.dimension,
         "job_level": parsed_context.job_level,
         "action_id": action_id,
@@ -293,7 +477,7 @@ def _signal_payload_from_bandit_insight(
         # the current session's last matching dimension turn when we
         # happen to have one, else stay empty rather than fabricate.
         "failure_categories": _last_turn_failure_categories(
-            state.get("qa_history", []),
+            qa_history,
             parsed_context.dimension,
         ),
         "score_before": None,
@@ -357,11 +541,18 @@ def experience_extractor_node(state: InterviewState) -> dict[str, Any]:
     """
     if state.get("status") == "cancelled":
         log.info("experience_extractor: skipped (session cancelled)")
-        _trace_experience_extractor(state, saved=0, reason="cancelled")
+        _trace_experience_extractor(
+            state,
+            saved=0,
+            reason="cancelled",
+            qa_source="skipped",
+            bandit_source="skipped",
+        )
         return {}
 
-    qa_patterns = _extract_qa_patterns(state)
-    bandit_insights = _extract_bandit_insights()
+    qa_history, qa_source = _load_qa_history_for_extraction(state)
+    qa_patterns = _call_extract_qa_patterns(state, qa_history)
+    bandit_insights, bandit_source = _call_extract_bandit_insights()
     candidates = len(qa_patterns) + len(bandit_insights)
 
     saved = 0
@@ -373,7 +564,11 @@ def experience_extractor_node(state: InterviewState) -> dict[str, Any]:
     for pattern in qa_patterns:
         try:
             status, memory_key = _persist_strategy_signal(
-                _signal_payload_from_qa_pattern(state, pattern)
+                _signal_payload_from_qa_pattern(
+                    state,
+                    pattern,
+                    qa_history=qa_history,
+                )
             )
             if status == "saved":
                 saved += 1
@@ -399,7 +594,11 @@ def experience_extractor_node(state: InterviewState) -> dict[str, Any]:
     for insight in bandit_insights:
         try:
             status, memory_key = _persist_strategy_signal(
-                _signal_payload_from_bandit_insight(state, insight)
+                _signal_payload_from_bandit_insight(
+                    state,
+                    insight,
+                    qa_history=qa_history,
+                )
             )
             if status == "saved":
                 saved += 1
@@ -442,8 +641,29 @@ def experience_extractor_node(state: InterviewState) -> dict[str, Any]:
         skipped_keys=skipped_keys[:5],
         failed_keys=failed_keys[:5],
         reason="completed",
+        qa_source=qa_source,
+        bandit_source=bandit_source,
     )
     return {}
+
+
+def _call_extract_qa_patterns(
+    state: InterviewState,
+    qa_history: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    try:
+        return _extract_qa_patterns(state, qa_history=qa_history)
+    except TypeError:
+        # Some tests and local extensions monkeypatch this internal hook
+        # with the legacy one-argument signature.
+        return _extract_qa_patterns(state)
+
+
+def _call_extract_bandit_insights() -> tuple[list[dict[str, Any]], str]:
+    raw = _extract_bandit_insights()
+    if isinstance(raw, tuple):
+        return raw
+    return list(raw or []), "memory"
 
 
 def _trace_experience_extractor(
@@ -457,6 +677,8 @@ def _trace_experience_extractor(
     skipped_keys: list[str] | None = None,
     failed_keys: list[str] | None = None,
     reason: str,
+    qa_source: str = "state",
+    bandit_source: str = "memory",
 ) -> None:
     try:
         get_tracer().trace_node_event(
@@ -471,6 +693,8 @@ def _trace_experience_extractor(
                 "saved_keys": saved_keys or [],
                 "skipped_keys": skipped_keys or [],
                 "failed_keys": failed_keys or [],
+                "qa_source": qa_source,
+                "bandit_source": bandit_source,
             },
         )
     except Exception as e:  # pragma: no cover - side channel

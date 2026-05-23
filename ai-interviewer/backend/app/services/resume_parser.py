@@ -563,6 +563,258 @@ def _normalise_list(items: Any, *, limit: int = 8) -> list[str]:
     return out
 
 
+RUNTIME_RESUME_FOCUS_DIMENSIONS: frozenset[str] = frozenset(
+    {
+        "technical_depth",
+        "system_design",
+        "problem_solving",
+        "coding_quality",
+        "project_experience",
+        "communication",
+        "product_thinking",
+        "leadership",
+        "user_insight",
+        "requirement_analysis",
+        "prioritization",
+        "metrics_thinking",
+        "stakeholder_management",
+        "user_growth",
+        "content_operations",
+        "data_analysis",
+        "campaign_execution",
+        "process_optimization",
+        "customer_discovery",
+        "solution_matching",
+        "objection_handling",
+        "negotiation",
+        "pipeline_management",
+        "market_insight",
+        "brand_strategy",
+        "campaign_planning",
+        "channel_growth",
+        "content_creativity",
+        "talent_acquisition",
+        "employee_relations",
+        "organization_development",
+        "policy_compliance",
+        "service_orientation",
+        "customer_empathy",
+        "issue_diagnosis",
+        "solution_delivery",
+        "escalation_management",
+        "retention_growth",
+        "goal_setting",
+        "team_leadership",
+        "decision_making",
+        "execution_management",
+        "cross_functional_alignment",
+    }
+)
+
+_DEFAULT_RESUME_FOCUS_DIMENSIONS = ["project_experience", "technical_depth"]
+
+_DIMENSION_ALIAS_MAP: dict[str, tuple[str, ...]] = {
+    "architecture": ("system_design",),
+    "architecture_design": ("system_design",),
+    "debugging": ("problem_solving",),
+    "frontend": ("coding_quality", "product_thinking"),
+    "system_integration": ("system_design", "technical_depth"),
+    "workflow_design": ("system_design",),
+    "permission_model": ("system_design", "coding_quality"),
+    "data_consistency": ("system_design", "problem_solving"),
+    "concurrency_control": ("system_design", "technical_depth"),
+    "cache_strategy": ("system_design", "technical_depth"),
+    "message_queue": ("system_design", "technical_depth"),
+    "message_push": ("system_design",),
+    "realtime_processing": ("system_design", "problem_solving"),
+    "rule_engine": ("system_design",),
+    "resource_scheduling": ("system_design", "problem_solving"),
+    "llm_application": ("technical_depth", "system_design"),
+    "concurrent_programming": ("technical_depth", "coding_quality"),
+    "sql_tuning": ("technical_depth", "coding_quality"),
+    "index_design": ("technical_depth", "coding_quality"),
+    "app_layer_assembly": ("coding_quality", "technical_depth"),
+    "performance_optimization": ("problem_solving", "technical_depth"),
+}
+
+_DIMENSION_INFERENCE_RULES: tuple[tuple[str, tuple[str, ...]], ...] = (
+    (
+        "system_design",
+        (
+            "架构",
+            "分布式",
+            "一致性",
+            "高并发",
+            "缓存",
+            "消息",
+            "队列",
+            "工作流",
+            "权限",
+            "实时",
+            "路由",
+            "集成",
+            "redis",
+            "rabbitmq",
+            "kafka",
+            "flowable",
+            "spring cloud",
+            "microservice",
+            "nacos",
+            "gateway",
+        ),
+    ),
+    (
+        "technical_depth",
+        (
+            "技术",
+            "底层",
+            "机制",
+            "redis",
+            "lua",
+            "mysql",
+            "索引",
+            "sql",
+            "llm",
+            "rag",
+            "agent",
+            "并发",
+            "juc",
+        ),
+    ),
+    (
+        "coding_quality",
+        (
+            "代码",
+            "测试",
+            "重构",
+            "接口",
+            "n+1",
+            "mybatis",
+            "left join",
+            "batch",
+            "批量",
+            "事务边界",
+        ),
+    ),
+    (
+        "problem_solving",
+        (
+            "排查",
+            "故障",
+            "优化",
+            "调优",
+            "瓶颈",
+            "防抖",
+            "积压",
+            "性能",
+            "p99",
+            "latency",
+            "吞吐",
+        ),
+    ),
+    ("communication", ("沟通", "协作", "解释", "团队", "stakeholder")),
+    ("project_experience", ("项目", "交付", "落地", "成果", "复盘")),
+)
+
+
+def resume_focus_anchor_key(
+    focus_id: Any,
+    *,
+    project_id: Any = None,
+    label: Any = None,
+) -> str:
+    """Return the stable key used to group turns under a resume focus."""
+
+    focus_slug = _slug_anchor_token(focus_id)
+    if _is_semantic_focus_id(focus_slug):
+        readable = focus_slug.removeprefix("focus-")
+        return f"focus-{readable}"[:160]
+
+    project_slug = _slug_anchor_token(project_id) or "global"
+    digest_source = "|".join(
+        [
+            str(project_id or "").strip().lower(),
+            re.sub(r"\s+", " ", str(label or "").strip().lower()),
+        ]
+    )
+    digest = hashlib.sha1(
+        digest_source.encode("utf-8"),
+        usedforsecurity=False,
+    ).hexdigest()[:12]
+    return f"focus-{project_slug}-{digest}"[:160]
+
+
+def normalise_resume_focus_dimensions(
+    dimensions: Any,
+    *,
+    text_parts: list[str] | None = None,
+) -> list[str]:
+    out: list[str] = []
+    for raw in _normalise_list(dimensions, limit=8):
+        dim = _normalise_dimension_id(raw)
+        if dim in RUNTIME_RESUME_FOCUS_DIMENSIONS:
+            _append_dimension(out, dim)
+            continue
+        for alias in _DIMENSION_ALIAS_MAP.get(dim, ()):
+            _append_dimension(out, alias)
+
+    if not out:
+        text = " ".join(part for part in (text_parts or []) if str(part or "").strip())
+        out.extend(_infer_resume_focus_dimensions(text))
+
+    if not out:
+        out.extend(_DEFAULT_RESUME_FOCUS_DIMENSIONS)
+    return out[:5]
+
+
+def normalise_resume_parsed_focus_areas(parsed: Any) -> dict[str, Any]:
+    if not isinstance(parsed, dict):
+        return {}
+    out = dict(parsed)
+    projects = [p for p in out.get("projects") or [] if isinstance(p, dict)]
+    if "focus_areas" in out or out.get("focus_areas"):
+        out["focus_areas"] = _normalise_focus_areas(
+            out.get("focus_areas"),
+            projects=projects,
+        )
+    return out
+
+
+def _slug_anchor_token(value: Any) -> str:
+    text = unicodedata.normalize("NFKC", str(value or "")).strip().lower()
+    text = re.sub(r"[^a-z0-9]+", "-", text).strip("-")
+    return text
+
+
+def _is_semantic_focus_id(slug: str) -> bool:
+    if not slug or slug.isdigit():
+        return False
+    if re.fullmatch(r"(?:focus|f)-?\d+", slug):
+        return False
+    return bool(re.search(r"[a-z]", slug))
+
+
+def _normalise_dimension_id(value: Any) -> str:
+    text = unicodedata.normalize("NFKC", str(value or "")).strip().lower()
+    text = re.sub(r"[\s-]+", "_", text)
+    text = re.sub(r"[^a-z0-9_]+", "", text)
+    return text.strip("_")
+
+
+def _append_dimension(out: list[str], dim: str) -> None:
+    if dim in RUNTIME_RESUME_FOCUS_DIMENSIONS and dim not in out:
+        out.append(dim)
+
+
+def _infer_resume_focus_dimensions(text: str) -> list[str]:
+    lower = str(text or "").lower()
+    inferred: list[str] = []
+    for dim, needles in _DIMENSION_INFERENCE_RULES:
+        if any(needle in lower for needle in needles):
+            _append_dimension(inferred, dim)
+    return inferred
+
+
 _NAME_LABEL_RE = re.compile(r"^(?:name|candidate|姓名|候选人|称呼)\s*[:：]\s*", re.IGNORECASE)
 _NAME_REJECT_TERMS = (
     "resume",
@@ -1196,7 +1448,7 @@ def _derive_focus_areas(
                 }
             )
             if len(focus) >= 6:
-                return focus
+                return _normalise_focus_areas(focus, projects=projects)
     if not focus:
         for highlight in highlights[:3]:
             focus.append(
@@ -1221,7 +1473,7 @@ def _derive_focus_areas(
                     "priority": len(focus) + 1,
                 }
             )
-    return focus[:6]
+    return _normalise_focus_areas(focus[:6], projects=projects)
 
 
 def _derive_concerns(projects: list[dict[str, Any]], highlights: list[str]) -> list[str]:
@@ -1299,6 +1551,11 @@ _SYSTEM_PROMPT = """你是一名严谨的简历解析器。
   其中用户可见文本都使用简体中文；数组字段每项最多 3 条，每条保持短句。
 - "focus_areas": 最多 6 个面试重点，来源于项目经历。每项包含 id、label、
   project_id、dimensions、skills、priority。label 使用简体中文。
+  focus_areas[].dimensions 只能使用这些运行时维度 id：
+  technical_depth、system_design、problem_solving、coding_quality、
+  project_experience、communication、product_thinking、leadership、
+  data_analysis。不要输出 architecture-design、cache-strategy、
+  sql-tuning 这类自由标签。
 - "concerns": 简短中文说明缺失或证据较弱、面试中适合追问的点。
 
 硬性规则：
@@ -1560,9 +1817,18 @@ def _normalise_projects(raw: Any) -> list[dict[str, Any]]:
     return projects
 
 
-def _normalise_focus_areas(raw: Any) -> list[dict[str, Any]]:
+def _normalise_focus_areas(
+    raw: Any,
+    *,
+    projects: list[dict[str, Any]] | None = None,
+) -> list[dict[str, Any]]:
     if not isinstance(raw, list):
         return []
+    projects_by_id = {
+        str(project.get("id")): project
+        for project in (projects or [])
+        if isinstance(project, dict) and project.get("id")
+    }
     focus: list[dict[str, Any]] = []
     for idx, item in enumerate(raw[:6], start=1):
         if not isinstance(item, dict):
@@ -1575,13 +1841,33 @@ def _normalise_focus_areas(raw: Any) -> list[dict[str, Any]]:
         except (TypeError, ValueError):
             priority = idx
         project_id = item.get("project_id")
+        project = projects_by_id.get(str(project_id or ""))
+        skills = _normalise_list(item.get("skills"), limit=8)
+        text_parts = [label, *skills]
+        if project:
+            text_parts.extend(
+                [
+                    str(project.get("name") or ""),
+                    " ".join(_normalise_list(project.get("question_anchors"), limit=5)),
+                    " ".join(_normalise_list(project.get("achievements"), limit=5)),
+                ]
+            )
+        focus_id = str(item.get("id") or f"focus-{idx}")[:40]
         focus.append(
             {
-                "id": str(item.get("id") or f"focus-{idx}")[:40],
+                "id": focus_id,
+                "anchor_key": resume_focus_anchor_key(
+                    item.get("anchor_key") or focus_id,
+                    project_id=project_id,
+                    label=label,
+                ),
                 "label": label[:120],
                 "project_id": str(project_id)[:40] if project_id else None,
-                "dimensions": _normalise_list(item.get("dimensions"), limit=5),
-                "skills": _normalise_list(item.get("skills"), limit=8),
+                "dimensions": normalise_resume_focus_dimensions(
+                    item.get("dimensions"),
+                    text_parts=text_parts,
+                ),
+                "skills": skills,
                 "priority": priority,
             }
         )
@@ -1641,7 +1927,10 @@ def _merge(heuristic: ParsedResume, llm: dict[str, Any]) -> ParsedResume:
         projects = llm_projects
 
     focus_areas = heuristic.focus_areas
-    llm_focus_areas = _normalise_focus_areas(llm.get("focus_areas"))
+    llm_focus_areas = _normalise_focus_areas(
+        llm.get("focus_areas"),
+        projects=projects,
+    )
     if llm_focus_areas:
         focus_areas = llm_focus_areas
     elif projects != heuristic.projects or highlights != heuristic.highlights:
@@ -1649,6 +1938,11 @@ def _merge(heuristic: ParsedResume, llm: dict[str, Any]) -> ParsedResume:
             projects=projects,
             skills=merged_skills,
             highlights=highlights,
+        )
+    else:
+        focus_areas = _normalise_focus_areas(
+            focus_areas,
+            projects=projects,
         )
 
     concerns = heuristic.concerns

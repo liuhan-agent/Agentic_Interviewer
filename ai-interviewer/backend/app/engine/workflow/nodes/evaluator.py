@@ -17,17 +17,14 @@ from app.engine.workflow.evaluation_consistency import (
 )
 from app.engine.workflow.followup_reason import attach_replay_followup_reason
 from app.engine.workflow.replay_basis import sanitize_replay_question_basis
-from app.engine.workflow.score_aggregation import (
-    build_score_breakdowns_from_qa,
-    finite_score,
-    legacy_score_breakdown,
-    update_score_breakdown,
-)
+from app.engine.workflow.score_aggregation import build_score_breakdowns_from_qa
 from app.engine.workflow.state import InterviewState, QATurn
 from app.ml.drift.prompt_feedback import build_evaluator_drift_negatives
 from app.ml.rl.reward_fn import immediate_reward
 from app.ml.rl.thompson import get_bandit  # noqa: F401 - legacy tests patch this name
+from app.models import get_session
 from app.services.question_selector import build_question_history_selection_artifacts
+from app.services.strategy_learning_facts import upsert_interview_turn
 
 from .wait_answer import get_raw_answer_for_state
 
@@ -47,29 +44,6 @@ def _failure_categories_for_drift_feedback(
     if not isinstance(raw, list):
         return []
     return [str(value) for value in raw if isinstance(value, str) and value.strip()]
-
-
-def _has_scored_evaluator_turn(
-    qa_history: list[dict[str, Any]],
-    dimension: str,
-) -> bool:
-    for qa in qa_history:
-        if qa.get("dimension") != dimension:
-            continue
-        evaluation = qa.get("evaluation") or {}
-        if evaluation.get("skipped") or qa.get("answer_intent") == "skipped":
-            continue
-        if is_evaluator_fallback(evaluation):
-            continue
-        raw_score = evaluation.get("score")
-        if raw_score is None or isinstance(raw_score, bool):
-            continue
-        try:
-            float(raw_score)
-        except (TypeError, ValueError):
-            continue
-        return True
-    return False
 
 
 def evaluator_node(state: InterviewState) -> dict[str, Any]:
@@ -138,29 +112,6 @@ def evaluator_node(state: InterviewState) -> dict[str, Any]:
         score_breakdowns.update(
             build_score_breakdowns_from_qa(list(state.get("qa_history") or []))
         )
-    if not fallback_turn:
-        # Fallback evaluations come from the conservative path when the
-        # LLM was unavailable — folding their score into the running
-        # dim average would let LLM hiccups silently drag a strong
-        # candidate's reported score down (audit finding F3). Keep the
-        # dim score unchanged on fallback turns; the bandit is also
-        # already protected by ``reward_update`` skipping fallbacks.
-        existing_score = finite_score(scores.get(dimension))
-        has_prior_turn = _has_scored_evaluator_turn(
-            state.get("qa_history", []),
-            dimension,
-        )
-        if existing_score == 0.0 and not has_prior_turn:
-            existing_score = None
-        existing_breakdown = score_breakdowns.get(dimension)
-        if existing_breakdown is None and existing_score is not None:
-            existing_breakdown = legacy_score_breakdown(existing_score)
-        new_score = finite_score(evaluation.get("score"))
-        if new_score is not None:
-            next_breakdown = update_score_breakdown(existing_breakdown, new_score)
-            score_breakdowns[dimension] = next_breakdown
-            scores[dimension] = next_breakdown["adopted_score"]
-            score_breakdowns_changed = True
 
     status = sync_dimension_status(
         dict(state.get("dimension_status", {})),
@@ -201,6 +152,16 @@ def evaluator_node(state: InterviewState) -> dict[str, Any]:
     if isinstance(video_signals, dict) and video_signals:
         qa_turn["video_signals"] = video_signals
 
+    if not fallback_turn:
+        rebuilt_breakdowns = build_score_breakdowns_from_qa(
+            list(state.get("qa_history") or []) + [qa_turn]
+        )
+        next_breakdown = rebuilt_breakdowns.get(dimension)
+        if next_breakdown is not None:
+            score_breakdowns[dimension] = next_breakdown
+            scores[dimension] = next_breakdown["adopted_score"]
+            score_breakdowns_changed = True
+
     turn_budget = max(0, state.get("turn_budget_remaining", 0) - 1)
 
     # Contract-hygiene penalties engage when we pass the current
@@ -240,6 +201,14 @@ def evaluator_node(state: InterviewState) -> dict[str, Any]:
     if score_breakdowns_changed:
         updated_state["score_breakdowns"] = score_breakdowns
 
+    _persist_interview_turn_fact(
+        state=state,
+        question=question,
+        qa_turn=qa_turn,
+        turn_idx=formal_turn_idx,
+        preview_reward=preview_reward,
+    )
+
     # Tracer is side-channel: write trace from a consolidated view of the
     # state so downstream joins don't have to guess which turn we mean.
     # Reward is applied by ``reward_update_node`` after verification has
@@ -259,3 +228,88 @@ def evaluator_node(state: InterviewState) -> dict[str, Any]:
         log.warning("tracer side-channel failed: %s", e)
 
     return updated_state
+
+
+def _persist_interview_turn_fact(
+    *,
+    state: InterviewState,
+    question: dict[str, Any],
+    qa_turn: QATurn,
+    turn_idx: int,
+    preview_reward: float,
+) -> None:
+    try:
+        action = state.get("selected_action") or {}
+        policy_context_keys = (
+            state.get("policy_context_keys")
+            or action.get("policy_context_keys")
+            or []
+        )
+        evaluation = qa_turn.get("evaluation") or {}
+        with get_session() as session:
+            upsert_interview_turn(
+                session,
+                session_id=str(state.get("session_id") or ""),
+                turn_idx=int(turn_idx),
+                trace_id=_optional_str(state.get("trace_id")),
+                dimension=str(qa_turn.get("dimension") or "unknown"),
+                job_level=_optional_str((state.get("job_spec") or {}).get("level")),
+                question=str(qa_turn.get("question") or ""),
+                answer=str(qa_turn.get("answer") or ""),
+                **_resume_anchor_fact_fields(question),
+                selected_action=_optional_str(qa_turn.get("selected_action")),
+                policy_context_keys=[
+                    str(key) for key in policy_context_keys if str(key or "").strip()
+                ],
+                selection_artifacts=dict(qa_turn.get("selection_artifacts") or {}),
+                evaluation=dict(evaluation),
+                failure_categories=_failure_categories(evaluation),
+                score=_optional_float(evaluation.get("score")),
+                passed=_optional_bool(evaluation.get("passed")),
+                immediate_reward=None,
+            )
+    except Exception as e:  # pragma: no cover - fact persistence is side-channel
+        log.warning(
+            "interview turn fact persistence failed preview_reward=%.2f: %s",
+            preview_reward,
+            e,
+        )
+
+
+def _failure_categories(evaluation: dict[str, Any]) -> list[str]:
+    raw = evaluation.get("failure_categories")
+    if not isinstance(raw, list):
+        return []
+    return [str(value) for value in raw if isinstance(value, str) and value.strip()]
+
+
+def _resume_anchor_fact_fields(question: dict[str, Any]) -> dict[str, str | None]:
+    anchor = question.get("resume_anchor")
+    if not isinstance(anchor, dict):
+        anchor = {}
+    label = anchor.get("label") or anchor.get("project_name")
+    return {
+        "resume_anchor_key": _optional_str(anchor.get("anchor_key")),
+        "resume_anchor_label": _optional_str(label),
+        "resume_project_id": _optional_str(anchor.get("project_id")),
+    }
+
+
+def _optional_str(value: Any) -> str | None:
+    text = str(value or "").strip()
+    return text or None
+
+
+def _optional_float(value: Any) -> float | None:
+    if value is None or isinstance(value, bool):
+        return None
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return None
+
+
+def _optional_bool(value: Any) -> bool | None:
+    if value is None:
+        return None
+    return bool(value)
