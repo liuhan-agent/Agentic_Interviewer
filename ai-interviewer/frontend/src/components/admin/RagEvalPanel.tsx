@@ -20,10 +20,16 @@ type Phase =
   | { kind: "error"; message: string };
 
 const WINDOWS = ["24h", "7d", "30d"] as const;
+const WINDOW_LABELS: Record<(typeof WINDOWS)[number], string> = {
+  "24h": "24 小时",
+  "7d": "7 天",
+  "30d": "30 天",
+};
 
 export function RagEvalPanel() {
-  const [window, setWindow] = useState<string>("7d");
+  const [window, setWindow] = useState<string>("24h");
   const [phase, setPhase] = useState<Phase>({ kind: "loading" });
+  const windowLabel = WINDOW_LABELS[window as (typeof WINDOWS)[number]] ?? window;
 
   useEffect(() => {
     const ctrl = new AbortController();
@@ -45,15 +51,17 @@ export function RagEvalPanel() {
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
             <Database className="h-4 w-4 text-sky-400" />
-            <CardTitle className="text-base">知识 RAG 评测</CardTitle>
+            <CardTitle className="text-base">知识 RAG 评测（{windowLabel}）</CardTitle>
           </div>
           <div className="flex gap-1">
             {WINDOWS.map((w) => (
               <button
                 key={w}
+                type="button"
+                aria-pressed={window === w}
                 onClick={() => setWindow(w)}
                 className={[
-                  "rounded-md px-2.5 py-1 text-xs font-medium transition-colors",
+                  "rounded-md px-2.5 py-1 text-xs font-medium transition-colors focus-visible:ring-2 focus-visible:ring-ring",
                   window === w
                     ? "bg-primary text-primary-foreground"
                     : "bg-muted text-muted-foreground hover:bg-muted/80",

@@ -5,6 +5,8 @@ import {
   Activity,
   AlertTriangle,
   BookMarked,
+  ChevronLeft,
+  ChevronRight,
   Clock,
   ClipboardList,
   Copy,
@@ -33,12 +35,6 @@ import {
 import { Input } from "@/components/ui/input";
 import { Separator } from "@/components/ui/separator";
 import { Skeleton } from "@/components/ui/skeleton";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from "@/components/ui/tooltip";
 import { CandidateAnchorRagCard } from "@/components/admin/CandidateAnchorRagCard";
 import { RagEvalPanel } from "@/components/admin/RagEvalPanel";
 import {
@@ -87,6 +83,7 @@ import {
   type FallbackKind,
   type FallbackRatesResponse,
   type InterviewSessionHistory,
+  type InterviewSessionHistoryFilters,
   type InterviewSessionHistoryItem,
   type QuestionSeedDetail,
   type QuestionSeeds,
@@ -106,12 +103,16 @@ import {
 } from "@/lib/api/admin";
 import { adminDeleteSession } from "@/lib/api/admin";
 import { useToast } from "@/lib/hooks/useToast";
+import { LLM_CONFIG_EVENT, hasApiKey } from "@/lib/llm-config";
+import { removeEntry } from "@/lib/storage/interviewHistory";
 import { cn } from "@/lib/utils";
 
 // Auto-refresh cadence keeps the panel useful as a passive dashboard
 // without hammering the backend; 15s strikes the same balance the
 // /health dot in the header uses.
 const REFRESH_INTERVAL_MS = 15_000;
+const HISTORY_PAGE_SIZE = 20;
+const HISTORY_SEARCH_DEBOUNCE_MS = 300;
 
 type Loadable<T> =
   | { phase: "loading" }
@@ -232,8 +233,17 @@ function AdminHealthSection({
   evidenceRollup,
   questionQualityRollup,
   fallbackRates,
+  recentTraces,
+  recentNode,
+  onRecentNodeChange,
   sessions,
   history,
+  historyPage,
+  historyFilters,
+  historySearchText,
+  onHistoryPageChange,
+  onHistoryFiltersChange,
+  onHistorySearchTextChange,
   onRefresh,
 }: {
   traceRollup: Loadable<TraceRollupResponse>;
@@ -241,8 +251,17 @@ function AdminHealthSection({
   evidenceRollup: Loadable<EvidenceRollupResponse>;
   questionQualityRollup: Loadable<QuestionQualityRollupResponse>;
   fallbackRates: Loadable<FallbackRatesResponse>;
+  recentTraces: Loadable<RecentTracesResponse>;
+  recentNode: string;
+  onRecentNodeChange: (next: string) => void;
   sessions: Loadable<AdminSessions>;
   history: Loadable<InterviewSessionHistory>;
+  historyPage: number;
+  historyFilters: InterviewSessionHistoryFilters;
+  historySearchText: string;
+  onHistoryPageChange: (page: number) => void;
+  onHistoryFiltersChange: (filters: InterviewSessionHistoryFilters) => void;
+  onHistorySearchTextChange: (text: string) => void;
   onRefresh: () => void;
 }) {
   return (
@@ -253,13 +272,39 @@ function AdminHealthSection({
         evidence={evidenceRollup}
         question={questionQualityRollup}
       />
-      <div className="grid gap-6 lg:grid-cols-2 xl:grid-cols-4">
+      <section aria-label="24 小时主链路诊断" className="space-y-6">
         <TraceHealthRollUp state={traceRollup} />
         <FallbackRollUp state={fallbackRollup} />
-      </div>
-      <FallbackKindCounts state={fallbackRates} />
+      </section>
+      <section className="space-y-3">
+        <div>
+          <h3 className="text-sm font-semibold text-foreground">二级诊断</h3>
+          <p className="mt-1 text-xs text-muted-foreground">
+            需要定位原因时再看这里：实时 fallback 看进程内增量，最近 trace
+            看单节点样本。
+          </p>
+        </div>
+        <div className="grid gap-6 lg:grid-cols-2">
+          <FallbackKindCounts state={fallbackRates} />
+          <RecentTracesByNode
+            state={recentTraces}
+            node={recentNode}
+            onNodeChange={onRecentNodeChange}
+          />
+        </div>
+      </section>
       <SessionsCard state={sessions} />
-      <HistoricalSessionsCard state={history} onRefresh={onRefresh} />
+      <HistoricalSessionsCard
+        state={history}
+        historyPage={historyPage}
+        pageSize={HISTORY_PAGE_SIZE}
+        filters={historyFilters}
+        searchText={historySearchText}
+        onHistoryPageChange={onHistoryPageChange}
+        onHistoryFiltersChange={onHistoryFiltersChange}
+        onHistorySearchTextChange={onHistorySearchTextChange}
+        onRefresh={onRefresh}
+      />
     </>
   );
 }
@@ -275,12 +320,22 @@ function AdminScoringSection({
 }) {
   return (
     <>
-      <div className="grid gap-6 lg:grid-cols-2">
+      <section aria-label="评分主诊断" className="space-y-6">
         <EvidenceRollUp state={evidenceRollup} />
         <QuestionQualityRollUp state={questionQualityRollup} />
-      </div>
-      <DriftCard state={drift} />
-      <RagEvalSection />
+      </section>
+      <section className="space-y-3">
+        <div>
+          <h3 className="text-sm font-semibold text-foreground">评分二级诊断</h3>
+          <p className="mt-1 text-xs text-muted-foreground">
+            需要定位原因时再看这里：复核分歧看评分裁定漂移，RAG 观察看检索信号和评分分布的相关性。
+          </p>
+        </div>
+        <div className="space-y-6">
+          <DriftCard state={drift} />
+          <RagEvalSection />
+        </div>
+      </section>
     </>
   );
 }
@@ -314,6 +369,12 @@ export function AdminPanel() {
   const [tick, setTick] = useState(0);
   const [recentNode, setRecentNode] = useState<string>("evaluator");
   const [activeTab, setActiveTab] = useState<AdminTabId>("health");
+  const [historyPage, setHistoryPage] = useState(0);
+  const [historyFilters, setHistoryFilters] =
+    useState<InterviewSessionHistoryFilters>({});
+  const [historySearchText, setHistorySearchText] = useState("");
+  const [debouncedHistoryQuery, setDebouncedHistoryQuery] = useState("");
+  const [browserHasLlmKey, setBrowserHasLlmKey] = useState(false);
 
   useEffect(() => {
     const t = loadAdminToken();
@@ -328,6 +389,33 @@ export function AdminPanel() {
     );
     return () => window.clearInterval(id);
   }, []);
+
+  useEffect(() => {
+    const refresh = () => setBrowserHasLlmKey(hasApiKey());
+    refresh();
+    window.addEventListener(LLM_CONFIG_EVENT, refresh);
+    return () => window.removeEventListener(LLM_CONFIG_EVENT, refresh);
+  }, []);
+
+  useEffect(() => {
+    const id = window.setTimeout(
+      () => setDebouncedHistoryQuery(historySearchText.trim()),
+      HISTORY_SEARCH_DEBOUNCE_MS,
+    );
+    return () => window.clearTimeout(id);
+  }, [historySearchText]);
+
+  useEffect(() => {
+    setHistoryPage(0);
+  }, [historyFilters, debouncedHistoryQuery]);
+
+  const activeHistoryFilters = React.useMemo<InterviewSessionHistoryFilters>(() => {
+    const next: InterviewSessionHistoryFilters = { ...historyFilters };
+    if (debouncedHistoryQuery) {
+      next.query = debouncedHistoryQuery;
+    }
+    return next;
+  }, [historyFilters, debouncedHistoryQuery]);
 
   // ``tokenSaved`` is the value we actually fetch against; editing
   // the input does not refetch until the operator clicks Save. That
@@ -352,9 +440,14 @@ export function AdminPanel() {
     [tokenSaved],
   );
   const historyFetcher = useCallback(
-    (signal?: AbortSignal) => getInterviewSessionsHistory(signal),
+    (signal?: AbortSignal) =>
+      getInterviewSessionsHistory(signal, {
+        offset: historyPage * HISTORY_PAGE_SIZE,
+        limit: HISTORY_PAGE_SIZE,
+        filters: activeHistoryFilters,
+      }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [tokenSaved],
+    [tokenSaved, historyPage, activeHistoryFilters],
   );
   const strategiesFetcher = useCallback(
     (signal?: AbortSignal) => getStrategies(signal),
@@ -476,6 +569,7 @@ export function AdminPanel() {
         drift={drift}
         sessions={sessions}
         strategies={strategies}
+        browserHasLlmKey={browserHasLlmKey}
       />
 
       <div className="grid grid-cols-3 gap-1 rounded-xl border bg-muted/40 p-1">
@@ -510,14 +604,18 @@ export function AdminPanel() {
             evidenceRollup={evidenceRollup}
             questionQualityRollup={questionQualityRollup}
             fallbackRates={fallbackRates}
+            recentTraces={recentTraces}
+            recentNode={recentNode}
+            onRecentNodeChange={setRecentNode}
             sessions={sessions}
             history={history}
+            historyPage={historyPage}
+            historyFilters={historyFilters}
+            historySearchText={historySearchText}
+            onHistoryPageChange={setHistoryPage}
+            onHistoryFiltersChange={setHistoryFilters}
+            onHistorySearchTextChange={setHistorySearchText}
             onRefresh={() => setTick((t) => t + 1)}
-          />
-          <RecentTracesByNode
-            state={recentTraces}
-            node={recentNode}
-            onNodeChange={setRecentNode}
           />
         </AdminTabPanel>
       )}
@@ -622,15 +720,30 @@ function InterviewQualityOverview({
   const questionData = question.data;
   const missingTraceShare = bucketShare(traceData, "missing");
   const partialTraceShare = bucketShare(traceData, "partial");
+  const supportedEvidenceRate =
+    evidenceData.yes_checks === 0
+      ? null
+      : Math.max(0, 1 - evidenceData.unsupported_yes_rate);
+  const evidenceRateValue =
+    evidenceData.total_evaluator_traces === 0
+      ? "无 Trace"
+      : supportedEvidenceRate === null
+        ? "无通过项"
+        : formatPercent(supportedEvidenceRate);
+  const contractRateValue =
+    questionData.total_ask_question_traces === 0
+      ? "无 Trace"
+      : formatPercent(questionData.contract_rate);
   const qualityLevel =
     missingTraceShare > 0 ||
     (fallbackData.fallback_rate ?? 0) >= 0.3 ||
-    evidenceData.evidence_span_rate < 0.5 ||
+    supportedEvidenceRate === null ||
+    supportedEvidenceRate < 0.8 ||
     questionData.contract_rate < 0.8
       ? "red"
       : partialTraceShare > 0 ||
           (fallbackData.fallback_rate ?? 0) > 0 ||
-          evidenceData.evidence_span_rate < 0.8 ||
+          supportedEvidenceRate < 0.95 ||
           questionData.contract_rate < 0.95
         ? "yellow"
         : "green";
@@ -651,6 +764,9 @@ function InterviewQualityOverview({
             <CardDescription className="mt-1">
               汇总 Trace 健康、fallback、评分证据和问题质量支撑，先做运营预警，不替代人工抽查。
             </CardDescription>
+            <p className="mt-1 text-xs text-muted-foreground">
+              口径：最近 24h 创建的面试 session；评分兜底来自 final_report，评分证据与出题契约来自 generation_traces。
+            </p>
           </div>
           <Badge variant={tone} className="font-mono">
             {label}
@@ -658,13 +774,13 @@ function InterviewQualityOverview({
         </div>
       </CardHeader>
       <CardContent className="grid gap-3 md:grid-cols-4">
-        <StatBox label="fallback_rate" value={formatPercent(fallbackData.fallback_rate ?? 0)} />
+        <StatBox label="评分兜底率" value={formatPercent(fallbackData.fallback_rate ?? 0)} />
         <StatBox
-          label="evidence_span_rate"
-          value={formatPercent(evidenceData.evidence_span_rate)}
+          label="评分证据率"
+          value={evidenceRateValue}
         />
-        <StatBox label="contract_rate" value={formatPercent(questionData.contract_rate)} />
-        <StatBox label="trace_missing" value={formatPercent(missingTraceShare)} />
+        <StatBox label="出题契约率" value={contractRateValue} />
+        <StatBox label="Trace 缺失率" value={formatPercent(missingTraceShare)} />
       </CardContent>
     </Card>
   );
@@ -689,17 +805,17 @@ function TraceHealthRollUp({ state }: { state: Loadable<TraceRollupResponse> }) 
   return (
     <Card>
       <CardHeader>
-        <div className="flex items-center justify-between gap-2">
-          <div>
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+          <div className="min-w-0">
             <CardTitle className="flex items-center gap-2 text-base">
               <Activity className="h-4 w-4 text-emerald-400" />
               Trace 健康度（24 小时）
             </CardTitle>
-            <CardDescription className="mt-1">
+            <CardDescription className="mt-1 max-w-3xl">
               聚合最近 24 小时的 generation_traces 与 interview_sessions，颜色与 Trace Explorer 一致。
             </CardDescription>
           </div>
-          <Badge variant="outline" className="font-mono text-[10px]">
+          <Badge variant="outline" className="shrink-0 whitespace-nowrap font-mono text-[10px]">
             共 {data.total_sessions} 场
           </Badge>
         </div>
@@ -710,7 +826,7 @@ function TraceHealthRollUp({ state }: { state: Loadable<TraceRollupResponse> }) 
             过去 24 小时还没有面试记录。等一场面试跑完后这里会出现统计。
           </p>
         ) : (
-          <div className="grid gap-3 md:grid-cols-3">
+          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
             {data.buckets.map((bucket) => (
               <div key={bucket.key} className="rounded-lg border bg-card/50 p-3">
                 <div className="mb-2 flex items-center justify-between gap-2">
@@ -728,7 +844,7 @@ function TraceHealthRollUp({ state }: { state: Loadable<TraceRollupResponse> }) 
                     : bucket.key === "partial"
                       ? "节点缺失或会话未到 completed"
                       : bucket.key === "missing"
-                        ? "无任何 generation_traces 行"
+                        ? "无任何 generation_traces 记录"
                         : "其它"}
                 </p>
               </div>
@@ -763,21 +879,26 @@ function FallbackRollUp({ state }: { state: Loadable<TraceRollupResponse> }) {
   const affectedSessions = data.affected_sessions ?? 0;
   const fallbackTurns = data.fallback_turns ?? 0;
   const totalTurns = data.total_turns ?? 0;
+  const fallbackBadgeLabel =
+    fallbackRate > 0 ? `兜底率 ${formatPercent(fallbackRate)}` : "无兜底";
   return (
     <Card className={fallbackRate >= 0.3 ? "border-amber-500/40 bg-amber-500/[0.04]" : ""}>
       <CardHeader>
-        <div className="flex items-center justify-between gap-2">
-          <div>
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+          <div className="min-w-0">
             <CardTitle className="flex items-center gap-2 text-base">
               <AlertTriangle className="h-4 w-4 text-amber-300" />
               评分 fallback（24 小时）
             </CardTitle>
-            <CardDescription className="mt-1">
+            <CardDescription className="mt-1 max-w-3xl">
               聚合 final_report 的 evaluator_fallback_count，观察评估模型是否持续退化。
             </CardDescription>
           </div>
-          <Badge variant={fallbackRate >= 0.3 ? "warn" : "outline"} className="font-mono">
-            {formatPercent(fallbackRate)}
+          <Badge
+            variant={fallbackRate >= 0.3 ? "warn" : "outline"}
+            className="shrink-0 whitespace-nowrap font-mono"
+          >
+            {fallbackBadgeLabel}
           </Badge>
         </div>
       </CardHeader>
@@ -787,10 +908,10 @@ function FallbackRollUp({ state }: { state: Loadable<TraceRollupResponse> }) {
             过去 24 小时还没有可统计的面试报告。
           </p>
         ) : (
-          <div className="grid gap-3 md:grid-cols-3">
-            <StatBox label="fallback turns" value={`${fallbackTurns}/${totalTurns}`} />
-            <StatBox label="affected sessions" value={`${affectedSessions}/${data.total_sessions}`} />
-            <StatBox label="fallback_rate" value={formatPercent(fallbackRate)} />
+          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+            <StatBox label="兜底轮次" value={`${fallbackTurns}/${totalTurns}`} />
+            <StatBox label="影响会话" value={`${affectedSessions}/${data.total_sessions}`} />
+            <StatBox label="兜底率" value={formatPercent(fallbackRate)} />
           </div>
         )}
       </CardContent>
@@ -853,6 +974,8 @@ function FallbackKindCounts({ state }: { state: Loadable<FallbackRatesResponse> 
   );
   const extraTotal = extraEntries.reduce((sum, [, n]) => sum + n, 0);
   const grandTotal = knownTotal + extraTotal;
+  const activeKinds = FALLBACK_KIND_ORDER.filter((kind) => (counts[kind] ?? 0) > 0);
+  const quietKindCount = FALLBACK_KIND_ORDER.length - activeKinds.length;
 
   return (
     <Card>
@@ -861,12 +984,11 @@ function FallbackKindCounts({ state }: { state: Loadable<FallbackRatesResponse> 
           <div>
             <CardTitle className="flex items-center gap-2 text-base">
               <AlertTriangle className="h-4 w-4 text-amber-300" />
-              Fallback 详细计数（实时）
+              实时 fallback 明细
             </CardTitle>
             <CardDescription className="mt-1">
-              进程启动以来按 kind 拆分的兜底计数器，与上方 24 小时 trace
-              聚合互补：这里看「当下哪一类 fallback 在涨」，上方看「过去
-              24 小时谁受影响」。重启进程会清零，长期趋势请看 Prometheus。
+              按 kind 看当前进程内的兜底增量；重启清零，长期趋势看
+              Prometheus。
             </CardDescription>
           </div>
           <Badge
@@ -879,17 +1001,19 @@ function FallbackKindCounts({ state }: { state: Loadable<FallbackRatesResponse> 
       </CardHeader>
       <CardContent>
         {grandTotal === 0 ? (
-          <p className="text-sm text-muted-foreground">
-            自进程启动以来还没有触发任何 fallback。这通常是好事——所有
-            generator / evaluator 输出都直通了 happy path。
-          </p>
+          <div className="rounded-lg border border-dashed bg-muted/10 px-3 py-2">
+            <p className="text-sm text-muted-foreground">当前进程暂无 fallback</p>
+            <p className="mt-0.5 text-[11px] text-muted-foreground/70">
+              有新增兜底事件时，这里会按 kind 展开明细。
+            </p>
+          </div>
         ) : (
-          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
-            {FALLBACK_KIND_ORDER.map((kind) => {
+          <div className="space-y-2">
+            {activeKinds.map((kind) => {
               const count = counts[kind] ?? 0;
               const share = grandTotal > 0 ? count / grandTotal : 0;
               return (
-                <FallbackKindBox
+                <FallbackKindRow
                   key={kind}
                   kind={kind}
                   count={count}
@@ -897,6 +1021,11 @@ function FallbackKindCounts({ state }: { state: Loadable<FallbackRatesResponse> 
                 />
               );
             })}
+            {quietKindCount > 0 && (
+              <p className="text-[11px] text-muted-foreground">
+                其余 {quietKindCount} 类 fallback 当前为 0。
+              </p>
+            )}
           </div>
         )}
         {extraEntries.length > 0 && (
@@ -920,7 +1049,7 @@ function FallbackKindCounts({ state }: { state: Loadable<FallbackRatesResponse> 
   );
 }
 
-function FallbackKindBox({
+function FallbackKindRow({
   kind,
   count,
   share,
@@ -935,23 +1064,32 @@ function FallbackKindBox({
   return (
     <div
       className={cn(
-        "flex flex-col gap-2 rounded-lg border bg-card/50 p-3 transition-colors",
+        "rounded-lg border bg-card/50 p-3 transition-colors",
         tone,
       )}
     >
-      <div className="flex items-center justify-between gap-2">
-        <span className="text-xs font-medium">{FALLBACK_KIND_LABELS[kind]}</span>
-        <Badge variant="outline" className="font-mono text-[10px] tabular-nums">
-          {sharePct}%
-        </Badge>
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="text-xs font-medium">{FALLBACK_KIND_LABELS[kind]}</span>
+            <span className="font-mono text-[10px] uppercase tracking-wider text-muted-foreground/60">
+              {kind}
+            </span>
+          </div>
+          <p className="mt-1 text-[11px] leading-relaxed text-muted-foreground">
+            {FALLBACK_KIND_DESCRIPTIONS[kind]}
+          </p>
+        </div>
+        <div className="shrink-0 text-right">
+          <div className={cn("font-mono text-xl font-semibold tabular-nums", textTone)}>
+            {count}
+          </div>
+          <Badge variant="outline" className="font-mono text-[10px] tabular-nums">
+            {sharePct}%
+          </Badge>
+        </div>
       </div>
-      <div className={cn("font-mono text-2xl font-semibold tabular-nums", textTone)}>
-        {count}
-      </div>
-      <p className="text-[11px] leading-relaxed text-muted-foreground">
-        {FALLBACK_KIND_DESCRIPTIONS[kind]}
-      </p>
-      <div className="h-1 w-full overflow-hidden rounded-full bg-muted/40">
+      <div className="mt-2 h-1 w-full overflow-hidden rounded-full bg-muted/40">
         <div
           className={cn(
             "h-full rounded-full transition-all",
@@ -961,9 +1099,6 @@ function FallbackKindBox({
           style={{ width: `${Math.min(100, Math.max(count > 0 ? 6 : 0, sharePct))}%` }}
         />
       </div>
-      <span className="font-mono text-[10px] uppercase tracking-wider text-muted-foreground/60">
-        {kind}
-      </span>
     </div>
   );
 }
@@ -983,21 +1118,35 @@ function EvidenceRollUp({ state }: { state: Loadable<EvidenceRollupResponse> }) 
     );
   }
   const data = state.data;
+  const supportedEvidenceRate =
+    data.yes_checks === 0 ? null : Math.max(0, 1 - data.unsupported_yes_rate);
+  const evidenceBadgeLabel =
+    data.total_evaluator_traces === 0
+      ? "无 Trace"
+      : supportedEvidenceRate === null
+        ? "无通过项"
+        : formatPercent(supportedEvidenceRate);
+  const evidenceNeedsAttention =
+    data.total_evaluator_traces > 0 &&
+    (supportedEvidenceRate === null || supportedEvidenceRate < 0.8);
   return (
-    <Card className={data.evidence_span_rate < 0.5 ? "border-amber-500/40 bg-amber-500/[0.04]" : ""}>
+    <Card className={evidenceNeedsAttention ? "border-amber-500/40 bg-amber-500/[0.04]" : ""}>
       <CardHeader>
-        <div className="flex items-center justify-between gap-2">
-          <div>
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+          <div className="min-w-0">
             <CardTitle className="flex items-center gap-2 text-base">
               <ClipboardList className="h-4 w-4 text-blue-300" />
-              评分证据覆盖（24 小时）
+              评分证据质量（24 小时）
             </CardTitle>
-            <CardDescription className="mt-1">
-              聚合 evaluator / verification trace，检查评分是否有 contract 与证据支撑。
+            <CardDescription className="mt-1 max-w-3xl">
+              聚合 evaluator / verification trace；主指标看“通过项是否有证据”，定位片段和引用数作为诊断线索。
             </CardDescription>
           </div>
-          <Badge variant={data.evidence_span_rate < 0.5 ? "warn" : "outline"} className="font-mono">
-            {formatPercent(data.evidence_span_rate)}
+          <Badge
+            variant={evidenceNeedsAttention ? "warn" : "outline"}
+            className="shrink-0 whitespace-nowrap font-mono"
+          >
+            {evidenceBadgeLabel}
           </Badge>
         </div>
       </CardHeader>
@@ -1007,40 +1156,57 @@ function EvidenceRollUp({ state }: { state: Loadable<EvidenceRollupResponse> }) 
             过去 24 小时还没有 evaluator trace 可统计。
           </p>
         ) : (
-          <div className="grid gap-3 md:grid-cols-3">
-            <StatBox
-              label="acceptance_check_rate"
-              value={formatPercent(data.acceptance_check_rate)}
-            />
-            <StatBox
-              label="evidence_span_rate"
-              value={formatPercent(data.evidence_span_rate)}
-            />
-            <StatBox
-              label="verification_change_rate"
-              value={formatPercent(data.verification_change_rate)}
-            />
-            <StatBox
-              label="total_acceptance_checks"
-              value={String(data.total_acceptance_checks)}
-            />
-            <StatBox label="yes_checks" value={String(data.yes_checks)} />
-            <StatBox
-              label="unsupported_yes"
-              value={`${data.unsupported_yes_checks}/${data.yes_checks} (${formatPercent(data.unsupported_yes_rate)})`}
-            />
-            <StatBox
-              label="evidence_span_none"
-              value={`${data.evidence_span_none_count}/${data.evidence_span_total} (${formatPercent(data.evidence_span_none_rate)})`}
-            />
-            <StatBox
-              label="evidence_quote_total"
-              value={String(data.evidence_quote_total)}
-            />
-            <StatBox
-              label="avg_quotes_per_check"
-              value={data.avg_evidence_quotes_per_check.toFixed(2)}
-            />
+          <div className="space-y-4">
+            <div className="grid gap-3 sm:grid-cols-3">
+              <StatBox
+                label="评分证据率"
+                value={
+                  supportedEvidenceRate === null
+                    ? "无通过项"
+                    : formatPercent(supportedEvidenceRate)
+                }
+              />
+              <StatBox
+                label="无证据通过"
+                value={`${data.unsupported_yes_checks}/${data.yes_checks} (${formatPercent(data.unsupported_yes_rate)})`}
+              />
+              <StatBox
+                label="复核改写率"
+                value={formatPercent(data.verification_change_rate)}
+              />
+            </div>
+            <div className="space-y-2 border-t border-border/50 pt-3">
+              <p className="text-xs font-medium text-muted-foreground">
+                评分证据诊断
+              </p>
+              <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+                <StatBox
+                  label="验收检查率"
+                  value={formatPercent(data.acceptance_check_rate)}
+                />
+                <StatBox
+                  label="证据定位率"
+                  value={formatPercent(data.evidence_span_rate)}
+                />
+                <StatBox
+                  label="证据引用数"
+                  value={String(data.evidence_quote_total)}
+                />
+                <StatBox
+                  label="平均引用"
+                  value={data.avg_evidence_quotes_per_check.toFixed(2)}
+                />
+                <StatBox
+                  label="验收检查数"
+                  value={String(data.total_acceptance_checks)}
+                />
+                <StatBox label="通过项" value={String(data.yes_checks)} />
+                <StatBox
+                  label="无证据片段"
+                  value={`${data.evidence_span_none_count}/${data.evidence_span_total} (${formatPercent(data.evidence_span_none_rate)})`}
+                />
+              </div>
+            </div>
           </div>
         )}
       </CardContent>
@@ -1070,17 +1236,20 @@ function QuestionQualityRollUp({
   return (
     <Card className={data.contract_rate < 0.8 ? "border-amber-500/40 bg-amber-500/[0.04]" : ""}>
       <CardHeader>
-        <div className="flex items-center justify-between gap-2">
-          <div>
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+          <div className="min-w-0">
             <CardTitle className="flex items-center gap-2 text-base">
               <BookMarked className="h-4 w-4 text-purple-300" />
-              问题质量支撑（24 小时）
+              出题契约质量（24 小时）
             </CardTitle>
-            <CardDescription className="mt-1">
-              聚合 ask_question trace，检查题目是否有 contract、RAG 与技能聚焦支撑。
+            <CardDescription className="mt-1 max-w-3xl">
+              聚合 ask_question trace；主指标看题目是否带完整 contract，RAG 与技能聚焦作为出题支撑线索。
             </CardDescription>
           </div>
-          <Badge variant={data.contract_rate < 0.8 ? "warn" : "outline"} className="font-mono">
+          <Badge
+            variant={data.contract_rate < 0.8 ? "warn" : "outline"}
+            className="shrink-0 whitespace-nowrap font-mono"
+          >
             {formatPercent(data.contract_rate)}
           </Badge>
         </div>
@@ -1092,13 +1261,13 @@ function QuestionQualityRollUp({
           </p>
         ) : (
           <div className="grid gap-3 md:grid-cols-3">
-            <StatBox label="contract_rate" value={formatPercent(data.contract_rate)} />
+            <StatBox label="出题契约率" value={formatPercent(data.contract_rate)} />
             <StatBox
-              label="retrieval_grounding_rate"
+              label="检索支撑率"
               value={formatPercent(data.retrieval_grounding_rate)}
             />
             <StatBox
-              label="avg_acceptance_checks"
+              label="平均检查数"
               value={data.avg_acceptance_checks.toFixed(1)}
             />
           </div>
@@ -1127,6 +1296,21 @@ const RECENT_TRACE_NODES = [
   "resume_parse",
 ] as const;
 
+const RECENT_TRACE_NODE_LABELS: Record<string, string> = {
+  evaluator: "评分",
+  director_sample: "策略采样",
+  verification: "复核",
+  reward_update: "奖励更新",
+  route_decision: "路由决策",
+  final_report: "最终报告",
+  ask_question: "出题",
+  compress_context: "上下文压缩",
+  refine_followup: "追问优化",
+  training_plan: "训练计划",
+  experience_extractor: "经验提取",
+  resume_parse: "简历解析",
+};
+
 function RecentTracesByNode({
   state,
   node,
@@ -1143,25 +1327,28 @@ function RecentTracesByNode({
           <div>
             <CardTitle className="flex items-center gap-2 text-base">
               <Activity className="h-4 w-4 text-emerald-400" />
-              最近 trace（按节点）
+              最近 trace 抽样
             </CardTitle>
             <CardDescription className="mt-1">
-              从 generation_traces 反查最近 30 条记录；点行可跳到该会话的 Trace Explorer。
+              按节点抽 5 条最新记录，用来快速跳到 Trace Explorer。
             </CardDescription>
           </div>
-          <div className="flex flex-wrap gap-1.5">
-            {RECENT_TRACE_NODES.map((candidate) => (
-              <Button
-                key={candidate}
-                size="sm"
-                variant={candidate === node ? "default" : "outline"}
-                className="h-7 px-2 text-[11px]"
-                onClick={() => onNodeChange(candidate)}
-              >
-                {candidate}
-              </Button>
-            ))}
-          </div>
+          <label className="grid gap-1 text-[11px] text-muted-foreground">
+            节点
+            <select
+              aria-label="选择 trace 节点"
+              name="recentTraceNode"
+              value={node}
+              onChange={(event) => onNodeChange(event.target.value)}
+              className="h-8 rounded-md border bg-background px-2 text-xs text-foreground"
+            >
+              {RECENT_TRACE_NODES.map((nodeId) => (
+                <option key={nodeId} value={nodeId}>
+                  {RECENT_TRACE_NODE_LABELS[nodeId] ?? nodeId}
+                </option>
+              ))}
+            </select>
+          </label>
         </div>
       </CardHeader>
       <CardContent>
@@ -1173,11 +1360,11 @@ function RecentTracesByNode({
           </p>
         ) : state.data.items.length === 0 ? (
           <p className="text-sm text-muted-foreground">
-            还没有 {node} 节点的 trace 记录。
+            还没有 {RECENT_TRACE_NODE_LABELS[node] ?? node} 节点的 trace 记录。
           </p>
         ) : (
           <ul className="divide-y text-sm">
-            {state.data.items.map((item) => (
+            {state.data.items.slice(0, 5).map((item) => (
               <li
                 key={item.id}
                 className="flex flex-wrap items-center justify-between gap-2 py-2"
@@ -1232,29 +1419,83 @@ function RecentTracesByNode({
   );
 }
 
+function isEnabledFlag(value?: string): boolean {
+  return (value ?? "").toLowerCase() === "true";
+}
+
+function isStubMode(value?: string): boolean {
+  return isEnabledFlag(value);
+}
+
+function formatCheckpointMode(backend?: string): string {
+  if (backend === "postgres") return "持久化";
+  if (backend === "memory") return "内存";
+  return backend ? `检查点：${backend}` : "检查点未知";
+}
+
+function formatLlmProvider(provider?: string): string {
+  const labels: Record<string, string> = {
+    anthropic: "Anthropic",
+    dashscope: "通义千问",
+    deepseek: "DeepSeek",
+    kimi: "Kimi",
+    mistral: "Mistral",
+    moonshot: "Moonshot",
+    openai: "OpenAI",
+    openai_compatible: "OpenAI 兼容",
+    qwen: "通义千问",
+    stub: "本地模拟",
+    zhipu: "智谱",
+  };
+  return labels[provider ?? ""] ?? provider ?? "未知";
+}
+
+function formatBackendLlmStatus(provider?: string, stubMode?: string): string {
+  if (provider === "stub") return "后端默认：本地模拟";
+  const providerLabel = formatLlmProvider(provider);
+  return isStubMode(stubMode)
+    ? `后端默认：${providerLabel}（服务端 Key 未配置）`
+    : `后端默认：${providerLabel}（服务端 Key 已配置）`;
+}
+
+function formatBrowserLlmKeyStatus(browserHasLlmKey: boolean): string {
+  return browserHasLlmKey ? "浏览器 Key 已配置" : "浏览器未配置 Key";
+}
+
 function SystemOverview({
   health,
   bandit,
   drift,
   sessions,
   strategies,
+  browserHasLlmKey,
 }: {
   health: Loadable<BackendHealth>;
   bandit: Loadable<BanditSnapshot>;
   drift: Loadable<VerifierDriftSnapshot>;
   sessions: Loadable<AdminSessions>;
   strategies: Loadable<Strategies>;
+  browserHasLlmKey: boolean;
 }) {
-  const apiLabel =
+  const runtimeModeLabel =
     health.phase === "ready"
-      ? `${health.data.status ?? "ok"} · ${health.data.env ?? "dev"}`
+      ? formatCheckpointMode(health.data.checkpoint_backend)
       : phaseLabel(health);
-  const runtimeLabel =
+  const runtimeModeHint =
     health.phase === "ready"
-      ? `${health.data.checkpoint_backend ?? "unknown"} · ${
-          health.data.llm_provider ?? "llm"
-        }${health.data.stub_mode === "True" ? " stub" : ""}`
+      ? `${formatBackendLlmStatus(
+          health.data.llm_provider,
+          health.data.stub_mode,
+        )}；${formatBrowserLlmKeyStatus(
+          browserHasLlmKey,
+        )}`
       : "等待健康检查";
+  const traceLabel =
+    health.phase === "ready"
+      ? isEnabledFlag(health.data.langsmith_tracing)
+        ? "开启"
+        : "关闭"
+      : phaseLabel(health);
   const memoryPriorCount =
     bandit.phase === "ready"
       ? (bandit.data.memory_prior_count ??
@@ -1272,14 +1513,25 @@ function SystemOverview({
       : phaseLabel(drift);
   const sessionCount = sessions.phase === "ready" ? sessions.data.count : null;
   const strategyCount = strategies.phase === "ready" ? strategies.data.count : null;
-  const apiTone =
+  const runtimeModeTone =
     health.phase === "error"
       ? "error"
       : health.phase === "loading"
         ? "loading"
-        : health.data.status === "ok"
+        : health.data.status !== "ok"
+          ? "warn"
+          : health.data.checkpoint_backend === "postgres" &&
+              (!isStubMode(health.data.stub_mode) || browserHasLlmKey)
+            ? "ok"
+            : "warn";
+  const traceTone =
+    health.phase === "error"
+      ? "error"
+      : health.phase === "loading"
+        ? "loading"
+        : isEnabledFlag(health.data.langsmith_tracing)
           ? "ok"
-          : "warn";
+          : "idle";
   const banditTone =
     bandit.phase === "error"
       ? "error"
@@ -1337,12 +1589,18 @@ function SystemOverview({
             </PendingNavigationLink>
           </Button>
         </div>
-        <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-5">
+        <div className="grid gap-2 sm:grid-cols-2 md:grid-cols-3">
           <OverviewStatusLight
-            label="API"
-            value={apiLabel}
-            hint={runtimeLabel}
-            tone={apiTone}
+            label="运行模式"
+            value={runtimeModeLabel}
+            hint={runtimeModeHint}
+            tone={runtimeModeTone}
+          />
+          <OverviewStatusLight
+            label="Trace 采集"
+            value={traceLabel}
+            hint={`LangSmith：${traceLabel}`}
+            tone={traceTone}
           />
           <OverviewStatusLight
             label="策略学习"
@@ -1361,9 +1619,9 @@ function SystemOverview({
             tone={driftTone}
           />
           <OverviewStatusLight
-            label="运行中会话"
+            label="内存会话"
             value={sessionCount === null ? phaseLabel(sessions) : `${sessionCount} 个`}
-            hint="当前运行中的面试"
+            hint="当前进程保留的会话句柄；超过 60 分钟无用户会话操作后清理，历史记录不受影响"
             tone={sessionsTone}
           />
           <OverviewStatusLight
@@ -1400,42 +1658,25 @@ function OverviewStatusLight({
   }[tone];
 
   return (
-    <TooltipProvider delayDuration={150}>
-      <Tooltip>
-        <TooltipTrigger asChild>
-          <button
-            type="button"
-            aria-label={`${label}: ${hint}`}
-            className="flex min-w-0 w-full items-center gap-3 rounded-lg border bg-muted/20 px-3 py-2 text-left transition-colors hover:bg-muted/30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-          >
-            <span
-              className={cn("h-2 w-2 shrink-0 rounded-full", toneClass)}
-              aria-hidden="true"
-            />
-            <span className="min-w-0">
-              <span className="flex min-w-0 items-baseline gap-2">
-                <span className="shrink-0 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
-                  {label}
-                </span>
-                <span className="truncate font-mono text-sm font-semibold text-foreground">
-                  {value}
-                </span>
-              </span>
-              <span className="block overflow-hidden text-ellipsis whitespace-nowrap text-[11px] leading-4 text-muted-foreground">
-                {hint}
-              </span>
-            </span>
-          </button>
-        </TooltipTrigger>
-        <TooltipContent
-          side="bottom"
-          align="start"
-          className="max-w-64 text-xs leading-relaxed"
-        >
+    <div className="flex min-w-0 w-full items-start gap-3 rounded-lg border bg-muted/20 px-3 py-2 text-left">
+      <span
+        className={cn("mt-1.5 h-2 w-2 shrink-0 rounded-full", toneClass)}
+        aria-hidden="true"
+      />
+      <span className="grid min-w-0 gap-0.5">
+        <span className="flex min-w-0 flex-wrap items-baseline gap-x-2 gap-y-0.5">
+          <span className="shrink-0 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+            {label}
+          </span>
+          <span className="min-w-0 break-words font-mono text-sm font-semibold leading-5 text-foreground">
+            {value}
+          </span>
+        </span>
+        <span className="block break-words text-[11px] leading-4 text-muted-foreground">
           {hint}
-        </TooltipContent>
-      </Tooltip>
-    </TooltipProvider>
+        </span>
+      </span>
+    </div>
   );
 }
 
@@ -1711,10 +1952,10 @@ function DriftCard({ state }: { state: Loadable<VerifierDriftSnapshot> }) {
           <div>
             <CardTitle className="flex items-center gap-2 text-base">
               <AlertTriangle className="h-4 w-4 text-amber-400" />
-              评分复核
+              复核分歧观测
             </CardTitle>
             <CardDescription className="mt-1">
-              评估器和复核器的分歧监控，用来发现评分偏宽、偏严或证据不足。
+              评估器和复核器的分歧窗口；观测开关只代表 drift 统计是否开启，不代表 Verifier 未运行。
             </CardDescription>
           </div>
           {state.phase === "ready" && (
@@ -1722,7 +1963,7 @@ function DriftCard({ state }: { state: Loadable<VerifierDriftSnapshot> }) {
               variant={state.data.enabled ? "success" : "outline"}
               className="font-mono text-[10px]"
             >
-              {state.data.enabled ? "监控中" : "关闭"}
+              {state.data.enabled ? "观测开启" : "观测关闭"}
             </Badge>
           )}
         </div>
@@ -1855,10 +2096,10 @@ const SessionsCard = React.memo(function SessionsCard({ state }: { state: Loadab
           <div>
             <CardTitle className="flex items-center gap-2 text-base">
               <Clock className="h-4 w-4 text-emerald-400" />
-              活跃会话
+              内存会话
             </CardTitle>
             <CardDescription className="mt-1">
-              当前后端持有的面试会话，可从这里定位报告和质量中心。
+              当前后端进程保留的会话句柄；超过 60 分钟无用户会话操作后清理，历史记录不受影响。
             </CardDescription>
           </div>
           {state.phase === "ready" && (
@@ -1873,7 +2114,7 @@ const SessionsCard = React.memo(function SessionsCard({ state }: { state: Loadab
         {state.phase === "error" && <ErrorBox message={state.message} />}
         {state.phase === "ready" && state.data.sessions.length === 0 && (
           <p className="text-xs text-muted-foreground">
-            会话管理器中暂无会话，这不是错误。跑完一场面试后会出现可追踪会话。
+            当前进程暂无会话句柄，这不是错误。开始一场面试后会出现可追踪会话。
           </p>
         )}
         {state.phase === "ready" && state.data.sessions.length > 0 && (
@@ -1979,51 +2220,112 @@ function SessionLinks({ session }: { session: { session_id: string } }) {
 
 const HistoricalSessionsCard = React.memo(function HistoricalSessionsCard({
   state,
+  historyPage,
+  pageSize,
+  filters,
+  searchText,
+  onHistoryPageChange,
+  onHistoryFiltersChange,
+  onHistorySearchTextChange,
   onRefresh,
 }: {
   state: Loadable<InterviewSessionHistory>;
+  historyPage: number;
+  pageSize: number;
+  filters: InterviewSessionHistoryFilters;
+  searchText: string;
+  onHistoryPageChange: (page: number) => void;
+  onHistoryFiltersChange: (filters: InterviewSessionHistoryFilters) => void;
+  onHistorySearchTextChange: (text: string) => void;
   onRefresh: () => void;
 }) {
-  const [statusFilter, setStatusFilter] = useState<string>("all");
-  const [searchText, setSearchText] = useState("");
+  const [deletedSessionIds, setDeletedSessionIds] = useState<Set<string>>(
+    () => new Set(),
+  );
+  const markSessionDeleted = useCallback((sessionId: string) => {
+    setDeletedSessionIds((prev) => {
+      const next = new Set(prev);
+      next.add(sessionId);
+      return next;
+    });
+  }, []);
 
-  const { filteredSessions, statusCounts, totalCount } = React.useMemo(() => {
+  useEffect(() => {
+    if (state.phase !== "ready") return;
+    const total = Math.max(state.data.total_count ?? state.data.count, 0);
+    if (total === 0 || historyPage * pageSize < total) return;
+    onHistoryPageChange(Math.max(0, Math.ceil(total / pageSize) - 1));
+  }, [state, historyPage, pageSize, onHistoryPageChange]);
+
+  const { filteredSessions, totalCount } = React.useMemo(() => {
     if (state.phase !== "ready")
       return {
         filteredSessions: [] as InterviewSessionHistory["sessions"],
-        statusCounts: {} as Record<string, number>,
         totalCount: 0,
       };
-    const counts: Record<string, number> = {};
-    for (const s of state.data.sessions) {
-      counts[s.status] = (counts[s.status] || 0) + 1;
-    }
-    let sessions = state.data.sessions;
-    if (statusFilter !== "all") {
-      sessions = sessions.filter((s) => s.status === statusFilter);
-    }
-    if (searchText.trim()) {
-      const q = searchText.toLowerCase();
-      sessions = sessions.filter(
-        (s) =>
-          s.candidate_name?.toLowerCase().includes(q) ||
-          s.job_title?.toLowerCase().includes(q) ||
-          s.session_id.toLowerCase().includes(q),
-      );
-    }
+    const visibleSessions = state.data.sessions.filter(
+      (s) => !deletedSessionIds.has(s.session_id),
+    );
     return {
-      filteredSessions: sessions,
-      statusCounts: counts,
-      totalCount: state.data.sessions.length,
+      filteredSessions: visibleSessions,
+      totalCount: visibleSessions.length,
     };
-  }, [state, statusFilter, searchText]);
+  }, [state, deletedSessionIds]);
 
-  const filterTabs: { key: string; label: string; count?: number }[] = [
-    { key: "all", label: "全部", count: totalCount },
-    { key: "completed", label: "已完成", count: statusCounts["completed"] },
-    { key: "cancelled", label: "已取消", count: statusCounts["cancelled"] },
-    { key: "errored", label: "出错", count: statusCounts["errored"] },
-  ];
+  const hasHistoryFilters = Boolean(
+    filters.status ||
+      filters.traceHealth ||
+      typeof filters.hasReport === "boolean" ||
+      filters.since ||
+      searchText.trim(),
+  );
+  const setHistoryFilter = useCallback(
+    <K extends keyof InterviewSessionHistoryFilters>(
+      key: K,
+      value: InterviewSessionHistoryFilters[K] | undefined,
+    ) => {
+      const next: InterviewSessionHistoryFilters = { ...filters };
+      if (value === undefined || value === "") {
+        delete next[key];
+      } else {
+        next[key] = value;
+      }
+      onHistoryFiltersChange(next);
+    },
+    [filters, onHistoryFiltersChange],
+  );
+  const clearHistoryFilters = useCallback(() => {
+    onHistoryFiltersChange({});
+    onHistorySearchTextChange("");
+  }, [onHistoryFiltersChange, onHistorySearchTextChange]);
+  const historyReturnedCount = totalCount;
+  const historyOffset =
+    state.phase === "ready"
+      ? (state.data.offset ?? historyPage * pageSize)
+      : historyPage * pageSize;
+  const historyPageRowCount =
+    state.phase === "ready" ? state.data.count : historyReturnedCount;
+  const historyTotalCount =
+    state.phase === "ready"
+      ? Math.max(
+          state.data.total_count ?? historyOffset + historyPageRowCount,
+          historyOffset + historyPageRowCount,
+          historyReturnedCount,
+        )
+      : historyReturnedCount;
+  const historyBadgeLabel =
+    historyTotalCount > historyReturnedCount
+      ? `共 ${historyTotalCount} 条 · 第 ${historyPage + 1}/${Math.max(1, Math.ceil(historyTotalCount / pageSize))} 页`
+      : `${historyReturnedCount} 条`;
+  const historyPageCount = Math.max(1, Math.ceil(historyTotalCount / pageSize));
+  const historyPageStart =
+    historyTotalCount === 0 || historyPageRowCount === 0 ? 0 : historyOffset + 1;
+  const historyPageEnd =
+    historyPageRowCount === 0
+      ? 0
+      : Math.min(historyOffset + historyPageRowCount, historyTotalCount);
+  const canGoPrev = historyPage > 0;
+  const canGoNext = historyOffset + pageSize < historyTotalCount;
 
   return (
     <Card>
@@ -2042,7 +2344,7 @@ const HistoricalSessionsCard = React.memo(function HistoricalSessionsCard({
           </div>
           {state.phase === "ready" && (
             <Badge variant="outline" className="font-mono text-xs tabular-nums">
-              {state.data.count} 条
+              {historyBadgeLabel}
             </Badge>
           )}
         </div>
@@ -2051,70 +2353,43 @@ const HistoricalSessionsCard = React.memo(function HistoricalSessionsCard({
         {state.phase === "loading" && <LoadingList rows={4} />}
         {state.phase === "error" && <ErrorBox message={state.message} />}
         {state.phase === "ready" && state.data.sessions.length === 0 && (
-          <p className="text-xs text-muted-foreground">
-            暂无数据库持久化记录。完成或取消一场面试后会出现在这里。
-          </p>
+          <div className="space-y-3">
+            <HistoryFilterBar
+              filters={filters}
+              searchText={searchText}
+              hasHistoryFilters={hasHistoryFilters}
+              onFilterChange={setHistoryFilter}
+              onSearchTextChange={onHistorySearchTextChange}
+              onClear={clearHistoryFilters}
+            />
+            <p className="text-xs text-muted-foreground">
+              {hasHistoryFilters
+                ? "没有匹配的面试记录，可清除筛选条件。"
+                : "暂无数据库持久化记录。完成或取消一场面试后会出现在这里。"}
+            </p>
+          </div>
         )}
         {state.phase === "ready" && state.data.sessions.length > 0 && (
           <div className="space-y-3">
-            {/* Filter & Search bar */}
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-              <div className="flex items-center gap-0.5 rounded-lg bg-muted/50 p-0.5">
-                {filterTabs.map((tab) => (
-                  <button
-                    key={tab.key}
-                    type="button"
-                    onClick={() => setStatusFilter(tab.key)}
-                    className={cn(
-                      "inline-flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-xs font-medium transition-all duration-200",
-                      statusFilter === tab.key
-                        ? "bg-background text-foreground shadow-sm scale-[1.02]"
-                        : "text-muted-foreground hover:text-foreground hover:bg-background/50",
-                    )}
-                  >
-                    {tab.label}
-                    {typeof tab.count === "number" && tab.count > 0 && (
-                      <span
-                        className={cn(
-                          "font-mono text-[10px] tabular-nums",
-                          statusFilter === tab.key
-                            ? "text-foreground/60"
-                            : "text-muted-foreground/50",
-                        )}
-                      >
-                        {tab.count}
-                      </span>
-                    )}
-                  </button>
-                ))}
-              </div>
-              <div className="relative w-full sm:w-56">
-                <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
-                <Input
-                  type="text"
-                  placeholder="搜索候选人、岗位…"
-                  value={searchText}
-                  onChange={(e) => setSearchText(e.target.value)}
-                  className="h-8 pl-8 text-xs"
-                />
-              </div>
-            </div>
+            <HistoryFilterBar
+              filters={filters}
+              searchText={searchText}
+              hasHistoryFilters={hasHistoryFilters}
+              onFilterChange={setHistoryFilter}
+              onSearchTextChange={onHistorySearchTextChange}
+              onClear={clearHistoryFilters}
+            />
 
             {filteredSessions.length === 0 ? (
               <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-border/60 py-10 text-sm text-muted-foreground">
                 <Search className="mb-3 h-8 w-8 text-muted-foreground/20" />
                 <p>没有匹配的面试记录</p>
                 <p className="mt-1 text-[11px] text-muted-foreground/50">
-                  {statusFilter !== "all" && `状态筛选：${filterTabs.find((t) => t.key === statusFilter)?.label}`}
-                  {statusFilter !== "all" && searchText && " · "}
-                  {searchText && `搜索："${searchText}"`}
+                  筛选已在全部历史记录上生效。
                 </p>
                 <button
                   type="button"
-                  onClick={() => {
-                    setStatusFilter("all");
-                    setSearchText("");
-                  }}
+                  onClick={clearHistoryFilters}
                   className="mt-3 rounded-md bg-muted px-3 py-1.5 text-xs text-foreground/70 transition-colors hover:bg-muted/80"
                 >
                   清除筛选条件
@@ -2208,7 +2483,11 @@ const HistoricalSessionsCard = React.memo(function HistoricalSessionsCard({
                             <HistoryTimeCell iso={session.created_at || ""} />
                           </td>
                           <td className="whitespace-nowrap px-3 py-2.5">
-                            <HistorySessionActions session={session} onRefresh={onRefresh} />
+                            <HistorySessionActions
+                              session={session}
+                              onDeleted={markSessionDeleted}
+                              onRefresh={onRefresh}
+                            />
                           </td>
                         </tr>
                       ))}
@@ -2219,15 +2498,59 @@ const HistoricalSessionsCard = React.memo(function HistoricalSessionsCard({
                 {/* Mobile Card Stack */}
                 <div className="grid gap-3 md:hidden">
                   {filteredSessions.map((session) => (
-                    <HistoryMobileCard key={session.session_id} session={session} onRefresh={onRefresh} />
+                    <HistoryMobileCard
+                      key={session.session_id}
+                      session={session}
+                      onDeleted={markSessionDeleted}
+                      onRefresh={onRefresh}
+                    />
                   ))}
                 </div>
 
                 {/* Filtered result count */}
-                {(statusFilter !== "all" || searchText) && (
+                {hasHistoryFilters && (
                   <p className="text-[11px] text-muted-foreground">
-                    显示 {filteredSessions.length} / {totalCount} 条记录
+                    已筛选 {historyTotalCount} 条记录，当前页显示{" "}
+                    {filteredSessions.length} 条。
                   </p>
+                )}
+                {historyTotalCount > pageSize && (
+                  <div className="flex flex-col gap-2 border-t border-border/50 pt-3 sm:flex-row sm:items-center sm:justify-between">
+                    <p className="text-[11px] text-muted-foreground">
+                      显示 {historyPageStart}-{historyPageEnd} / {historyTotalCount} 条
+                    </p>
+                    <div className="flex items-center justify-end gap-2">
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        className="h-7 gap-1 px-2 text-[11px]"
+                        disabled={!canGoPrev}
+                        onClick={() => onHistoryPageChange(Math.max(0, historyPage - 1))}
+                      >
+                        <ChevronLeft className="h-3 w-3" />
+                        上一页
+                      </Button>
+                      <span className="min-w-16 text-center font-mono text-[11px] text-muted-foreground">
+                        {historyPage + 1}/{historyPageCount}
+                      </span>
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        className="h-7 gap-1 px-2 text-[11px]"
+                        disabled={!canGoNext}
+                        onClick={() =>
+                          onHistoryPageChange(
+                            Math.min(historyPageCount - 1, historyPage + 1),
+                          )
+                        }
+                      >
+                        下一页
+                        <ChevronRight className="h-3 w-3" />
+                      </Button>
+                    </div>
+                  </div>
                 )}
               </>
             )}
@@ -2238,11 +2561,142 @@ const HistoricalSessionsCard = React.memo(function HistoricalSessionsCard({
   );
 });
 
+function HistoryFilterBar({
+  filters,
+  searchText,
+  hasHistoryFilters,
+  onFilterChange,
+  onSearchTextChange,
+  onClear,
+}: {
+  filters: InterviewSessionHistoryFilters;
+  searchText: string;
+  hasHistoryFilters: boolean;
+  onFilterChange: <K extends keyof InterviewSessionHistoryFilters>(
+    key: K,
+    value: InterviewSessionHistoryFilters[K] | undefined,
+  ) => void;
+  onSearchTextChange: (text: string) => void;
+  onClear: () => void;
+}) {
+  return (
+    <div className="space-y-2 rounded-lg border border-border/50 bg-muted/20 p-3">
+      <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-[1fr_1fr_1fr_1fr_1.4fr_auto] lg:items-end">
+        <label className="grid gap-1 text-[11px] text-muted-foreground">
+          状态
+          <select
+            aria-label="筛选面试状态"
+            value={filters.status ?? ""}
+            onChange={(event) =>
+              onFilterChange("status", event.target.value || undefined)
+            }
+            className="h-8 rounded-md border bg-background px-2 text-xs text-foreground"
+          >
+            <option value="">全部</option>
+            <option value="completed">已完成</option>
+            <option value="running">进行中</option>
+            <option value="cancelled">已取消</option>
+            <option value="errored">出错</option>
+          </select>
+        </label>
+        <label className="grid gap-1 text-[11px] text-muted-foreground">
+          Trace 状态
+          <select
+            aria-label="筛选 Trace 状态"
+            value={filters.traceHealth ?? ""}
+            onChange={(event) =>
+              onFilterChange("traceHealth", event.target.value || undefined)
+            }
+            className="h-8 rounded-md border bg-background px-2 text-xs text-foreground"
+          >
+            <option value="">全部</option>
+            <option value="complete">完整</option>
+            <option value="partial">部分</option>
+            <option value="missing">缺失</option>
+          </select>
+        </label>
+        <label className="grid gap-1 text-[11px] text-muted-foreground">
+          报告
+          <select
+            aria-label="筛选报告状态"
+            value={
+              typeof filters.hasReport === "boolean"
+                ? filters.hasReport
+                  ? "with"
+                  : "without"
+                : ""
+            }
+            onChange={(event) =>
+              onFilterChange(
+                "hasReport",
+                event.target.value === "with"
+                  ? true
+                  : event.target.value === "without"
+                    ? false
+                    : undefined,
+              )
+            }
+            className="h-8 rounded-md border bg-background px-2 text-xs text-foreground"
+          >
+            <option value="">全部</option>
+            <option value="with">有报告</option>
+            <option value="without">无报告</option>
+          </select>
+        </label>
+        <label className="grid gap-1 text-[11px] text-muted-foreground">
+          时间范围
+          <select
+            aria-label="筛选创建时间范围"
+            value={filters.since ?? ""}
+            onChange={(event) =>
+              onFilterChange("since", event.target.value || undefined)
+            }
+            className="h-8 rounded-md border bg-background px-2 text-xs text-foreground"
+          >
+            <option value="">全部</option>
+            <option value="24h">最近 24 小时</option>
+            <option value="7d">最近 7 天</option>
+            <option value="30d">最近 30 天</option>
+          </select>
+        </label>
+        <label className="grid gap-1 text-[11px] text-muted-foreground">
+          全量搜索
+          <span className="relative">
+            <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              type="text"
+              placeholder="候选人、岗位、Session ID"
+              value={searchText}
+              onChange={(event) => onSearchTextChange(event.target.value)}
+              className="h-8 pl-8 text-xs"
+            />
+          </span>
+        </label>
+        <Button
+          type="button"
+          size="sm"
+          variant="outline"
+          className="h-8 px-3 text-xs"
+          disabled={!hasHistoryFilters}
+          onClick={onClear}
+        >
+          清除筛选条件
+        </Button>
+      </div>
+      <p className="text-[11px] text-muted-foreground">
+        筛选在全部历史记录上生效，再按每页 20 条分页展示。
+      </p>
+    </div>
+  );
+}
+
 function HistoryMobileCard({
   session,
+  onDeleted,
   onRefresh,
 }: {
   session: InterviewSessionHistory["sessions"][number];
+  onDeleted: (sessionId: string) => void;
   onRefresh: () => void;
 }) {
   return (
@@ -2297,7 +2751,11 @@ function HistoryMobileCard({
       </div>
 
       <div className="border-t border-border/40 pt-2.5">
-        <HistorySessionActions session={session} onRefresh={onRefresh} />
+        <HistorySessionActions
+          session={session}
+          onDeleted={onDeleted}
+          onRefresh={onRefresh}
+        />
       </div>
     </div>
   );
@@ -2305,9 +2763,11 @@ function HistoryMobileCard({
 
 function HistorySessionActions({
   session,
+  onDeleted,
   onRefresh,
 }: {
   session: InterviewSessionHistory["sessions"][number];
+  onDeleted: (sessionId: string) => void;
   onRefresh: () => void;
 }) {
   const [deleting, setDeleting] = useState(false);
@@ -2320,10 +2780,14 @@ function HistorySessionActions({
     setDeleteError(null);
     try {
       const result = await adminDeleteSession(session.session_id);
+      removeEntry(session.session_id);
+      onDeleted(session.session_id);
       setConfirming(false);
       toast({
-        title: "删除成功",
-        description: `已删除面试记录 ${truncate(session.session_id)}${result.traces_deleted ? ` · ${result.traces_deleted} 条 trace` : ""}`,
+        title: result.deleted ? "删除成功" : "记录已不存在",
+        description: result.deleted
+          ? `已删除面试记录 ${truncate(session.session_id)}${result.traces_deleted ? ` · ${result.traces_deleted} 条 trace` : ""}`
+          : `后台没有找到可删除的数据；已从当前列表移除 ${truncate(session.session_id)}。`,
       });
       onRefresh();
     } catch (err) {
@@ -4022,7 +4486,7 @@ function TimeCell({ iso }: { iso: string }) {
 function StatBox({ label, value }: { label: string; value: string }) {
   return (
     <div className="rounded-lg border bg-card/50 p-3">
-      <div className="font-mono text-[10px] uppercase tracking-wider text-muted-foreground">
+      <div className="font-mono text-[10px] tracking-wider text-muted-foreground">
         {label}
       </div>
       <div className="mt-1 font-mono text-lg tabular-nums">{value}</div>
@@ -4108,7 +4572,7 @@ function RagEvalSection() {
           知识库 RAG 与资料理解 RAG 分开观测，避免把两类检索质量混成一个指标。
         </p>
       </div>
-      <div className="grid gap-6 xl:grid-cols-2">
+      <div className="space-y-6">
         <RagEvalPanel />
         <CandidateAnchorRagCard />
       </div>

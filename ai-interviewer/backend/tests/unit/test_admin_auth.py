@@ -11,6 +11,7 @@ AttributeError fix.
 """
 from __future__ import annotations
 
+from datetime import UTC, datetime, timedelta
 from typing import Any
 
 import pytest
@@ -68,6 +69,7 @@ def _set_token(
         langsmith_tracing = True
         langsmith_endpoint = "https://api.smith.langchain.com"
         effective_langsmith_project = "agentic-interviewer-dev"
+        resume_rag_embedding_concurrency = 4
 
     monkeypatch.setattr(admin_api, "get_settings", lambda: _S())
     monkeypatch.setattr(settings_mod, "get_settings", lambda: _S())
@@ -352,7 +354,7 @@ def test_admin_interview_sessions_returns_persisted_history(client, monkeypatch)
     monkeypatch.setattr(
         admin_api,
         "_recent_interview_sessions",
-        lambda limit=20: [
+        lambda limit=20, offset=0, **filters: [
             {
                 "session_id": "sess-done",
                 "trace_id": "trace-done",
@@ -384,6 +386,306 @@ def test_admin_interview_sessions_returns_persisted_history(client, monkeypatch)
     assert item["has_report"] is True
     assert item["overall_score"] == 7.66
     assert item["overall_verdict"] == "strong_hire"
+
+
+def test_admin_interview_sessions_reports_total_count(client, monkeypatch):
+    """History count distinguishes returned page size from DB total rows."""
+    _set_token(monkeypatch, None, allow_open_admin=True)
+
+    monkeypatch.setattr(
+        admin_api,
+        "_recent_interview_sessions",
+        lambda limit=20, offset=0, **filters: [
+            {
+                "session_id": "sess-page",
+                "status": "completed",
+                "has_report": True,
+            }
+        ],
+    )
+    monkeypatch.setattr(
+        admin_api,
+        "_interview_session_total_count",
+        lambda **filters: 23,
+        raising=False,
+    )
+
+    resp = client.get("/admin/interview-sessions")
+
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["count"] == 1
+    assert body["total_count"] == 23
+    assert body["limit"] == 20
+
+
+def test_admin_interview_sessions_supports_offset_pagination(
+    client,
+    monkeypatch,
+):
+    """History route pages DB rows instead of hard-capping at the first 20."""
+    _set_token(monkeypatch, None, allow_open_admin=True)
+    seen: dict[str, int] = {}
+
+    def recent(
+        limit: int = 20,
+        offset: int = 0,
+        **filters: Any,
+    ) -> list[dict[str, Any]]:
+        seen["limit"] = limit
+        seen["offset"] = offset
+        return [
+            {
+                "session_id": "sess-page-3",
+                "status": "completed",
+                "has_report": True,
+            }
+        ]
+
+    monkeypatch.setattr(admin_api, "_recent_interview_sessions", recent)
+    monkeypatch.setattr(
+        admin_api,
+        "_interview_session_total_count",
+        lambda **filters: 43,
+        raising=False,
+    )
+
+    resp = client.get("/admin/interview-sessions?limit=10&offset=20")
+
+    assert resp.status_code == 200
+    body = resp.json()
+    assert seen == {"limit": 10, "offset": 20}
+    assert body["count"] == 1
+    assert body["total_count"] == 43
+    assert body["limit"] == 10
+    assert body["offset"] == 20
+
+
+def test_admin_interview_sessions_total_count_covers_returned_page(
+    client,
+    monkeypatch,
+):
+    """Total count never reports less than the page already reached."""
+    _set_token(monkeypatch, None, allow_open_admin=True)
+
+    monkeypatch.setattr(
+        admin_api,
+        "_recent_interview_sessions",
+        lambda limit=20, offset=0, **filters: [
+            {
+                "session_id": "sess-page-2-item-1",
+                "status": "completed",
+                "has_report": True,
+            },
+            {
+                "session_id": "sess-page-2-item-2",
+                "status": "completed",
+                "has_report": True,
+            },
+        ],
+    )
+    monkeypatch.setattr(
+        admin_api,
+        "_interview_session_total_count",
+        lambda **filters: 0,
+        raising=False,
+    )
+
+    resp = client.get("/admin/interview-sessions?limit=20&offset=20")
+
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["count"] == 2
+    assert body["total_count"] == 22
+    assert body["offset"] == 20
+
+
+def test_admin_interview_sessions_passes_filter_query_params(client, monkeypatch):
+    """History route filters are part of the server-side pagination query."""
+    _set_token(monkeypatch, None, allow_open_admin=True)
+    seen_recent: dict[str, Any] = {}
+    seen_count: dict[str, Any] = {}
+
+    def recent(limit: int = 20, offset: int = 0, **filters: Any) -> list[dict[str, Any]]:
+        seen_recent.update({"limit": limit, "offset": offset, **filters})
+        return [
+            {
+                "session_id": "sess-filtered",
+                "status": "completed",
+                "has_report": True,
+                "trace_health": "complete",
+            }
+        ]
+
+    def count(**filters: Any) -> int:
+        seen_count.update(filters)
+        return 1
+
+    monkeypatch.setattr(admin_api, "_recent_interview_sessions", recent)
+    monkeypatch.setattr(admin_api, "_interview_session_total_count", count, raising=False)
+
+    resp = client.get(
+        "/admin/interview-sessions"
+        "?limit=10&offset=20&status=completed&trace_health=complete"
+        "&has_report=true&q=后端&since=7d"
+    )
+
+    assert resp.status_code == 200
+    assert seen_recent == {
+        "limit": 10,
+        "offset": 20,
+        "status_filter": "completed",
+        "trace_health_filter": "complete",
+        "has_report_filter": True,
+        "q": "后端",
+        "since": "7d",
+    }
+    assert seen_count == {
+        "status_filter": "completed",
+        "trace_health_filter": "complete",
+        "has_report_filter": True,
+        "q": "后端",
+        "since": "7d",
+    }
+    body = resp.json()
+    assert body["filters"] == {
+        "status": "completed",
+        "trace_health": "complete",
+        "has_report": True,
+        "q": "后端",
+        "since": "7d",
+    }
+
+
+def test_admin_interview_sessions_filters_database_before_pagination(
+    client,
+    monkeypatch,
+):
+    """Search/status/report/trace filters apply to the full DB result set."""
+    _set_token(monkeypatch, None, allow_open_admin=True)
+
+    from contextlib import contextmanager
+
+    from sqlalchemy import create_engine
+    from sqlalchemy.orm import sessionmaker
+    from sqlalchemy.pool import StaticPool
+
+    import app.models as models_mod
+    from app.models import GenerationTrace, InterviewSession
+    from app.models.base import Base
+
+    engine = create_engine(
+        "sqlite:///:memory:",
+        future=True,
+        connect_args={"check_same_thread": False},
+        poolclass=StaticPool,
+    )
+    Base.metadata.create_all(engine)
+    Session = sessionmaker(bind=engine, expire_on_commit=False, autoflush=False)
+    now = datetime.now(UTC)
+    with Session() as sess:
+        sess.add_all(
+            [
+                InterviewSession(
+                    session_id="sess-complete",
+                    trace_id="trace-complete",
+                    candidate_name="Alice",
+                    job_title="后端工程师",
+                    job_level="senior",
+                    mode="mixed",
+                    status="completed",
+                    final_report={"overall_score": 8},
+                    created_at=now - timedelta(days=2),
+                ),
+                InterviewSession(
+                    session_id="sess-partial",
+                    trace_id="trace-partial",
+                    candidate_name="Alice",
+                    job_title="后端工程师",
+                    job_level="senior",
+                    mode="mixed",
+                    status="completed",
+                    final_report={"overall_score": 6},
+                    created_at=now - timedelta(days=1),
+                ),
+                InterviewSession(
+                    session_id="sess-missing-report",
+                    trace_id="trace-missing-report",
+                    candidate_name="Alice",
+                    job_title="后端工程师",
+                    job_level="senior",
+                    mode="mixed",
+                    status="completed",
+                    final_report=None,
+                    created_at=now - timedelta(days=1),
+                ),
+                InterviewSession(
+                    session_id="sess-old",
+                    trace_id="trace-old",
+                    candidate_name="Alice",
+                    job_title="后端工程师",
+                    job_level="senior",
+                    mode="mixed",
+                    status="completed",
+                    final_report={"overall_score": 7},
+                    created_at=now - timedelta(days=20),
+                ),
+            ]
+        )
+        sess.add_all(
+            [
+                GenerationTrace(
+                    trace_id="trace-complete",
+                    session_id="sess-complete",
+                    turn_idx=1,
+                    node="evaluator",
+                ),
+                GenerationTrace(
+                    trace_id="trace-complete",
+                    session_id="sess-complete",
+                    turn_idx=1,
+                    node="reward_update",
+                ),
+                GenerationTrace(
+                    trace_id="trace-partial",
+                    session_id="sess-partial",
+                    turn_idx=1,
+                    node="ask_question",
+                ),
+                GenerationTrace(
+                    trace_id="trace-old",
+                    session_id="sess-old",
+                    turn_idx=1,
+                    node="evaluator",
+                ),
+                GenerationTrace(
+                    trace_id="trace-old",
+                    session_id="sess-old",
+                    turn_idx=1,
+                    node="reward_update",
+                ),
+            ]
+        )
+        sess.commit()
+
+    @contextmanager
+    def get_session():
+        with Session() as sess:
+            yield sess
+            sess.commit()
+
+    monkeypatch.setattr(models_mod, "get_session", get_session)
+
+    resp = client.get(
+        "/admin/interview-sessions"
+        "?status=completed&trace_health=complete&has_report=true&q=后端&since=7d"
+    )
+
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["total_count"] == 1
+    assert [item["session_id"] for item in body["sessions"]] == ["sess-complete"]
+    assert body["sessions"][0]["trace_health"] == "complete"
 
 
 def test_admin_interview_session_traces_returns_payload(client, monkeypatch):

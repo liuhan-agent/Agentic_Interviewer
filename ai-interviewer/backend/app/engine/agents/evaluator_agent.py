@@ -404,11 +404,10 @@ def evaluate_answer(
     except (TypeError, ValueError):
         score = 5.0
 
-    # Evidence-span alignment is opt-in and additive. When enabled, the
+    # Evidence-span alignment is additive. When enabled, the
     # per-check normaliser also emits an ``evidence_spans`` list aligned
     # to the candidate answer (see
-    # ``docs/PLAN_EVIDENCE_SPAN_ALIGNMENT.md``). Defaults off so the
-    # output shape matches pre-rollout. Reading via ``getattr`` keeps
+    # ``docs/PLAN_EVIDENCE_SPAN_ALIGNMENT.md``). Reading via ``getattr`` keeps
     # test fixtures that pass a trimmed-down ``SimpleNamespace``
     # settings stub working without having to re-declare every knob.
     enable_spans = bool(getattr(settings, "evidence_span_alignment", False))
