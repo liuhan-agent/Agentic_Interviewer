@@ -114,6 +114,23 @@ const REFRESH_INTERVAL_MS = 15_000;
 const HISTORY_PAGE_SIZE = 20;
 const HISTORY_SEARCH_DEBOUNCE_MS = 300;
 const ADMIN_ACTIVE_TAB_STORAGE_KEY = "agentic-interviewer:admin-active-tab";
+const BANDIT_RAW_DETAILS_PAGE_SIZE = 50;
+
+type BanditRawDetailsFilterField =
+  | "all"
+  | "context_key"
+  | "action_id"
+  | "canonical_action";
+
+const BANDIT_RAW_DETAILS_FILTER_OPTIONS: Array<{
+  value: BanditRawDetailsFilterField;
+  label: string;
+}> = [
+  { value: "all", label: "全部字段" },
+  { value: "context_key", label: "context_key" },
+  { value: "action_id", label: "action_id" },
+  { value: "canonical_action", label: "canonical_action" },
+];
 
 type Loadable<T> =
   | { phase: "loading" }
@@ -2073,10 +2090,48 @@ function BanditTable({
 }) {
   const rows = Object.entries(priors)
     .map(([key, { alpha, beta }]) => {
+      const { contextKey, actionId } = splitBanditStrategyKey(key);
+      const canonicalActionId = canonicalBanditActionId(actionId || key);
       const mean = alpha / (alpha + beta || 1);
-      return { key, alpha, beta, mean };
+      return {
+        key,
+        contextKey,
+        actionId,
+        canonicalActionId,
+        canonicalKey: `${contextKey}::${canonicalActionId}`,
+        alpha,
+        beta,
+        mean,
+        display: parseBanditStrategyKey(key),
+        rawCount: 1,
+        rawActionIds: [actionId || key],
+      };
     })
     .sort((a, b) => b.mean - a.mean);
+  const [rawDetailsQuery, setRawDetailsQuery] = useState("");
+  const [rawDetailsFilterField, setRawDetailsFilterField] =
+    useState<BanditRawDetailsFilterField>("all");
+  const [rawDetailsLimit, setRawDetailsLimit] = useState(
+    BANDIT_RAW_DETAILS_PAGE_SIZE,
+  );
+  const normalizedRawDetailsQuery = rawDetailsQuery.trim().toLowerCase();
+  const filteredRawRows = rows.filter((r) => {
+    if (!normalizedRawDetailsQuery) return true;
+    return banditRawDetailsSearchValues(r, rawDetailsFilterField).some(
+      (value) => value.toLowerCase().includes(normalizedRawDetailsQuery),
+    );
+  });
+  const visibleRawRows = filteredRawRows.slice(0, rawDetailsLimit);
+  const handleRawDetailsQueryChange = (nextQuery: string) => {
+    setRawDetailsQuery(nextQuery);
+    setRawDetailsLimit(BANDIT_RAW_DETAILS_PAGE_SIZE);
+  };
+  const handleRawDetailsFilterFieldChange = (
+    nextField: BanditRawDetailsFilterField,
+  ) => {
+    setRawDetailsFilterField(nextField);
+    setRawDetailsLimit(BANDIT_RAW_DETAILS_PAGE_SIZE);
+  };
 
   if (rows.length === 0) {
     return (
@@ -2086,27 +2141,62 @@ function BanditTable({
     );
   }
 
-  const topRows = rows.slice(0, 5);
+  const canonicalRows = buildCanonicalBanditRows(rows);
+  const topRows = canonicalRows.slice(0, 5);
   return (
     <div className="space-y-3">
       <div>
         <p className="text-xs font-medium text-muted-foreground">Top 后验策略</p>
+        <p className="mt-1 text-[11px] text-muted-foreground">
+          按 canonical plan_* 动作归并；同组存在新旧 action
+          时优先展示 plan_* 后验，原始 rows 留在开发详情。
+          key = context_key::action_id，context_key 由方向、级别、维度组成。
+        </p>
         <div className="mt-2 overflow-x-auto rounded-md border">
-          <table className="w-full min-w-[680px] text-xs">
+          <table className="w-full min-w-[820px] text-xs">
             <thead className="bg-secondary/50 text-[10px] text-muted-foreground">
               <tr>
-                <th className="px-3 py-2 text-left font-medium">策略</th>
-                <th className="px-3 py-2 text-right font-medium">样本</th>
+                <th className="px-3 py-2 text-left font-medium">上下文 key</th>
+                <th className="px-3 py-2 text-left font-medium">策略动作</th>
+                <th className="px-3 py-2 text-left font-medium">粒度</th>
+                <th className="px-3 py-2 text-right font-medium">后验权重</th>
                 <th className="px-3 py-2 text-right font-medium">成功倾向</th>
                 <th className="px-3 py-2 font-medium">后验</th>
               </tr>
             </thead>
             <tbody>
               {topRows.map((r) => (
-                <tr key={r.key} className="border-t">
-                  <td className="max-w-[340px] px-3 py-2">
-                    <div className="min-w-0 truncate font-medium text-foreground">
-                      {formatBanditStrategyLabel(r.key)}
+                <tr
+                  key={r.canonicalKey}
+                  aria-label={formatBanditStrategyLabel(r.canonicalKey)}
+                  className="border-t"
+                >
+                  <td className="max-w-[320px] px-3 py-2">
+                    <div className="min-w-0 truncate font-mono font-medium text-foreground">
+                      {r.contextKey}
+                    </div>
+                    <div className="mt-0.5 min-w-0 truncate text-[11px] text-muted-foreground">
+                      {r.display.context}
+                    </div>
+                  </td>
+                  <td className="px-3 py-2">
+                    <div className="font-mono font-medium text-foreground">
+                      {r.canonicalActionId}
+                    </div>
+                    <div className="mt-0.5 text-[11px] text-muted-foreground">
+                      {r.display.action}
+                    </div>
+                  </td>
+                  <td className="px-3 py-2">
+                    <div className="flex flex-wrap gap-1">
+                      <Badge variant="outline" className="text-[10px]">
+                        {r.display.granularity}
+                      </Badge>
+                      {r.rawCount > 1 && (
+                        <Badge variant="secondary" className="text-[10px]">
+                          原始 {r.rawCount} 条
+                        </Badge>
+                      )}
                     </div>
                   </td>
                   <td className="px-3 py-2 text-right font-mono tabular-nums">
@@ -2135,21 +2225,60 @@ function BanditTable({
         <summary className="cursor-pointer font-medium text-muted-foreground">
           开发详情：原始后验参数
         </summary>
+        <div className="mt-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+            <select
+              aria-label="选择原始后验筛选字段"
+              className="h-8 rounded-md border border-input bg-background px-2 text-xs text-foreground"
+              value={rawDetailsFilterField}
+              onChange={(event) =>
+                handleRawDetailsFilterFieldChange(
+                  event.currentTarget.value as BanditRawDetailsFilterField,
+                )
+              }
+            >
+              {BANDIT_RAW_DETAILS_FILTER_OPTIONS.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
+            <Input
+              aria-label="筛选原始后验参数"
+              className="h-8 text-xs sm:w-72"
+              placeholder="输入关键词"
+              value={rawDetailsQuery}
+              onChange={(event) =>
+                handleRawDetailsQueryChange(event.currentTarget.value)
+              }
+            />
+          </div>
+          <p className="text-[11px] text-muted-foreground">
+            显示 {visibleRawRows.length} / 共 {filteredRawRows.length} 条
+            {filteredRawRows.length !== rows.length ? `，原始 ${rows.length} 条` : ""}
+          </p>
+        </div>
         <div className="mt-3 overflow-x-auto">
-          <table className="w-full min-w-[720px] text-xs">
+          <table className="w-full min-w-[820px] text-xs">
             <thead className="text-[10px] text-muted-foreground">
               <tr>
-                <th className="px-2 py-1 text-left font-medium">原始键</th>
+                <th className="px-2 py-1 text-left font-medium">
+                  原始键（context_key::action_id）
+                </th>
+                <th className="px-2 py-1 text-left font-medium">canonical 动作</th>
                 <th className="px-2 py-1 text-right font-medium">alpha</th>
                 <th className="px-2 py-1 text-right font-medium">beta</th>
                 <th className="px-2 py-1 text-right font-medium">均值</th>
               </tr>
             </thead>
             <tbody>
-              {rows.map((r) => (
+              {visibleRawRows.map((r) => (
                 <tr key={r.key} className="border-t border-border/50">
                   <td className="max-w-[420px] truncate px-2 py-1 font-mono">
                     {r.key}
+                  </td>
+                  <td className="px-2 py-1 text-left font-mono">
+                    {r.canonicalActionId}
                   </td>
                   <td className="px-2 py-1 text-right font-mono tabular-nums">
                     {r.alpha.toFixed(2)}
@@ -2162,18 +2291,216 @@ function BanditTable({
                   </td>
                 </tr>
               ))}
+              {visibleRawRows.length === 0 && (
+                <tr className="border-t border-border/50">
+                  <td
+                    colSpan={5}
+                    className="px-2 py-6 text-center text-muted-foreground"
+                  >
+                    没有匹配的原始后验参数
+                  </td>
+                </tr>
+              )}
             </tbody>
           </table>
         </div>
+        {visibleRawRows.length < filteredRawRows.length && (
+          <div className="mt-3 flex justify-end">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() =>
+                setRawDetailsLimit(
+                  (current) => current + BANDIT_RAW_DETAILS_PAGE_SIZE,
+                )
+              }
+            >
+              显示更多
+            </Button>
+          </div>
+        )}
       </details>
     </div>
   );
 }
 
+type BanditPriorRow = {
+  key: string;
+  contextKey: string;
+  actionId: string;
+  canonicalActionId: string;
+  canonicalKey: string;
+  alpha: number;
+  beta: number;
+  mean: number;
+  display: ReturnType<typeof parseBanditStrategyKey>;
+  rawCount: number;
+  rawActionIds: string[];
+};
+
+function banditRawDetailsSearchValues(
+  row: BanditPriorRow,
+  field: BanditRawDetailsFilterField,
+): string[] {
+  if (field === "context_key") return [row.contextKey];
+  if (field === "action_id") return [row.actionId || row.key];
+  if (field === "canonical_action") return [row.canonicalActionId];
+  return [row.key, row.contextKey, row.actionId, row.canonicalActionId];
+}
+
+function buildCanonicalBanditRows(rows: BanditPriorRow[]): BanditPriorRow[] {
+  const groups = new Map<string, BanditPriorRow[]>();
+  for (const row of rows) {
+    const bucket = groups.get(row.canonicalKey) ?? [];
+    bucket.push(row);
+    groups.set(row.canonicalKey, bucket);
+  }
+
+  return Array.from(groups.values())
+    .map((group) => {
+      const representative =
+        group.find((row) => row.actionId === row.canonicalActionId) ??
+        [...group].sort((a, b) => b.alpha + b.beta - (a.alpha + a.beta))[0];
+      const canonicalKey = representative.canonicalKey;
+      const rawActionIds = Array.from(
+        new Set(group.map((row) => row.actionId || row.key)),
+      );
+      // Do not sum alpha/beta here: reward_update may mirror-write legacy
+      // and canonical arms for one event, so summing can double count evidence.
+      return {
+        ...representative,
+        key: canonicalKey,
+        actionId: representative.canonicalActionId,
+        display: parseBanditStrategyKey(canonicalKey),
+        rawCount: group.length,
+        rawActionIds,
+      };
+    })
+    .sort((a, b) => b.mean - a.mean);
+}
+
+function splitBanditStrategyKey(key: string): {
+  contextKey: string;
+  actionId: string;
+} {
+  const [contextKey, ...actionParts] = key.split("::");
+  return {
+    contextKey,
+    actionId: actionParts.join("::"),
+  };
+}
+
+function parseBanditStrategyKey(key: string): {
+  context: string;
+  action: string;
+  granularity: string;
+} {
+  const { contextKey, actionId } = splitBanditStrategyKey(key);
+  return {
+    context: formatBanditContextLabel(contextKey),
+    action: formatBanditActionLabel(canonicalBanditActionId(actionId || key)),
+    granularity: getBanditContextGranularity(contextKey),
+  };
+}
+
 function formatBanditStrategyLabel(key: string): string {
-  const [context, action] = key.split("::");
-  if (context && action) return `${context} / ${action}`;
-  return key || "未命名策略";
+  const parsed = parseBanditStrategyKey(key);
+  return `${parsed.context} / ${parsed.action} / ${parsed.granularity}`;
+}
+
+function formatBanditContextLabel(contextKey: string): string {
+  const parts = contextKey.split(":").filter(Boolean);
+  if (parts.length >= 3) {
+    const [direction, level, ...dimensionParts] = parts;
+    return [
+      formatDirectionLabel(direction),
+      formatLevelLabel(level),
+      formatDimensionLabel(dimensionParts.join(":")),
+    ].join(" · ");
+  }
+  if (parts.length === 2) {
+    const [level, dimension] = parts;
+    return [formatLevelLabel(level), formatDimensionLabel(dimension)].join(" · ");
+  }
+  return formatTokenLabel(contextKey || "未命名上下文");
+}
+
+function canonicalBanditActionId(actionId: string): string {
+  const aliases: Record<string, string> = {
+    deepen_technical: "plan_adaptive",
+    switch_dimension: "plan_switch",
+    give_hint: "plan_hint",
+    skip_to_next: "plan_simple",
+  };
+  return aliases[actionId] ?? actionId;
+}
+
+function formatBanditActionLabel(actionId: string): string {
+  const labels: Record<string, string> = {
+    plan_simple: "轻量探问",
+    plan_quick_review: "快速复核",
+    plan_adaptive: "自适应追问",
+    plan_deep_probe: "深挖追问",
+    plan_hint: "提示引导",
+    plan_switch: "切换维度",
+    deepen_technical: "技术深挖",
+    switch_dimension: "切换维度",
+    give_hint: "提示引导",
+    skip_to_next: "跳到下一题",
+  };
+  return labels[actionId] ?? formatTokenLabel(actionId || "未知动作");
+}
+
+function getBanditContextGranularity(contextKey: string): string {
+  const parts = contextKey.split(":").filter(Boolean);
+  if (parts.length >= 3) return "方向级";
+  if (parts.length === 2) return "全局级";
+  return "未知粒度";
+}
+
+function formatDirectionLabel(direction: string): string {
+  const labels: Record<string, string> = {
+    java_backend: "Java 后端",
+    backend: "后端",
+    frontend: "前端",
+    fullstack: "全栈",
+    product: "产品",
+    data: "数据",
+  };
+  return labels[direction] ?? formatTokenLabel(direction);
+}
+
+function formatLevelLabel(level: string): string {
+  const labels: Record<string, string> = {
+    intern: "实习",
+    junior: "初级",
+    mid: "中级",
+    senior: "高级",
+    staff: "资深",
+    principal: "专家",
+  };
+  return labels[level] ?? formatTokenLabel(level);
+}
+
+function formatDimensionLabel(dimension: string): string {
+  const labels: Record<string, string> = {
+    communication: "沟通表达",
+    technical_depth: "技术深度",
+    system_design: "系统设计",
+    problem_solving: "问题解决",
+    coding: "编码能力",
+    collaboration: "协作",
+  };
+  return labels[dimension] ?? formatTokenLabel(dimension);
+}
+
+function formatTokenLabel(value: string): string {
+  return value
+    .split(/[_:\s-]+/)
+    .filter(Boolean)
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(" ");
 }
 
 // ---------------------------------------------------------------------------
