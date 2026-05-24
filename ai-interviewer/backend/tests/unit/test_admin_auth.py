@@ -734,6 +734,102 @@ def test_admin_interview_session_traces_returns_payload(client, monkeypatch):
     assert body["nodes"][0]["node"] == "evaluator"
 
 
+def test_admin_interview_session_traces_returns_global_debug_counts(
+    client,
+    monkeypatch,
+):
+    """Trace Explorer pagination still returns full-session diagnostics."""
+    _set_token(monkeypatch, None, allow_open_admin=True)
+
+    from contextlib import contextmanager
+
+    from sqlalchemy import create_engine
+    from sqlalchemy.orm import sessionmaker
+    from sqlalchemy.pool import StaticPool
+
+    import app.models as models_mod
+    from app.models import GenerationTrace, InterviewSession
+    from app.models.base import Base
+
+    engine = create_engine(
+        "sqlite:///:memory:",
+        future=True,
+        connect_args={"check_same_thread": False},
+        poolclass=StaticPool,
+    )
+    Base.metadata.create_all(engine)
+    Session = sessionmaker(bind=engine, expire_on_commit=False, autoflush=False)
+    with Session() as sess:
+        sess.add(
+            InterviewSession(
+                session_id="sess-debug",
+                trace_id="trace-debug",
+                candidate_name="Debug Candidate",
+                job_title="Platform Engineer",
+                job_level="senior",
+                mode="mixed",
+                status="completed",
+                final_report={"overall_score": 7.5, "verdict": "hire"},
+                created_at=datetime.now(UTC),
+            )
+        )
+        sess.add_all(
+            [
+                GenerationTrace(
+                    trace_id="trace-debug",
+                    session_id="sess-debug",
+                    turn_idx=0,
+                    node="director_sample",
+                ),
+                GenerationTrace(
+                    trace_id="trace-debug",
+                    session_id="sess-debug",
+                    turn_idx=0,
+                    node="evaluator",
+                    evaluation={"source": "fallback"},
+                    score=5.0,
+                ),
+                GenerationTrace(
+                    trace_id="trace-debug",
+                    session_id="sess-debug",
+                    turn_idx=0,
+                    node="reward_update",
+                ),
+                GenerationTrace(
+                    trace_id="trace-debug",
+                    session_id="sess-debug",
+                    turn_idx=1,
+                    node="evaluator",
+                    evaluation={"source": "model"},
+                    score=8.0,
+                ),
+            ]
+        )
+        sess.commit()
+
+    @contextmanager
+    def get_session():
+        with Session() as sess:
+            yield sess
+            sess.commit()
+
+    monkeypatch.setattr(models_mod, "get_session", get_session)
+
+    resp = client.get("/admin/interview-sessions/sess-debug/traces?limit=2")
+
+    assert resp.status_code == 200
+    body = resp.json()
+    assert len(body["nodes"]) == 2
+    assert body["nodes_has_more"] is True
+    assert body["node_type_counts"] == {
+        "director_sample": 1,
+        "evaluator": 2,
+        "reward_update": 1,
+    }
+    assert body["fallback_trace_count"] == 1
+    assert body["turn_count"] == 2
+
+
 def test_admin_metrics_endpoint_returns_prometheus_text(client, monkeypatch):
     _set_token(monkeypatch, None, allow_open_admin=True)
 

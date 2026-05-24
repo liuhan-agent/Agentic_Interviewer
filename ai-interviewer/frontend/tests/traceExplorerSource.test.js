@@ -19,6 +19,9 @@ test("admin api exposes trace explorer client", () => {
   assert.match(api, /trace_diagnostics/);
   assert.match(api, /generation_trace_id/);
   assert.match(api, /node_count_total/);
+  assert.match(api, /node_type_counts/);
+  assert.match(api, /fallback_trace_count/);
+  assert.match(api, /turn_count/);
   assert.match(api, /nodes_has_more/);
   assert.ok(api.includes("/admin/interview-sessions/${encodeURIComponent(sessionId)}/traces"));
 });
@@ -44,6 +47,33 @@ test("trace explorer page and component expose workflow states", () => {
   assert.match(component, /查看原始 trace payload/);
   assert.match(component, /按轮次查看节点/);
   assert.match(component, /route_decision/);
+});
+
+test("trace explorer exposes diagnostic workbench layout and URL state", () => {
+  const component = read("src/components/admin/TraceExplorer.tsx");
+
+  assert.match(component, /TraceCommandCenter/);
+  assert.match(component, /TraceWorkbench/);
+  assert.match(component, /TraceTurnRail/);
+  assert.match(component, /TraceNodeDetail/);
+  assert.match(component, /useSearchParams/);
+  assert.match(component, /nodeType/);
+  assert.match(component, /selectedTraceId/);
+  assert.match(component, /aria-pressed/);
+  assert.match(component, /focus-visible:ring/);
+});
+
+test("trace explorer renders structured node evidence and lazy raw payloads", () => {
+  const component = read("src/components/admin/TraceExplorer.tsx");
+
+  assert.match(component, /answer_excerpt/);
+  assert.match(component, /immediate_reward_applied/);
+  assert.match(component, /policy_context_keys/);
+  assert.match(component, /EvaluationEvidence/);
+  assert.match(component, /RawTracePayloadDetails/);
+  assert.match(component, /JSON\.stringify\(rawPayload/);
+  assert.match(component, /content-visibility/);
+  assert.match(component, /prefers-reduced-motion/);
 });
 
 test("admin sessions expose Trace link", () => {
