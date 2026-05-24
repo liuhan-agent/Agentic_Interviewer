@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { Database, RefreshCw, ShieldCheck, Trash2 } from "lucide-react";
 
+import { SessionIdTooltip } from "@/components/interview/SessionIdTooltip";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -131,7 +132,7 @@ export function CandidateAnchorRagCard() {
                 候选人资料召回（24 小时）
               </CardTitle>
               <CardDescription className="mt-1">
-                观察简历与自我介绍的切片、向量化和召回命中。一行是一场最近 24 小时创建的面试 session；资料覆盖来自 session_anchor_chunks，召回表现来自 ask_question trace。
+                观察简历与自我介绍的切片、向量化和召回命中。一行是一场最近 24 小时创建的面试 session；切片数来自 setup_snapshot，召回表现来自 ask_question trace。
               </CardDescription>
             </div>
             <div className="flex items-center gap-2">
@@ -267,19 +268,13 @@ function CandidateAnchorSessionsBody({
         </p>
       ) : (
         <div className="overflow-x-auto rounded-md border">
-          <table className="w-full min-w-[1280px] text-left text-xs">
+          <table className="w-full min-w-[960px] text-left text-xs">
             <thead className="bg-muted/60 text-muted-foreground">
               <tr>
                 <th className="px-3 py-2 font-medium">Session</th>
                 <th className="px-3 py-2 font-medium">候选人 / 岗位</th>
-                <th className="px-3 py-2 font-medium">资料覆盖</th>
-                <th className="px-3 py-2 font-medium">切片策略</th>
-                <th className="px-3 py-2 font-medium">切片数</th>
-                <th className="px-3 py-2 font-medium">召回尝试</th>
-                <th className="px-3 py-2 font-medium">命中次数</th>
-                <th className="px-3 py-2 font-medium">召回命中</th>
-                <th className="px-3 py-2 font-medium">延迟 p50 / p99</th>
-                <th className="px-3 py-2 font-medium">兜底原因</th>
+                <th className="px-3 py-2 font-medium">资料准备</th>
+                <th className="px-3 py-2 font-medium">召回表现</th>
                 <th className="px-3 py-2 font-medium">状态</th>
                 <th className="px-3 py-2 font-medium">操作</th>
               </tr>
@@ -309,72 +304,61 @@ function SessionAnchorRow({
 }) {
   return (
     <tr className="align-top">
-      <td className="max-w-[180px] px-3 py-3">
-        <div className="break-all font-mono text-[11px] text-foreground">
-          {session.session_id}
-        </div>
+      <td className="w-[170px] px-3 py-3">
+        <SessionIdTooltip sessionId={session.session_id} />
         <div className="mt-1 text-[10px] text-muted-foreground">
           {formatDate(session.created_at)}
         </div>
       </td>
-      <td className="px-3 py-3">
-        <div className="max-w-[160px] font-medium text-foreground">
+      <td className="w-[170px] px-3 py-3">
+        <div className="max-w-[160px] truncate font-medium text-foreground">
           {session.candidate_name || "未记录候选人"}
         </div>
-        <div className="mt-1 max-w-[160px] text-muted-foreground">
+        <div className="mt-1 max-w-[160px] truncate text-muted-foreground">
           {session.job_title || "未记录岗位"}
         </div>
       </td>
-      <td className="px-3 py-3">
+      <td className="min-w-[260px] px-3 py-3">
         <div className="flex flex-wrap gap-1.5">
-          {session.has_resume_chunks && <SourceChip label="简历" />}
-          {session.has_self_intro_chunks && <SourceChip label="自我介绍" />}
-          {!session.has_resume_chunks && !session.has_self_intro_chunks && (
-            <SourceChip label="无资料" muted />
-          )}
+          {formatChunkSources(session)}
         </div>
-      </td>
-      <td className="px-3 py-3">
-        <div className="flex max-w-[220px] flex-wrap gap-1.5">
-          {session.chunker_modes.length > 0 ? (
-            session.chunker_modes.map((mode) => (
-              <MiniPill key={mode}>{formatMode(mode)}</MiniPill>
+        <div className="mt-1 flex max-w-[300px] flex-wrap gap-1.5">
+          {modePills(session).length > 0 ? (
+            modePills(session).map((item) => (
+              <MiniPill key={`${item.source}-${item.mode}`}>
+                {formatSourceMode(item.source, item.mode)}
+              </MiniPill>
             ))
           ) : (
             <MiniPill muted>无</MiniPill>
           )}
         </div>
         {session.embedding_model_versions.length > 0 && (
-          <div className="mt-1 max-w-[220px] break-all font-mono text-[10px] text-muted-foreground">
+          <div className="mt-1 max-w-[300px] truncate font-mono text-[10px] text-muted-foreground">
             {session.embedding_model_versions.join(" / ")}
           </div>
         )}
       </td>
-      <td className="px-3 py-3 font-mono">{session.total_chunks}</td>
-      <td className="px-3 py-3 font-mono">{session.retrieval_attempts}</td>
-      <td className="px-3 py-3 font-mono">{session.hit_count}</td>
-      <td className="px-3 py-3 font-mono">
-        {formatPercent(session.hit_rate)}
+      <td className="min-w-[220px] px-3 py-3">
+        <div className="font-mono text-[13px] font-semibold text-foreground">
+          {session.retrieval_attempts} 轮 / {session.hit_count} 命中 / {formatPercent(session.hit_rate)}
+        </div>
         <div className="mt-1 text-[10px] text-muted-foreground">
-          {formatSourceHits(session.source_hit_counts)}
+          命中片段：{formatSourceHits(session.source_hit_counts)}
+        </div>
+        <div className="mt-1 font-mono text-[10px] text-muted-foreground">
+          p50 / p99 {formatLatency(session.latency_ms)}
         </div>
       </td>
-      <td className="px-3 py-3 font-mono text-muted-foreground">
-        {formatLatency(session.latency_ms)}
-      </td>
-      <td className="px-3 py-3">
-        <div className="flex max-w-[180px] flex-wrap gap-1.5">
-          {formatFallbacks(session.fallback_reasons)}
-        </div>
-      </td>
-      <td className="px-3 py-3">
-        <div className="flex max-w-[180px] flex-wrap gap-1.5">
+      <td className="min-w-[190px] px-3 py-3">
+        <div className="flex max-w-[210px] flex-wrap gap-1.5">
           <MiniPill>{session.session_status || "unknown"}</MiniPill>
           {Object.entries(session.rag_status_distribution || {}).map(([status, count]) => (
             <MiniPill key={status} muted={status === "off" || status === "sampled_out"}>
               {STATUS_LABELS[status] ?? status} {count}
             </MiniPill>
           ))}
+          {formatFallbacks(session.fallback_reasons, false)}
         </div>
         {session.last_trace_at && (
           <div className="mt-1 text-[10px] text-muted-foreground">
@@ -382,17 +366,16 @@ function SessionAnchorRow({
           </div>
         )}
       </td>
-      <td className="px-3 py-3">
+      <td className="w-[72px] px-3 py-3">
         <Button
           type="button"
           variant="ghost"
-          size="sm"
-          className="h-8 px-2 text-xs text-destructive hover:text-destructive"
+          size="icon"
+          className="h-8 w-8 text-destructive hover:text-destructive"
           aria-label="行级删除资料数据"
           onClick={() => onDeleteSession(session)}
         >
           <Trash2 className="h-3.5 w-3.5" />
-          删除资料数据
         </Button>
       </td>
     </tr>
@@ -412,6 +395,29 @@ function SourceChip({ label, muted = false }: { label: string; muted?: boolean }
       {label}
     </span>
   );
+}
+
+function formatChunkSources(session: SessionAnchorSessionRow): React.ReactNode {
+  const entries = [
+    {
+      source: "resume",
+      label: "简历切片",
+      count: Number(session.chunks_by_source?.resume ?? 0),
+    },
+    {
+      source: "self_intro",
+      label: "自介切片",
+      count: Number(session.chunks_by_source?.self_intro ?? 0),
+    },
+  ].filter((entry) => entry.count > 0);
+
+  if (entries.length === 0) return <SourceChip label="无资料" muted />;
+  return entries.map((entry) => (
+    <SourceChip
+      key={entry.source}
+      label={`${entry.label} ${entry.count}`}
+    />
+  ));
 }
 
 function MiniPill({
@@ -461,6 +467,21 @@ function formatMode(mode: string): string {
   return MODE_LABELS[mode] ?? mode;
 }
 
+function modePills(session: SessionAnchorSessionRow): Array<{ source: string; mode: string }> {
+  const bySource = session.chunker_modes_by_source || {};
+  const entries = Object.entries(bySource).flatMap(([source, modes]) =>
+    (modes || []).map((mode) => ({ source, mode })),
+  );
+  if (entries.length > 0) return entries;
+  return (session.chunker_modes || []).map((mode) => ({ source: "", mode }));
+}
+
+function formatSourceMode(source: string, mode: string): string {
+  if (source === "self_intro") return "自我介绍卡片";
+  if (source === "resume") return formatMode(mode);
+  return formatMode(mode);
+}
+
 function formatPercent(value: number): string {
   if (!Number.isFinite(value)) return "0%";
   return `${Math.round(value * 100)}%`;
@@ -487,16 +508,21 @@ function formatLatency(latency: SessionAnchorSessionRow["latency_ms"]): string {
 
 function formatSourceHits(sourceHits: Record<string, number>): string {
   const entries = Object.entries(sourceHits || {}).filter(([, count]) => count > 0);
-  if (entries.length === 0) return "无来源命中";
+  if (entries.length === 0) return "无";
   return entries
     .sort((a, b) => b[1] - a[1])
     .map(([source, count]) => `${SOURCE_LABELS[source] ?? source} ${count}`)
     .join(" / ");
 }
 
-function formatFallbacks(reasons: Record<string, number>): React.ReactNode {
+function formatFallbacks(
+  reasons: Record<string, number>,
+  showEmpty = true,
+): React.ReactNode {
   const entries = Object.entries(reasons || {}).filter(([, count]) => count > 0);
-  if (entries.length === 0) return <MiniPill muted>无兜底</MiniPill>;
+  if (entries.length === 0) {
+    return showEmpty ? <MiniPill muted>无兜底</MiniPill> : null;
+  }
   return entries
     .sort((a, b) => b[1] - a[1])
     .map(([reason, count]) => (
