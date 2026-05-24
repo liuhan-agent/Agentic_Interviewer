@@ -1243,6 +1243,7 @@ export interface SessionAnchorSessionRow {
   total_chunks: number;
   chunks_by_source: Record<string, number>;
   chunker_modes: string[];
+  chunker_modes_by_source?: Record<string, string[]>;
   embedding_model_versions: string[];
   retrieval_attempts: number;
   hit_count: number;
