@@ -993,25 +993,11 @@ def _interview_session_trace_payload(
             .group_by(GenerationTrace.node)
             .all()
         )
-        turn_count = (
-            sess.query(func.count(func.distinct(GenerationTrace.turn_idx)))
-            .filter(GenerationTrace.session_id == session_id)
-            .scalar()
-            or 0
-        )
-        evaluator_traces = (
+        all_traces = (
             sess.query(GenerationTrace)
-            .filter(
-                GenerationTrace.session_id == session_id,
-                GenerationTrace.node == "evaluator",
-            )
+            .filter(GenerationTrace.session_id == session_id)
+            .order_by(GenerationTrace.turn_idx.asc(), GenerationTrace.id.asc())
             .all()
-        )
-        last_trace = (
-            sess.query(GenerationTrace)
-            .filter(GenerationTrace.session_id == session_id)
-            .order_by(GenerationTrace.turn_idx.desc(), GenerationTrace.id.desc())
-            .first()
         )
         traces = (
             sess.query(GenerationTrace)
@@ -1030,6 +1016,7 @@ def _interview_session_trace_payload(
     total_trace_count = sum(node_counts.values())
     summary_nodes = [{"node": node} for node in node_counts]
     diagnostics = trace_diagnostics(summary_nodes, session_status=row.status)
+    last_trace = all_traces[-1] if all_traces else None
     if last_trace is not None:
         diagnostics["last_node"] = last_trace.node
     return {
@@ -1049,9 +1036,15 @@ def _interview_session_trace_payload(
         "node_count_total": total_trace_count,
         "node_type_counts": node_counts,
         "fallback_trace_count": sum(
-            1 for trace in evaluator_traces if _trace_has_evaluator_fallback(trace)
+            1 for trace in all_traces if _trace_has_evaluator_fallback(trace)
         ),
-        "turn_count": int(turn_count),
+        "turn_count": len(
+            {
+                trace.turn_idx
+                for trace in all_traces
+                if getattr(trace, "turn_idx", None) is not None
+            }
+        ),
         "nodes_offset": safe_offset,
         "nodes_limit": capped_limit,
         "nodes_has_more": safe_offset + len(nodes) < total_trace_count,
