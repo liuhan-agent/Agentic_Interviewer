@@ -201,6 +201,9 @@ export interface TraceExplorerResponse {
   trace_health: TraceHealth;
   trace_diagnostics?: TraceDiagnostics | null;
   node_count_total: number;
+  node_type_counts?: Record<string, number>;
+  fallback_trace_count?: number;
+  turn_count?: number;
   nodes_offset: number;
   nodes_limit: number;
   nodes_has_more: boolean;

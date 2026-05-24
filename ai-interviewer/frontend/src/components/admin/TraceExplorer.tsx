@@ -1,11 +1,11 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Activity, AlertTriangle, ArrowLeft, ChevronDown, ExternalLink, FileText, GitBranch, Loader2, RefreshCw, Timer } from "lucide-react";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { Activity, AlertTriangle, ArrowLeft, ChevronDown, ExternalLink, FileText, GitBranch, Loader2, RefreshCw, Search, Timer } from "lucide-react";
 
 import { TraceAnnotationDialog } from "@/components/admin/TraceAnnotationDialog";
 import { PendingNavigationLink } from "@/components/navigation/PendingNavigationLink";
-import { WorkflowChainPanel } from "@/components/admin/WorkflowChainPanel";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -138,18 +138,48 @@ function TraceExplorerBody({
   focusNode?: string;
   focusDimension?: string;
 }) {
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
   const [allNodes, setAllNodes] = useState<TraceExplorerNode[]>(initialData.nodes);
   const [hasMore, setHasMore] = useState(initialData.nodes_has_more);
   const [loadingMore, setLoadingMore] = useState(false);
-  const [nodeFilter, setNodeFilter] = useState<string>("all");
-  const [fallbackFilter, setFallbackFilter] = useState(false);
+  const [loadMoreError, setLoadMoreError] = useState<string | null>(null);
+  const [nodeFilter, setNodeFilter] = useState<string>(
+    searchParams.get("nodeType") || "all",
+  );
+  const [fallbackFilter, setFallbackFilter] = useState(
+    searchParams.get("fallback") === "true",
+  );
+  const [searchText, setSearchText] = useState(searchParams.get("q") ?? "");
+  const [selectedNodeId, setSelectedNodeId] = useState<number | null>(() =>
+    parseOptionalInt(searchParams.get("selectedTraceId")),
+  );
+  const prefersReducedMotion = usePrefersReducedMotion();
 
   const totalNodeCount = initialData.node_count_total ?? initialData.trace_count;
   const diagnostics = initialData.trace_diagnostics ?? null;
 
+  const updateExplorerQuery = useCallback(
+    (patch: Record<string, string | number | boolean | null>) => {
+      const params = new URLSearchParams(searchParams.toString());
+      for (const [key, value] of Object.entries(patch)) {
+        if (value === null || value === "" || value === false) {
+          params.delete(key);
+        } else {
+          params.set(key, String(value));
+        }
+      }
+      const query = params.toString();
+      router.replace(query ? `${pathname}?${query}` : pathname, { scroll: false });
+    },
+    [pathname, router, searchParams],
+  );
+
   const loadMore = useCallback(() => {
     if (loadingMore || !hasMore) return;
     setLoadingMore(true);
+    setLoadMoreError(null);
     const ctrl = new AbortController();
     getTraceExplorer(sessionId, ctrl.signal, { offset: allNodes.length })
       .then((resp) => {
@@ -157,72 +187,122 @@ function TraceExplorerBody({
         setAllNodes((prev) => [...prev, ...resp.nodes]);
         setHasMore(resp.nodes_has_more);
       })
-      .catch(() => {})
+      .catch((err) => {
+        if (ctrl.signal.aborted) return;
+        setLoadMoreError(err instanceof Error ? err.message : String(err));
+      })
       .finally(() => setLoadingMore(false));
   }, [sessionId, allNodes.length, hasMore, loadingMore]);
 
   const filteredNodes = useMemo(() => {
-    const byNode = nodeFilter === "all" ? allNodes : allNodes.filter((n) => n.node === nodeFilter);
-    return fallbackFilter ? byNode.filter(isEvaluatorFallbackTrace) : byNode;
-  }, [allNodes, fallbackFilter, nodeFilter]);
+    const q = searchText.trim().toLowerCase();
+    return allNodes.filter((node) => {
+      if (nodeFilter !== "all" && node.node !== nodeFilter) return false;
+      if (fallbackFilter && !isEvaluatorFallbackTrace(node)) return false;
+      if (!q) return true;
+      return nodeMatchesQuery(node, q);
+    });
+  }, [allNodes, fallbackFilter, nodeFilter, searchText]);
 
   const grouped = useMemo(() => groupByTurn(filteredNodes), [filteredNodes]);
   const focusedNodeId = useMemo(
     () => pickFocusedNodeId(allNodes, focusNode, focusDimension),
     [allNodes, focusNode, focusDimension],
   );
+  const selectedNode = useMemo(() => {
+    const bySelected = selectedNodeId
+      ? filteredNodes.find((node) => node.id === selectedNodeId)
+      : null;
+    if (bySelected) return bySelected;
+    const byFocus = focusedNodeId
+      ? filteredNodes.find((node) => node.id === focusedNodeId)
+      : null;
+    return byFocus ?? filteredNodes[0] ?? null;
+  }, [filteredNodes, focusedNodeId, selectedNodeId]);
 
-  const nodeTypeCounts = useMemo(() => {
-    const counts: Record<string, number> = {};
-    for (const node of allNodes) {
-      counts[node.node] = (counts[node.node] || 0) + 1;
+  useEffect(() => {
+    if (!selectedNode) return;
+    if (selectedNodeId !== selectedNode.id) {
+      setSelectedNodeId(selectedNode.id);
     }
-    return counts;
-  }, [allNodes]);
+  }, [selectedNode, selectedNodeId]);
+
+  useEffect(() => {
+    const querySelected = parseOptionalInt(searchParams.get("selectedTraceId"));
+    const needsFocusedNode = Boolean(focusNode && !focusedNodeId);
+    const needsSelectedNode = Boolean(
+      querySelected && !allNodes.some((node) => node.id === querySelected),
+    );
+    if ((needsFocusedNode || needsSelectedNode) && hasMore && !loadingMore) {
+      loadMore();
+    }
+  }, [
+    allNodes,
+    focusNode,
+    focusedNodeId,
+    hasMore,
+    loadMore,
+    loadingMore,
+    searchParams,
+  ]);
+
+  const loadedNodeTypeCounts = useMemo(() => countNodeTypes(allNodes), [allNodes]);
+  const nodeTypeCounts = initialData.node_type_counts ?? loadedNodeTypeCounts;
   const fallbackTraceCount = useMemo(
-    () => allNodes.filter(isEvaluatorFallbackTrace).length,
-    [allNodes],
+    () =>
+      initialData.fallback_trace_count ??
+      allNodes.filter(isEvaluatorFallbackTrace).length,
+    [allNodes, initialData.fallback_trace_count],
+  );
+
+  const selectNode = useCallback(
+    (node: TraceExplorerNode) => {
+      setSelectedNodeId(node.id);
+      updateExplorerQuery({ selectedTraceId: node.id });
+    },
+    [updateExplorerQuery],
+  );
+
+  const handleNodeFilterChange = useCallback(
+    (value: string) => {
+      setNodeFilter(value);
+      setSelectedNodeId(null);
+      updateExplorerQuery({
+        nodeType: value === "all" ? null : value,
+        selectedTraceId: null,
+      });
+    },
+    [updateExplorerQuery],
+  );
+
+  const handleFallbackFilterChange = useCallback(() => {
+    setFallbackFilter((current) => {
+      const next = !current;
+      updateExplorerQuery({ fallback: next || null, selectedTraceId: null });
+      return next;
+    });
+    setSelectedNodeId(null);
+  }, [updateExplorerQuery]);
+
+  const handleSearchChange = useCallback(
+    (value: string) => {
+      setSearchText(value);
+      setSelectedNodeId(null);
+      updateExplorerQuery({ q: value.trim() || null, selectedTraceId: null });
+    },
+    [updateExplorerQuery],
   );
 
   return (
     <div className="space-y-6">
-      <Card>
-        <CardHeader>
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-            <div>
-              <div className="flex items-center gap-2">
-                <GitBranch className="h-4 w-4 text-emerald-400" />
-                <CardTitle className="text-xl">Trace Explorer</CardTitle>
-              </div>
-              <CardDescription className="mt-1">
-                按 workflow 节点查看这一场面试的内部过程和结果。
-              </CardDescription>
-            </div>
-            <BackLinks sessionId={initialData.session_id} />
-          </div>
-        </CardHeader>
-        <CardContent>
-          <div className="grid gap-3 md:grid-cols-4 lg:grid-cols-7">
-            <SummaryTile label="Session" value={truncate(initialData.session_id)} />
-            <SummaryTile label="状态" value={initialData.status || "unknown"} />
-            <SummaryTile label="Trace" value={healthLabel[initialData.trace_health]} />
-            <SummaryTile label="节点数" value={String(initialData.trace_count)} />
-            <SummaryTile
-              label="已加载"
-              value={`${allNodes.length}/${totalNodeCount}${hasMore ? "+" : ""}`}
-            />
-            <SummaryTile label="评分节点" value={String(initialData.evaluator_trace_count)} />
-            <SummaryTile
-              label="总分"
-              value={
-                typeof initialData.overall_score === "number"
-                  ? initialData.overall_score.toFixed(2)
-                  : "—"
-              }
-            />
-          </div>
-        </CardContent>
-      </Card>
+      <TraceCommandCenter
+        data={initialData}
+        diagnostics={diagnostics}
+        fallbackTraceCount={fallbackTraceCount}
+        loadedCount={allNodes.length}
+        totalNodeCount={totalNodeCount}
+        turnCount={initialData.turn_count ?? countTurns(allNodes)}
+      />
 
       {initialData.trace_health === "missing" && (
         <MissingTraceDiagnostics
@@ -239,10 +319,6 @@ function TraceExplorerBody({
         )}
 
       {initialData.trace_health !== "missing" && (
-        <WorkflowChainPanel sessionId={initialData.session_id} />
-      )}
-
-      {initialData.trace_health !== "missing" && (
         <Card>
           <CardHeader>
             <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
@@ -252,7 +328,7 @@ function TraceExplorerBody({
                   <CardTitle className="text-base">按轮次查看节点</CardTitle>
                 </div>
                 <CardDescription>
-                  节点顺序来自后端 `generation_traces`，不是前端猜测的固定流程。
+                  Timeline 按 `generation_traces` 排序；右侧详情展示可直接排障的结构化证据。
                   {nodeFilter !== "all" && (
                     <span className="ml-2 text-foreground">
                       筛选：{nodeFilter}（{filteredNodes.length} 条）
@@ -271,16 +347,31 @@ function TraceExplorerBody({
                 </Badge>
               )}
             </div>
+            <label className="relative block max-w-xl pt-1 text-xs text-muted-foreground">
+              节点搜索
+              <Search className="pointer-events-none absolute bottom-2.5 left-2.5 h-3.5 w-3.5 text-muted-foreground" />
+              <input
+                name="trace-node-search"
+                type="search"
+                autoComplete="off"
+                value={searchText}
+                onChange={(event) => handleSearchChange(event.target.value)}
+                placeholder="搜索节点、问题、回答、context…"
+                className="mt-1 h-9 w-full rounded-md border bg-background pl-8 pr-3 text-sm text-foreground placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              />
+            </label>
             <div className="flex flex-wrap gap-1.5 pt-1">
               {NODE_TYPE_FILTERS.map((t) => {
-                const count = t === "all" ? allNodes.length : (nodeTypeCounts[t] ?? 0);
+                const count = t === "all" ? totalNodeCount : (nodeTypeCounts[t] ?? 0);
                 if (t !== "all" && count === 0) return null;
                 return (
                   <button
+                    type="button"
                     key={t}
-                    onClick={() => setNodeFilter(t)}
+                    aria-pressed={nodeFilter === t}
+                    onClick={() => handleNodeFilterChange(t)}
                     className={[
-                      "rounded-md border px-2 py-1 text-[11px] font-mono transition-colors",
+                      "rounded-md border px-2 py-1 text-[11px] font-mono transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
                       nodeFilter === t
                         ? "border-primary bg-primary/10 text-primary font-medium"
                         : "border-border text-muted-foreground hover:bg-muted",
@@ -293,9 +384,11 @@ function TraceExplorerBody({
               })}
               {fallbackTraceCount > 0 && (
                 <button
-                  onClick={() => setFallbackFilter((v) => !v)}
+                  type="button"
+                  aria-pressed={fallbackFilter}
+                  onClick={handleFallbackFilterChange}
                   className={[
-                    "rounded-md border px-2 py-1 text-[11px] font-mono transition-colors",
+                    "rounded-md border px-2 py-1 text-[11px] font-mono transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
                     fallbackFilter
                       ? "border-amber-400 bg-amber-500/10 text-amber-200 font-medium"
                       : "border-border text-muted-foreground hover:bg-muted",
@@ -308,25 +401,29 @@ function TraceExplorerBody({
             </div>
           </CardHeader>
           <CardContent className="space-y-4">
-            {grouped.map((group) => (
-              <div key={group.label} className="space-y-2">
-                <p className="font-mono text-xs uppercase tracking-wider text-muted-foreground">
-                  {group.label}
-                </p>
-                <div className="space-y-2">
-                  {group.nodes.map((node) => (
-                    <TraceNodeCard
-                      key={node.id}
-                      node={node}
-                      sessionId={initialData.session_id}
-                      traceId={initialData.trace_id ?? initialData.session_id}
-                      langsmith={initialData.langsmith ?? null}
-                      focused={focusedNodeId === node.id}
-                    />
-                  ))}
-                </div>
+            <TraceWorkbench
+              grouped={grouped}
+              selectedNode={selectedNode}
+              selectedNodeId={selectedNode?.id ?? selectedNodeId}
+              sessionId={initialData.session_id}
+              traceId={initialData.trace_id ?? initialData.session_id}
+              langsmith={initialData.langsmith ?? null}
+              focusedNodeId={focusedNodeId}
+              prefersReducedMotion={prefersReducedMotion}
+              onSelectNode={selectNode}
+            />
+
+            {filteredNodes.length === 0 && (
+              <div className="rounded-md border border-dashed bg-muted/10 px-3 py-6 text-center text-sm text-muted-foreground">
+                当前筛选没有命中节点。可以清空搜索或切换节点类型。
               </div>
-            ))}
+            )}
+
+            {loadMoreError && (
+              <p className="rounded-md border border-destructive/30 bg-destructive/5 px-3 py-2 text-xs text-destructive">
+                加载更多失败：{loadMoreError}
+              </p>
+            )}
 
             {hasMore && (
               <div className="flex justify-center pt-2">
@@ -497,6 +594,108 @@ function BackLinks({ sessionId }: { sessionId: string }) {
   );
 }
 
+function TraceCommandCenter({
+  data,
+  diagnostics,
+  fallbackTraceCount,
+  loadedCount,
+  totalNodeCount,
+  turnCount,
+}: {
+  data: TraceExplorerResponse;
+  diagnostics: TraceDiagnostics | null;
+  fallbackTraceCount: number;
+  loadedCount: number;
+  totalNodeCount: number;
+  turnCount: number;
+}) {
+  const healthTone =
+    data.trace_health === "complete"
+      ? "text-emerald-300"
+      : data.trace_health === "partial"
+        ? "text-amber-300"
+        : "text-destructive";
+  const missingNodes = diagnostics?.missing_key_nodes ?? [];
+
+  return (
+    <Card>
+      <CardHeader>
+        <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+          <div className="min-w-0">
+            <div className="flex flex-wrap items-center gap-2">
+              <GitBranch className="h-4 w-4 text-emerald-400" />
+              <CardTitle className="text-xl">Trace Explorer</CardTitle>
+              <Badge variant="outline" className={`font-mono text-[10px] ${healthTone}`}>
+                {healthLabel[data.trace_health]}
+              </Badge>
+              {fallbackTraceCount > 0 && (
+                <Badge variant="warn" className="font-mono text-[10px]">
+                  fallback {fallbackTraceCount}
+                </Badge>
+              )}
+            </div>
+            <CardDescription className="mt-1">
+              面向工程排障的单场 trace 工作台：先看健康与缺口，再按轮次定位节点证据。
+            </CardDescription>
+            <p className="mt-2 break-all font-mono text-[11px] text-muted-foreground">
+              {data.session_id}
+            </p>
+          </div>
+          <BackLinks sessionId={data.session_id} />
+        </div>
+      </CardHeader>
+      <CardContent className="space-y-3">
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-6">
+          <SummaryTile label="状态" value={data.status || "unknown"} />
+          <SummaryTile
+            label="总分"
+            value={
+              typeof data.overall_score === "number"
+                ? data.overall_score.toFixed(2)
+                : "—"
+            }
+          />
+          <SummaryTile label="结论" value={data.overall_verdict || "—"} />
+          <SummaryTile label="轮次" value={String(turnCount)} />
+          <SummaryTile label="节点" value={String(totalNodeCount)} />
+          <SummaryTile
+            label="已加载"
+            value={`${loadedCount}/${totalNodeCount}${data.nodes_has_more ? "+" : ""}`}
+          />
+        </div>
+        <div className="flex flex-wrap gap-2 text-xs text-muted-foreground">
+          <Badge variant="outline" className="font-mono text-[10px]">
+            evaluator {data.evaluator_trace_count}
+          </Badge>
+          <Badge variant="outline" className="font-mono text-[10px]">
+            reward {data.reward_trace_count}
+          </Badge>
+          <Badge variant="outline" className="font-mono text-[10px]">
+            final_report {data.final_report_trace_count}
+          </Badge>
+          {diagnostics?.last_node && (
+            <Badge variant="secondary" className="font-mono text-[10px]">
+              last {diagnostics.last_node}
+            </Badge>
+          )}
+        </div>
+        {missingNodes.length > 0 && (
+          <div className="rounded-md border border-amber-500/30 bg-amber-500/[0.04] p-3 text-xs">
+            <p className="font-medium text-amber-300">缺失关键节点</p>
+            <div className="mt-2 flex flex-wrap gap-1.5">
+              {missingNodes.map((node) => (
+                <Badge key={node} variant="outline" className="font-mono text-[10px]">
+                  {node}
+                </Badge>
+              ))}
+            </div>
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
 function SummaryTile({ label, value }: { label: string; value: string }) {
   return (
     <div className="rounded-lg border bg-card/50 p-3">
@@ -508,21 +707,133 @@ function SummaryTile({ label, value }: { label: string; value: string }) {
   );
 }
 
-function TraceNodeCard({
+function TraceWorkbench({
+  grouped,
+  selectedNode,
+  selectedNodeId,
+  sessionId,
+  traceId,
+  langsmith,
+  focusedNodeId,
+  prefersReducedMotion,
+  onSelectNode,
+}: {
+  grouped: { label: string; nodes: TraceExplorerNode[] }[];
+  selectedNode: TraceExplorerNode | null;
+  selectedNodeId: number | null;
+  sessionId: string;
+  traceId: string;
+  langsmith: LangSmithAdminMeta | null;
+  focusedNodeId: number | null;
+  prefersReducedMotion: boolean;
+  onSelectNode: (node: TraceExplorerNode) => void;
+}) {
+  return (
+    <div className="grid gap-4 lg:grid-cols-[minmax(220px,0.8fr)_minmax(0,1.7fr)]">
+      <TraceTurnRail
+        grouped={grouped}
+        selectedNodeId={selectedNodeId}
+        focusedNodeId={focusedNodeId}
+        onSelectNode={onSelectNode}
+      />
+      <TraceNodeDetail
+        node={selectedNode}
+        sessionId={sessionId}
+        traceId={traceId}
+        langsmith={langsmith}
+        focused={Boolean(selectedNode && focusedNodeId === selectedNode.id)}
+        prefersReducedMotion={prefersReducedMotion}
+      />
+    </div>
+  );
+}
+
+function TraceTurnRail({
+  grouped,
+  selectedNodeId,
+  focusedNodeId,
+  onSelectNode,
+}: {
+  grouped: { label: string; nodes: TraceExplorerNode[] }[];
+  selectedNodeId: number | null;
+  focusedNodeId: number | null;
+  onSelectNode: (node: TraceExplorerNode) => void;
+}) {
+  return (
+    <aside className="space-y-3 lg:sticky lg:top-4 lg:max-h-[calc(100dvh-2rem)] lg:overflow-auto">
+      {grouped.map((group) => (
+        <div
+          key={group.label}
+          className="space-y-2 [contain-intrinsic-size:1px_160px] [content-visibility:auto]"
+        >
+          <p className="font-mono text-xs uppercase tracking-wider text-muted-foreground">
+            {group.label}
+          </p>
+          <div className="space-y-1.5">
+            {group.nodes.map((node) => {
+              const selected = selectedNodeId === node.id;
+              const focused = focusedNodeId === node.id;
+              return (
+                <button
+                  key={node.id}
+                  type="button"
+                  aria-pressed={selected}
+                  onClick={() => onSelectNode(node)}
+                  className={[
+                    "w-full rounded-md border px-2.5 py-2 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+                    selected
+                      ? "border-primary bg-primary/10 text-foreground"
+                      : "border-border bg-card/40 text-muted-foreground hover:bg-muted hover:text-foreground",
+                    focused ? "ring-1 ring-amber-400/70" : "",
+                  ].join(" ")}
+                >
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="min-w-0 truncate font-mono text-[11px]">
+                      {node.node}
+                    </span>
+                    {typeof node.score === "number" && (
+                      <span className="font-mono text-[10px] tabular-nums">
+                        {node.score.toFixed(1)}
+                      </span>
+                    )}
+                  </div>
+                  <div className="mt-1 flex flex-wrap gap-1">
+                    {node.dimension && (
+                      <Badge variant="outline" className="max-w-full truncate text-[9px]">
+                        {node.dimension}
+                      </Badge>
+                    )}
+                    {isEvaluatorFallbackTrace(node) && (
+                      <Badge variant="warn" className="text-[9px]">
+                        fallback
+                      </Badge>
+                    )}
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      ))}
+    </aside>
+  );
+}
+
+function TraceNodeDetail({
   node,
   sessionId,
   traceId,
   langsmith,
-  focused = false,
+  focused,
+  prefersReducedMotion,
 }: {
-  node: TraceExplorerNode;
+  node: TraceExplorerNode | null;
   sessionId: string;
   traceId: string;
   langsmith: LangSmithAdminMeta | null;
-  focused?: boolean;
+  focused: boolean;
+  prefersReducedMotion: boolean;
 }) {
-  const langsmithUrl = buildLangSmithRunUrl(node.langsmith_run_id, langsmith);
-  const isFallback = isEvaluatorFallbackTrace(node);
   const ref = useRef<HTMLDivElement | null>(null);
   const [annotating, setAnnotating] = useState(false);
   const openAnnotation = useCallback(() => setAnnotating(true), []);
@@ -530,9 +841,29 @@ function TraceNodeCard({
 
   useEffect(() => {
     if (focused && ref.current) {
-      ref.current.scrollIntoView({ behavior: "smooth", block: "center" });
+      ref.current.scrollIntoView({
+        behavior: prefersReducedMotion ? "auto" : "smooth",
+        block: "center",
+      });
     }
-  }, [focused]);
+  }, [focused, prefersReducedMotion]);
+
+  if (!node) {
+    return (
+      <div className="rounded-lg border border-dashed bg-muted/10 p-6 text-sm text-muted-foreground">
+        选择左侧 timeline 里的节点查看详情。
+      </div>
+    );
+  }
+
+  const langsmithUrl = buildLangSmithRunUrl(node.langsmith_run_id, langsmith);
+  const isFallback = isEvaluatorFallbackTrace(node);
+  const rawPayload = {
+    payload: node.payload,
+    evaluation: node.evaluation,
+    policy_context_keys: node.policy_context_keys,
+    answer_excerpt: node.answer_excerpt,
+  };
 
   return (
     <div
@@ -584,35 +915,34 @@ function TraceNodeCard({
       </div>
 
       <div className="mt-3 grid gap-2 text-xs md:grid-cols-3">
+        <NodeFact label="turn" value={String(node.turn_idx ?? "session")} />
         <NodeFact label="context" value={node.context_key || "—"} />
         <NodeFact label="policy" value={node.policy_id || "—"} />
         <NodeFact label="created" value={formatTs(node.created_at)} />
       </div>
+      {node.policy_context_keys && node.policy_context_keys.length > 0 && (
+        <NodeFact label="policy_context_keys" value={node.policy_context_keys.join(", ")} />
+      )}
 
       <NodeTimingBar payload={node.payload} />
+
+      {node.answer_excerpt && (
+        <section className="mt-3 rounded-md border bg-background/60 p-3 text-xs">
+          <p className="font-mono text-[10px] uppercase tracking-wider text-muted-foreground">
+            answer_excerpt
+          </p>
+          <p className="mt-1 leading-relaxed">{node.answer_excerpt}</p>
+        </section>
+      )}
+
+      <EvaluationEvidence node={node} />
 
       {node.node === "ask_question" && (
         <SkillSelectionPanel payload={node.payload} />
       )}
 
       <div className="mt-3 flex items-center gap-2">
-        <details className="flex-1 rounded-md border bg-background/60 p-2 text-xs">
-          <summary className="cursor-pointer select-none text-muted-foreground">
-            查看原始 trace payload
-          </summary>
-          <pre className="mt-2 max-h-72 overflow-auto whitespace-pre-wrap break-all font-mono text-[11px]">
-            {JSON.stringify(
-              {
-                payload: node.payload,
-                evaluation: node.evaluation,
-                policy_context_keys: node.policy_context_keys,
-                answer_excerpt: node.answer_excerpt,
-              },
-              null,
-              2,
-            )}
-          </pre>
-        </details>
+        <RawTracePayloadDetails rawPayload={rawPayload} />
         <Button
           variant="ghost"
           size="sm"
@@ -634,6 +964,112 @@ function TraceNodeCard({
         />
       )}
     </div>
+  );
+}
+
+function EvaluationEvidence({ node }: { node: TraceExplorerNode }) {
+  const evaluation = recordFromUnknown(node.evaluation);
+  const payload = recordFromUnknown(node.payload);
+  const verifierRationale =
+    typeof payload.rationale === "string"
+      ? payload.rationale
+      : typeof payload.verifier_rationale === "string"
+        ? payload.verifier_rationale
+        : "";
+  const strengths = stringList(evaluation.strengths);
+  const weaknesses = stringList(evaluation.weaknesses);
+  const rationale =
+    stringValue(evaluation.rationale) ||
+    stringValue(evaluation.reasoning) ||
+    stringValue(evaluation.feedback) ||
+    stringValue(payload.rationale);
+
+  if (
+    strengths.length === 0 &&
+    weaknesses.length === 0 &&
+    !rationale &&
+    !verifierRationale &&
+    typeof node.immediate_reward_applied !== "boolean"
+  ) {
+    return null;
+  }
+
+  return (
+    <section className="mt-3 rounded-md border bg-background/60 p-3 text-xs">
+      <div className="flex flex-wrap items-center gap-2">
+        <span className="font-mono text-[10px] uppercase tracking-wider text-muted-foreground">
+          EvaluationEvidence
+        </span>
+        {typeof node.immediate_reward_applied === "boolean" && (
+          <Badge
+            variant={node.immediate_reward_applied ? "success" : "outline"}
+            className="text-[10px]"
+          >
+            reward {node.immediate_reward_applied ? "applied" : "pending"}
+          </Badge>
+        )}
+      </div>
+      {rationale && <p className="mt-2 leading-relaxed">{rationale}</p>}
+      {verifierRationale && node.node === "verification" && (
+        <p className="mt-2 leading-relaxed text-amber-200">
+          Verifier：{verifierRationale}
+        </p>
+      )}
+      {(strengths.length > 0 || weaknesses.length > 0) && (
+        <div className="mt-3 grid gap-2 md:grid-cols-2">
+          <EvidenceList label="strengths" values={strengths} />
+          <EvidenceList label="weaknesses" values={weaknesses} />
+        </div>
+      )}
+    </section>
+  );
+}
+
+function EvidenceList({ label, values }: { label: string; values: string[] }) {
+  if (values.length === 0) return null;
+  return (
+    <div>
+      <p className="font-mono text-[10px] uppercase tracking-wider text-muted-foreground">
+        {label}
+      </p>
+      <ul className="mt-1 list-disc space-y-1 pl-4">
+        {values.map((value, idx) => (
+          <li key={idx}>{value}</li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
+function RawTracePayloadDetails({
+  rawPayload,
+}: {
+  rawPayload: Record<string, unknown>;
+}) {
+  const [open, setOpen] = useState(false);
+  const serialized = useMemo(
+    () => (open ? JSON.stringify(rawPayload, null, 2) : ""),
+    [open, rawPayload],
+  );
+
+  return (
+    <details
+      className="flex-1 rounded-md border bg-background/60 p-2 text-xs"
+      onToggle={(event) => setOpen(event.currentTarget.open)}
+    >
+      <summary className="cursor-pointer select-none text-muted-foreground">
+        查看原始 trace payload
+      </summary>
+      {open ? (
+        <pre className="mt-2 max-h-72 overflow-auto whitespace-pre-wrap break-all font-mono text-[11px]">
+          {serialized}
+        </pre>
+      ) : (
+        <p className="mt-2 text-[11px] text-muted-foreground">
+          展开后再渲染 JSON，避免长 trace 首屏做无效 stringify。
+        </p>
+      )}
+    </details>
   );
 }
 
@@ -906,6 +1342,62 @@ function SkillPayloadList({ label, values }: { label: string; values: string[] }
 function stringList(value: unknown): string[] {
   if (!Array.isArray(value)) return [];
   return value.map((item) => String(item ?? "")).filter((item) => item.length > 0);
+}
+
+function stringValue(value: unknown): string {
+  return typeof value === "string" ? value.trim() : "";
+}
+
+function parseOptionalInt(value: string | null): number | null {
+  if (!value) return null;
+  const parsed = Number.parseInt(value, 10);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+function countNodeTypes(nodes: TraceExplorerNode[]): Record<string, number> {
+  const counts: Record<string, number> = {};
+  for (const node of nodes) {
+    counts[node.node] = (counts[node.node] || 0) + 1;
+  }
+  return counts;
+}
+
+function countTurns(nodes: TraceExplorerNode[]): number {
+  return new Set(nodes.map((node) => node.turn_idx ?? "session")).size;
+}
+
+function nodeMatchesQuery(node: TraceExplorerNode, query: string): boolean {
+  const evaluation = recordFromUnknown(node.evaluation);
+  const fields = [
+    node.node,
+    node.dimension,
+    node.action_id,
+    node.policy_id,
+    node.context_key,
+    node.question,
+    node.answer_excerpt,
+    ...stringList(node.policy_context_keys),
+    ...stringList(evaluation.strengths),
+    ...stringList(evaluation.weaknesses),
+    stringValue(evaluation.rationale),
+    stringValue(evaluation.feedback),
+  ];
+  return fields.some((field) => String(field ?? "").toLowerCase().includes(query));
+}
+
+function usePrefersReducedMotion(): boolean {
+  const [prefersReducedMotion, setPrefersReducedMotion] = useState(false);
+
+  useEffect(() => {
+    if (typeof window === "undefined" || !window.matchMedia) return;
+    const media = window.matchMedia("(prefers-reduced-motion: reduce)");
+    setPrefersReducedMotion(media.matches);
+    const onChange = () => setPrefersReducedMotion(media.matches);
+    media.addEventListener("change", onChange);
+    return () => media.removeEventListener("change", onChange);
+  }, []);
+
+  return prefersReducedMotion;
 }
 
 // Defensive ordering: do not rely on Map insertion order to match the
