@@ -9,6 +9,7 @@ from statistics import mean
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from app.ml.rl.action_space import canonical_action_id
 from app.models.strategy_memory import StrategyMemory, StrategyMemoryStats, StrategySignal
 
 LOW_CONFIDENCE_MIN_SESSIONS = 30
@@ -272,6 +273,7 @@ def _stage_for_legacy_signal(group: _SignalGroup) -> str | None:
 
 def _memory_from_group(group: _SignalGroup, *, stage: str) -> StrategyMemory:
     first = group.signals[0]
+    recommended_action = canonical_action_id(first.action_id)
     support = group.distinct_sessions
     confidence = _confidence_for_stage(stage, group)
     return StrategyMemory(
@@ -284,8 +286,8 @@ def _memory_from_group(group: _SignalGroup, *, stage: str) -> StrategyMemory:
         dimensions=[first.dimension],
         job_levels=[first.job_level] if first.job_level else [],
         failure_categories=_merged_failure_categories(group.signals),
-        recommended_action=first.action_id,
-        recommended_plan_template=first.plan_template,
+        recommended_action=recommended_action,
+        recommended_plan_template=recommended_action or first.plan_template,
         recommended_probe_intent=first.probe_intent,
         body_markdown=_memory_body(group, stage=stage),
         status="active",
@@ -298,7 +300,7 @@ def _memory_from_group(group: _SignalGroup, *, stage: str) -> StrategyMemory:
 
 
 def _memory_name(signal: StrategySignal) -> str:
-    action = signal.action_id or "strategy"
+    action = canonical_action_id(signal.action_id) or signal.action_id or "strategy"
     dimension = signal.dimension or "general"
     return f"Auto: {action} for {dimension}"
 

@@ -95,7 +95,7 @@ def test_promote_strategy_signals_creates_low_confidence_active_strategy_from_qa
     assert memory.job_levels == ["senior"]
     assert memory.failure_categories == ["missing_metrics"]
     assert memory.recommended_action == "plan_hint"
-    assert memory.recommended_plan_template == "simple"
+    assert memory.recommended_plan_template == "plan_hint"
     assert memory.recommended_probe_intent == "metric_probe"
     assert memory.support_count == 30
     assert memory.confidence == 0.35
@@ -156,8 +156,32 @@ def test_qa_hint_effective_promotes_without_score_delta() -> None:
 
     assert result.promoted == 1
     assert memory is not None
-    assert memory.recommended_action == "give_hint"
+    assert memory.recommended_action == "plan_hint"
+    assert memory.recommended_plan_template == "plan_hint"
     assert "Average hint score: 7.20." in memory.body_markdown
+
+
+def test_promoted_strategy_memory_canonicalizes_legacy_signal_action() -> None:
+    SessionLocal = _session_factory()
+    group_key = "qa:score_recovery:senior:system_design:plan_switch"
+    with SessionLocal() as sess:
+        for idx in range(1, 31):
+            _add_signal(
+                sess,
+                idx=idx,
+                group_key=group_key,
+                action_id="switch_dimension",
+                signal_type="score_recovery",
+            )
+        result = promote_strategy_signals(session=sess)
+        sess.commit()
+        memory = sess.scalar(select(StrategyMemory))
+
+    assert result.promoted == 1
+    assert memory is not None
+    assert memory.recommended_action == "plan_switch"
+    assert memory.recommended_plan_template == "plan_switch"
+    assert memory.memory_key == f"promoted:{group_key}"
 
 
 def test_negative_qa_decline_signal_is_not_promoted() -> None:

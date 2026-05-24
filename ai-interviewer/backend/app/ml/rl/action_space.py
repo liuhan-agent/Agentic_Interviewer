@@ -175,3 +175,11 @@ def template_id_for_action(action_id: str) -> str:
     if action_id in {a.id for a in TEMPLATE_ACTIONS}:
         return action_id
     return ALIAS_MAP.get(action_id, PLAN_ADAPTIVE.id)
+
+
+def canonical_action_id(action_id: str | None) -> str | None:
+    """Normalize a strategy action id to the canonical template-arm namespace."""
+    cleaned = str(action_id or "").strip()
+    if not cleaned:
+        return None
+    return template_id_for_action(cleaned)
