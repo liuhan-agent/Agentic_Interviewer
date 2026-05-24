@@ -27,7 +27,7 @@ from app.core.settings import get_settings
 from app.core.tracer import get_tracer
 from app.engine.workflow.policy_context import parse_policy_context_key
 from app.engine.workflow.state import FailureCategory, InterviewState
-from app.ml.rl.action_space import ACTIONS_BY_ID
+from app.ml.rl.action_space import ACTIONS_BY_ID, canonical_action_id
 from app.ml.rl.thompson import get_bandit
 from app.models import get_session
 from app.models.strategy_learning import BanditPosterior, InterviewTurn
@@ -258,12 +258,13 @@ def _extract_bandit_insights_from_memory(
 
         mean = params.mean()
         if mean >= high_mean:
-            action = ACTIONS_BY_ID.get(action_id)
+            action = ACTIONS_BY_ID.get(canonical_action_id(action_id) or action_id)
             action_label = action.label if action else action_id
             insights.append({
                 "type": "high_reward_arm",
                 "context_key": ctx_key,
-                "action_id": action_id,
+                "action_id": canonical_action_id(action_id) or action_id,
+                "original_action_id": action_id,
                 "action_label": action_label,
                 "mean_reward": round(mean, 3),
                 "observations": int(total),
@@ -274,12 +275,13 @@ def _extract_bandit_insights_from_memory(
             })
 
         if mean <= low_mean and total >= min_obs:
-            action = ACTIONS_BY_ID.get(action_id)
+            action = ACTIONS_BY_ID.get(canonical_action_id(action_id) or action_id)
             action_label = action.label if action else action_id
             insights.append({
                 "type": "low_reward_arm",
                 "context_key": ctx_key,
-                "action_id": action_id,
+                "action_id": canonical_action_id(action_id) or action_id,
+                "original_action_id": action_id,
                 "action_label": action_label,
                 "mean_reward": round(mean, 3),
                 "observations": int(total),
@@ -359,8 +361,9 @@ def _posterior_insight(
     observations: int,
     low_reward: bool,
 ) -> dict[str, Any]:
-    action = ACTIONS_BY_ID.get(row.action_id)
-    action_label = action.label if action else row.action_id
+    canonical_action = canonical_action_id(row.action_id) or row.action_id
+    action = ACTIONS_BY_ID.get(canonical_action)
+    action_label = action.label if action else canonical_action
     if low_reward:
         detail = (
             f"Action '{action_label}' in context '{row.context_key}' has "
@@ -375,7 +378,8 @@ def _posterior_insight(
     return {
         "type": signal_type,
         "context_key": row.context_key,
-        "action_id": row.action_id,
+        "action_id": canonical_action,
+        "original_action_id": row.action_id,
         "action_label": action_label,
         "mean_reward": round(mean, 3),
         "observations": observations,
@@ -388,10 +392,10 @@ def strategy_memory_key_for_pattern(pattern: dict[str, Any]) -> str:
     dim = _safe_key_part(pattern.get("dimension"))
     job_level = _safe_key_part(pattern.get("job_level", "mid"))
     if ptype == "score_recovery":
-        action = _safe_key_part(pattern.get("recovery_action"))
+        action = _safe_key_part(canonical_action_id(pattern.get("recovery_action")))
         return f"qa:{ptype}:{job_level}:{dim}:{action}"
     if ptype == "score_decline":
-        action = _safe_key_part(pattern.get("failing_action"))
+        action = _safe_key_part(canonical_action_id(pattern.get("failing_action")))
         return f"qa:{ptype}:{job_level}:{dim}:{action}"
     if ptype == "hint_effective":
         return f"qa:{ptype}:{job_level}:{dim}"
@@ -401,7 +405,7 @@ def strategy_memory_key_for_pattern(pattern: dict[str, Any]) -> str:
 def strategy_memory_key_for_insight(insight: dict[str, Any]) -> str:
     itype = _safe_key_part(insight.get("type"))
     ctx = _safe_key_part(insight.get("context_key"))
-    action_id = _safe_key_part(insight.get("action_id"))
+    action_id = _safe_key_part(canonical_action_id(insight.get("action_id")))
     return f"bandit:{itype}:{ctx}:{action_id}"
 
 
@@ -417,11 +421,12 @@ def _signal_payload_from_qa_pattern(
     qa_history: list[dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
     ptype = str(pattern.get("type") or "unknown")
-    action_id = (
+    original_action_id = (
         pattern.get("recovery_action")
         or pattern.get("failing_action")
         or ("give_hint" if ptype == "hint_effective" else None)
     )
+    action_id = canonical_action_id(original_action_id)
     group_key = strategy_memory_key_for_pattern(pattern)
     session_id = str(state.get("session_id") or "unknown")
     dimension = str(pattern.get("dimension") or "unknown")
@@ -435,6 +440,7 @@ def _signal_payload_from_qa_pattern(
         "job_level": str(pattern.get("job_level") or "mid"),
         "action_id": str(action_id or ""),
         "plan_template": str(action_id or "") or None,
+        "original_action_id": str(original_action_id or "") or None,
         "probe_intent": None,
         "failure_categories": _last_turn_failure_categories(
             qa_history,
@@ -461,7 +467,10 @@ def _signal_payload_from_bandit_insight(
     session_id = str(state.get("session_id") or "unknown")
     ctx = str(insight.get("context_key") or "")
     parsed_context = parse_policy_context_key(ctx)
-    action_id = str(insight.get("action_id") or "")
+    original_action_id = str(
+        insight.get("original_action_id") or insight.get("action_id") or ""
+    )
+    action_id = canonical_action_id(insight.get("action_id")) or ""
     qa_history = qa_history if qa_history is not None else state.get("qa_history", [])
     return {
         "signal_key": f"{session_id}:{group_key}",
@@ -472,6 +481,7 @@ def _signal_payload_from_bandit_insight(
         "job_level": parsed_context.job_level,
         "action_id": action_id,
         "plan_template": action_id or None,
+        "original_action_id": original_action_id or None,
         "probe_intent": None,
         # Bandit context can cross sessions; the categories come from
         # the current session's last matching dimension turn when we

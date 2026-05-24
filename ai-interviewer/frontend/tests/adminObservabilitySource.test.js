@@ -384,6 +384,10 @@ test("admin panel surfaces DB-backed skills playbook observability only", () => 
 
 test("admin strategy tab is a one-column governance console", () => {
   const panel = read("src/components/admin/AdminPanel.tsx");
+  const banditTable = panel.slice(
+    panel.indexOf("function BanditTable"),
+    panel.indexOf("function parseBanditStrategyKey"),
+  );
 
   assert.match(panel, /AdminStrategySection/);
   assert.match(panel, /StrategyLearningOverview/);
@@ -393,6 +397,17 @@ test("admin strategy tab is a one-column governance console", () => {
   assert.match(panel, /技能打法/);
   assert.match(panel, /策略记忆/);
   assert.match(panel, /Top 后验策略/);
+  assert.match(panel, /上下文 key/);
+  assert.match(panel, /策略动作/);
+  assert.match(panel, /粒度/);
+  assert.match(panel, /后验权重/);
+  assert.match(panel, /formatBanditContextLabel/);
+  assert.match(panel, /formatBanditActionLabel/);
+  assert.match(panel, /getBanditContextGranularity/);
+  assert.match(panel, /方向级/);
+  assert.match(panel, /全局级/);
+  assert.match(panel, /切换维度/);
+  assert.match(panel, /深挖追问/);
   assert.match(panel, /开发详情/);
   assert.match(panel, /原始后验参数/);
   assert.match(panel, /晋升控制/);
@@ -401,6 +416,31 @@ test("admin strategy tab is a one-column governance console", () => {
   assert.match(panel, /最近使用归因/);
   assert.match(panel, /暂无晋升信号/);
   assert.match(panel, /formatBanditStrategyLabel/);
+  assert.match(panel, /buildCanonicalBanditRows/);
+  assert.match(panel, /canonicalBanditActionId/);
+  assert.match(panel, /按 canonical plan_\* 动作归并/);
+  assert.match(panel, /优先展示 plan_\* 后验/);
+  assert.match(panel, /key = context_key::action_id/);
+  assert.match(panel, /context_key 由方向、级别、维度组成/);
+  assert.match(panel, /BANDIT_RAW_DETAILS_PAGE_SIZE = 50/);
+  assert.match(panel, /BANDIT_RAW_DETAILS_FILTER_OPTIONS/);
+  assert.match(panel, /全部字段/);
+  assert.match(panel, /context_key/);
+  assert.match(panel, /action_id/);
+  assert.match(panel, /canonical_action/);
+  assert.match(panel, /原始键（context_key::action_id）/);
+  assert.match(panel, /输入关键词/);
+  assert.match(panel, /banditRawDetailsSearchValues/);
+  assert.match(panel, /显示 \{visibleRawRows\.length\} \/ 共 \{filteredRawRows\.length\} 条/);
+  assert.match(panel, /显示更多/);
+  assert.match(banditTable, /filteredRawRows = rows\.filter/);
+  assert.match(banditTable, /rawDetailsFilterField/);
+  assert.match(banditTable, /选择原始后验筛选字段/);
+  assert.match(banditTable, /visibleRawRows = filteredRawRows\.slice/);
+  assert.match(banditTable, /\{r\.contextKey\}/);
+  assert.match(banditTable, /font-mono[\s\S]*\{r\.contextKey\}/);
+  assert.match(banditTable, /\{r\.canonicalActionId\}/);
+  assert.match(banditTable, /font-mono[\s\S]*\{r\.canonicalActionId\}/);
   assert.match(panel, /启用 \/ 总数/);
   assert.match(panel, /题目 \/ 变体/);
   assert.match(panel, /策略记忆 \/ 归因/);
@@ -412,7 +452,10 @@ test("admin strategy tab is a one-column governance console", () => {
     panel,
     /<AdminTabPanel theme=\{ADMIN_TAB_THEMES\.strategy\}>\s*<BanditCard/,
   );
+  assert.doesNotMatch(banditTable, />上下文<\/th>/);
   assert.doesNotMatch(panel, />context::action<\/th>/);
+  assert.doesNotMatch(banditTable, />策略<\/th>/);
+  assert.doesNotMatch(banditTable, />样本<\/th>/);
   assert.doesNotMatch(panel, />α<\/th>/);
   assert.doesNotMatch(panel, />β<\/th>/);
   assert.doesNotMatch(
@@ -427,6 +470,9 @@ test("admin strategy tab is a one-column governance console", () => {
   assert.doesNotMatch(panel, /support \{s\.support_count/);
   assert.doesNotMatch(panel, /quality: \{s\.quality_reason\}/);
   assert.doesNotMatch(panel, /failure:<\/span>/);
+  assert.doesNotMatch(banditTable, /formatBanditActionLabel\(actionId \|\| key\)/);
+  assert.doesNotMatch(panel, /display_label/);
+  assert.doesNotMatch(panel, /中文说明/);
 });
 
 test("admin panel summarizes interview main-chain quality", () => {
