@@ -1421,9 +1421,15 @@ def session_anchor_sessions(since: str = Query(default="24h")) -> dict[str, Any]
         mode = str(chunk.chunker_mode or "").strip()
         if mode:
             bucket["chunker_modes"].add(mode)
+            bucket["chunker_modes_by_source"].setdefault(source, set()).add(mode)
         version = str(chunk.embedding_model_version or "").strip()
         if version:
             bucket["embedding_model_versions"].add(version)
+
+    for session_row in sessions:
+        bucket = buckets.get(str(session_row.session_id))
+        if bucket is not None:
+            _apply_session_anchor_setup_snapshot(bucket, session_row)
 
     for trace in traces:
         bucket = buckets.get(str(trace.session_id))
@@ -1456,6 +1462,10 @@ def session_anchor_sessions(since: str = Query(default="24h")) -> dict[str, Any]
                 source = str(hit.get("source_type") or "unknown")
                 source_hits = bucket["source_hit_counts"]
                 source_hits[source] = int(source_hits.get(source) or 0) + 1
+                mode = _anchor_hit_mode(hit)
+                if mode:
+                    bucket["chunker_modes"].add(mode)
+                    bucket["chunker_modes_by_source"].setdefault(source, set()).add(mode)
         else:
             bucket["fallback_count"] += 1
             reason = str(artifact.get("fallback_reason") or "empty").strip() or "empty"
@@ -1606,6 +1616,7 @@ def _new_session_anchor_session_bucket() -> dict[str, Any]:
         "total_chunks": 0,
         "chunks_by_source": {source: 0 for source in _ANCHOR_SOURCE_TYPES},
         "chunker_modes": set(),
+        "chunker_modes_by_source": {},
         "embedding_model_versions": set(),
         "retrieval_attempts": 0,
         "hit_count": 0,
@@ -1629,13 +1640,55 @@ def _clean_count_map(values: dict[str, int]) -> dict[str, int]:
     return {str(key): int(value or 0) for key, value in values.items() if int(value or 0) > 0}
 
 
-def _finalize_session_anchor_session_row(session_row: Any, bucket: dict[str, Any]) -> dict[str, Any]:
+def _apply_session_anchor_setup_snapshot(bucket: dict[str, Any], session_row: Any) -> None:
+    snapshot = _as_dict(getattr(session_row, "setup_snapshot", None))
+    candidate = _as_dict(snapshot.get("candidate"))
+    resume_status = _as_dict(
+        candidate.get("resume_vector_status") or snapshot.get("resume_vector_status")
+    )
+    self_intro_status = _as_dict(snapshot.get("self_intro_vector_status"))
+    _apply_session_anchor_setup_status(bucket, source="resume", status=resume_status)
+    _apply_session_anchor_setup_status(
+        bucket,
+        source="self_intro",
+        status=self_intro_status,
+    )
+
+
+def _apply_session_anchor_setup_status(
+    bucket: dict[str, Any],
+    *,
+    source: str,
+    status: dict[str, Any],
+) -> None:
+    if not status:
+        return
+    chunk_count = _coerce_int(status.get("chunk_count"))
+    if chunk_count is not None and chunk_count > 0:
+        chunks_by_source = bucket["chunks_by_source"]
+        chunks_by_source[source] = max(int(chunks_by_source.get(source) or 0), chunk_count)
+    mode = str(status.get("mode") or status.get("chunker_mode") or "").strip()
+    if not mode and source == "self_intro" and chunk_count is not None and chunk_count > 0:
+        mode = "SI"
+    if mode:
+        bucket["chunker_modes"].add(mode)
+        bucket["chunker_modes_by_source"].setdefault(source, set()).add(mode)
+    version = str(status.get("embedding_model_version") or "").strip()
+    if version:
+        bucket["embedding_model_versions"].add(version)
+
+
+def _finalize_session_anchor_session_row(
+    session_row: Any,
+    bucket: dict[str, Any],
+) -> dict[str, Any]:
     attempts = int(bucket.get("retrieval_attempts") or 0)
     hit_count = int(bucket.get("hit_count") or 0)
     total_hit_items = int(bucket.get("total_hit_items") or 0)
     latencies = sorted(int(v) for v in bucket.get("latencies") or [] if isinstance(v, int))
     chunks_by_source = _clean_count_map(bucket.get("chunks_by_source") or {})
     source_hit_counts = _clean_count_map(bucket.get("source_hit_counts") or {})
+    total_chunks = sum(int(value or 0) for value in chunks_by_source.values())
     return {
         "session_id": str(getattr(session_row, "session_id", "") or ""),
         "candidate_name": getattr(session_row, "candidate_name", None),
@@ -1643,11 +1696,16 @@ def _finalize_session_anchor_session_row(session_row: Any, bucket: dict[str, Any
         "session_status": str(getattr(session_row, "status", "") or "unknown"),
         "created_at": _iso_or_none(getattr(session_row, "created_at", None)),
         "updated_at": _iso_or_none(getattr(session_row, "updated_at", None)),
-        "has_resume_chunks": bool((bucket.get("chunks_by_source") or {}).get("resume")),
-        "has_self_intro_chunks": bool((bucket.get("chunks_by_source") or {}).get("self_intro")),
-        "total_chunks": int(bucket.get("total_chunks") or 0),
+        "has_resume_chunks": bool(chunks_by_source.get("resume")),
+        "has_self_intro_chunks": bool(chunks_by_source.get("self_intro")),
+        "total_chunks": total_chunks,
         "chunks_by_source": chunks_by_source,
         "chunker_modes": _ordered_anchor_modes(bucket.get("chunker_modes") or set()),
+        "chunker_modes_by_source": {
+            str(source): _ordered_anchor_modes(set(modes or []))
+            for source, modes in (bucket.get("chunker_modes_by_source") or {}).items()
+            if modes
+        },
         "embedding_model_versions": sorted(bucket.get("embedding_model_versions") or []),
         "retrieval_attempts": attempts,
         "hit_count": hit_count,

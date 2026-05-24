@@ -324,6 +324,15 @@ def test_admin_session_anchor_sessions_returns_recent_session_level_rollup(
                         updated_at=now - timedelta(hours=4),
                     ),
                     _session(
+                        session_id="sess_trace_mode",
+                        trace_id="trace-trace-mode",
+                        candidate_name="TraceMode",
+                        job_title="Data Engineer",
+                        status="completed",
+                        created_at=now - timedelta(hours=6),
+                        updated_at=now - timedelta(hours=5),
+                    ),
+                    _session(
                         session_id="sess_old",
                         trace_id="trace-old",
                         candidate_name="Old",
@@ -406,6 +415,23 @@ def test_admin_session_anchor_sessions_returns_recent_session_level_rollup(
                         },
                     ),
                     _trace(
+                        session_id="sess_trace_mode",
+                        trace_id="trace-trace-mode",
+                        created_at=now - timedelta(hours=5),
+                        payload={
+                            "selection_artifacts": {
+                                "candidate_anchor_rag": {
+                                    "status": "primary",
+                                    "latency_ms": 80,
+                                    "hits": [
+                                        {"source_type": "resume", "chunker_mode": "A"},
+                                        {"source_type": "self_intro"},
+                                    ],
+                                }
+                            }
+                        },
+                    ),
+                    _trace(
                         session_id="sess_old",
                         trace_id="trace-old",
                         created_at=now - timedelta(days=2),
@@ -428,15 +454,16 @@ def test_admin_session_anchor_sessions_returns_recent_session_level_rollup(
     assert resp.status_code == 200
     body = resp.json()
     assert body["window"] == "24h"
-    assert body["session_count"] == 4
+    assert body["session_count"] == 5
     assert body["summary"]["indexed_sessions"] == 1
-    assert body["summary"]["hit_sessions"] == 1
+    assert body["summary"]["hit_sessions"] == 2
     assert body["summary"]["fallback_sessions"] == 2
     assert [row["session_id"] for row in body["sessions"]] == [
         "sess_hit",
         "sess_off",
         "sess_empty",
         "sess_notrace",
+        "sess_trace_mode",
     ]
 
     hit = body["sessions"][0]
@@ -448,6 +475,7 @@ def test_admin_session_anchor_sessions_returns_recent_session_level_rollup(
     assert hit["total_chunks"] == 2
     assert hit["chunks_by_source"] == {"resume": 1, "self_intro": 1}
     assert hit["chunker_modes"] == ["A", "SI"]
+    assert hit["chunker_modes_by_source"] == {"resume": ["A"], "self_intro": ["SI"]}
     assert hit["retrieval_attempts"] == 2
     assert hit["hit_count"] == 1
     assert hit["hit_rate"] == 0.5
@@ -476,6 +504,68 @@ def test_admin_session_anchor_sessions_returns_recent_session_level_rollup(
     assert notrace["fallback_count"] == 0
     assert notrace["rag_status_distribution"] == {}
     assert notrace["last_trace_at"] is None
+
+    trace_mode = body["sessions"][4]
+    assert trace_mode["total_chunks"] == 0
+    assert trace_mode["chunker_modes"] == ["A", "SI"]
+    assert trace_mode["chunker_modes_by_source"] == {"resume": ["A"], "self_intro": ["SI"]}
+    assert trace_mode["has_resume_chunks"] is False
+    assert trace_mode["source_hit_counts"] == {"resume": 1, "self_intro": 1}
+
+
+def test_admin_session_anchor_sessions_uses_setup_snapshot_after_chunk_cleanup(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(admin_api, "get_settings", lambda: _settings())
+    now = datetime.now(UTC)
+    with _isolated_db(monkeypatch) as testing_session_local:
+        with testing_session_local() as sess:
+            sess.add(
+                _session(
+                    session_id="sess_completed_cleanup",
+                    trace_id="trace-completed-cleanup",
+                    candidate_name="Grace",
+                    job_title="Platform Engineer",
+                    status="completed",
+                    created_at=now - timedelta(hours=2),
+                    updated_at=now - timedelta(hours=1),
+                    setup_snapshot={
+                        "candidate": {
+                            "resume_vector_status": {
+                                "status": "ready",
+                                "source_type": "resume",
+                                "mode": "A",
+                                "chunk_count": 24,
+                                "embedding_model_version": "qwen:text-embedding-v4:1536@v1",
+                            }
+                        },
+                        "self_intro_vector_status": {
+                            "status": "ready",
+                            "source_type": "self_intro",
+                            "mode": "SI",
+                            "chunk_count": 5,
+                            "embedding_model_version": "qwen:text-embedding-v4:1536@v1",
+                        },
+                    },
+                )
+            )
+            sess.commit()
+
+        resp = _client().get("/admin/session-anchors/sessions?since=24h")
+
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["summary"]["indexed_sessions"] == 1
+    row = body["sessions"][0]
+    assert row["session_id"] == "sess_completed_cleanup"
+    assert row["has_resume_chunks"] is True
+    assert row["has_self_intro_chunks"] is True
+    assert row["total_chunks"] == 29
+    assert row["chunks_by_source"] == {"resume": 24, "self_intro": 5}
+    assert row["chunker_modes"] == ["A", "SI"]
+    assert row["chunker_modes_by_source"] == {"resume": ["A"], "self_intro": ["SI"]}
+    assert row["embedding_model_versions"] == ["qwen:text-embedding-v4:1536@v1"]
+    assert row["retrieval_attempts"] == 0
 
 
 def test_admin_delete_session_anchor_data_wipes_chunks_artifacts_and_scrubs_snapshots(
