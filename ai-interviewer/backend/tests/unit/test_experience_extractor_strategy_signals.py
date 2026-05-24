@@ -147,6 +147,87 @@ def test_experience_extractor_parses_direction_scoped_bandit_context(
     assert signal.immediate_reward == 0.8
 
 
+def test_bandit_strategy_signal_payload_canonicalizes_legacy_action() -> None:
+    from app.engine.workflow.nodes import experience_extractor as extractor
+
+    state = {
+        "session_id": "sess-canonical-bandit",
+        "turn_idx": 3,
+        "job_spec": {"level": "senior", "interview_direction": "java_backend"},
+        "qa_history": [],
+    }
+    legacy_insight = {
+        "type": "high_reward_arm",
+        "context_key": "java_backend:senior:system_design",
+        "action_id": "switch_dimension",
+        "mean_reward": 0.82,
+    }
+    canonical_insight = {
+        **legacy_insight,
+        "action_id": "plan_switch",
+    }
+
+    assert extractor.strategy_memory_key_for_insight(legacy_insight) == (
+        extractor.strategy_memory_key_for_insight(canonical_insight)
+    )
+
+    payload = extractor._signal_payload_from_bandit_insight(  # noqa: SLF001
+        state,
+        legacy_insight,
+    )
+
+    assert payload["group_key"] == (
+        "bandit:high_reward_arm:java_backend:senior:system_design:plan_switch"
+    )
+    assert payload["signal_key"] == (
+        "sess-canonical-bandit:"
+        "bandit:high_reward_arm:java_backend:senior:system_design:plan_switch"
+    )
+    assert payload["action_id"] == "plan_switch"
+    assert payload["plan_template"] == "plan_switch"
+    assert payload["original_action_id"] == "switch_dimension"
+
+
+def test_qa_strategy_signal_payload_canonicalizes_legacy_action() -> None:
+    from app.engine.workflow.nodes import experience_extractor as extractor
+
+    state = {
+        "session_id": "sess-canonical-qa",
+        "turn_idx": 2,
+        "qa_history": [
+            {
+                "dimension": "system_design",
+                "selected_action": "give_hint",
+                "evaluation": {"score": 8.2},
+            }
+        ],
+    }
+    pattern = {
+        "type": "score_recovery",
+        "dimension": "system_design",
+        "job_level": "senior",
+        "recovery_action": "give_hint",
+        "score_before": 5.0,
+        "score_after": 8.2,
+        "score_delta": 3.2,
+    }
+
+    payload = extractor._signal_payload_from_qa_pattern(  # noqa: SLF001
+        state,
+        pattern,
+    )
+
+    assert payload["group_key"] == (
+        "qa:score_recovery:senior:system_design:plan_hint"
+    )
+    assert payload["signal_key"] == (
+        "sess-canonical-qa:qa:score_recovery:senior:system_design:plan_hint"
+    )
+    assert payload["action_id"] == "plan_hint"
+    assert payload["plan_template"] == "plan_hint"
+    assert payload["original_action_id"] == "give_hint"
+
+
 def test_qa_pattern_signal_carries_failure_categories_from_last_dim_turn(
     monkeypatch,
 ) -> None:
