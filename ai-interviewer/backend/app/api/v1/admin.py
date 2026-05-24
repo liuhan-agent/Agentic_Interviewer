@@ -944,6 +944,34 @@ def _trace_node_payload(trace: Any) -> dict[str, Any]:
     }
 
 
+def _trace_record_from_unknown(value: Any) -> dict[str, Any]:
+    return value if isinstance(value, dict) else {}
+
+
+def _trace_record_has_fallback_marker(record: dict[str, Any]) -> bool:
+    if record.get("source") == "fallback":
+        return True
+    if str(record.get("fallback_reason") or "").strip():
+        return True
+    weaknesses = record.get("weaknesses")
+    if isinstance(weaknesses, list):
+        return any("fallback" in str(item or "").lower() for item in weaknesses)
+    return False
+
+
+def _trace_has_evaluator_fallback(trace: Any) -> bool:
+    if getattr(trace, "node", None) != "evaluator":
+        return False
+    evaluation = _trace_record_from_unknown(getattr(trace, "evaluation", None))
+    snapshot = _trace_record_from_unknown(getattr(trace, "state_snapshot", None))
+    payload = _trace_record_from_unknown(snapshot.get("payload"))
+    return (
+        _trace_record_has_fallback_marker(evaluation)
+        or _trace_record_has_fallback_marker(_trace_record_from_unknown(payload.get("evaluation")))
+        or _trace_record_has_fallback_marker(payload)
+    )
+
+
 def _interview_session_trace_payload(
     session_id: str,
     limit: int = 100,
@@ -965,6 +993,26 @@ def _interview_session_trace_payload(
             .group_by(GenerationTrace.node)
             .all()
         )
+        turn_count = (
+            sess.query(func.count(func.distinct(GenerationTrace.turn_idx)))
+            .filter(GenerationTrace.session_id == session_id)
+            .scalar()
+            or 0
+        )
+        evaluator_traces = (
+            sess.query(GenerationTrace)
+            .filter(
+                GenerationTrace.session_id == session_id,
+                GenerationTrace.node == "evaluator",
+            )
+            .all()
+        )
+        last_trace = (
+            sess.query(GenerationTrace)
+            .filter(GenerationTrace.session_id == session_id)
+            .order_by(GenerationTrace.turn_idx.desc(), GenerationTrace.id.desc())
+            .first()
+        )
         traces = (
             sess.query(GenerationTrace)
             .filter(GenerationTrace.session_id == session_id)
@@ -981,6 +1029,9 @@ def _interview_session_trace_payload(
     node_counts = {str(node or ""): int(count) for node, count in summary_rows}
     total_trace_count = sum(node_counts.values())
     summary_nodes = [{"node": node} for node in node_counts]
+    diagnostics = trace_diagnostics(summary_nodes, session_status=row.status)
+    if last_trace is not None:
+        diagnostics["last_node"] = last_trace.node
     return {
         "session_id": row.session_id,
         "trace_id": row.trace_id,
@@ -993,9 +1044,14 @@ def _interview_session_trace_payload(
         "reward_trace_count": int(node_counts.get("reward_update", 0)),
         "final_report_trace_count": int(node_counts.get("final_report", 0)),
         "trace_health": _trace_health(summary_nodes, session_status=row.status),
-        "trace_diagnostics": trace_diagnostics(summary_nodes, session_status=row.status),
+        "trace_diagnostics": diagnostics,
         "langsmith": _langsmith_admin_meta(),
         "node_count_total": total_trace_count,
+        "node_type_counts": node_counts,
+        "fallback_trace_count": sum(
+            1 for trace in evaluator_traces if _trace_has_evaluator_fallback(trace)
+        ),
+        "turn_count": int(turn_count),
         "nodes_offset": safe_offset,
         "nodes_limit": capped_limit,
         "nodes_has_more": safe_offset + len(nodes) < total_trace_count,
