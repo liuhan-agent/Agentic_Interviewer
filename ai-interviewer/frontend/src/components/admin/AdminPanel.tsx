@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useCallback, useEffect, useRef, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Activity,
   AlertTriangle,
@@ -113,6 +113,7 @@ import { cn } from "@/lib/utils";
 const REFRESH_INTERVAL_MS = 15_000;
 const HISTORY_PAGE_SIZE = 20;
 const HISTORY_SEARCH_DEBOUNCE_MS = 300;
+const ADMIN_ACTIVE_TAB_STORAGE_KEY = "agentic-interviewer:admin-active-tab";
 
 type Loadable<T> =
   | { phase: "loading" }
@@ -197,6 +198,20 @@ const ADMIN_TABS = [
   ADMIN_TAB_THEMES.scoring,
   ADMIN_TAB_THEMES.strategy,
 ];
+
+function isAdminTabId(value: string | null): value is AdminTabId {
+  return value === "health" || value === "scoring" || value === "strategy";
+}
+
+function loadStoredAdminTab(): AdminTabId | null {
+  if (typeof window === "undefined") return null;
+  try {
+    const stored = window.localStorage.getItem(ADMIN_ACTIVE_TAB_STORAGE_KEY);
+    return isAdminTabId(stored) ? stored : null;
+  } catch {
+    return null;
+  }
+}
 
 function useAutoFetch<T>(
   fetcher: (signal?: AbortSignal) => Promise<T>,
@@ -340,6 +355,63 @@ function AdminScoringSection({
   );
 }
 
+function AdminStrategySection({
+  bandit,
+  questionSeeds,
+  questionUsages,
+  questionRerankUsages,
+  questionReviews,
+  skillPlaybooks,
+  strategies,
+  strategySignals,
+  strategyUsages,
+  strategyStats,
+  onRefresh,
+}: {
+  bandit: Loadable<BanditSnapshot>;
+  questionSeeds: Loadable<QuestionSeeds>;
+  questionUsages: Loadable<QuestionUsages>;
+  questionRerankUsages: Loadable<QuestionRerankUsages>;
+  questionReviews: Loadable<QuestionReviews>;
+  skillPlaybooks: Loadable<SkillPlaybooks>;
+  strategies: Loadable<Strategies>;
+  strategySignals: Loadable<StrategySignals>;
+  strategyUsages: Loadable<StrategyUsages>;
+  strategyStats: Loadable<StrategyStats>;
+  onRefresh: () => void;
+}) {
+  return (
+    <>
+      <StrategyLearningOverview
+        bandit={bandit}
+        questionSeeds={questionSeeds}
+        questionUsages={questionUsages}
+        skillPlaybooks={skillPlaybooks}
+        strategies={strategies}
+        strategyUsages={strategyUsages}
+      />
+      <section aria-label="策略学习治理台" className="space-y-6">
+        <BanditCard state={bandit} />
+        <QuestionBankCard
+          state={questionSeeds}
+          usages={questionUsages}
+          rerankUsages={questionRerankUsages}
+          reviews={questionReviews}
+          onRefresh={onRefresh}
+        />
+        <SkillsPlaybookCard state={skillPlaybooks} onRefresh={onRefresh} />
+        <StrategiesCard
+          state={strategies}
+          signals={strategySignals}
+          usages={strategyUsages}
+          stats={strategyStats}
+          onRefresh={onRefresh}
+        />
+      </section>
+    </>
+  );
+}
+
 function AdminTabPanel({
   theme,
   children,
@@ -380,6 +452,13 @@ export function AdminPanel() {
     const t = loadAdminToken();
     setTokenInput(t);
     setTokenSaved(t);
+  }, []);
+
+  useEffect(() => {
+    const storedTab = loadStoredAdminTab();
+    if (storedTab) {
+      setActiveTab(storedTab);
+    }
   }, []);
 
   useEffect(() => {
@@ -553,6 +632,15 @@ export function AdminPanel() {
     setTick((t) => t + 1);
   }
 
+  function handleTabChange(tab: AdminTabId) {
+    setActiveTab(tab);
+    try {
+      window.localStorage.setItem(ADMIN_ACTIVE_TAB_STORAGE_KEY, tab);
+    } catch {
+      // Tab switching should still work when storage is unavailable.
+    }
+  }
+
   return (
     <div className="space-y-6">
       <TokenBar
@@ -576,7 +664,7 @@ export function AdminPanel() {
         {ADMIN_TABS.map((theme) => (
           <button
             key={theme.id}
-            onClick={() => setActiveTab(theme.id)}
+            onClick={() => handleTabChange(theme.id)}
             aria-pressed={activeTab === theme.id}
             className={cn(
               "flex items-center justify-center gap-1.5 rounded-lg border px-3 py-2 text-sm font-medium transition-colors active:scale-[0.98]",
@@ -632,23 +720,17 @@ export function AdminPanel() {
 
       {activeTab === "strategy" && (
         <AdminTabPanel theme={ADMIN_TAB_THEMES.strategy}>
-          <BanditCard state={bandit} />
-          <QuestionBankCard
-            state={questionSeeds}
-            usages={questionUsages}
-            rerankUsages={questionRerankUsages}
-            reviews={questionReviews}
-            onRefresh={() => setTick((t) => t + 1)}
-          />
-          <SkillsPlaybookCard
-            state={skillPlaybooks}
-            onRefresh={() => setTick((t) => t + 1)}
-          />
-          <StrategiesCard
-            state={strategies}
-            signals={strategySignals}
-            usages={strategyUsages}
-            stats={strategyStats}
+          <AdminStrategySection
+            bandit={bandit}
+            questionSeeds={questionSeeds}
+            questionUsages={questionUsages}
+            questionRerankUsages={questionRerankUsages}
+            questionReviews={questionReviews}
+            skillPlaybooks={skillPlaybooks}
+            strategies={strategies}
+            strategySignals={strategySignals}
+            strategyUsages={strategyUsages}
+            strategyStats={strategyStats}
             onRefresh={() => setTick((t) => t + 1)}
           />
         </AdminTabPanel>
@@ -1814,6 +1896,113 @@ function TokenBar({
 // Bandit posteriors
 // ---------------------------------------------------------------------------
 
+function StrategyLearningOverview({
+  bandit,
+  questionSeeds,
+  questionUsages,
+  skillPlaybooks,
+  strategies,
+  strategyUsages,
+}: {
+  bandit: Loadable<BanditSnapshot>;
+  questionSeeds: Loadable<QuestionSeeds>;
+  questionUsages: Loadable<QuestionUsages>;
+  skillPlaybooks: Loadable<SkillPlaybooks>;
+  strategies: Loadable<Strategies>;
+  strategyUsages: Loadable<StrategyUsages>;
+}) {
+  const banditCount =
+    bandit.phase === "ready"
+      ? String(
+          bandit.data.persisted_prior_count ??
+            Object.keys(bandit.data.priors || {}).length,
+        )
+      : phaseLabel(bandit);
+  const questionVariantCount =
+    questionSeeds.phase === "ready"
+      ? questionSeeds.data.question_seeds.reduce(
+          (sum, seed) => sum + Number(seed.variant_count ?? 0),
+          0,
+        )
+      : null;
+  const questionCount =
+    questionSeeds.phase === "ready"
+      ? `${questionSeeds.data.count} / ${questionVariantCount ?? 0}`
+      : phaseLabel(questionSeeds);
+  const questionDetail =
+    questionUsages.phase === "ready"
+      ? `${questionUsages.data.count} 次题目调用`
+      : "题目 / 变体";
+  const playbookCount =
+    skillPlaybooks.phase === "ready"
+      ? `${skillPlaybooks.data.active_count}/${skillPlaybooks.data.count}`
+      : phaseLabel(skillPlaybooks);
+  const strategyCount =
+    strategies.phase === "ready" ? String(strategies.data.count) : phaseLabel(strategies);
+  const strategyDetail =
+    strategyUsages.phase === "ready"
+      ? `${strategyUsages.data.count} 次归因`
+      : "策略记忆 / 归因";
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2 text-base">
+          <Waypoints className="h-4 w-4 text-amber-400" />
+          策略学习总览
+        </CardTitle>
+        <CardDescription className="mt-1">
+          汇总当前进程和数据库里的策略学习资产，先看全局状态，再进入下面的治理模块。
+        </CardDescription>
+      </CardHeader>
+      <CardContent>
+        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+          <StrategyOverviewTile
+            label="Bandit 后验"
+            value={banditCount}
+            detail="Thompson 策略状态"
+          />
+          <StrategyOverviewTile
+            label="题库资产"
+            value={questionCount}
+            detail={questionDetail}
+          />
+          <StrategyOverviewTile
+            label="技能打法"
+            value={playbookCount}
+            detail="启用 / 总数"
+          />
+          <StrategyOverviewTile
+            label="策略记忆"
+            value={strategyCount}
+            detail={strategyDetail}
+          />
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+function StrategyOverviewTile({
+  label,
+  value,
+  detail,
+}: {
+  label: string;
+  value: string;
+  detail: string;
+}) {
+  return (
+    <div className="rounded-md border bg-card/50 p-3">
+      <p className="text-[10px] font-medium text-muted-foreground">{label}</p>
+      <p className="mt-1 break-words font-mono text-lg font-bold text-foreground">
+        {value}
+      </p>
+      <p className="mt-1 text-[11px] text-muted-foreground">{detail}</p>
+    </div>
+  );
+}
+
 function BanditCard({ state }: { state: Loadable<BanditSnapshot> }) {
   return (
     <Card>
@@ -1825,7 +2014,7 @@ function BanditCard({ state }: { state: Loadable<BanditSnapshot> }) {
               策略学习（Thompson）
             </CardTitle>
             <CardDescription className="mt-1">
-              系统正在学习不同提问策略在不同岗位和能力维度下的效果。
+              默认展示后验均值最高的策略状态；原始参数保留在开发详情里。
             </CardDescription>
           </div>
           {state.phase === "ready" && (
@@ -1892,52 +2081,99 @@ function BanditTable({
   if (rows.length === 0) {
     return (
       <p className="text-xs text-muted-foreground">
-        暂无后验数据，这不是错误。跑完一场面试后会出现 context::action 策略状态数据。
+        暂无后验数据，这不是错误。跑完一场面试后会出现策略状态。
       </p>
     );
   }
 
+  const topRows = rows.slice(0, 5);
   return (
-    <div className="overflow-hidden rounded-lg border">
-      <table className="w-full text-xs">
-        <thead className="bg-secondary/50 text-[10px] uppercase tracking-wider text-muted-foreground">
-          <tr>
-            <th className="px-3 py-2 text-left">context::action</th>
-            <th className="px-3 py-2 text-right">α</th>
-            <th className="px-3 py-2 text-right">β</th>
-            <th className="px-3 py-2 text-right">均值</th>
-            <th className="px-3 py-2">后验</th>
-          </tr>
-        </thead>
-        <tbody>
-          {rows.map((r) => (
-            <tr key={r.key} className="border-t">
-              <td className="px-3 py-2 font-mono text-foreground">{r.key}</td>
-              <td className="px-3 py-2 text-right font-mono tabular-nums">
-                {r.alpha.toFixed(2)}
-              </td>
-              <td className="px-3 py-2 text-right font-mono tabular-nums">
-                {r.beta.toFixed(2)}
-              </td>
-              <td className="px-3 py-2 text-right font-mono tabular-nums">
-                {r.mean.toFixed(3)}
-              </td>
-              <td className="px-3 py-2">
-                <div className="h-1.5 w-full overflow-hidden rounded-full bg-secondary">
-                  <div
-                    className="h-full bg-emerald-400/70"
-                    style={{
-                      width: `${Math.max(0, Math.min(100, r.mean * 100))}%`,
-                    }}
-                  />
-                </div>
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
+    <div className="space-y-3">
+      <div>
+        <p className="text-xs font-medium text-muted-foreground">Top 后验策略</p>
+        <div className="mt-2 overflow-x-auto rounded-md border">
+          <table className="w-full min-w-[680px] text-xs">
+            <thead className="bg-secondary/50 text-[10px] text-muted-foreground">
+              <tr>
+                <th className="px-3 py-2 text-left font-medium">策略</th>
+                <th className="px-3 py-2 text-right font-medium">样本</th>
+                <th className="px-3 py-2 text-right font-medium">成功倾向</th>
+                <th className="px-3 py-2 font-medium">后验</th>
+              </tr>
+            </thead>
+            <tbody>
+              {topRows.map((r) => (
+                <tr key={r.key} className="border-t">
+                  <td className="max-w-[340px] px-3 py-2">
+                    <div className="min-w-0 truncate font-medium text-foreground">
+                      {formatBanditStrategyLabel(r.key)}
+                    </div>
+                  </td>
+                  <td className="px-3 py-2 text-right font-mono tabular-nums">
+                    {(r.alpha + r.beta).toFixed(0)}
+                  </td>
+                  <td className="px-3 py-2 text-right font-mono tabular-nums">
+                    {r.mean.toFixed(3)}
+                  </td>
+                  <td className="px-3 py-2">
+                    <div className="h-1.5 w-full overflow-hidden rounded-full bg-secondary">
+                      <div
+                        className="h-full bg-emerald-400/70"
+                        style={{
+                          width: `${Math.max(0, Math.min(100, r.mean * 100))}%`,
+                        }}
+                      />
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <details className="rounded-md border bg-muted/10 p-3 text-xs">
+        <summary className="cursor-pointer font-medium text-muted-foreground">
+          开发详情：原始后验参数
+        </summary>
+        <div className="mt-3 overflow-x-auto">
+          <table className="w-full min-w-[720px] text-xs">
+            <thead className="text-[10px] text-muted-foreground">
+              <tr>
+                <th className="px-2 py-1 text-left font-medium">原始键</th>
+                <th className="px-2 py-1 text-right font-medium">alpha</th>
+                <th className="px-2 py-1 text-right font-medium">beta</th>
+                <th className="px-2 py-1 text-right font-medium">均值</th>
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map((r) => (
+                <tr key={r.key} className="border-t border-border/50">
+                  <td className="max-w-[420px] truncate px-2 py-1 font-mono">
+                    {r.key}
+                  </td>
+                  <td className="px-2 py-1 text-right font-mono tabular-nums">
+                    {r.alpha.toFixed(2)}
+                  </td>
+                  <td className="px-2 py-1 text-right font-mono tabular-nums">
+                    {r.beta.toFixed(2)}
+                  </td>
+                  <td className="px-2 py-1 text-right font-mono tabular-nums">
+                    {r.mean.toFixed(3)}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </details>
     </div>
   );
+}
+
+function formatBanditStrategyLabel(key: string): string {
+  const [context, action] = key.split("::");
+  if (context && action) return `${context} / ${action}`;
+  return key || "未命名策略";
 }
 
 // ---------------------------------------------------------------------------
@@ -3224,6 +3460,39 @@ function QuestionBankCard({
   const [selectedSeedId, setSelectedSeedId] = useState<string | null>(null);
   const [detail, setDetail] = useState<Loadable<QuestionSeedDetail> | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
+  const [seedSearch, setSeedSearch] = useState("");
+  const [seedDimension, setSeedDimension] = useState("all");
+  const [seedStatus, setSeedStatus] = useState("all");
+  const questionSeedRows = useMemo(
+    () => (state.phase === "ready" ? state.data.question_seeds : []),
+    [state],
+  );
+  const questionDimensions = useMemo(
+    () =>
+      Array.from(new Set(questionSeedRows.map((seed) => seed.dimension).filter(Boolean))).sort(),
+    [questionSeedRows],
+  );
+  const questionStatuses = useMemo(
+    () =>
+      Array.from(
+        new Set(questionSeedRows.map((seed) => seed.status || "unknown")),
+      ).sort(),
+    [questionSeedRows],
+  );
+  const filteredQuestionSeeds = useMemo(() => {
+    const q = seedSearch.trim().toLowerCase();
+    return questionSeedRows.filter((seed) => {
+      const matchesSearch =
+        !q ||
+        seed.title.toLowerCase().includes(q) ||
+        seed.id.toLowerCase().includes(q) ||
+        seed.skill_tags.some((tag) => tag.toLowerCase().includes(q));
+      const matchesDimension =
+        seedDimension === "all" || seed.dimension === seedDimension;
+      const matchesStatus = seedStatus === "all" || (seed.status || "unknown") === seedStatus;
+      return matchesSearch && matchesDimension && matchesStatus;
+    });
+  }, [questionSeedRows, seedDimension, seedSearch, seedStatus]);
 
   useEffect(() => {
     if (selectedSeedId || state.phase !== "ready") return;
@@ -3398,28 +3667,28 @@ function QuestionBankCard({
               结构化题库
             </CardTitle>
             <CardDescription className="mt-1">
-              YAML 权威源、结构化 seed/variant 和最近 selector usage。
+              YAML 权威源、结构化题目和最近题目调用。
             </CardDescription>
           </div>
           <div className="flex flex-wrap justify-end gap-2">
             {state.phase === "ready" && (
               <Badge variant="outline" className="font-mono text-[10px]">
-                {state.data.count} seeds
+                {state.data.count} 题目
               </Badge>
             )}
             {usages.phase === "ready" && (
               <Badge variant="secondary" className="font-mono text-[10px]">
-                {usages.data.count} usages
+                {usages.data.count} 调用
               </Badge>
             )}
             {rerankUsages.phase === "ready" && (
               <Badge variant="outline" className="font-mono text-[10px]">
-                {rerankUsages.data.count} reranks
+                {rerankUsages.data.count} 重排
               </Badge>
             )}
             {reviews.phase === "ready" && (
               <Badge variant="outline" className="font-mono text-[10px]">
-                {reviews.data.count} reviews
+                {reviews.data.count} 评审
               </Badge>
             )}
           </div>
@@ -3462,7 +3731,7 @@ function QuestionBankCard({
               disabled={busy !== null}
             >
               {busy === "lint" && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
-              Lint
+              检查
             </Button>
             <Button
               type="button"
@@ -3472,7 +3741,7 @@ function QuestionBankCard({
               disabled={busy !== null}
             >
               {busy === "lint-strict" && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
-              Strict lint
+              严格检查
             </Button>
           </div>
         </div>
@@ -3481,13 +3750,31 @@ function QuestionBankCard({
         {state.phase === "error" && <ErrorBox message={state.message} />}
         {state.phase === "ready" && state.data.question_seeds.length === 0 && (
           <p className="text-xs text-muted-foreground">
-            暂无结构化题目种子。先导入 YAML 后再查看 selector usage。
+            暂无结构化题目种子。先导入 YAML 后再查看题目调用。
           </p>
         )}
         {state.phase === "ready" && state.data.question_seeds.length > 0 && (
-          <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.2fr)]">
-            <ul className="space-y-2">
-              {state.data.question_seeds.map((seed) => (
+          <>
+          <QuestionBankFilters
+            search={seedSearch}
+            onSearchChange={setSeedSearch}
+            dimension={seedDimension}
+            onDimensionChange={setSeedDimension}
+            dimensions={questionDimensions}
+            status={seedStatus}
+            onStatusChange={setSeedStatus}
+            statuses={questionStatuses}
+            shown={filteredQuestionSeeds.length}
+            total={state.data.question_seeds.length}
+          />
+          {filteredQuestionSeeds.length === 0 ? (
+            <p className="rounded-md border border-dashed bg-muted/10 p-3 text-xs text-muted-foreground">
+              当前筛选下没有题目种子。调整筛选条件后再看。
+            </p>
+          ) : (
+          <div className="grid gap-3 lg:grid-cols-[minmax(0,0.9fr)_minmax(0,1.25fr)]">
+            <ul className="max-h-[560px] space-y-2 overflow-y-auto pr-1">
+              {filteredQuestionSeeds.map((seed) => (
                 <li
                   key={seed.id}
                   className={cn(
@@ -3501,7 +3788,7 @@ function QuestionBankCard({
                     onClick={() => setSelectedSeedId(seed.id)}
                   >
                     <div className="flex items-start justify-between gap-2">
-                      <span className="font-medium">{seed.title}</span>
+                      <span className="min-w-0 truncate font-medium">{seed.title}</span>
                       <Badge variant="outline" className="font-mono text-[10px]">
                         {seed.status}
                       </Badge>
@@ -3513,12 +3800,12 @@ function QuestionBankCard({
                       <Badge variant="secondary" className="font-mono text-[10px]">
                         {seed.dimension}
                       </Badge>
-                      {seed.direction_tags.map((tag) => (
+                      {seed.direction_tags.slice(0, 2).map((tag) => (
                         <Badge key={tag} variant="outline" className="font-mono text-[10px]">
                           {tag}
                         </Badge>
                       ))}
-                      {seed.role_tags.map((tag) => (
+                      {seed.role_tags.slice(0, 2).map((tag) => (
                         <Badge key={tag} variant="outline" className="font-mono text-[10px]">
                           {tag}
                         </Badge>
@@ -3643,11 +3930,18 @@ function QuestionBankCard({
               )}
             </div>
           </div>
+          )}
+          </>
         )}
 
+        <details className="rounded-md border border-dashed bg-muted/10 px-3 py-2">
+          <summary className="cursor-pointer text-xs font-medium text-muted-foreground">
+            二级诊断
+          </summary>
+          <div className="mt-3 space-y-3">
         {usages.phase === "ready" && usages.data.usages.length > 0 && (
-          <div className="space-y-2 border-t border-border/40 pt-3">
-            <p className="text-xs font-medium text-muted-foreground">最近 question usage</p>
+          <div className="space-y-2">
+            <p className="text-xs font-medium text-muted-foreground">最近题目调用</p>
             <ul className="space-y-1.5">
               {usages.data.usages.slice(0, 5).map((usage) => (
                 <li key={usage.id} className="rounded-md border bg-card/30 p-2 text-[11px]">
@@ -3679,10 +3973,10 @@ function QuestionBankCard({
         )}
 
         {rerankUsages.phase === "ready" && rerankUsages.data.rerank_usages.length > 0 && (
-          <div className="space-y-2 border-t border-border/40 pt-3">
+          <div className="space-y-2">
             <div className="flex flex-wrap items-center justify-between gap-2">
               <p className="text-xs font-medium text-muted-foreground">
-                shadow reranker pairwise review
+                Shadow reranker
               </p>
               <div className="flex flex-wrap gap-1.5">
                 {(["rule", "llm", "tie", "neither"] as const).map((winner) => (
@@ -3726,9 +4020,9 @@ function QuestionBankCard({
         )}
 
         {reviews.phase === "ready" && reviews.data.reviews.length > 0 && (
-          <div className="space-y-2 border-t border-border/40 pt-3">
+          <div className="space-y-2">
             <p className="text-xs font-medium text-muted-foreground">
-              recent question reviews
+              最近评审
             </p>
             <ul className="space-y-1.5">
               {reviews.data.reviews.slice(0, 3).map((review) => (
@@ -3751,10 +4045,100 @@ function QuestionBankCard({
             </ul>
           </div>
         )}
+        {usages.phase === "ready" &&
+          rerankUsages.phase === "ready" &&
+          reviews.phase === "ready" &&
+          usages.data.usages.length === 0 &&
+          rerankUsages.data.rerank_usages.length === 0 &&
+          reviews.data.reviews.length === 0 && (
+            <p className="text-xs text-muted-foreground">
+              暂无题目调用、reranker 或评审样本，这不是错误。
+            </p>
+          )}
+          </div>
+        </details>
       </CardContent>
     </Card>
   );
 }
+
+function QuestionBankFilters({
+  search,
+  onSearchChange,
+  dimension,
+  onDimensionChange,
+  dimensions,
+  status,
+  onStatusChange,
+  statuses,
+  shown,
+  total,
+}: {
+  search: string;
+  onSearchChange: (value: string) => void;
+  dimension: string;
+  onDimensionChange: (value: string) => void;
+  dimensions: string[];
+  status: string;
+  onStatusChange: (value: string) => void;
+  statuses: string[];
+  shown: number;
+  total: number;
+}) {
+  return (
+    <div className="rounded-md border bg-muted/10 p-3">
+      <div className="flex flex-col gap-2 lg:flex-row lg:items-center lg:justify-between">
+        <div>
+          <p className="text-xs font-medium text-foreground">题库筛选</p>
+          <p className="mt-0.5 text-[11px] text-muted-foreground">
+            当前显示 {shown}/{total} 个 seed。
+          </p>
+        </div>
+        <div className="grid gap-2 sm:grid-cols-3 lg:min-w-[620px]">
+          <Input
+            name="question-seed-search"
+            autoComplete="off"
+            aria-label="搜索题目种子"
+            placeholder="搜索标题、ID、技能…"
+            value={search}
+            onChange={(event) => onSearchChange(event.target.value)}
+            className="h-8 text-xs"
+          />
+          <select
+            name="question-seed-dimension"
+            aria-label="按能力维度筛选题目种子"
+            value={dimension}
+            onChange={(event) => onDimensionChange(event.target.value)}
+            className="h-8 rounded-md border bg-background px-2 text-xs text-foreground"
+          >
+            <option value="all">全部维度</option>
+            {dimensions.map((item) => (
+              <option key={item} value={item}>
+                {item}
+              </option>
+            ))}
+          </select>
+          <select
+            name="question-seed-status"
+            aria-label="按状态筛选题目种子"
+            value={status}
+            onChange={(event) => onStatusChange(event.target.value)}
+            className="h-8 rounded-md border bg-background px-2 text-xs text-foreground"
+          >
+            <option value="all">全部状态</option>
+            {statuses.map((item) => (
+              <option key={item} value={item}>
+                {item}
+              </option>
+            ))}
+          </select>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+type PlaybookDetailTab = "generator" | "observer" | "source";
 
 function SkillsPlaybookCard({
   state,
@@ -3767,6 +4151,7 @@ function SkillsPlaybookCard({
   const [selectedCardId, setSelectedCardId] = useState<string | null>(null);
   const [detail, setDetail] = useState<Loadable<SkillPlaybookDetail> | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
+  const [detailTab, setDetailTab] = useState<PlaybookDetailTab>("generator");
 
   useEffect(() => {
     if (selectedCardId || state.phase !== "ready") return;
@@ -3802,13 +4187,13 @@ function SkillsPlaybookCard({
     try {
       const result = await importSkillPlaybooks(archiveMissing);
       toast({
-        title: "Skills playbook imported",
-        description: `imported=${result.imported}, updated=${result.updated}, unchanged=${result.unchanged}, archived=${result.archived}, skipped=${result.skipped}`,
+        title: "技能打法库已导入",
+        description: `新增 ${result.imported}，更新 ${result.updated}，未变更 ${result.unchanged}，归档 ${result.archived}，跳过 ${result.skipped}`,
       });
       onRefresh();
     } catch (err) {
       toast({
-        title: "Skills playbook import failed",
+        title: "技能打法库导入失败",
         description: err instanceof Error ? err.message : String(err),
         variant: "destructive",
       });
@@ -3824,23 +4209,23 @@ function SkillsPlaybookCard({
           <div>
             <CardTitle className="flex items-center gap-2 text-base">
               <BookMarked className="h-4 w-4 text-cyan-400" />
-              Skills Playbook
+              技能打法库
             </CardTitle>
             <CardDescription className="mt-1">
-              DB-backed interviewer playbook cards imported from knowledge/skills.
+              从知识库导入的面试官打法卡，用于约束出题动作和观察信号。
             </CardDescription>
           </div>
           <div className="flex flex-wrap justify-end gap-2">
             {state.phase === "ready" && (
               <>
                 <Badge variant="outline" className="font-mono text-[10px]">
-                  {state.data.count} cards
+                  {state.data.count} 张卡
                 </Badge>
                 <Badge variant="secondary" className="font-mono text-[10px]">
-                  {state.data.active_count} active
+                  {state.data.active_count} 启用
                 </Badge>
                 <Badge variant="outline" className="font-mono text-[10px]">
-                  runtime_backend={state.data.runtime_backend}
+                  后端 {state.data.runtime_backend}
                 </Badge>
               </>
             )}
@@ -3850,9 +4235,9 @@ function SkillsPlaybookCard({
       <CardContent className="space-y-4">
         <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border bg-secondary/20 p-3">
           <div>
-            <p className="text-sm font-medium">Markdown import</p>
+            <p className="text-sm font-medium">Markdown 导入</p>
             <p className="text-xs text-muted-foreground">
-              Markdown remains authoritative; this panel only observes DB rows and triggers strict import.
+              Markdown 文件仍是权威来源；面板负责触发导入和查看数据库中的卡片。
             </p>
           </div>
           <div className="flex flex-wrap gap-2">
@@ -3864,7 +4249,7 @@ function SkillsPlaybookCard({
               disabled={busy !== null}
             >
               {busy === "import" && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
-              Import
+              导入
             </Button>
             <Button
               type="button"
@@ -3874,7 +4259,7 @@ function SkillsPlaybookCard({
               disabled={busy !== null}
             >
               {busy === "import-archive" && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
-              Import + archive missing
+              导入并归档缺失
             </Button>
           </div>
         </div>
@@ -3885,7 +4270,7 @@ function SkillsPlaybookCard({
           <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.15fr)]">
             <div className="space-y-3">
               <div className="rounded-lg border bg-card/40 p-3">
-                <p className="text-xs font-medium text-muted-foreground">status distribution</p>
+                <p className="text-xs font-medium text-muted-foreground">状态分布</p>
                 <div className="mt-2 flex flex-wrap gap-1.5">
                   {Object.entries(state.data.status_counts).map(([status, count]) => (
                     <Badge key={status} variant="outline" className="font-mono text-[10px]">
@@ -3897,11 +4282,15 @@ function SkillsPlaybookCard({
 
               {state.data.skill_playbooks.length === 0 ? (
                 <p className="text-xs text-muted-foreground">
-                  No skill playbook cards in DB. Run import after deploying the schema.
+                  数据库中暂无技能打法卡。导入 Markdown 后会出现在这里。
                 </p>
               ) : (
-                <ul className="space-y-2">
-                  {state.data.skill_playbooks.slice(0, 12).map((card) => (
+                <div className="space-y-2">
+                  <p className="text-xs font-medium text-muted-foreground">
+                    全部打法卡
+                  </p>
+                  <ul className="max-h-[560px] space-y-2 overflow-y-auto pr-1">
+                  {state.data.skill_playbooks.map((card) => (
                     <li
                       key={card.id}
                       className={cn(
@@ -3915,7 +4304,9 @@ function SkillsPlaybookCard({
                         onClick={() => setSelectedCardId(card.id)}
                       >
                         <div className="flex items-start justify-between gap-2">
-                          <span className="font-medium">{card.name || card.id}</span>
+                          <span className="min-w-0 truncate font-medium">
+                            {card.name || card.id}
+                          </span>
                           <Badge variant="outline" className="font-mono text-[10px]">
                             {card.status}
                           </Badge>
@@ -3932,7 +4323,7 @@ function SkillsPlaybookCard({
                           <Badge variant="secondary" className="font-mono text-[10px]">
                             p{card.priority}
                           </Badge>
-                          {card.direction_tags.map((tag) => (
+                          {card.direction_tags.slice(0, 2).map((tag) => (
                             <Badge key={tag} variant="outline" className="font-mono text-[10px]">
                               {tag}
                             </Badge>
@@ -3957,6 +4348,7 @@ function SkillsPlaybookCard({
                     </li>
                   ))}
                 </ul>
+                </div>
               )}
             </div>
 
@@ -4016,61 +4408,85 @@ function SkillsPlaybookCard({
                         "",
                     )}
                   </div>
-                  <div className="grid gap-3 md:grid-cols-3">
-                    <PlaybookFieldList
-                      label="Generator moves"
-                      items={detail.data.skill_playbook.generator_moves}
-                    />
-                    <PlaybookFieldList
-                      label="Watch for"
-                      items={detail.data.skill_playbook.watch_for}
-                    />
-                    <PlaybookFieldList
-                      label="Avoid"
-                      items={detail.data.skill_playbook.avoid}
-                    />
+                  <div className="flex flex-wrap gap-2 border-b border-border/60 pb-2">
+                    <PlaybookTabButton
+                      active={detailTab === "generator"}
+                      onClick={() => setDetailTab("generator")}
+                    >
+                      生成器提示
+                    </PlaybookTabButton>
+                    <PlaybookTabButton
+                      active={detailTab === "observer"}
+                      onClick={() => setDetailTab("observer")}
+                    >
+                      观察字段
+                    </PlaybookTabButton>
+                    <PlaybookTabButton
+                      active={detailTab === "source"}
+                      onClick={() => setDetailTab("source")}
+                    >
+                      原文
+                    </PlaybookTabButton>
                   </div>
-                  <div className="rounded-lg border bg-background/60 p-3">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <p className="text-xs font-medium">
-                        Evaluator fields are staged for observation only
-                      </p>
-                      <Badge variant="outline" className="font-mono text-[10px]">
-                        evaluator_visibility=
-                        {String(detail.data.skill_playbook.evaluator_visibility)}
-                      </Badge>
-                    </div>
-                    <p className="mt-1 text-[11px] text-muted-foreground">
-                      These hints are not used by Evaluator runtime.
-                    </p>
-                    <div className="mt-3 grid gap-3 md:grid-cols-2">
+                  {detailTab === "generator" && (
+                    <div className="grid gap-3 md:grid-cols-3">
                       <PlaybookFieldList
-                        label="Rubric hints"
+                        label="生成器提示"
+                        items={detail.data.skill_playbook.generator_moves}
+                      />
+                      <PlaybookFieldList
+                        label="追问观察"
+                        items={detail.data.skill_playbook.watch_for}
+                      />
+                      <PlaybookFieldList
+                        label="避免事项"
+                        items={detail.data.skill_playbook.avoid}
+                      />
+                    </div>
+                  )}
+                  {detailTab === "observer" && (
+                    <div className="space-y-3">
+                      <div className="rounded-md border bg-muted/10 p-3 text-xs text-muted-foreground">
+                        这些字段目前用于观察和治理，不直接进入评分运行时。
+                        <Badge variant="outline" className="ml-2 font-mono text-[10px]">
+                          evaluator_visibility {String(detail.data.skill_playbook.evaluator_visibility)}
+                        </Badge>
+                      </div>
+                      <div className="grid gap-3 md:grid-cols-2">
+                      <PlaybookFieldList
+                        label="评分提示"
                         items={detail.data.skill_playbook.evaluator_rubric_hints}
                       />
                       <PlaybookFieldList
-                        label="Positive signals"
+                        label="正向信号"
                         items={detail.data.skill_playbook.positive_signals}
                       />
                       <PlaybookFieldList
-                        label="Negative signals"
+                        label="负向信号"
                         items={detail.data.skill_playbook.negative_signals}
                       />
                       <PlaybookFieldList
-                        label="Score bias rules"
+                        label="分数偏置规则"
                         items={detail.data.skill_playbook.score_bias_rules}
                       />
+                      </div>
                     </div>
-                  </div>
-                  <Separator />
-                  <pre className="max-h-96 overflow-auto whitespace-pre-wrap rounded-md bg-background/70 p-3 text-xs leading-relaxed text-foreground/85">
-                    {detail.data.skill_playbook.body_markdown || ""}
-                  </pre>
+                  )}
+                  {detailTab === "source" && (
+                    <details className="rounded-md border bg-muted/10 p-3 text-xs">
+                      <summary className="cursor-pointer font-medium text-muted-foreground">
+                        展开 Markdown 原文
+                      </summary>
+                      <pre className="mt-3 max-h-96 overflow-auto whitespace-pre-wrap rounded-md bg-background/70 p-3 text-xs leading-relaxed text-foreground/85">
+                        {detail.data.skill_playbook.body_markdown || ""}
+                      </pre>
+                    </details>
+                  )}
                 </div>
               )}
               {!detail && (
                 <p className="text-xs text-muted-foreground">
-                  Select a playbook card to inspect the full body_markdown.
+                  选择一张打法卡查看生成器提示、观察字段和原文。
                 </p>
               )}
             </div>
@@ -4078,6 +4494,32 @@ function SkillsPlaybookCard({
         )}
       </CardContent>
     </Card>
+  );
+}
+
+function PlaybookTabButton({
+  active,
+  onClick,
+  children,
+}: {
+  active: boolean;
+  onClick: () => void;
+  children: React.ReactNode;
+}) {
+  return (
+    <button
+      type="button"
+      aria-pressed={active}
+      onClick={onClick}
+      className={cn(
+        "rounded-md px-2.5 py-1 text-xs transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+        active
+          ? "bg-primary text-primary-foreground"
+          : "text-muted-foreground hover:bg-muted hover:text-foreground",
+      )}
+    >
+      {children}
+    </button>
   );
 }
 
@@ -4153,7 +4595,7 @@ const StrategiesCard = React.memo(function StrategiesCard({
       const result = await runStrategyPromotion();
       toast({
         title: "策略晋升已执行",
-        description: `promoted=${result.promoted}, unchanged=${result.unchanged}, skipped=${result.skipped}, disabled=${result.disabled ?? 0}, stabilized=${result.stabilized ?? 0}`,
+        description: `晋升 ${result.promoted}，未变 ${result.unchanged}，跳过 ${result.skipped}，禁用 ${result.disabled ?? 0}，稳定 ${result.stabilized ?? 0}`,
       });
       onRefresh();
     } catch (err) {
@@ -4174,7 +4616,7 @@ const StrategiesCard = React.memo(function StrategiesCard({
       const result = await refreshStrategyStats();
       toast({
         title: "策略统计已刷新",
-        description: `refreshed=${result.refreshed}, deleted=${result.deleted}`,
+        description: `刷新 ${result.refreshed} 条，删除 ${result.deleted} 条过期统计。`,
       });
       onRefresh();
     } catch (err) {
@@ -4209,7 +4651,7 @@ const StrategiesCard = React.memo(function StrategiesCard({
               策略记忆
             </CardTitle>
             <CardDescription className="mt-1">
-              DB-backed 策略记忆、晋升信号和 reward usage 归因。
+              数据库里的策略记忆、晋升信号和使用归因。
             </CardDescription>
           </div>
           <div className="flex flex-wrap justify-end gap-2">
@@ -4220,17 +4662,17 @@ const StrategiesCard = React.memo(function StrategiesCard({
             )}
             {signalCount !== null && (
               <Badge variant="secondary" className="font-mono text-[10px]">
-                {signalCount} signals
+                {signalCount} 信号
               </Badge>
             )}
             {usageCount !== null && (
               <Badge variant="secondary" className="font-mono text-[10px]">
-                {usageCount} usages
+                {usageCount} 归因
               </Badge>
             )}
             {statCount !== null && (
               <Badge variant="secondary" className="font-mono text-[10px]">
-                {statCount} stats
+                {statCount} 统计
               </Badge>
             )}
           </div>
@@ -4239,9 +4681,9 @@ const StrategiesCard = React.memo(function StrategiesCard({
       <CardContent className="space-y-3">
         <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border bg-secondary/20 p-3">
           <div>
-            <p className="text-sm font-medium">自动晋升</p>
+            <p className="text-sm font-medium">晋升控制</p>
             <p className="text-xs text-muted-foreground">
-              聚合 observed signals，达标后生成 low-confidence active strategy。
+              聚合观察信号，达标后生成低置信启用策略。
             </p>
           </div>
           <div className="flex flex-wrap gap-2">
@@ -4271,10 +4713,17 @@ const StrategiesCard = React.memo(function StrategiesCard({
         {state.phase === "error" && <ErrorBox message={state.message} />}
         {state.phase === "ready" && state.data.strategies.length === 0 && (
           <p className="text-xs text-muted-foreground">
-            数据库中暂无 active 策略记忆。可以先导入 seed 或等待 signals 晋升。
+            数据库中暂无启用策略记忆。可以先导入种子策略，或等待观察信号晋升。
           </p>
         )}
         {state.phase === "ready" && state.data.strategies.length > 0 && (
+          <section className="space-y-2">
+            <div>
+              <p className="text-xs font-medium text-muted-foreground">当前策略</p>
+              <p className="mt-0.5 text-[11px] text-muted-foreground">
+                默认展示策略名、置信度、支持样本和全局使用归因。
+              </p>
+            </div>
           <ul className="space-y-2">
             {state.data.strategies.map((s) => {
               const strategyStats = s.id ? globalStatsByStrategy.get(s.id) : undefined;
@@ -4284,28 +4733,28 @@ const StrategiesCard = React.memo(function StrategiesCard({
                 className="rounded-lg border bg-card/50 p-3 text-sm"
               >
                 <div className="flex items-center justify-between gap-2">
-                  <div>
+                  <div className="min-w-0">
                     <span className="font-medium">{s.name || s.path}</span>
                     <div className="mt-1 flex flex-wrap gap-1.5">
                       {s.source && (
-                        <Badge variant="secondary" className="font-mono text-[10px]">
-                          {s.source}
+                        <Badge variant="secondary" className="text-[10px]">
+                          来源：{formatStrategySource(s.source)}
                         </Badge>
                       )}
                       {s.status && (
-                        <Badge variant="outline" className="font-mono text-[10px]">
-                          {s.status}
+                        <Badge variant="outline" className="text-[10px]">
+                          状态：{formatStrategyStatus(s.status)}
                         </Badge>
                       )}
                       {s.promotion_stage && (
-                        <Badge variant="outline" className="font-mono text-[10px]">
-                          {s.promotion_stage}
+                        <Badge variant="outline" className="text-[10px]">
+                          阶段：{formatPromotionStage(s.promotion_stage)}
                         </Badge>
                       )}
                     </div>
                   </div>
-                  <span className="font-mono text-[10px] text-muted-foreground">
-                    {s.id ?? s.path}
+                  <span className="max-w-[220px] truncate font-mono text-[10px] text-muted-foreground">
+                    {truncate(s.id ?? s.path)}
                   </span>
                 </div>
                 {s.description && (
@@ -4315,27 +4764,36 @@ const StrategiesCard = React.memo(function StrategiesCard({
                 )}
                 {s.quality_reason && (
                   <p className="mt-1 text-xs text-amber-500">
-                    quality: {s.quality_reason}
+                    质量说明：{s.quality_reason}
                   </p>
                 )}
                 <div className="mt-2 flex flex-wrap gap-3 text-[11px] text-muted-foreground">
-                  <span>confidence {formatMaybeNumber(s.confidence)}</span>
-                  <span>support {s.support_count ?? 0}</span>
+                  <span>置信度 {formatMaybeNumber(s.confidence)}</span>
+                  <span>支持样本 {s.support_count ?? 0}</span>
                   {strategyStats && (
                     <>
-                      <span>uses {strategyStats.uses}</span>
+                      <span>命中 {strategyStats.uses}</span>
                       <span>
-                        blended {formatMaybeNumber(strategyStats.avg_blended_reward)}
+                        综合奖励 {formatMaybeNumber(strategyStats.avg_blended_reward)}
                       </span>
                       <span>
-                        overrule {formatPercent(strategyStats.overrule_rate ?? 0)}
+                        被覆盖率 {formatPercent(strategyStats.overrule_rate ?? 0)}
                       </span>
                       {strategyStats.last_used_at && (
-                        <span>last {formatRelativeTime(strategyStats.last_used_at)}</span>
+                        <span>最近 {formatRelativeTime(strategyStats.last_used_at)}</span>
                       )}
                     </>
                   )}
-                  {s.memory_key && <span className="font-mono">{s.memory_key}</span>}
+                  {s.memory_key && (
+                    <details className="basis-full text-[11px]">
+                      <summary className="cursor-pointer text-muted-foreground">
+                        开发详情
+                      </summary>
+                      <div className="mt-1 truncate font-mono text-muted-foreground">
+                        memory_key: {s.memory_key}
+                      </div>
+                    </details>
+                  )}
                 </div>
                 <div className="mt-2 flex flex-wrap gap-1.5">
                   {s.dimensions.map((d) => (
@@ -4383,12 +4841,25 @@ const StrategiesCard = React.memo(function StrategiesCard({
               );
             })}
           </ul>
+          </section>
         )}
-        {signals.phase === "ready" && signals.data.signals.length > 0 && (
-          <div className="space-y-2 border-t border-border/40 pt-3">
+        <section className="space-y-2 border-t border-border/40 pt-3">
+          <div>
             <p className="text-xs font-medium text-muted-foreground">
-              最近 signals（失败类型 taxonomy 来自 PR1 evaluator 输出）
+              信号与使用归因
             </p>
+            <p className="mt-0.5 text-[11px] text-muted-foreground">
+              二级诊断：看最近晋升信号和策略被命中的轮次。
+            </p>
+          </div>
+          {signals.phase === "loading" && <LoadingList rows={2} />}
+          {signals.phase === "error" && <ErrorBox message={signals.message} />}
+          {signals.phase === "ready" && signals.data.signals.length === 0 && (
+            <p className="rounded-md border border-dashed bg-muted/10 px-3 py-2 text-xs text-muted-foreground">
+              暂无晋升信号，这不是错误。跑完更多面试后会积累失败类型和改进线索。
+            </p>
+          )}
+          {signals.phase === "ready" && signals.data.signals.length > 0 && (
             <ul className="space-y-1.5">
               {signals.data.signals.slice(0, 5).map((sig) => (
                 <li
@@ -4407,13 +4878,13 @@ const StrategiesCard = React.memo(function StrategiesCard({
                         {sig.job_level}
                       </Badge>
                     )}
-                    <span className="font-mono text-muted-foreground">
+                    <span className="min-w-0 truncate font-mono text-muted-foreground">
                       {sig.group_key}
                     </span>
                   </div>
                   {sig.failure_categories && sig.failure_categories.length > 0 && (
                     <div className="mt-1 flex flex-wrap gap-1">
-                      <span className="text-muted-foreground">failure:</span>
+                      <span className="text-muted-foreground">失败类型：</span>
                       {sig.failure_categories.map((cat) => (
                         <Badge
                           key={cat}
@@ -4428,12 +4899,67 @@ const StrategiesCard = React.memo(function StrategiesCard({
                 </li>
               ))}
             </ul>
-          </div>
-        )}
+          )}
+          {usages.phase === "ready" && usages.data.usages.length > 0 && (
+            <div className="space-y-1.5">
+              <p className="text-xs font-medium text-muted-foreground">
+                最近使用归因
+              </p>
+              <ul className="space-y-1.5">
+                {usages.data.usages.slice(0, 5).map((usage) => (
+                  <li
+                    key={usage.id}
+                    className="rounded-md border bg-card/30 p-2 text-[11px]"
+                  >
+                    <div className="flex flex-wrap items-center gap-1.5">
+                      <Badge variant="outline" className="font-mono text-[10px]">
+                        第 {usage.turn_idx} 轮
+                      </Badge>
+                      <Badge variant="secondary" className="font-mono text-[10px]">
+                        {usage.plan_template ?? "模板 -"}
+                      </Badge>
+                      <span className="min-w-0 truncate font-mono text-muted-foreground">
+                        {usage.strategy_id}
+                      </span>
+                    </div>
+                    <div className="mt-1 flex flex-wrap gap-3 text-muted-foreground">
+                      <span>评分 {formatMaybeNumber(usage.score)}</span>
+                      <span>即时奖励 {formatMaybeNumber(usage.immediate_reward)}</span>
+                      <span>延迟奖励 {formatMaybeNumber(usage.delayed_reward)}</span>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+        </section>
       </CardContent>
     </Card>
   );
 });
+
+function formatStrategySource(value?: string | null): string {
+  if (!value) return "未知";
+  if (value === "seed") return "种子";
+  if (value === "promoted") return "晋升";
+  return value;
+}
+
+function formatStrategyStatus(value?: string | null): string {
+  if (!value) return "未知";
+  if (value === "active") return "启用";
+  if (value === "disabled") return "禁用";
+  if (value === "archived") return "归档";
+  return value;
+}
+
+function formatPromotionStage(value?: string | null): string {
+  if (!value) return "未知";
+  if (value === "starter") return "起步";
+  if (value === "promotion_candidate") return "待晋升";
+  if (value === "stabilized") return "稳定";
+  return value;
+}
 
 // ---------------------------------------------------------------------------
 // Shared primitives

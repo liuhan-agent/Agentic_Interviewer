@@ -325,12 +325,18 @@ test("admin panel surfaces structured question bank controls", () => {
   assert.ok(api.includes("/admin/question-seeds/lint"));
 
   assert.match(panel, /QuestionBankCard/);
-  assert.match(panel, /shadow reranker pairwise review/);
-  assert.match(panel, /recent question reviews/);
-  assert.match(panel, /Strict lint/);
+  assert.match(panel, /QuestionBankFilters/);
+  assert.match(panel, /题库筛选/);
+  assert.match(panel, /二级诊断/);
+  assert.match(panel, /Shadow reranker/);
+  assert.match(panel, /最近评审/);
+  assert.match(panel, /严格检查/);
   assert.match(panel, /结构化题库/);
   assert.match(panel, /YAML 导入/);
-  assert.match(panel, /最近 question usage/);
+  assert.match(panel, /最近题目调用/);
+  assert.doesNotMatch(panel, /最近 question usage/);
+  assert.doesNotMatch(panel, /shadow reranker pairwise review/);
+  assert.doesNotMatch(panel, /recent question reviews/);
   assert.match(panel, /disableQuestionSeed/);
   assert.match(panel, /archiveQuestionVariant/);
 });
@@ -356,15 +362,71 @@ test("admin panel surfaces DB-backed skills playbook observability only", () => 
   assert.ok(api.includes("archive_missing=true"));
 
   assert.match(panel, /SkillsPlaybookCard/);
-  assert.match(panel, /Skills Playbook/);
-  assert.match(panel, /runtime_backend/);
-  assert.match(panel, /Import \+ archive missing/);
-  assert.match(panel, /body_markdown/);
-  assert.match(panel, /Generator moves/);
-  assert.match(panel, /Evaluator fields are staged for observation only/);
+  assert.match(panel, /技能打法库/);
+  assert.match(panel, /Markdown 导入/);
+  assert.match(panel, /导入并归档缺失/);
+  assert.match(panel, /生成器提示/);
+  assert.match(panel, /观察字段/);
+  assert.match(panel, /原文/);
+  assert.match(panel, /全部打法卡/);
+  assert.match(panel, /PlaybookDetailTab/);
+  assert.doesNotMatch(panel, /Skills Playbook/);
+  assert.doesNotMatch(panel, /runtime_backend=/);
+  assert.doesNotMatch(panel, /Import \+ archive missing/);
+  assert.doesNotMatch(panel, /full body_markdown/);
+  assert.doesNotMatch(panel, /Generator moves/);
+  assert.doesNotMatch(panel, /Evaluator fields are staged for observation only/);
+  assert.doesNotMatch(panel, /slice\(0, 12\)/);
   assert.match(panel, /<QuestionBankCard[\s\S]*<SkillsPlaybookCard[\s\S]*<StrategiesCard/);
   assert.doesNotMatch(panel, /disableSkillPlaybook/);
   assert.doesNotMatch(panel, /archiveSkillPlaybook/);
+});
+
+test("admin strategy tab is a one-column governance console", () => {
+  const panel = read("src/components/admin/AdminPanel.tsx");
+
+  assert.match(panel, /AdminStrategySection/);
+  assert.match(panel, /StrategyLearningOverview/);
+  assert.match(panel, /策略学习总览/);
+  assert.match(panel, /Bandit 后验/);
+  assert.match(panel, /题库资产/);
+  assert.match(panel, /技能打法/);
+  assert.match(panel, /策略记忆/);
+  assert.match(panel, /Top 后验策略/);
+  assert.match(panel, /开发详情/);
+  assert.match(panel, /原始后验参数/);
+  assert.match(panel, /晋升控制/);
+  assert.match(panel, /当前策略/);
+  assert.match(panel, /信号与使用归因/);
+  assert.match(panel, /最近使用归因/);
+  assert.match(panel, /暂无晋升信号/);
+  assert.match(panel, /formatBanditStrategyLabel/);
+  assert.match(panel, /启用 \/ 总数/);
+  assert.match(panel, /题目 \/ 变体/);
+  assert.match(panel, /策略记忆 \/ 归因/);
+  assert.match(panel, /严格检查/);
+  assert.match(panel, /置信度/);
+  assert.match(panel, /支持样本/);
+  assert.match(panel, /即时奖励/);
+  assert.doesNotMatch(
+    panel,
+    /<AdminTabPanel theme=\{ADMIN_TAB_THEMES\.strategy\}>\s*<BanditCard/,
+  );
+  assert.doesNotMatch(panel, />context::action<\/th>/);
+  assert.doesNotMatch(panel, />α<\/th>/);
+  assert.doesNotMatch(panel, />β<\/th>/);
+  assert.doesNotMatch(
+    panel,
+    /mt-0\.5 min-w-0 truncate font-mono text-\[10px\] text-muted-foreground">\s*\{r\.key\}/,
+  );
+  assert.doesNotMatch(panel, /active \/ total/);
+  assert.doesNotMatch(panel, /seed \/ variant/);
+  assert.doesNotMatch(panel, /策略记忆 \/ usage/);
+  assert.doesNotMatch(panel, /Strict lint/);
+  assert.doesNotMatch(panel, /confidence \{formatMaybeNumber/);
+  assert.doesNotMatch(panel, /support \{s\.support_count/);
+  assert.doesNotMatch(panel, /quality: \{s\.quality_reason\}/);
+  assert.doesNotMatch(panel, /failure:<\/span>/);
 });
 
 test("admin panel summarizes interview main-chain quality", () => {
@@ -452,26 +514,41 @@ test("admin rag section labels knowledge and session-anchor panels distinctly", 
   assert.match(anchorCard, /观察简历与自我介绍的切片、向量化和召回命中/);
   assert.match(anchorCard, /getSessionAnchorSessions/);
   assert.match(anchorCard, /一行是一场最近 24 小时创建的面试 session/);
-  assert.match(anchorCard, /资料覆盖来自 session_anchor_chunks/);
+  assert.match(anchorCard, /切片数来自 setup_snapshot/);
   assert.match(anchorCard, /召回表现来自 ask_question trace/);
+  assert.doesNotMatch(anchorCard, /资料覆盖来自 session_anchor_chunks/);
   assert.match(anchorCard, /最近 24h session/);
   assert.match(anchorCard, /有资料切片/);
   assert.match(anchorCard, /有召回命中/);
   assert.match(anchorCard, /有召回兜底/);
   assert.match(anchorCard, /Session/);
   assert.match(anchorCard, /候选人 \/ 岗位/);
-  assert.match(anchorCard, /资料覆盖/);
-  assert.match(anchorCard, /切片策略/);
-  assert.match(anchorCard, /切片数/);
-  assert.match(anchorCard, /召回尝试/);
-  assert.match(anchorCard, /命中次数/);
-  assert.match(anchorCard, /召回命中/);
-  assert.match(anchorCard, /延迟 p50 \/ p99/);
-  assert.match(anchorCard, /兜底原因/);
+  assert.match(anchorCard, /资料准备/);
+  assert.match(anchorCard, /召回表现/);
+  assert.match(anchorCard, /简历切片/);
+  assert.match(anchorCard, /自介切片/);
+  assert.match(anchorCard, /命中片段：/);
+  assert.match(anchorCard, /resume: "简历"/);
+  assert.match(anchorCard, /self_intro: "自我介绍"/);
+  assert.match(anchorCard, /function formatSourceHits[\s\S]*return "无";/);
+  assert.doesNotMatch(anchorCard, /简历命中/);
+  assert.doesNotMatch(anchorCard, /自介命中/);
   assert.match(anchorCard, /行级删除资料数据/);
+  assert.match(anchorCard, /SessionIdTooltip/);
   assert.match(anchorCard, /简历：项目结构切片/);
   assert.match(anchorCard, /自我介绍卡片/);
   assert.match(anchorCard, /deleteSessionAnchorData\(selectedSession\.session_id\)/);
+  assert.doesNotMatch(anchorCard, /复制 session id/);
+  assert.doesNotMatch(anchorCard, /handleCopySessionId/);
+  assert.doesNotMatch(anchorCard, /navigator\.clipboard/);
+  assert.doesNotMatch(anchorCard, /<th className="px-3 py-2 font-medium">资料覆盖<\/th>/);
+  assert.doesNotMatch(anchorCard, /<th className="px-3 py-2 font-medium">切片策略<\/th>/);
+  assert.doesNotMatch(anchorCard, /<th className="px-3 py-2 font-medium">切片数<\/th>/);
+  assert.doesNotMatch(anchorCard, /<th className="px-3 py-2 font-medium">召回轮次<\/th>/);
+  assert.doesNotMatch(anchorCard, /<th className="px-3 py-2 font-medium">命中轮次<\/th>/);
+  assert.doesNotMatch(anchorCard, /<th className="px-3 py-2 font-medium">轮次命中率<\/th>/);
+  assert.doesNotMatch(anchorCard, /<th className="px-3 py-2 font-medium">延迟 p50 \/ p99<\/th>/);
+  assert.doesNotMatch(anchorCard, /<th className="px-3 py-2 font-medium">兜底原因<\/th>/);
   assert.doesNotMatch(anchorCard, /TableGroupRow/);
   assert.doesNotMatch(anchorCard, /资料库覆盖/);
   assert.doesNotMatch(anchorCard, /最近 24h 召回表现/);
@@ -514,9 +591,10 @@ test("admin tabs own every module below the tab switcher", () => {
   const panel = read("src/components/admin/AdminPanel.tsx");
 
   assert.equal(nearestActiveTabBefore(panel, "<RecentTracesByNode"), "health");
-  assert.equal(nearestActiveTabBefore(panel, "<QuestionBankCard"), "strategy");
-  assert.equal(nearestActiveTabBefore(panel, "<SkillsPlaybookCard"), "strategy");
-  assert.equal(nearestActiveTabBefore(panel, "<StrategiesCard"), "strategy");
+  assert.equal(nearestActiveTabBefore(panel, "<AdminStrategySection"), "strategy");
+  assert.match(panel, /function AdminStrategySection[\s\S]*<QuestionBankCard/);
+  assert.match(panel, /function AdminStrategySection[\s\S]*<SkillsPlaybookCard/);
+  assert.match(panel, /function AdminStrategySection[\s\S]*<StrategiesCard/);
 });
 
 test("admin tabs carry distinct theme colors into their content panels", () => {
@@ -532,6 +610,23 @@ test("admin tabs carry distinct theme colors into their content panels", () => {
   assert.match(panel, /--admin-tab-rail/);
   assert.match(panel, /theme\.tabActive/);
   assert.match(panel, /theme\.iconActive/);
+});
+
+test("admin tabs persist the last selected section across reloads", () => {
+  const panel = read("src/components/admin/AdminPanel.tsx");
+
+  assert.match(panel, /ADMIN_ACTIVE_TAB_STORAGE_KEY/);
+  assert.match(panel, /agentic-interviewer:admin-active-tab/);
+  assert.match(panel, /function isAdminTabId/);
+  assert.match(panel, /function loadStoredAdminTab/);
+  assert.match(panel, /window\.localStorage\.getItem\(ADMIN_ACTIVE_TAB_STORAGE_KEY\)/);
+  assert.match(panel, /useState<AdminTabId>\("health"\)/);
+  assert.match(panel, /const storedTab = loadStoredAdminTab\(\)/);
+  assert.match(panel, /setActiveTab\(storedTab\)/);
+  assert.match(panel, /function handleTabChange\(tab: AdminTabId\)/);
+  assert.match(panel, /window\.localStorage\.setItem\(ADMIN_ACTIVE_TAB_STORAGE_KEY, tab\)/);
+  assert.match(panel, /onClick=\{\(\) => handleTabChange\(theme\.id\)\}/);
+  assert.doesNotMatch(panel, /onClick=\{\(\) => setActiveTab\(theme\.id\)\}/);
 });
 
 test("admin token controls are folded into settings with helper copy", () => {
