@@ -99,8 +99,25 @@ def test_promote_strategy_signals_creates_low_confidence_active_strategy_from_qa
     assert memory.recommended_probe_intent == "metric_probe"
     assert memory.support_count == 30
     assert memory.confidence == 0.35
-    assert "30 sessions" in memory.body_markdown
-    assert "Average QA score delta: 3.50." in memory.body_markdown
+    assert "## 适用场景" in memory.body_markdown
+    assert "## 推荐动作" in memory.body_markdown
+    assert "## 使用方式" in memory.body_markdown
+    assert "## 证据" in memory.body_markdown
+    assert "## 使用边界" in memory.body_markdown
+    assert "- 维度：`system_design`" in memory.body_markdown
+    assert "- 级别：`senior`" in memory.body_markdown
+    assert "- 失败类型：`missing_metrics`" in memory.body_markdown
+    assert "- 信号类型：`score_recovery`" in memory.body_markdown
+    assert "- action：`plan_hint`" in memory.body_markdown
+    assert "- probe_intent：`metric_probe`" in memory.body_markdown
+    assert "- 支持 session：30" in memory.body_markdown
+    assert "- 平均后验分：8.50" in memory.body_markdown
+    assert "- 平均分数提升：3.50" in memory.body_markdown
+    assert "- Verifier 否决率：0%" in memory.body_markdown
+    assert "- 晋升阶段：`low_confidence`" in memory.body_markdown
+    assert "同维度、同级别、相似失败类型" in memory.body_markdown
+    assert "只在相近上下文使用" in memory.body_markdown
+    assert "Average QA score delta" not in memory.body_markdown
     assert "Average immediate reward" not in memory.body_markdown
 
     assert {signal.status for signal in signals} == {"promoted"}
@@ -158,7 +175,12 @@ def test_qa_hint_effective_promotes_without_score_delta() -> None:
     assert memory is not None
     assert memory.recommended_action == "plan_hint"
     assert memory.recommended_plan_template == "plan_hint"
-    assert "Average hint score: 7.20." in memory.body_markdown
+    assert "## 证据" in memory.body_markdown
+    assert "- 信号类型：`hint_effective`" in memory.body_markdown
+    assert "- action：`plan_hint`" in memory.body_markdown
+    assert "- 平均 hint 后得分：7.20" in memory.body_markdown
+    assert "平均 reward" not in memory.body_markdown
+    assert "平均分数提升" not in memory.body_markdown
 
 
 def test_promoted_strategy_memory_canonicalizes_legacy_signal_action() -> None:
@@ -233,8 +255,15 @@ def test_high_reward_bandit_promotes_without_post_score() -> None:
     assert memory is not None
     assert memory.promotion_stage == "low_confidence"
     assert memory.confidence > 0.35
-    assert "Average immediate reward: 0.74." in memory.body_markdown
-    assert "Average post-signal score" not in memory.body_markdown
+    assert "## 适用场景" in memory.body_markdown
+    assert "## 推荐动作" in memory.body_markdown
+    assert "## 证据" in memory.body_markdown
+    assert "- group_key：`bandit:high_reward_arm:senior:system_design:plan_deep_probe`" in memory.body_markdown
+    assert "- action：`plan_deep_probe`" in memory.body_markdown
+    assert "- 平均 reward：0.74" in memory.body_markdown
+    assert "- 晋升阶段：`low_confidence`" in memory.body_markdown
+    assert "平均后验分" not in memory.body_markdown
+    assert "平均分数提升" not in memory.body_markdown
 
 
 def test_negative_low_reward_bandit_signal_is_not_promoted() -> None:
