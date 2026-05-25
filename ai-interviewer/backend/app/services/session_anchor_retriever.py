@@ -144,6 +144,15 @@ class CandidateAnchorRagResult:
     ranking_weights: dict[str, float] = field(default_factory=dict)
 
     def as_artifact(self, *, mode: str) -> dict[str, Any]:
+        resume_block = (self.resume_block or "").strip()
+        self_intro_block = (self.self_intro_block or "").strip()
+        prompt_injected = mode == "primary" and bool(
+            resume_block or self_intro_block
+        )
+        prompt_source_counts = {
+            "resume": 1 if prompt_injected and resume_block else 0,
+            "self_intro": 1 if prompt_injected and self_intro_block else 0,
+        }
         return {
             "status": mode,
             "skipped": self.skipped,
@@ -164,6 +173,16 @@ class CandidateAnchorRagResult:
             "resume_hit_count": sum(1 for hit in self.hits if hit.source_type == "resume"),
             "self_intro_hit_count": sum(
                 1 for hit in self.hits if hit.source_type == "self_intro"
+            ),
+            "prompt_injected": prompt_injected,
+            "prompt_block_sources": [
+                source for source, count in prompt_source_counts.items() if count > 0
+            ],
+            "prompt_source_counts": {
+                source: count for source, count in prompt_source_counts.items() if count > 0
+            },
+            "prompt_block_chars": (
+                len(resume_block) + len(self_intro_block) if prompt_injected else 0
             ),
         }
 
