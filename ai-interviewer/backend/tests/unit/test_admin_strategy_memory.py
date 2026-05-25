@@ -22,6 +22,9 @@ from app.models.strategy_memory import (
 
 
 def _client(session_factory) -> TestClient:
+    from app.tasks.strategy_promotion_tasks import reset_strategy_promotion_state
+
+    reset_strategy_promotion_state()
     app = FastAPI()
     app.include_router(admin_api.router)
     app.include_router(admin_api.api_v1_router)
@@ -115,7 +118,8 @@ def test_admin_strategies_include_db_metadata_and_status_actions() -> None:
 
     listed = client.get("/admin/strategies")
     assert listed.status_code == 200
-    strategy = listed.json()["strategies"][0]
+    payload = listed.json()
+    strategy = payload["strategies"][0]
     assert strategy["id"] == "seed:senior_system_design"
     assert strategy["source"] == "seed"
     assert strategy["status"] == "active"
@@ -128,7 +132,25 @@ def test_admin_strategies_include_db_metadata_and_status_actions() -> None:
     assert strategy["recommended_probe_intent"] == "deep_probe"
     assert strategy["failure_categories"] == ["missing_metrics"]
     assert strategy["body_markdown"] == "Body"
-    assert listed.json()["ranking_mode"] == "metadata"
+    assert payload["ranking_mode"] == "metadata"
+    scheduler = payload["scheduler"]
+    assert set(scheduler.keys()) >= {
+        "enabled",
+        "running",
+        "interval_minutes",
+        "startup_delay_minutes",
+        "next_run_at",
+        "last_run_at",
+        "last_run_kind",
+        "last_result",
+        "last_error",
+        "last_error_at",
+    }
+    assert scheduler["enabled"] is False
+    assert scheduler["running"] is False
+    assert scheduler["next_run_at"] is None
+    assert scheduler["last_run_at"] is None
+    assert scheduler["last_result"] is None
 
     disabled = client.post("/admin/strategies/seed%3Asenior_system_design/disable")
     assert disabled.status_code == 200

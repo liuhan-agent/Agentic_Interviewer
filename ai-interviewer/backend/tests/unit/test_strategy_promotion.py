@@ -371,7 +371,7 @@ def test_run_strategy_promotion_now_wraps_service(monkeypatch) -> None:
 def test_strategy_promotion_scheduler_settings_default_disabled() -> None:
     from app.core.settings import Settings
 
-    settings = Settings()
+    settings = Settings(_env_file=None)
 
     assert settings.enable_strategy_promotion_scheduler is False
     assert settings.strategy_promotion_interval_minutes == 60
@@ -418,7 +418,7 @@ def test_strategy_promotion_scheduler_tick_logs_success(monkeypatch) -> None:
     monkeypatch.setattr(
         tasks,
         "run_strategy_promotion_now",
-        lambda: calls.append("run") or result,
+        lambda *, kind="manual": calls.append(kind) or result,
     )
     monkeypatch.setattr(
         tasks.log,
@@ -427,7 +427,7 @@ def test_strategy_promotion_scheduler_tick_logs_success(monkeypatch) -> None:
     )
 
     assert tasks._run_strategy_promotion_tick() == result
-    assert calls == ["run"]
+    assert calls == ["scheduled"]
     assert logs == [("strategy promotion tick completed: %s", result)]
 
 
@@ -438,7 +438,7 @@ def test_strategy_promotion_scheduler_tick_swallows_and_logs_errors(
 
     logs: list[str] = []
 
-    def fail() -> dict[str, int]:
+    def fail(*, kind: str = "manual") -> dict[str, int]:
         raise RuntimeError("boom")
 
     monkeypatch.setattr(tasks, "run_strategy_promotion_now", fail)
@@ -450,3 +450,109 @@ def test_strategy_promotion_scheduler_tick_swallows_and_logs_errors(
 
     assert tasks._run_strategy_promotion_tick() is None
     assert logs == ["strategy promotion tick failed"]
+
+
+def test_strategy_promotion_state_tracks_success_and_failure(monkeypatch) -> None:
+    """``run_strategy_promotion_now`` must update the in-process snapshot."""
+    from contextlib import contextmanager
+
+    from app.tasks import strategy_promotion_tasks as tasks
+
+    tasks.reset_strategy_promotion_state()
+
+    @contextmanager
+    def _session_ctx():
+        yield object()
+
+    class _FakeStats:
+        refreshed = 3
+        deleted = 0
+
+    monkeypatch.setattr(tasks, "get_session", _session_ctx)
+    monkeypatch.setattr(
+        tasks,
+        "refresh_strategy_memory_stats",
+        lambda *, session: _FakeStats(),
+    )
+    monkeypatch.setattr(
+        tasks,
+        "promote_strategy_signals",
+        lambda *, session: StrategyPromotionResult(
+            promoted=2, unchanged=1, skipped=0
+        ),
+    )
+    monkeypatch.setattr(
+        tasks,
+        "apply_strategy_quality_transitions",
+        lambda *, session: StrategyPromotionResult(
+            unchanged=4, skipped=1, disabled=0, stabilized=1
+        ),
+    )
+
+    result = tasks.run_strategy_promotion_now(kind="manual")
+
+    snapshot = tasks.get_strategy_promotion_state()
+    assert result["promoted"] == 2
+    assert result["unchanged"] == 1 + 4
+    assert result["disabled"] == 0
+    assert result["stabilized"] == 1
+    assert snapshot.last_run_kind == "manual"
+    assert snapshot.last_run_at is not None
+    assert snapshot.last_result == result
+    assert snapshot.last_error is None
+
+    last_success_at = snapshot.last_run_at
+
+    def _explode(*, session) -> None:
+        raise RuntimeError("kaboom")
+
+    monkeypatch.setattr(tasks, "refresh_strategy_memory_stats", _explode)
+    try:
+        tasks.run_strategy_promotion_now(kind="scheduled")
+    except RuntimeError:
+        pass
+    else:
+        raise AssertionError("expected RuntimeError to bubble up")
+
+    after = tasks.get_strategy_promotion_state()
+    assert after.last_error == "kaboom"
+    assert after.last_error_at is not None
+    assert after.last_run_kind == "manual"
+    assert after.last_run_at == last_success_at
+
+    tasks.reset_strategy_promotion_state()
+
+
+def test_start_strategy_promotion_scheduler_marks_state_running(monkeypatch) -> None:
+    """Starting the scheduler flips ``enabled`` and records the interval."""
+    from app.tasks import strategy_promotion_tasks as tasks
+
+    tasks.reset_strategy_promotion_state()
+
+    class _DummyScheduler:
+        def __init__(self) -> None:
+            self.add_job_calls: list[dict] = []
+            self.started = False
+
+        def add_job(self, *args, **kwargs) -> None:
+            self.add_job_calls.append(kwargs)
+
+        def start(self) -> None:
+            self.started = True
+
+    dummy = _DummyScheduler()
+    monkeypatch.setattr(tasks, "BackgroundScheduler", lambda daemon=True: dummy)
+
+    returned = tasks.start_strategy_promotion_scheduler(
+        interval_minutes=15, startup_delay_minutes=2
+    )
+    assert returned is dummy
+    assert dummy.started is True
+    assert dummy.add_job_calls[0]["id"] == tasks.SCHEDULER_JOB_ID
+
+    snapshot = tasks.get_strategy_promotion_state()
+    assert snapshot.enabled is True
+    assert snapshot.interval_minutes == 15
+    assert snapshot.startup_delay_minutes == 2
+
+    tasks.reset_strategy_promotion_state()
