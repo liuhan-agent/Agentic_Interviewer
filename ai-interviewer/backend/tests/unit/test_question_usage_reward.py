@@ -147,3 +147,94 @@ def test_reward_update_backfills_only_structured_primary_injected_rank_one(
     assert usages["usage-primary-shadow-rank2"].immediate_reward is None
     assert usages["usage-shadow-rank1"].score is None
     assert usages["usage-shadow-rank1"].immediate_reward is None
+
+
+def test_reward_update_backfills_question_usage_by_formal_turn_idx(
+    monkeypatch,
+) -> None:
+    from app.engine.workflow.nodes import reward_update as reward_update_mod
+
+    engine = create_engine("sqlite:///:memory:", future=True)
+    Base.metadata.create_all(engine)
+    session_local = sessionmaker(bind=engine, expire_on_commit=False, autoflush=False)
+
+    variant_id = "technical_depth.java_transaction_consistency.order_payment_boundary"
+    with session_local() as sess:
+        sess.add(
+            QuestionUsage(
+                id="usage-formal-turn-zero",
+                session_id="sess-formal-turn",
+                turn_idx=0,
+                trace_id="trace-formal-turn",
+                seed_id="technical_depth.java_transaction_consistency",
+                variant_id=variant_id,
+                seed_version=1,
+                variant_version=1,
+                rank=1,
+                match_score=42.0,
+                match_reasons=["priority:30"],
+                injected=True,
+                question_selector_mode="structured_primary",
+            )
+        )
+        sess.commit()
+
+    @contextmanager
+    def get_session():
+        with session_local() as sess:
+            yield sess
+            sess.commit()
+
+    class _Bandit:
+        def update(self, *_args: Any, **_kwargs: Any) -> None:
+            return None
+
+    class _Tracer:
+        def trace_node_event(self, *_args: Any, **_kwargs: Any) -> None:
+            return None
+
+    monkeypatch.setattr(reward_update_mod, "immediate_reward", lambda **_kwargs: 0.84)
+    monkeypatch.setattr(reward_update_mod, "get_bandit", lambda: _Bandit())
+    monkeypatch.setattr(reward_update_mod, "get_tracer", lambda: _Tracer())
+    monkeypatch.setattr(reward_update_mod, "get_session", get_session)
+
+    state = {
+        "session_id": "sess-formal-turn",
+        "trace_id": "trace-formal-turn",
+        # The evaluator increments workflow turn_idx before reward_update.
+        "turn_idx": 2,
+        # question_usages and interview turn facts use zero-based formal turns.
+        "formal_turn_idx": 1,
+        "current_dimension": "technical_depth",
+        "current_question": {
+            "question": "请说明订单支付边界。",
+            "dimension": "technical_depth",
+            "selection_artifacts": {
+                "question_items": [
+                    {
+                        "seed_id": "technical_depth.java_transaction_consistency",
+                        "variant_id": variant_id,
+                        "rank": 1,
+                        "injected": True,
+                        "question_selector_mode": "structured_primary",
+                    }
+                ]
+            },
+        },
+        "evaluation": {"score": 8.5, "passed": True},
+        "selected_action": {
+            "id": "plan_adaptive",
+            "policy_context_keys": ["junior:technical_depth"],
+        },
+        "job_spec": {"level": "junior"},
+    }
+
+    reward_update_mod.reward_update_node(state)  # type: ignore[arg-type]
+
+    with session_local() as sess:
+        usage = sess.get(QuestionUsage, "usage-formal-turn-zero")
+
+    assert usage is not None
+    assert usage.score == 8.5
+    assert usage.passed is True
+    assert usage.immediate_reward == 0.84
