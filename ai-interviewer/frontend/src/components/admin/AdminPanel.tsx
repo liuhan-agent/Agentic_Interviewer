@@ -96,6 +96,7 @@ import {
   type SkillPlaybookDetail,
   type SkillPlaybooks,
   type Strategies,
+  type StrategyPromotionSchedulerStatus,
   type StrategySignalGroup,
   type StrategySignals,
   type StrategyStats,
@@ -5972,6 +5973,8 @@ const StrategiesCard = React.memo(function StrategiesCard({
   const usageCount = usages.phase === "ready" ? usages.data.count : null;
   const statCount = stats.phase === "ready" ? stats.data.count : null;
   const strategies = state.phase === "ready" ? state.data.strategies : [];
+  const schedulerStatus: StrategyPromotionSchedulerStatus | null =
+    state.phase === "ready" ? state.data.scheduler ?? null : null;
   const activeStrategies = strategies.filter((s) => s.status === "active");
   const usageRows = usages.phase === "ready" ? usages.data.usages : [];
   const recent24hUsageCount =
@@ -6039,7 +6042,7 @@ const StrategiesCard = React.memo(function StrategiesCard({
         </div>
       </CardHeader>
       <CardContent className="space-y-5">
-        <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-5">
+        <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
           <StrategyMemoryStatusTile
             label="启用策略"
             value={
@@ -6080,6 +6083,12 @@ const StrategiesCard = React.memo(function StrategiesCard({
                 : "—"
             }
             note="打开模块时会自动补齐过期统计。"
+          />
+          <StrategyMemoryStatusTile
+            label="自动晋升"
+            value={formatSchedulerTileValue(schedulerStatus)}
+            note={formatSchedulerTileNote(schedulerStatus)}
+            tone={schedulerStatus?.last_error ? "warn" : "default"}
           />
         </div>
 
@@ -6459,12 +6468,44 @@ const StrategiesCard = React.memo(function StrategiesCard({
               disabled={busy !== null}
             >
               {busy === "promotion" && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
-              运行晋升
+              立即运行一次
             </Button>
             <span className="text-[11px] text-muted-foreground">
-              手动刷新只用于立即同步最新 usage，不会运行晋升；运行晋升需要单独触发。
+              手动刷新只用于立即同步最新 usage，不会运行晋升；自动晋升状态见上方 tile。
             </span>
           </div>
+          {schedulerStatus?.last_result && (
+            <div className="mt-3 rounded-md border bg-background/50 px-2.5 py-2 text-[11px] text-muted-foreground">
+              <p className="font-medium text-foreground">
+                上次{" "}
+                {schedulerStatus.last_run_kind === "manual" ? "手动" : "自动"}{" "}
+                晋升结果
+                {schedulerStatus.last_run_at
+                  ? ` · ${formatRelativeTime(schedulerStatus.last_run_at)}`
+                  : ""}
+              </p>
+              <p className="mt-1 font-mono">
+                晋升 {schedulerStatus.last_result.promoted ?? 0} ·
+                未变 {schedulerStatus.last_result.unchanged ?? 0} ·
+                跳过 {schedulerStatus.last_result.skipped ?? 0} ·
+                禁用 {schedulerStatus.last_result.disabled ?? 0} ·
+                稳定 {schedulerStatus.last_result.stabilized ?? 0}
+              </p>
+            </div>
+          )}
+          {schedulerStatus?.last_error && (
+            <div className="mt-3 rounded-md border border-amber-500/40 bg-amber-500/10 px-2.5 py-2 text-[11px] text-amber-500">
+              <p className="font-medium">
+                上次失败
+                {schedulerStatus.last_error_at
+                  ? ` · ${formatRelativeTime(schedulerStatus.last_error_at)}`
+                  : ""}
+              </p>
+              <p className="mt-1 font-mono break-all">
+                {schedulerStatus.last_error}
+              </p>
+            </div>
+          )}
         </details>
       </CardContent>
     </Card>
@@ -6475,15 +6516,29 @@ function StrategyMemoryStatusTile({
   label,
   value,
   note,
+  tone = "default",
 }: {
   label: string;
   value: string;
   note: string;
+  tone?: "default" | "warn";
 }) {
   return (
-    <div className="rounded-md border bg-muted/10 p-3">
+    <div
+      className={cn(
+        "rounded-md border p-3",
+        tone === "warn"
+          ? "border-amber-500/40 bg-amber-500/5"
+          : "bg-muted/10",
+      )}
+    >
       <p className="text-[11px] font-medium text-muted-foreground">{label}</p>
-      <p className="mt-1 font-mono text-lg font-semibold tabular-nums text-foreground">
+      <p
+        className={cn(
+          "mt-1 font-mono text-lg font-semibold tabular-nums",
+          tone === "warn" ? "text-amber-500" : "text-foreground",
+        )}
+      >
         {value}
       </p>
       <p className="mt-1 text-[11px] leading-relaxed text-muted-foreground">
@@ -6491,6 +6546,54 @@ function StrategyMemoryStatusTile({
       </p>
     </div>
   );
+}
+
+function formatSchedulerTileValue(
+  status: StrategyPromotionSchedulerStatus | null,
+): string {
+  if (!status) return "—";
+  if (!status.enabled) return "已关闭";
+  if (status.interval_minutes > 0) return `每 ${status.interval_minutes} 分钟`;
+  return "已开启";
+}
+
+function formatSchedulerTileNote(
+  status: StrategyPromotionSchedulerStatus | null,
+): string {
+  if (!status) {
+    return "打开模块后会同步 scheduler 状态。";
+  }
+  if (!status.enabled) {
+    return "在 settings 里打开 enable_strategy_promotion_scheduler 后生效。";
+  }
+  const parts: string[] = [];
+  if (status.last_run_at) {
+    const kind = status.last_run_kind === "manual" ? "手动" : "自动";
+    parts.push(`上次${kind} ${formatRelativeTime(status.last_run_at)}`);
+  } else {
+    parts.push("尚未跑过");
+  }
+  if (status.next_run_at) {
+    parts.push(`下次 ${formatNextRunIn(status.next_run_at)}`);
+  }
+  if (status.last_error) {
+    parts.push(`上次失败：${status.last_error}`);
+  }
+  return parts.join(" · ");
+}
+
+function formatNextRunIn(iso: string): string {
+  const time = Date.parse(iso);
+  if (!Number.isFinite(time)) return "—";
+  const diffMs = time - Date.now();
+  if (diffMs <= 0) return "即将运行";
+  const minute = 60_000;
+  const hour = 60 * minute;
+  const day = 24 * hour;
+  if (diffMs < minute) return "1 分钟内";
+  if (diffMs < hour) return `${Math.floor(diffMs / minute)} 分钟后`;
+  if (diffMs < day) return `${Math.floor(diffMs / hour)} 小时后`;
+  return `${Math.floor(diffMs / day)} 天后`;
 }
 
 function StrategyMemoryInlineMetric({
