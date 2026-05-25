@@ -1308,6 +1308,10 @@ export interface SessionAnchorSessionRow {
   hit_rate: number;
   source_hit_counts: Record<string, number>;
   avg_hits_per_attempt: number;
+  prompt_injected_turns?: number;
+  retrieved_not_injected_turns?: number;
+  prompt_source_counts?: Record<string, number>;
+  prompt_block_chars?: number;
   fallback_count: number;
   fallback_reasons: Record<string, number>;
   latency_ms: {
@@ -1330,6 +1334,10 @@ export interface SessionAnchorSessionsResponse {
     hit_session_rate: number;
     fallback_sessions: number;
     fallback_session_rate: number;
+    prompt_injected_sessions?: number;
+    prompt_injected_session_rate?: number;
+    prompt_injected_turns?: number;
+    retrieved_not_injected_turns?: number;
   };
   sessions: SessionAnchorSessionRow[];
 }
