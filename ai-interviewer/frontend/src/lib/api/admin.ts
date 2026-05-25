@@ -233,9 +233,29 @@ export interface Strategy {
   recommended_probe_intent?: string | null;
 }
 
+export interface StrategyPromotionSchedulerStatus {
+  enabled: boolean;
+  running: boolean;
+  interval_minutes: number;
+  startup_delay_minutes: number;
+  next_run_at: string | null;
+  last_run_at: string | null;
+  last_run_kind: "scheduled" | "manual" | null;
+  last_result: {
+    promoted?: number;
+    unchanged?: number;
+    skipped?: number;
+    disabled?: number;
+    stabilized?: number;
+  } | null;
+  last_error: string | null;
+  last_error_at: string | null;
+}
+
 export interface Strategies {
   count: number;
   ranking_mode?: string;
+  scheduler?: StrategyPromotionSchedulerStatus;
   strategies: Strategy[];
 }
 
