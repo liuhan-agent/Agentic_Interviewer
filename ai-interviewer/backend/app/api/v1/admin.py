@@ -3144,6 +3144,7 @@ def list_strategies_route() -> dict[str, Any]:
     """Return strategy memory entries across all admin-visible statuses."""
     from app.models.strategy_memory import StrategyMemory
 
+    settings = get_settings()
     with get_session() as sess:
         entries = (
             sess.query(StrategyMemory)
@@ -3152,6 +3153,7 @@ def list_strategies_route() -> dict[str, Any]:
         )
     return {
         "count": len(entries),
+        "ranking_mode": getattr(settings, "strategy_memory_ranking_mode", "metadata"),
         "strategies": [
             {
                 "id": row.id,
@@ -3161,13 +3163,19 @@ def list_strategies_route() -> dict[str, Any]:
                 "name": row.name,
                 "dimensions": list(row.dimensions or []),
                 "job_levels": list(row.job_levels or []),
+                "failure_categories": list(row.failure_categories or []),
                 "description": (row.description or "")[:200],
+                "body_markdown": row.body_markdown or "",
                 "source": row.source,
                 "status": row.status,
                 "quality_reason": row.quality_reason,
                 "promotion_stage": row.promotion_stage,
                 "confidence": row.confidence,
                 "support_count": row.support_count,
+                "priority": row.priority,
+                "recommended_action": row.recommended_action,
+                "recommended_plan_template": row.recommended_plan_template,
+                "recommended_probe_intent": row.recommended_probe_intent,
             }
             for row in entries
         ],
@@ -3195,6 +3203,140 @@ def archive_strategy(strategy_id: str) -> dict[str, str]:
     return _set_strategy_status(strategy_id, "archived")
 
 
+def _avg_optional(values: list[float | None]) -> float | None:
+    numeric = [float(value) for value in values if value is not None]
+    if not numeric:
+        return None
+    return sum(numeric) / len(numeric)
+
+
+def _signal_group_payload(rows: list[Any]) -> list[dict[str, Any]]:
+    grouped: dict[str, list[Any]] = {}
+    for row in rows:
+        grouped.setdefault(str(row.group_key or ""), []).append(row)
+
+    groups = [_strategy_signal_group_payload(items) for items in grouped.values()]
+    groups.sort(key=lambda item: item.get("latest_at") or "", reverse=True)
+    return groups
+
+
+def _strategy_signal_group_payload(rows: list[Any]) -> dict[str, Any]:
+    from app.services.strategy_promotion import LOW_CONFIDENCE_MIN_SESSIONS
+
+    first = rows[0]
+    session_ids = {
+        str(row.session_id)
+        for row in rows
+        if str(getattr(row, "session_id", "") or "").strip()
+    }
+    status_counts: dict[str, int] = {}
+    overruled = 0
+    for row in rows:
+        status = str(row.status or "unknown")
+        status_counts[status] = status_counts.get(status, 0) + 1
+        if bool(row.verifier_overruled):
+            overruled += 1
+    latest_at = max((row.created_at for row in rows if row.created_at), default=None)
+    avg_reward = _avg_optional([row.immediate_reward for row in rows])
+    avg_score_after = _avg_optional([row.score_after for row in rows])
+    avg_score_delta = _avg_optional([row.score_delta for row in rows])
+    overrule_rate = overruled / len(rows) if rows else 0.0
+    distinct_sessions = len(session_ids)
+    readiness = _strategy_signal_readiness(
+        signal_type=str(first.signal_type or ""),
+        distinct_sessions=distinct_sessions,
+        avg_immediate_reward=avg_reward,
+        avg_score_after=avg_score_after,
+        avg_score_delta=avg_score_delta,
+        overrule_rate=overrule_rate,
+    )
+    return {
+        "group_key": first.group_key,
+        "signal_type": first.signal_type,
+        "dimension": first.dimension,
+        "job_level": first.job_level,
+        "action_id": first.action_id,
+        "plan_template": first.plan_template,
+        "probe_intent": first.probe_intent,
+        "failure_categories": _merge_ordered_lists(
+            row.failure_categories or [] for row in rows
+        ),
+        "signal_count": len(rows),
+        "distinct_sessions": distinct_sessions,
+        "support_gap": max(0, LOW_CONFIDENCE_MIN_SESSIONS - distinct_sessions),
+        "avg_immediate_reward": avg_reward,
+        "avg_score_after": avg_score_after,
+        "avg_score_delta": avg_score_delta,
+        "overrule_rate": overrule_rate,
+        "status_counts": status_counts,
+        "promotion_readiness": readiness,
+        "latest_at": latest_at.isoformat() if latest_at else None,
+    }
+
+
+def _merge_ordered_lists(items: Any) -> list[str]:
+    out: list[str] = []
+    for values in items:
+        for item in values:
+            text = str(item or "").strip()
+            if text and text not in out:
+                out.append(text)
+    return out
+
+
+def _strategy_signal_readiness(
+    *,
+    signal_type: str,
+    distinct_sessions: int,
+    avg_immediate_reward: float | None,
+    avg_score_after: float | None,
+    avg_score_delta: float | None,
+    overrule_rate: float,
+) -> str:
+    from app.services.strategy_promotion import (
+        LOW_CONFIDENCE_MAX_OVERRULE_RATE,
+        LOW_CONFIDENCE_MIN_REWARD,
+        LOW_CONFIDENCE_MIN_SCORE,
+        LOW_CONFIDENCE_MIN_SCORE_DELTA,
+        LOW_CONFIDENCE_MIN_SESSIONS,
+        STABLE_MAX_OVERRULE_RATE,
+        STABLE_MIN_REWARD,
+        STABLE_MIN_SESSIONS,
+    )
+
+    if signal_type in {"score_decline", "low_reward_arm"}:
+        return "diagnostic_only"
+    if distinct_sessions < LOW_CONFIDENCE_MIN_SESSIONS:
+        return "needs_more_sessions"
+    if overrule_rate > LOW_CONFIDENCE_MAX_OVERRULE_RATE:
+        return "blocked_by_overrule"
+
+    score_after = float(avg_score_after or 0.0)
+    score_delta = float(avg_score_delta or 0.0)
+    reward = float(avg_immediate_reward or 0.0)
+    qa_ready = (
+        signal_type == "score_recovery"
+        and score_after >= LOW_CONFIDENCE_MIN_SCORE
+        and score_delta >= LOW_CONFIDENCE_MIN_SCORE_DELTA
+    ) or (
+        signal_type == "hint_effective"
+        and score_after >= LOW_CONFIDENCE_MIN_SCORE
+    )
+    bandit_ready = (
+        signal_type == "high_reward_arm"
+        and reward >= LOW_CONFIDENCE_MIN_REWARD
+    )
+    if not (qa_ready or bandit_ready):
+        return "weak_evidence"
+    if (
+        distinct_sessions >= STABLE_MIN_SESSIONS
+        and overrule_rate <= STABLE_MAX_OVERRULE_RATE
+        and (qa_ready or reward >= STABLE_MIN_REWARD)
+    ):
+        return "ready_stable"
+    return "ready_low_confidence"
+
+
 @router.get("/strategy-signals", dependencies=[Depends(require_admin_token)])
 def list_strategy_signals(limit: int = 100) -> dict[str, Any]:
     from app.models.strategy_memory import StrategySignal
@@ -3209,6 +3351,7 @@ def list_strategy_signals(limit: int = 100) -> dict[str, Any]:
         )
     return {
         "count": len(rows),
+        "groups": _signal_group_payload(rows),
         "signals": [
             {
                 "id": row.id,
@@ -3240,6 +3383,7 @@ def list_strategy_usages(limit: int = 100) -> dict[str, Any]:
     from app.models.strategy_memory import StrategyMemoryUsage
 
     capped_limit = max(1, min(int(limit or 100), 500))
+    recent_cutoff = datetime.now(UTC) - timedelta(hours=24)
     with get_session() as sess:
         rows = (
             sess.query(StrategyMemoryUsage)
@@ -3247,8 +3391,14 @@ def list_strategy_usages(limit: int = 100) -> dict[str, Any]:
             .limit(capped_limit)
             .all()
         )
+        recent_24h_count = (
+            sess.query(StrategyMemoryUsage)
+            .filter(StrategyMemoryUsage.created_at >= recent_cutoff)
+            .count()
+        )
     return {
         "count": len(rows),
+        "recent_24h_count": recent_24h_count,
         "usages": [
             {
                 "id": row.id,
@@ -3273,11 +3423,17 @@ def list_strategy_usages(limit: int = 100) -> dict[str, Any]:
 
 
 @router.get("/strategy-stats", dependencies=[Depends(require_admin_token)])
-def list_strategy_stats(limit: int = 100) -> dict[str, Any]:
+def list_strategy_stats(
+    limit: int = 100,
+    auto_refresh: bool = False,
+) -> dict[str, Any]:
     from app.models.strategy_memory import StrategyMemoryStats
 
     capped_limit = max(1, min(int(limit or 100), 500))
     with get_session() as sess:
+        auto_refreshed, auto_refresh_reason, auto_refresh_result = (
+            _maybe_refresh_strategy_stats(sess, auto_refresh=auto_refresh)
+        )
         rows = (
             sess.query(StrategyMemoryStats)
             .order_by(
@@ -3289,6 +3445,10 @@ def list_strategy_stats(limit: int = 100) -> dict[str, Any]:
         )
     return {
         "count": len(rows),
+        "auto_refresh": bool(auto_refresh),
+        "auto_refreshed": auto_refreshed,
+        "auto_refresh_reason": auto_refresh_reason,
+        "auto_refresh_result": auto_refresh_result,
         "stats": [
             {
                 "id": row.id,
@@ -3309,6 +3469,70 @@ def list_strategy_stats(limit: int = 100) -> dict[str, Any]:
             for row in rows
         ],
     }
+
+
+def _maybe_refresh_strategy_stats(
+    sess: Any,
+    *,
+    auto_refresh: bool,
+) -> tuple[bool, str, dict[str, int] | None]:
+    if not auto_refresh:
+        return False, "disabled", None
+
+    from sqlalchemy import func
+
+    from app.models.strategy_memory import StrategyMemoryStats, StrategyMemoryUsage
+    from app.services.strategy_memory_stats import refresh_strategy_memory_stats
+
+    usage_count = sess.query(StrategyMemoryUsage).count()
+    if usage_count <= 0:
+        return False, "no_usage", None
+
+    stats_count = sess.query(StrategyMemoryStats).count()
+    latest_usage_at = _latest_datetime(
+        sess.query(func.max(StrategyMemoryUsage.created_at)).scalar(),
+        sess.query(func.max(StrategyMemoryUsage.updated_at)).scalar(),
+    )
+    latest_stats_at = _to_utc_datetime(
+        sess.query(func.max(StrategyMemoryStats.updated_at)).scalar()
+    )
+
+    refresh_reason: str | None = None
+    if stats_count <= 0:
+        refresh_reason = "stats_missing"
+    elif latest_usage_at is not None and (
+        latest_stats_at is None or latest_usage_at > latest_stats_at
+    ):
+        refresh_reason = "usage_newer_than_stats"
+
+    if refresh_reason is None:
+        return False, "fresh", None
+
+    result = refresh_strategy_memory_stats(session=sess)
+    return (
+        True,
+        refresh_reason,
+        {"refreshed": result.refreshed, "deleted": result.deleted},
+    )
+
+
+def _latest_datetime(*values: datetime | None) -> datetime | None:
+    normalized = [
+        normalized_value
+        for value in values
+        if (normalized_value := _to_utc_datetime(value)) is not None
+    ]
+    if not normalized:
+        return None
+    return max(normalized)
+
+
+def _to_utc_datetime(value: datetime | None) -> datetime | None:
+    if value is None:
+        return None
+    if value.tzinfo is None:
+        return value.replace(tzinfo=UTC)
+    return value.astimezone(UTC)
 
 
 @router.post("/strategy-stats/refresh", dependencies=[Depends(require_admin_token)])

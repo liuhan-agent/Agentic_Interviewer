@@ -61,7 +61,8 @@ test("history card exposes full session id in styled tooltip", () => {
   assert.match(tooltip, /aria-label=\{`/);
   assert.match(tooltip, /cursor-default/);
   assert.doesNotMatch(tooltip, /cursor-help/);
-  assert.match(tooltip, /side="bottom"/);
+  assert.match(tooltip, /side = "bottom"/);
+  assert.match(tooltip, /side=\{side\}/);
   assert.match(tooltip, /text-emerald-300/);
   assert.match(tooltip, /<span className="break-all">\{sessionId\}<\/span>/);
   assert.match(tooltip, /shortSessionId\(sessionId\)/);

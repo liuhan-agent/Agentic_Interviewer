@@ -101,7 +101,7 @@ def reward_update_node(state: InterviewState) -> dict[str, Any]:
         question=question,
         evaluation=evaluation,
         reward=reward,
-        turn_idx=answer_turn_idx,
+        turn_idx=_fact_turn_idx(state, answer_turn_idx),
     )
 
     update = {
