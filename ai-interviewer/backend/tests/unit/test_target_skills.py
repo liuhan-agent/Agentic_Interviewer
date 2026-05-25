@@ -39,6 +39,23 @@ def test_select_target_skills_avoids_already_covered_jd_skills() -> None:
     assert focus["focus_source"] == "jd_uncovered"
 
 
+def test_select_target_skills_normalizes_security_aliases() -> None:
+    focus = select_target_skills(
+        job_spec={"required_skills": ["Spring Security", "springboot"]},
+        resume_anchor={
+            "skills": ["spring-security"],
+            "tech_stack": ["springsecurity", "SpringBoot"],
+        },
+        self_intro_profile={},
+        qa_history=[],
+        current_dimension="system_design",
+        selected_action={"id": "plan_adaptive", "plan_template": "adaptive"},
+    )
+
+    assert focus["target_skills"] == ["spring-security", "springboot"]
+    assert focus["focus_source"] == "jd_resume_overlap"
+
+
 def test_retrieve_for_question_uses_target_skills_instead_of_all_required_skills(monkeypatch):
     captured: dict[str, Any] = {}
 
@@ -306,6 +323,104 @@ def test_ask_question_rewrites_recent_duplicate_question(monkeypatch):
     assert "Order System" in question
     assert "redis" in question.lower()
     assert out["current_question"]["duplicate_rewrite"] is True
+
+
+def test_ask_question_rewrites_near_duplicate_generic_fallback(monkeypatch):
+    previous = (
+        "请结合「康乐智慧养老系统」中与「springsecurity、mybatis-plus、springboot」"
+        "相关的技术深度场景，说明当时的约束、备选方案和最终取舍。"
+        "再补充你如何用指标、故障复盘或上线结果验证这个选择，"
+        "以及如果规模或故障压力更高会怎么演进。"
+    )
+    current = (
+        "请结合「康乐智慧养老系统」中与「spring-security、springboot、springsecurity」"
+        "相关的系统设计场景，说明当时的约束、备选方案和最终取舍。"
+        "再补充你如何用指标、故障复盘或上线结果验证这个选择，"
+        "以及如果规模或故障压力更高会怎么演进。"
+    )
+
+    def fake_retrieve(**_kwargs):
+        class _Ctx:
+            as_prompt_block = "(stub retrieval)"
+
+        return _Ctx()
+
+    def fake_generate_question(**kwargs):
+        return {
+            "question": current,
+            "dimension": kwargs["dimension"],
+            "rubric_points": ["capacity"],
+            "proposed_contract": {
+                "must_cover": ["capacity"],
+                "acceptance_checks": ["Explains one capacity decision."],
+                "minimum_bar": "One concrete decision.",
+                "bar_level": "standard",
+            },
+        }
+
+    def fake_negotiate(**kwargs):
+        return {**kwargs["proposed_contract"], "signed_by": ["generator", "evaluator"]}
+
+    monkeypatch.setattr(ask_mod, "retrieve_for_question", fake_retrieve)
+    monkeypatch.setattr(ask_mod, "retrieve_strategies", lambda **_kwargs: [])
+    monkeypatch.setattr(
+        ask_mod,
+        "format_strategies_for_prompt",
+        lambda _entries: "(no relevant strategy memories)",
+    )
+    monkeypatch.setattr(ask_mod, "generate_question", fake_generate_question)
+    monkeypatch.setattr(ask_mod, "negotiate_contract_via_evaluator", fake_negotiate)
+
+    state = {
+        "session_id": "sess-near-duplicate",
+        "trace_id": "trace-near-duplicate",
+        "job_spec": {
+            "title": "Java 后端工程师",
+            "level": "junior",
+            "required_skills": ["spring-security", "springboot"],
+        },
+        "candidate": {
+            "resume_parsed": {
+                "projects": [
+                    {
+                        "id": "proj-eldercare",
+                        "name": "康乐智慧养老系统",
+                        "tech_stack": ["springboot", "springsecurity"],
+                    }
+                ],
+                "focus_areas": [
+                    {
+                        "id": "focus-eldercare",
+                        "project_id": "proj-eldercare",
+                        "dimensions": ["system_design"],
+                        "skills": ["spring-security", "springboot"],
+                        "priority": 1,
+                    }
+                ],
+            }
+        },
+        "dimensions": ["system_design"],
+        "dimension_status": {"system_design": "active"},
+        "current_dimension": "system_design",
+        "turn_idx": 8,
+        "formal_turn_idx": 7,
+        "qa_history": [{"turn_idx": 6, "question": previous}],
+        "runtime_config": {},
+        "refine_mode": False,
+        "current_ask_plan": None,
+        "current_contract": None,
+        "pending_plan_template": None,
+        "pending_contract_hints": None,
+        "selected_action": {"id": "plan_hint", "plan_template": "simple"},
+    }
+
+    out = ask_mod.ask_question_node(state)  # type: ignore[arg-type]
+    question = out["current_question"]["question"]
+
+    assert question != current
+    assert out["current_question"]["duplicate_rewrite"] is True
+    assert "康乐智慧养老系统" in question
+    assert "约束、备选方案和最终取舍" not in question
 
 
 def test_ask_question_rewrites_english_generated_question_to_chinese(monkeypatch):

@@ -39,12 +39,17 @@ test("ReplayView renders the two-layer basis UI", () => {
     replaySource,
     /<QuestionBasisBlock\s+basis=\{turn\.question_basis\}\s+resumeAnchorLabel=\{turn\.resume_anchor_label\}/,
   );
-  assert.match(replaySource, /<AnchorFollowupNotice followup=\{turn\.anchor_followup\}/);
+  assert.match(
+    replaySource,
+    /<AnchorFollowupNotice\s+followup=\{turn\.anchor_followup\}\s+resumeAnchorLabel=\{turn\.resume_anchor_label\}/,
+  );
   assert.match(replaySource, /function QuestionBasisBlock/);
   assert.match(replaySource, /resumeAnchorLabel\?:\s*ReplayTurn\["resume_anchor_label"\]/);
   assert.match(replaySource, /<QuestionBasisChipGroup label="关联经历" chips=\{anchorChips\}/);
   assert.match(replaySource, /function AnchorFollowupNotice/);
-  assert.match(replaySource, /当前锚点第 \{followup\.attempt\}\/\{followup\.max_attempts\} 轮追问/);
+  assert.match(replaySource, /resumeAnchorLabel\?:\s*ReplayTurn\["resume_anchor_label"\]/);
+  assert.match(replaySource, /简历锚点「\$\{anchorLabel\}」第 \$\{followup\.attempt\}\/\$\{followup\.max_attempts\} 轮追问/);
+  assert.match(replaySource, /当前简历锚点第 \$\{followup\.attempt\}\/\$\{followup\.max_attempts\} 轮追问/);
   assert.match(replaySource, /function splitQuestionBasisChips/);
   assert.match(replaySource, /function getQuestionBasisGroupIcon/);
   assert.match(replaySource, /依据来源/);

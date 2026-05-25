@@ -13,6 +13,7 @@ Evaluator pre-negotiation) is *scaffolded* here via the
 """
 from __future__ import annotations
 
+import re
 from typing import Any
 
 from app.core.logging import get_logger
@@ -84,11 +85,87 @@ def _skill_phrase(
     skills: list[str] = []
     for item in candidates:
         skill = str(item).strip()
-        key = skill.lower()
+        key = _normalise_skill_key(skill)
         if skill and key not in seen:
             seen.add(key)
-            skills.append(skill)
+            skills.append(_display_skill_alias(skill))
     return "、".join(skills[:3]) or "关键技术选择"
+
+
+def _normalise_skill_key(skill: str) -> str:
+    compact = re.sub(r"[^a-z0-9+#.]+", "", skill.strip().lower())
+    aliases = {
+        "springsecurity": "springsecurity",
+        "springboot": "springboot",
+    }
+    return aliases.get(compact, compact)
+
+
+def _display_skill_alias(skill: str) -> str:
+    compact = re.sub(r"[^a-z0-9+#.]+", "", skill.strip().lower())
+    aliases = {
+        "springsecurity": "spring-security",
+        "springboot": "springboot",
+    }
+    return aliases.get(compact, skill.strip())
+
+
+def _question_seed_fields(question_seed_block: str) -> dict[str, str]:
+    fields: dict[str, str] = {}
+    prefixes = {
+        "Seed:": "title",
+        "Scenario:": "scenario",
+        "Question stem:": "question_stem",
+        "Prompt template:": "prompt_template",
+    }
+    for line in str(question_seed_block or "").splitlines():
+        stripped = line.strip()
+        for prefix, key in prefixes.items():
+            if stripped.startswith(prefix):
+                fields[key] = stripped[len(prefix) :].strip()
+                break
+    return fields
+
+
+def _seed_backed_fallback_question_text(
+    *,
+    question_seed_block: str,
+    dimension: str,
+    resume_anchor: dict[str, Any] | None,
+    self_intro_profile: dict[str, Any] | None,
+    target_skills: list[str] | None,
+) -> str:
+    seed = _question_seed_fields(question_seed_block)
+    stem = seed.get("question_stem")
+    if not stem:
+        return ""
+    dim = _dimension_label(dimension)
+    project = _resume_project_label(resume_anchor)
+    skills = _skill_phrase(
+        target_skills=target_skills,
+        resume_anchor=resume_anchor,
+        self_intro_profile=self_intro_profile,
+    )
+    scenario = seed.get("scenario", "")
+    scenario_part = f"场景背景是：{scenario}" if scenario else ""
+    return (
+        f"请结合「{project}」中与「{skills}」相关的{dim}场景，{scenario_part}"
+        f"{stem} 请说明你的具体设计、关键取舍、验证指标，以及如果压力更高会如何演进。"
+    )
+
+
+def _looks_like_generic_tradeoff_prompt(question: Any) -> bool:
+    text = str(question or "")
+    return all(
+        token in text
+        for token in (
+            "约束",
+            "备选方案",
+            "最终取舍",
+            "故障复盘",
+            "怎么演进",
+        )
+    )
 
 
 def _fallback_question_text(
@@ -249,8 +326,22 @@ def generate_question(
     )
     # Override bar_level to match the adaptive target_difficulty
     proposed["bar_level"] = difficulty_to_bar_level(target_difficulty)  # type: ignore[arg-type]
-    question = {
-        "question": data.get("question")
+    model_question = data.get("question")
+    seed_fallback = _seed_backed_fallback_question_text(
+        question_seed_block=question_seed_block,
+        dimension=dimension,
+        resume_anchor=resume_anchor,
+        self_intro_profile=self_intro_profile,
+        target_skills=target_skills,
+    )
+    used_seed_fallback = bool(
+        seed_fallback
+        and (not model_question or _looks_like_generic_tradeoff_prompt(model_question))
+    )
+    question_text = (
+        seed_fallback
+        if used_seed_fallback
+        else model_question
         or _fallback_question_text(
             dimension=dimension,
             resume_anchor=resume_anchor,
@@ -258,13 +349,18 @@ def generate_question(
             target_skills=target_skills,
             target_difficulty=target_difficulty,
             probe_intent=probe_intent,
-        ),
+        )
+    )
+    question = {
+        "question": question_text,
         "dimension": data.get("dimension", dimension),
         "rubric_points": rubric_points,
         "difficulty": target_difficulty,
         "rationale": data.get("rationale", ""),
         "proposed_contract": proposed,
     }
+    if used_seed_fallback:
+        question["seed_backed_fallback"] = True
     if resume_anchor:
         question["resume_anchor"] = resume_anchor
     log.debug(

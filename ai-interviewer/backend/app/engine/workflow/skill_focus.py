@@ -8,8 +8,19 @@ from typing import Any
 def _normalise_skill(value: Any) -> str | None:
     if not isinstance(value, str):
         return None
-    cleaned = re.sub(r"\s+", "-", value.strip().lower())
-    return cleaned or None
+    return normalize_skill_alias(value)
+
+
+def normalize_skill_alias(value: Any) -> str | None:
+    if not isinstance(value, str):
+        return None
+    cleaned = re.sub(r"\s+", "-", value.strip().lower()).replace("_", "-")
+    compact = re.sub(r"[^a-z0-9+#.]+", "", cleaned)
+    aliases = {
+        "springsecurity": "spring-security",
+        "springboot": "springboot",
+    }
+    return aliases.get(compact, cleaned) or None
 
 
 def _normalise_list(values: Any) -> list[str]:
