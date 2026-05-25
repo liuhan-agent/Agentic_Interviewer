@@ -18,7 +18,16 @@ from pathlib import Path
 from typing import Any
 from urllib.parse import urlparse, urlunparse
 
-from fastapi import APIRouter, Depends, Header, HTTPException, Query, Response, status
+from fastapi import (
+    APIRouter,
+    Depends,
+    Header,
+    HTTPException,
+    Query,
+    Request,
+    Response,
+    status,
+)
 
 from app.core.logging import get_logger
 from app.core.settings import get_settings
@@ -3139,8 +3148,61 @@ def checkpoint_health() -> dict[str, Any]:
     return {"checkpoint_writes": checkpoint_write_snapshot()}
 
 
+def _strategy_promotion_scheduler_snapshot(request: Request) -> dict[str, Any]:
+    """Return scheduler + last-run telemetry for ``/admin/strategies``.
+
+    Surfaces enough operator context to answer
+    "is auto-promotion on, when did it last run, when will it run next,
+    and did the last run blow up?" without a separate endpoint round-trip.
+    """
+    from app.tasks.strategy_promotion_tasks import (
+        SCHEDULER_JOB_ID,
+        get_strategy_promotion_state,
+    )
+
+    settings = get_settings()
+    state = get_strategy_promotion_state()
+
+    next_run_at_iso: str | None = None
+    scheduler = getattr(request.app.state, "strategy_promotion_scheduler", None)
+    if scheduler is not None:
+        try:
+            job = scheduler.get_job(SCHEDULER_JOB_ID)
+        except Exception:  # pragma: no cover - APScheduler defensive path
+            job = None
+        if job is not None and job.next_run_time is not None:
+            next_run_at_iso = job.next_run_time.astimezone(UTC).isoformat()
+
+    return {
+        "enabled": bool(
+            getattr(settings, "enable_strategy_promotion_scheduler", False)
+        ),
+        "running": state.enabled,
+        "interval_minutes": (
+            state.interval_minutes
+            or int(getattr(settings, "strategy_promotion_interval_minutes", 0) or 0)
+        ),
+        "startup_delay_minutes": (
+            state.startup_delay_minutes
+            or int(
+                getattr(settings, "strategy_promotion_startup_delay_minutes", 0) or 0
+            )
+        ),
+        "next_run_at": next_run_at_iso,
+        "last_run_at": (
+            state.last_run_at.isoformat() if state.last_run_at else None
+        ),
+        "last_run_kind": state.last_run_kind,
+        "last_result": state.last_result,
+        "last_error": state.last_error,
+        "last_error_at": (
+            state.last_error_at.isoformat() if state.last_error_at else None
+        ),
+    }
+
+
 @router.get("/strategies", dependencies=[Depends(require_admin_token)])
-def list_strategies_route() -> dict[str, Any]:
+def list_strategies_route(request: Request) -> dict[str, Any]:
     """Return strategy memory entries across all admin-visible statuses."""
     from app.models.strategy_memory import StrategyMemory
 
@@ -3154,6 +3216,7 @@ def list_strategies_route() -> dict[str, Any]:
     return {
         "count": len(entries),
         "ranking_mode": getattr(settings, "strategy_memory_ranking_mode", "metadata"),
+        "scheduler": _strategy_promotion_scheduler_snapshot(request),
         "strategies": [
             {
                 "id": row.id,
