@@ -577,7 +577,10 @@ function TimelineCard({ turns }: { turns: ReplayTurn[] }) {
               basis={turn.question_basis}
               resumeAnchorLabel={turn.resume_anchor_label}
             />
-            <AnchorFollowupNotice followup={turn.anchor_followup} />
+            <AnchorFollowupNotice
+              followup={turn.anchor_followup}
+              resumeAnchorLabel={turn.resume_anchor_label}
+            />
             {turn.answer && (
               <div>
                 <SectionLabel title="你的回答" />
@@ -616,16 +619,21 @@ function TimelineCard({ turns }: { turns: ReplayTurn[] }) {
 
 function AnchorFollowupNotice({
   followup,
+  resumeAnchorLabel,
 }: {
   followup?: ReplayTurn["anchor_followup"];
+  resumeAnchorLabel?: ReplayTurn["resume_anchor_label"];
 }) {
   if (!followup) return null;
   if (followup.max_attempts < 2 || followup.attempt < 1) return null;
+  const anchorLabel = String(resumeAnchorLabel || "").trim();
   return (
-    <div className="inline-flex max-w-full items-center gap-1.5 rounded-md border border-amber-500/20 bg-amber-500/5 px-2.5 py-1.5 text-xs text-amber-200/90">
+    <div className="inline-flex max-w-full items-start gap-1.5 rounded-md border border-amber-500/20 bg-amber-500/5 px-2.5 py-1.5 text-xs text-amber-200/90">
       <GitBranch className="h-3.5 w-3.5 shrink-0 text-amber-300" />
-      <span>
-        当前锚点第 {followup.attempt}/{followup.max_attempts} 轮追问
+      <span className="min-w-0 break-words">
+        {anchorLabel
+          ? `简历锚点「${anchorLabel}」第 ${followup.attempt}/${followup.max_attempts} 轮追问`
+          : `当前简历锚点第 ${followup.attempt}/${followup.max_attempts} 轮追问`}
       </span>
     </div>
   );
