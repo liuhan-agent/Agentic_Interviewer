@@ -352,6 +352,16 @@ def test_retrieve_candidate_anchors_query_is_anchor_centric(monkeypatch) -> None
         + artifact["constraint_terms"]
     )
     assert artifact["query_text"] == " ".join(artifact["query_terms"])
+    assert artifact["prompt_injected"] is True
+    assert artifact["prompt_block_sources"] == ["resume"]
+    assert artifact["prompt_source_counts"] == {"resume": 1}
+    assert artifact["prompt_block_chars"] > 0
+
+    shadow_artifact = result.as_artifact(mode="shadow")
+    assert shadow_artifact["prompt_injected"] is False
+    assert shadow_artifact["prompt_block_sources"] == []
+    assert shadow_artifact["prompt_source_counts"] == {}
+    assert shadow_artifact["prompt_block_chars"] == 0
 
 
 def test_retrieve_candidate_anchors_merges_queries_and_reranks_with_constraints(

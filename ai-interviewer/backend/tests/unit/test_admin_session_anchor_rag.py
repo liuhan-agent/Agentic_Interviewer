@@ -362,6 +362,12 @@ def test_admin_session_anchor_sessions_returns_recent_session_level_rollup(
                                     "status": "primary",
                                     "fallback_reason": None,
                                     "latency_ms": 100,
+                                    "prompt_injected": True,
+                                    "prompt_source_counts": {
+                                        "resume": 1,
+                                        "self_intro": 1,
+                                    },
+                                    "prompt_block_chars": 128,
                                     "hits": [
                                         {"source_type": "resume", "chunker_mode": "A"},
                                         {"source_type": "self_intro", "chunker_mode": "SI"},
@@ -382,6 +388,25 @@ def test_admin_session_anchor_sessions_returns_recent_session_level_rollup(
                                     "fallback_reason": "low_score",
                                     "latency_ms": 300,
                                     "hits": [],
+                                }
+                            }
+                        },
+                    ),
+                    _trace(
+                        session_id="sess_hit",
+                        trace_id="trace-hit",
+                        turn_idx=2,
+                        created_at=now - timedelta(minutes=50),
+                        payload={
+                            "selection_artifacts": {
+                                "candidate_anchor_rag": {
+                                    "status": "shadow",
+                                    "fallback_reason": None,
+                                    "latency_ms": 200,
+                                    "prompt_injected": False,
+                                    "hits": [
+                                        {"source_type": "resume", "chunker_mode": "A"},
+                                    ],
                                 }
                             }
                         },
@@ -423,6 +448,12 @@ def test_admin_session_anchor_sessions_returns_recent_session_level_rollup(
                                 "candidate_anchor_rag": {
                                     "status": "primary",
                                     "latency_ms": 80,
+                                    "prompt_injected": True,
+                                    "prompt_source_counts": {
+                                        "resume": 1,
+                                        "self_intro": 1,
+                                    },
+                                    "prompt_block_chars": 96,
                                     "hits": [
                                         {"source_type": "resume", "chunker_mode": "A"},
                                         {"source_type": "self_intro"},
@@ -476,20 +507,25 @@ def test_admin_session_anchor_sessions_returns_recent_session_level_rollup(
     assert hit["chunks_by_source"] == {"resume": 1, "self_intro": 1}
     assert hit["chunker_modes"] == ["A", "SI"]
     assert hit["chunker_modes_by_source"] == {"resume": ["A"], "self_intro": ["SI"]}
-    assert hit["retrieval_attempts"] == 2
-    assert hit["hit_count"] == 1
-    assert hit["hit_rate"] == 0.5
-    assert hit["source_hit_counts"] == {"resume": 1, "self_intro": 1}
+    assert hit["retrieval_attempts"] == 3
+    assert hit["hit_count"] == 2
+    assert hit["hit_rate"] == 0.667
+    assert hit["source_hit_counts"] == {"resume": 2, "self_intro": 1}
     assert hit["avg_hits_per_attempt"] == 1.0
+    assert hit["prompt_injected_turns"] == 1
+    assert hit["retrieved_not_injected_turns"] == 1
+    assert hit["prompt_source_counts"] == {"resume": 1, "self_intro": 1}
+    assert hit["prompt_block_chars"] == 128
     assert hit["fallback_count"] == 1
     assert hit["fallback_reasons"] == {"low_score": 1}
-    assert hit["latency_ms"] == {"p50": 100, "p95": 300, "p99": 300}
-    assert hit["rag_status_distribution"] == {"primary": 1, "shadow": 1}
+    assert hit["latency_ms"] == {"p50": 200, "p95": 300, "p99": 300}
+    assert hit["rag_status_distribution"] == {"primary": 1, "shadow": 2}
     assert hit["last_trace_at"] is not None
 
     off = body["sessions"][1]
     assert off["retrieval_attempts"] == 0
     assert off["hit_rate"] == 0.0
+    assert off["prompt_injected_turns"] == 0
     assert off["rag_status_distribution"] == {"off": 1}
 
     empty = body["sessions"][2]
@@ -502,6 +538,8 @@ def test_admin_session_anchor_sessions_returns_recent_session_level_rollup(
     assert notrace["retrieval_attempts"] == 0
     assert notrace["hit_count"] == 0
     assert notrace["fallback_count"] == 0
+    assert notrace["prompt_injected_turns"] == 0
+    assert notrace["retrieved_not_injected_turns"] == 0
     assert notrace["rag_status_distribution"] == {}
     assert notrace["last_trace_at"] is None
 
@@ -511,6 +549,9 @@ def test_admin_session_anchor_sessions_returns_recent_session_level_rollup(
     assert trace_mode["chunker_modes_by_source"] == {"resume": ["A"], "self_intro": ["SI"]}
     assert trace_mode["has_resume_chunks"] is False
     assert trace_mode["source_hit_counts"] == {"resume": 1, "self_intro": 1}
+    assert trace_mode["prompt_injected_turns"] == 1
+    assert trace_mode["prompt_source_counts"] == {"resume": 1, "self_intro": 1}
+    assert trace_mode["prompt_block_chars"] == 96
 
 
 def test_admin_session_anchor_sessions_uses_setup_snapshot_after_chunk_cleanup(
