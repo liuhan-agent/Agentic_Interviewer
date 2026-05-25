@@ -1465,6 +1465,20 @@ def session_anchor_sessions(since: str = Query(default="24h")) -> dict[str, Any]
             bucket["latencies"].append(latency)
         hits = [hit for hit in artifact.get("hits") or [] if isinstance(hit, dict)]
         bucket["total_hit_items"] += len(hits)
+        if "prompt_injected" in artifact:
+            if bool(artifact.get("prompt_injected")):
+                bucket["prompt_injected_turns"] += 1
+                source_counts = _clean_count_map(
+                    _as_dict(artifact.get("prompt_source_counts"))
+                )
+                for source, count in source_counts.items():
+                    prompt_counts = bucket["prompt_source_counts"]
+                    prompt_counts[source] = int(prompt_counts.get(source) or 0) + count
+                bucket["prompt_block_chars"] += _coerce_int(
+                    artifact.get("prompt_block_chars")
+                ) or 0
+            elif hits:
+                bucket["retrieved_not_injected_turns"] += 1
         if hits:
             bucket["hit_count"] += 1
             for hit in hits:
@@ -1489,6 +1503,9 @@ def session_anchor_sessions(since: str = Query(default="24h")) -> dict[str, Any]
     indexed_sessions = sum(1 for row in rows if row["total_chunks"] > 0)
     hit_sessions = sum(1 for row in rows if row["hit_count"] > 0)
     fallback_sessions = sum(1 for row in rows if row["fallback_count"] > 0)
+    prompt_injected_sessions = sum(
+        1 for row in rows if row["prompt_injected_turns"] > 0
+    )
     return {
         "window": since,
         "window_hours": hours,
@@ -1500,6 +1517,16 @@ def session_anchor_sessions(since: str = Query(default="24h")) -> dict[str, Any]
             "hit_session_rate": _rate(hit_sessions, session_count),
             "fallback_sessions": fallback_sessions,
             "fallback_session_rate": _rate(fallback_sessions, session_count),
+            "prompt_injected_sessions": prompt_injected_sessions,
+            "prompt_injected_session_rate": _rate(
+                prompt_injected_sessions, session_count
+            ),
+            "prompt_injected_turns": sum(
+                int(row["prompt_injected_turns"] or 0) for row in rows
+            ),
+            "retrieved_not_injected_turns": sum(
+                int(row["retrieved_not_injected_turns"] or 0) for row in rows
+            ),
         },
         "sessions": rows,
     }
@@ -1631,6 +1658,10 @@ def _new_session_anchor_session_bucket() -> dict[str, Any]:
         "hit_count": 0,
         "total_hit_items": 0,
         "source_hit_counts": {source: 0 for source in _ANCHOR_SOURCE_TYPES},
+        "prompt_injected_turns": 0,
+        "retrieved_not_injected_turns": 0,
+        "prompt_source_counts": {source: 0 for source in _ANCHOR_SOURCE_TYPES},
+        "prompt_block_chars": 0,
         "fallback_count": 0,
         "fallback_reasons": {},
         "latencies": [],
@@ -1721,6 +1752,14 @@ def _finalize_session_anchor_session_row(
         "hit_rate": round(hit_count / attempts, 3) if attempts else 0.0,
         "source_hit_counts": source_hit_counts,
         "avg_hits_per_attempt": round(total_hit_items / attempts, 3) if attempts else 0.0,
+        "prompt_injected_turns": int(bucket.get("prompt_injected_turns") or 0),
+        "retrieved_not_injected_turns": int(
+            bucket.get("retrieved_not_injected_turns") or 0
+        ),
+        "prompt_source_counts": _clean_count_map(
+            bucket.get("prompt_source_counts") or {}
+        ),
+        "prompt_block_chars": int(bucket.get("prompt_block_chars") or 0),
         "fallback_count": int(bucket.get("fallback_count") or 0),
         "fallback_reasons": _clean_count_map(bucket.get("fallback_reasons") or {}),
         "latency_ms": {

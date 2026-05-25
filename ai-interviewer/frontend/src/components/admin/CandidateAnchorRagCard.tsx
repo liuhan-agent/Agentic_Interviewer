@@ -37,9 +37,32 @@ type Phase =
   | { kind: "ready"; data: SessionAnchorSessionsResponse }
   | { kind: "error"; message: string };
 
+type SessionAnchorRollup = {
+  totalSessions: number;
+  indexedSessions: number;
+  hitSessions: number;
+  fallbackSessions: number;
+  totalChunks: number;
+  resumeChunks: number;
+  selfIntroChunks: number;
+  retrievalAttempts: number;
+  hitTurns: number;
+  fallbackTurns: number;
+  hitItems: number;
+  promptInjectedTurns: number;
+  retrievedNotInjectedTurns: number;
+  promptBlockChars: number;
+  promptSourceCounts: Record<string, number>;
+};
+
 const SOURCE_LABELS: Record<string, string> = {
   resume: "简历",
   self_intro: "自我介绍",
+};
+
+const SHORT_SOURCE_LABELS: Record<string, string> = {
+  resume: "简历",
+  self_intro: "自介",
 };
 
 const MODE_LABELS: Record<string, string> = {
@@ -132,7 +155,7 @@ export function CandidateAnchorRagCard() {
                 候选人资料召回（24 小时）
               </CardTitle>
               <CardDescription className="mt-1">
-                观察简历与自我介绍的切片、向量化和召回命中。一行是一场最近 24 小时创建的面试 session；切片数来自 setup_snapshot，召回表现来自 ask_question trace。
+                把资料库覆盖、ask_question 召回、实际注入 Prompt 分开看；切片数来自 setup_snapshot，召回表现来自 ask_question trace，具体知识块请进 Trace Explorer。
               </CardDescription>
             </div>
             <div className="flex items-center gap-2">
@@ -240,26 +263,72 @@ function CandidateAnchorSessionsBody({
 }) {
   const summary = data.summary;
   const denominator = Math.max(1, data.session_count);
+  const rollup = buildSessionAnchorRollup(data);
 
   return (
-    <div className="space-y-4">
-      <div className="grid gap-3 md:grid-cols-4">
-        <MetricTile label="最近 24h session" value={String(data.session_count)} />
-        <MetricTile
-          label="有资料切片"
-          value={`${summary.indexed_sessions}/${denominator}`}
-          detail={formatPercent(summary.indexed_session_rate)}
-        />
-        <MetricTile
-          label="有召回命中"
-          value={`${summary.hit_sessions}/${denominator}`}
-          detail={formatPercent(summary.hit_session_rate)}
-        />
-        <MetricTile
-          label="有召回兜底"
-          value={`${summary.fallback_sessions}/${denominator}`}
-          detail={formatPercent(summary.fallback_session_rate)}
-        />
+    <div className="space-y-5">
+      <div className="grid gap-4 xl:grid-cols-3">
+        <RagObservationGroup
+          title="资料库覆盖"
+          description="看最近 24h session 是否已经准备好简历 / 自我介绍切片。"
+        >
+          <div className="grid gap-3 sm:grid-cols-2">
+            <MetricTile label="最近 24h session" value={String(data.session_count)} />
+            <MetricTile
+              label="有资料切片"
+              value={`${summary.indexed_sessions}/${denominator}`}
+              detail={formatPercent(summary.indexed_session_rate)}
+            />
+            <MetricTile label="简历切片" value={formatCount(rollup.resumeChunks)} />
+            <MetricTile label="自介切片" value={formatCount(rollup.selfIntroChunks)} />
+          </div>
+        </RagObservationGroup>
+
+        <RagObservationGroup
+          title="最近 24h ask_question 召回"
+          description="看出题节点是否发起候选人资料召回，以及是否命中或走兜底。"
+        >
+          <div className="grid gap-3 sm:grid-cols-2">
+            <MetricTile label="召回轮次" value={formatCount(rollup.retrievalAttempts)} />
+            <MetricTile
+              label="有召回命中"
+              value={`${summary.hit_sessions}/${denominator}`}
+              detail={formatPercent(summary.hit_session_rate)}
+            />
+            <MetricTile
+              label="有召回兜底"
+              value={`${summary.fallback_sessions}/${denominator}`}
+              detail={formatPercent(summary.fallback_session_rate)}
+            />
+            <MetricTile label="命中片段" value={formatCount(rollup.hitItems)} />
+          </div>
+        </RagObservationGroup>
+
+        <RagObservationGroup
+          title="实际注入 Prompt"
+          description="只统计真正进入出题 prompt 的资料块；shadow 命中不会算作注入。"
+        >
+          <div className="grid gap-3 sm:grid-cols-2">
+            <MetricTile
+              label="注入轮次"
+              value={formatCount(rollup.promptInjectedTurns)}
+              detail={formatPercent(rate(rollup.promptInjectedTurns, rollup.retrievalAttempts))}
+            />
+            <MetricTile
+              label="命中未注入"
+              value={formatCount(rollup.retrievedNotInjectedTurns)}
+            />
+            <MetricTile
+              label="注入来源"
+              value={formatShortSourceHits(rollup.promptSourceCounts)}
+              valueClassName="whitespace-normal break-words text-sm leading-snug"
+            />
+            <MetricTile
+              label="注入字符"
+              value={formatCount(rollup.promptBlockChars)}
+            />
+          </div>
+        </RagObservationGroup>
       </div>
 
       {data.sessions.length === 0 ? (
@@ -267,28 +336,37 @@ function CandidateAnchorSessionsBody({
           最近 24 小时暂无面试 session。开始一场面试后会出现可追踪的资料召回记录。
         </p>
       ) : (
-        <div className="overflow-x-auto rounded-md border">
-          <table className="w-full min-w-[960px] text-left text-xs">
-            <thead className="bg-muted/60 text-muted-foreground">
-              <tr>
-                <th className="px-3 py-2 font-medium">Session</th>
-                <th className="px-3 py-2 font-medium">候选人 / 岗位</th>
-                <th className="px-3 py-2 font-medium">资料准备</th>
-                <th className="px-3 py-2 font-medium">召回表现</th>
-                <th className="px-3 py-2 font-medium">状态</th>
-                <th className="px-3 py-2 font-medium">操作</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y">
-              {data.sessions.map((session) => (
-                <SessionAnchorRow
-                  key={session.session_id}
-                  session={session}
-                  onDeleteSession={onDeleteSession}
-                />
-              ))}
-            </tbody>
-          </table>
+        <div className="space-y-2">
+          <div>
+            <h3 className="text-sm font-semibold">最近 session 样本</h3>
+            <p className="mt-1 text-xs text-muted-foreground">
+              一行是一场最近 24 小时创建的面试 session，用来定位哪场面试需要进 Trace Explorer 看知识块正文。
+            </p>
+          </div>
+          <div className="overflow-x-auto rounded-md border">
+            <table className="w-full min-w-[1120px] text-left text-xs">
+              <thead className="bg-muted/60 text-muted-foreground">
+                <tr>
+                  <th className="px-3 py-2 font-medium">Session</th>
+                  <th className="px-3 py-2 font-medium">候选人 / 岗位</th>
+                  <th className="px-3 py-2 font-medium">资料准备</th>
+                  <th className="px-3 py-2 font-medium">召回表现</th>
+                  <th className="px-3 py-2 font-medium">Prompt 注入</th>
+                  <th className="px-3 py-2 font-medium">状态</th>
+                  <th className="px-3 py-2 font-medium">操作</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y">
+                {data.sessions.map((session) => (
+                  <SessionAnchorRow
+                    key={session.session_id}
+                    session={session}
+                    onDeleteSession={onDeleteSession}
+                  />
+                ))}
+              </tbody>
+            </table>
+          </div>
         </div>
       )}
     </div>
@@ -350,6 +428,17 @@ function SessionAnchorRow({
           p50 / p99 {formatLatency(session.latency_ms)}
         </div>
       </td>
+      <td className="min-w-[210px] px-3 py-3">
+        <div className="font-mono text-[13px] font-semibold text-foreground">
+          {Number(session.prompt_injected_turns ?? 0)} 轮注入
+        </div>
+        <div className="mt-1 text-[10px] text-muted-foreground">
+          注入片段：{formatShortSourceHits(session.prompt_source_counts || {})}
+        </div>
+        <div className="mt-1 font-mono text-[10px] text-muted-foreground">
+          命中未注入 {Number(session.retrieved_not_injected_turns ?? 0)} / 字符 {formatCount(Number(session.prompt_block_chars ?? 0))}
+        </div>
+      </td>
       <td className="min-w-[190px] px-3 py-3">
         <div className="flex max-w-[210px] flex-wrap gap-1.5">
           <MiniPill>{session.session_status || "unknown"}</MiniPill>
@@ -379,6 +468,75 @@ function SessionAnchorRow({
         </Button>
       </td>
     </tr>
+  );
+}
+
+function RagObservationGroup({
+  title,
+  description,
+  children,
+}: {
+  title: string;
+  description: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <section className="space-y-3 border-l border-border/70 pl-3">
+      <div className="xl:min-h-[5.25rem]">
+        <h3 className="text-sm font-semibold">{title}</h3>
+        <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
+          {description}
+        </p>
+      </div>
+      {children}
+    </section>
+  );
+}
+
+function buildSessionAnchorRollup(
+  data: SessionAnchorSessionsResponse,
+): SessionAnchorRollup {
+  const summary = data.summary;
+  return data.sessions.reduce<SessionAnchorRollup>(
+    (acc, session) => {
+      acc.totalChunks += Number(session.total_chunks ?? 0);
+      acc.resumeChunks += Number(session.chunks_by_source?.resume ?? 0);
+      acc.selfIntroChunks += Number(session.chunks_by_source?.self_intro ?? 0);
+      acc.retrievalAttempts += Number(session.retrieval_attempts ?? 0);
+      acc.hitTurns += Number(session.hit_count ?? 0);
+      acc.fallbackTurns += Number(session.fallback_count ?? 0);
+      acc.hitItems += Object.values(session.source_hit_counts || {}).reduce(
+        (sum, count) => sum + Number(count || 0),
+        0,
+      );
+      acc.promptInjectedTurns += Number(session.prompt_injected_turns ?? 0);
+      acc.retrievedNotInjectedTurns += Number(
+        session.retrieved_not_injected_turns ?? 0,
+      );
+      acc.promptBlockChars += Number(session.prompt_block_chars ?? 0);
+      for (const [source, count] of Object.entries(session.prompt_source_counts || {})) {
+        acc.promptSourceCounts[source] =
+          Number(acc.promptSourceCounts[source] ?? 0) + Number(count || 0);
+      }
+      return acc;
+    },
+    {
+      totalSessions: data.session_count,
+      indexedSessions: summary.indexed_sessions,
+      hitSessions: summary.hit_sessions,
+      fallbackSessions: summary.fallback_sessions,
+      totalChunks: 0,
+      resumeChunks: 0,
+      selfIntroChunks: 0,
+      retrievalAttempts: 0,
+      hitTurns: 0,
+      fallbackTurns: 0,
+      hitItems: 0,
+      promptInjectedTurns: 0,
+      retrievedNotInjectedTurns: 0,
+      promptBlockChars: 0,
+      promptSourceCounts: {},
+    },
   );
 }
 
@@ -445,16 +603,20 @@ function MetricTile({
   label,
   value,
   detail,
+  valueClassName,
 }: {
   label: string;
   value: string;
   detail?: string;
+  valueClassName?: string;
 }) {
   return (
     <div className="rounded-md border bg-card/50 p-3">
       <p className="text-[10px] font-medium text-muted-foreground">{label}</p>
       <div className="mt-1 flex items-baseline gap-2">
-        <span className="font-mono text-lg font-bold">{value}</span>
+        <span className={cn("font-mono text-lg font-bold", valueClassName)}>
+          {value}
+        </span>
         {detail && (
           <span className="font-mono text-xs text-muted-foreground">{detail}</span>
         )}
@@ -487,6 +649,16 @@ function formatPercent(value: number): string {
   return `${Math.round(value * 100)}%`;
 }
 
+function rate(numerator: number, denominator: number): number {
+  if (!Number.isFinite(denominator) || denominator <= 0) return 0;
+  return numerator / denominator;
+}
+
+function formatCount(value: number): string {
+  if (!Number.isFinite(value)) return "0";
+  return String(Math.round(value));
+}
+
 function formatDate(value?: string | null): string {
   if (!value) return "无时间";
   const date = new Date(value);
@@ -512,6 +684,15 @@ function formatSourceHits(sourceHits: Record<string, number>): string {
   return entries
     .sort((a, b) => b[1] - a[1])
     .map(([source, count]) => `${SOURCE_LABELS[source] ?? source} ${count}`)
+    .join(" / ");
+}
+
+function formatShortSourceHits(sourceHits: Record<string, number>): string {
+  const entries = Object.entries(sourceHits || {}).filter(([, count]) => count > 0);
+  if (entries.length === 0) return "无";
+  return entries
+    .sort((a, b) => b[1] - a[1])
+    .map(([source, count]) => `${SHORT_SOURCE_LABELS[source] ?? source} ${count}`)
     .join(" / ");
 }
 
