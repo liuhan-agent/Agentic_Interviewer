@@ -25,6 +25,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { PendingNavigationLink } from "@/components/navigation/PendingNavigationLink";
+import { SessionIdTooltip } from "@/components/interview/SessionIdTooltip";
 import {
   Card,
   CardContent,
@@ -95,6 +96,7 @@ import {
   type SkillPlaybookDetail,
   type SkillPlaybooks,
   type Strategies,
+  type StrategySignalGroup,
   type StrategySignals,
   type StrategyStats,
   type StrategyUsages,
@@ -586,7 +588,7 @@ export function AdminPanel() {
     [tokenSaved],
   );
   const strategyStatsFetcher = useCallback(
-    (signal?: AbortSignal) => getStrategyStats(signal),
+    (signal?: AbortSignal) => getStrategyStats(true, signal),
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [tokenSaved],
   );
@@ -3789,14 +3791,43 @@ function QuestionBankCard({
   const [busy, setBusy] = useState<string | null>(null);
   const [seedSearch, setSeedSearch] = useState("");
   const [seedDimension, setSeedDimension] = useState("all");
-  const [seedStatus, setSeedStatus] = useState("all");
+  const [seedDirection, setSeedDirection] = useState("all");
+  const [seedRole, setSeedRole] = useState("all");
+  const [seedStatus, setSeedStatus] = useState("active");
   const questionSeedRows = useMemo(
     () => (state.phase === "ready" ? state.data.question_seeds : []),
     [state],
   );
+  const questionSeedTitleById = useMemo(
+    () => new Map(questionSeedRows.map((seed) => [seed.id, seed.title])),
+    [questionSeedRows],
+  );
+  const questionStatusCounts = useMemo(
+    () =>
+      questionSeedRows.reduce<Record<string, number>>((acc, seed) => {
+        const status = seed.status || "unknown";
+        acc[status] = (acc[status] ?? 0) + 1;
+        return acc;
+      }, {}),
+    [questionSeedRows],
+  );
   const questionDimensions = useMemo(
     () =>
       Array.from(new Set(questionSeedRows.map((seed) => seed.dimension).filter(Boolean))).sort(),
+    [questionSeedRows],
+  );
+  const questionDirections = useMemo(
+    () =>
+      Array.from(
+        new Set(questionSeedRows.flatMap((seed) => seed.direction_tags).filter(Boolean)),
+      ).sort(),
+    [questionSeedRows],
+  );
+  const questionRoles = useMemo(
+    () =>
+      Array.from(
+        new Set(questionSeedRows.flatMap((seed) => seed.role_tags).filter(Boolean)),
+      ).sort(),
     [questionSeedRows],
   );
   const questionStatuses = useMemo(
@@ -3808,24 +3839,69 @@ function QuestionBankCard({
   );
   const filteredQuestionSeeds = useMemo(() => {
     const q = seedSearch.trim().toLowerCase();
-    return questionSeedRows.filter((seed) => {
-      const matchesSearch =
-        !q ||
-        seed.title.toLowerCase().includes(q) ||
-        seed.id.toLowerCase().includes(q) ||
-        seed.skill_tags.some((tag) => tag.toLowerCase().includes(q));
-      const matchesDimension =
-        seedDimension === "all" || seed.dimension === seedDimension;
-      const matchesStatus = seedStatus === "all" || (seed.status || "unknown") === seedStatus;
-      return matchesSearch && matchesDimension && matchesStatus;
-    });
-  }, [questionSeedRows, seedDimension, seedSearch, seedStatus]);
+    return questionSeedRows
+      .filter((seed) => {
+        const matchesSearch =
+          !q ||
+          seed.title.toLowerCase().includes(q) ||
+          seed.id.toLowerCase().includes(q) ||
+          seed.skill_tags.some((tag) => tag.toLowerCase().includes(q));
+        const matchesDimension =
+          seedDimension === "all" || seed.dimension === seedDimension;
+        const matchesDirection =
+          seedDirection === "all" || seed.direction_tags.includes(seedDirection);
+        const matchesRole =
+          seedRole === "all" || seed.role_tags.includes(seedRole);
+        const matchesStatus = seedStatus === "all" || (seed.status || "unknown") === seedStatus;
+        return (
+          matchesSearch &&
+          matchesDimension &&
+          matchesDirection &&
+          matchesRole &&
+          matchesStatus
+        );
+      })
+      .sort(compareQuestionSeedRows);
+  }, [
+    questionSeedRows,
+    seedDimension,
+    seedDirection,
+    seedRole,
+    seedSearch,
+    seedStatus,
+  ]);
+  const displayedQuestionUsageEvents = useMemo(
+    () =>
+      usages.phase === "ready"
+        ? groupQuestionUsageEvents(usages.data.usages).slice(0, 5)
+        : [],
+    [usages],
+  );
+  const displayedQuestionReranks = useMemo(
+    () =>
+      rerankUsages.phase === "ready"
+        ? [...rerankUsages.data.rerank_usages]
+            .sort(compareQuestionRerankRows)
+            .slice(0, 3)
+        : [],
+    [rerankUsages],
+  );
+  const displayedQuestionReviews = useMemo(
+    () =>
+      reviews.phase === "ready"
+        ? [...reviews.data.reviews].sort(compareQuestionReviewRows).slice(0, 3)
+        : [],
+    [reviews],
+  );
 
   useEffect(() => {
-    if (selectedSeedId || state.phase !== "ready") return;
-    const first = state.data.question_seeds[0];
-    if (first) setSelectedSeedId(first.id);
-  }, [selectedSeedId, state]);
+    if (state.phase !== "ready") return;
+    const selectedStillVisible = filteredQuestionSeeds.some(
+      (seed) => seed.id === selectedSeedId,
+    );
+    if (selectedSeedId && selectedStillVisible) return;
+    setSelectedSeedId(filteredQuestionSeeds[0]?.id ?? null);
+  }, [filteredQuestionSeeds, selectedSeedId, state.phase]);
 
   useEffect(() => {
     if (!selectedSeedId) {
@@ -3856,7 +3932,7 @@ function QuestionBankCard({
       const result = await importQuestionSeeds(archiveMissing);
       toast({
         title: "结构化题库已导入",
-        description: `seeds +${result.imported_seeds}/${result.updated_seeds}, variants +${result.imported_variants}/${result.updated_variants}, archived=${result.archived_seeds + result.archived_variants}`,
+        description: `主题 +${result.imported_seeds}/${result.updated_seeds}，题目变体 +${result.imported_variants}/${result.updated_variants}，归档 ${result.archived_seeds + result.archived_variants}`,
       });
       onRefresh();
     } catch (err) {
@@ -3894,7 +3970,7 @@ function QuestionBankCard({
 
   async function handleReviewFromRerank(winner: "rule" | "llm" | "tie" | "neither") {
     if (busy || rerankUsages.phase !== "ready") return;
-    const row = rerankUsages.data.rerank_usages[0];
+    const row = displayedQuestionReranks[0];
     if (!row) return;
     setBusy(`review:${winner}`);
     try {
@@ -3937,14 +4013,14 @@ function QuestionBankCard({
           ? await disableQuestionSeed(seedId)
           : await archiveQuestionSeed(seedId);
       toast({
-        title: "题目种子状态已更新",
+        title: "题目主题状态已更新",
         description: `${result.id} -> ${result.status}`,
       });
       onRefresh();
       setSelectedSeedId(seedId);
     } catch (err) {
       toast({
-        title: "题目种子操作失败",
+        title: "题目主题操作失败",
         description: err instanceof Error ? err.message : String(err),
         variant: "destructive",
       });
@@ -3994,13 +4070,13 @@ function QuestionBankCard({
               结构化题库
             </CardTitle>
             <CardDescription className="mt-1">
-              YAML 权威源、结构化题目和最近题目调用。
+              YAML 导入的结构化出题资产，用于候选题匹配、题干生成和评分约束。
             </CardDescription>
           </div>
           <div className="flex flex-wrap justify-end gap-2">
             {state.phase === "ready" && (
               <Badge variant="outline" className="font-mono text-[10px]">
-                {state.data.count} 题目
+                {state.data.count} 主题
               </Badge>
             )}
             {usages.phase === "ready" && (
@@ -4026,7 +4102,8 @@ function QuestionBankCard({
           <div>
             <p className="text-sm font-medium">YAML 导入</p>
             <p className="text-xs text-muted-foreground">
-              内容编辑仍在 knowledge/question_seeds，面板只触发导入和状态切换。
+              内容编辑仍在 knowledge/question_seeds；一个 seed 是一个题目主题，一个
+              variant 是该主题下的一种问法/追问角度。
             </p>
           </div>
           <div className="flex flex-wrap gap-2">
@@ -4077,7 +4154,7 @@ function QuestionBankCard({
         {state.phase === "error" && <ErrorBox message={state.message} />}
         {state.phase === "ready" && state.data.question_seeds.length === 0 && (
           <p className="text-xs text-muted-foreground">
-            暂无结构化题目种子。先导入 YAML 后再查看题目调用。
+            暂无结构化题目主题。先导入 YAML 后再查看题库资产。
           </p>
         )}
         {state.phase === "ready" && state.data.question_seeds.length > 0 && (
@@ -4088,174 +4165,111 @@ function QuestionBankCard({
             dimension={seedDimension}
             onDimensionChange={setSeedDimension}
             dimensions={questionDimensions}
+            direction={seedDirection}
+            onDirectionChange={setSeedDirection}
+            directions={questionDirections}
+            role={seedRole}
+            onRoleChange={setSeedRole}
+            roles={questionRoles}
             status={seedStatus}
             onStatusChange={setSeedStatus}
             statuses={questionStatuses}
+            statusCounts={questionStatusCounts}
             shown={filteredQuestionSeeds.length}
             total={state.data.question_seeds.length}
           />
           {filteredQuestionSeeds.length === 0 ? (
             <p className="rounded-md border border-dashed bg-muted/10 p-3 text-xs text-muted-foreground">
-              当前筛选下没有题目种子。调整筛选条件后再看。
+              当前筛选下没有题目主题。调整筛选条件后再看。
             </p>
           ) : (
           <div className="grid gap-3 lg:grid-cols-[minmax(0,0.9fr)_minmax(0,1.25fr)]">
-            <ul className="max-h-[560px] space-y-2 overflow-y-auto pr-1">
-              {filteredQuestionSeeds.map((seed) => (
-                <li
-                  key={seed.id}
-                  className={cn(
-                    "rounded-lg border bg-card/50 p-3 text-sm",
-                    selectedSeedId === seed.id && "border-primary/50",
-                  )}
-                >
-                  <button
-                    type="button"
-                    className="w-full text-left"
-                    onClick={() => setSelectedSeedId(seed.id)}
+            <aside className="space-y-2" aria-label="题库资产概览">
+              <div>
+                <p className="text-xs font-medium text-foreground">
+                  题库资产概览
+                </p>
+                <p className="mt-0.5 text-[11px] text-muted-foreground">
+                  当前筛选下的题目主题多展示一些，超过后在左侧滚动。
+                </p>
+              </div>
+              <ul className="max-h-[1280px] space-y-2 overflow-y-auto pr-1">
+                {filteredQuestionSeeds.map((seed) => (
+                  <li
+                    key={seed.id}
+                    className={cn(
+                      "rounded-lg border bg-card/50 p-3 text-sm",
+                      selectedSeedId === seed.id && "border-primary/50",
+                    )}
                   >
-                    <div className="flex items-start justify-between gap-2">
-                      <span className="min-w-0 truncate font-medium">{seed.title}</span>
-                      <Badge variant="outline" className="font-mono text-[10px]">
-                        {seed.status}
-                      </Badge>
-                    </div>
-                    <div className="mt-1 font-mono text-[10px] text-muted-foreground">
-                      {seed.id}
-                    </div>
-                    <div className="mt-2 flex flex-wrap gap-1.5">
-                      <Badge variant="secondary" className="font-mono text-[10px]">
-                        {seed.dimension}
-                      </Badge>
-                      {seed.direction_tags.slice(0, 2).map((tag) => (
-                        <Badge key={tag} variant="outline" className="font-mono text-[10px]">
-                          {tag}
-                        </Badge>
-                      ))}
-                      {seed.role_tags.slice(0, 2).map((tag) => (
-                        <Badge key={tag} variant="outline" className="font-mono text-[10px]">
-                          {tag}
-                        </Badge>
-                      ))}
-                      <Badge variant="outline" className="font-mono text-[10px]">
-                        {seed.variant_count ?? 0} variants
-                      </Badge>
-                      {seed.job_levels.slice(0, 3).map((level) => (
-                        <Badge key={level} variant="outline" className="font-mono text-[10px]">
-                          {level}
-                        </Badge>
-                      ))}
-                    </div>
-                  </button>
-                  <div className="mt-3 flex flex-wrap gap-2">
-                    <Button
+                    <button
                       type="button"
-                      size="sm"
-                      variant="outline"
-                      onClick={() => handleSeedAction(seed.id, "disable")}
-                      disabled={busy !== null || seed.status !== "active"}
+                      className="w-full text-left"
+                      onClick={() => setSelectedSeedId(seed.id)}
                     >
-                      禁用
-                    </Button>
-                    <Button
-                      type="button"
-                      size="sm"
-                      variant="ghost"
-                      onClick={() => handleSeedAction(seed.id, "archive")}
-                      disabled={busy !== null || seed.status === "archived"}
-                    >
-                      归档
-                    </Button>
-                  </div>
-                </li>
-              ))}
-            </ul>
-
-            <div className="rounded-lg border bg-card/40 p-3">
-              {detail?.phase === "loading" && <LoadingList rows={4} />}
-              {detail?.phase === "error" && <ErrorBox message={detail.message} />}
-              {detail?.phase === "ready" && (
-                <div className="space-y-3">
-                  <div>
-                    <p className="text-sm font-medium">{detail.data.seed.title}</p>
-                    <p className="mt-1 font-mono text-[10px] text-muted-foreground">
-                      {detail.data.seed.id}
-                    </p>
-                  </div>
-                  <div className="flex flex-wrap gap-1.5">
-                    {detail.data.seed.direction_tags.map((tag) => (
-                      <Badge key={tag} variant="outline" className="font-mono text-[10px]">
-                        {tag}
-                      </Badge>
-                    ))}
-                    {detail.data.seed.role_tags.map((tag) => (
-                      <Badge key={tag} variant="outline" className="font-mono text-[10px]">
-                        {tag}
-                      </Badge>
-                    ))}
-                    {detail.data.seed.skill_tags.map((tag) => (
-                      <Badge key={tag} variant="secondary" className="font-mono text-[10px]">
-                        {tag}
-                      </Badge>
-                    ))}
-                  </div>
-                  <Separator />
-                  <div className="space-y-2">
-                    {detail.data.variants.map((variant) => (
-                      <div key={variant.id} className="rounded-md border bg-background/40 p-2 text-xs">
-                        <div className="flex flex-wrap items-center justify-between gap-2">
-                          <span className="font-medium">{variant.intent}</span>
-                          <div className="flex flex-wrap gap-1">
-                            <Badge variant="outline" className="font-mono text-[10px]">
-                              {variant.difficulty}
-                            </Badge>
-                            <Badge variant="outline" className="font-mono text-[10px]">
-                              {variant.status}
-                            </Badge>
-                          </div>
-                        </div>
-                        <p className="mt-1 text-muted-foreground">{variant.scenario_brief}</p>
-                        <p className="mt-1 font-mono text-[10px] text-muted-foreground">
-                          {variant.id}
-                        </p>
-                        <div className="mt-2 flex flex-wrap gap-1">
-                          {variant.role_tags.map((tag) => (
-                            <Badge key={tag} variant="secondary" className="font-mono text-[10px]">
-                              {tag}
-                            </Badge>
-                          ))}
-                          {variant.failure_categories.map((cat) => (
-                            <Badge key={cat} variant="outline" className="font-mono text-[10px]">
-                              {cat}
-                            </Badge>
-                          ))}
-                        </div>
-                        <div className="mt-2 flex flex-wrap gap-2">
-                          <Button
-                            type="button"
-                            size="sm"
-                            variant="outline"
-                            onClick={() => handleVariantAction(variant.id, "disable")}
-                            disabled={busy !== null || variant.status !== "active"}
-                          >
-                            禁用
-                          </Button>
-                          <Button
-                            type="button"
-                            size="sm"
-                            variant="ghost"
-                            onClick={() => handleVariantAction(variant.id, "archive")}
-                            disabled={busy !== null || variant.status === "archived"}
-                          >
-                            归档
-                          </Button>
-                        </div>
+                      <div className="flex items-start justify-between gap-2">
+                        <span className="min-w-0 truncate font-medium">{seed.title}</span>
+                        <Badge variant="outline" className="font-mono text-[10px]">
+                          {formatQuestionAssetStatus(seed.status)}
+                        </Badge>
                       </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </div>
+                      <div className="mt-1 font-mono text-[10px] text-muted-foreground">
+                        {seed.id}
+                      </div>
+                      <div className="mt-2 flex flex-wrap gap-1.5">
+                        <Badge variant="secondary" className="font-mono text-[10px]">
+                          {seed.dimension}
+                        </Badge>
+                        {seed.direction_tags.slice(0, 2).map((tag) => (
+                          <Badge key={tag} variant="outline" className="font-mono text-[10px]">
+                            {tag}
+                          </Badge>
+                        ))}
+                        {seed.role_tags.slice(0, 2).map((tag) => (
+                          <Badge key={tag} variant="outline" className="font-mono text-[10px]">
+                            {tag}
+                          </Badge>
+                        ))}
+                        <Badge variant="outline" className="font-mono text-[10px]">
+                          {seed.variant_count ?? 0} 题目变体
+                        </Badge>
+                        {seed.job_levels.slice(0, 3).map((level) => (
+                          <Badge key={level} variant="outline" className="font-mono text-[10px]">
+                            {level}
+                          </Badge>
+                        ))}
+                      </div>
+                    </button>
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        onClick={() => handleSeedAction(seed.id, "disable")}
+                        disabled={busy !== null || seed.status !== "active"}
+                      >
+                        禁用
+                      </Button>
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => handleSeedAction(seed.id, "archive")}
+                        disabled={busy !== null || seed.status === "archived"}
+                      >
+                        归档
+                      </Button>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            </aside>
+
+            <QuestionSeedDetailPanel
+              detail={detail}
+              busy={busy}
+              onVariantAction={handleVariantAction}
+            />
           </div>
           )}
           </>
@@ -4263,48 +4277,143 @@ function QuestionBankCard({
 
         <details className="rounded-md border border-dashed bg-muted/10 px-3 py-2">
           <summary className="cursor-pointer text-xs font-medium text-muted-foreground">
-            二级诊断
+            选题诊断
           </summary>
           <div className="mt-3 space-y-3">
-        {usages.phase === "ready" && usages.data.usages.length > 0 && (
+            <p className="text-[11px] text-muted-foreground">
+              观察最近选题记录、规则 selector 与 Shadow reranker 的分歧，以及人工评审样本。
+            </p>
+        {usages.phase === "ready" && displayedQuestionUsageEvents.length > 0 && (
           <div className="space-y-2">
-            <p className="text-xs font-medium text-muted-foreground">最近题目调用</p>
+            <div>
+              <p className="text-xs font-medium text-muted-foreground">最近出题事件</p>
+              <p className="mt-0.5 text-[11px] text-muted-foreground">
+                按 session + turn 聚合同轮候选，快速观察最近真实出题和备选分差。
+              </p>
+            </div>
             <ul className="space-y-1.5">
-              {usages.data.usages.slice(0, 5).map((usage) => (
-                <li key={usage.id} className="rounded-md border bg-card/30 p-2 text-[11px]">
-                  <div className="flex flex-wrap items-center gap-1.5">
-                    <Badge variant={usage.injected ? "success" : "outline"} className="font-mono text-[10px]">
-                      rank {usage.rank}
-                    </Badge>
-                    <Badge variant="secondary" className="font-mono text-[10px]">
-                      {usage.question_selector_mode}
-                    </Badge>
-                    <span className="font-mono text-muted-foreground">
-                      {usage.variant_id}
-                    </span>
-                    {(usage.role_tags ?? []).map((tag) => (
-                      <Badge key={tag} variant="outline" className="font-mono text-[10px]">
-                        {tag}
+              {displayedQuestionUsageEvents.map((event) => {
+                const injected = event.injected;
+                const eventTitle = injected
+                  ? formatQuestionUsageTitle(injected, questionSeedTitleById)
+                  : "未记录实际出题";
+                return (
+                <li key={event.key} className="rounded-md border bg-card/30 p-3 text-[11px]">
+                  <div className="space-y-2">
+                    <div className="flex flex-wrap items-center gap-1.5">
+                      <Badge
+                        variant={injected ? "success" : "outline"}
+                        className="font-mono text-[10px]"
+                      >
+                        {injected ? formatQuestionUsageSelectionLabel(injected) : "无实际题"}
+                      </Badge>
+                      {(event.role_tags ?? []).map((tag) => (
+                        <Badge key={tag} variant="outline" className="font-mono text-[10px]">
+                          {tag}
+                        </Badge>
+                      ))}
+                    </div>
+                    <div
+                      aria-label="出题事件元信息"
+                      className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-muted-foreground"
+                    >
+                      <span className="inline-flex min-w-0 items-center gap-1">
+                        <span>Session：</span>
+                        <SessionIdTooltip sessionId={event.session_id} side="top" />
+                      </span>
+                      <span>第 {event.turn_idx} 轮</span>
+                      <span>{event.question_selector_mode}</span>
+                    </div>
+                  </div>
+                  <p className="mt-2 text-sm font-medium text-foreground">
+                    {eventTitle}
+                  </p>
+                  <div className="mt-1 flex flex-wrap gap-3 text-muted-foreground">
+                    <span>{formatQuestionUsageEventCandidateSummary(event)}</span>
+                    <span>{formatQuestionUsageEventScore(event)}</span>
+                  </div>
+                  <div className="mt-2 flex flex-wrap gap-1.5">
+                    {event.candidates.slice(0, 3).map((candidate) => (
+                      <Badge
+                        key={candidate.id}
+                        variant={candidate.injected ? "success" : "outline"}
+                        className="whitespace-normal font-mono text-[10px] leading-snug"
+                      >
+                        #{candidate.rank} {candidate.injected ? "实际" : "候选"}{" "}
+                        {formatMaybeNumber(candidate.match_score)}
                       </Badge>
                     ))}
                   </div>
-                  <div className="mt-1 flex flex-wrap gap-3 text-muted-foreground">
-                    <span>score {formatMaybeNumber(usage.match_score)}</span>
-                    <span>eval {formatMaybeNumber(usage.score)}</span>
-                    <span>reward {formatMaybeNumber(usage.immediate_reward)}</span>
+                  <details className="mt-2">
+                    <summary className="cursor-pointer text-[11px] text-muted-foreground">
+                      候选 Top 与开发详情
+                    </summary>
+                    <div className="mt-2 space-y-2">
+                      {event.candidates.map((candidate) => (
+                        <div
+                          key={candidate.id}
+                          className="rounded-md border bg-background/30 px-2 py-1.5"
+                        >
+                          <div className="flex flex-wrap gap-2 text-muted-foreground">
+                            <span className="font-mono">rank {candidate.rank}</span>
+                            <span>匹配分 {formatMaybeNumber(candidate.match_score)}</span>
+                            <span>
+                              {candidate.injected
+                                ? formatQuestionUsageCandidateScore(candidate)
+                                : "未采用，不回填"}
+                            </span>
+                          </div>
+                          <div className="mt-1 break-words font-mono text-[10px] text-muted-foreground">
+                            {formatQuestionUsageTitle(candidate, questionSeedTitleById)}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                    <div className="mt-2 space-y-1 font-mono text-[10px] text-muted-foreground">
+                      <div>selector: {event.question_selector_mode}</div>
+                      <div className="break-all">session_id: {event.session_id}</div>
+                      {injected && (
+                        <>
+                          <div className="break-all">seed_id: {injected.seed_id}</div>
+                          <div className="break-all">variant_id: {injected.variant_id}</div>
+                        </>
+                      )}
+                    </div>
+                  </details>
+                  <div className="mt-2">
+                    <Button asChild variant="ghost" size="sm" className="h-7 px-2 text-[11px]">
+                      <PendingNavigationLink href={`/admin/trace?sessionId=${event.session_id}`}>
+                        <ExternalLink className="mr-1 h-3 w-3" />
+                        Trace Explorer
+                      </PendingNavigationLink>
+                    </Button>
                   </div>
                 </li>
-              ))}
+                );
+              })}
             </ul>
           </div>
         )}
 
+        {usages.phase === "ready" &&
+          usages.data.usages.length > 0 &&
+          displayedQuestionUsageEvents.length === 0 && (
+            <p className="rounded-md border border-dashed bg-muted/10 p-3 text-xs text-muted-foreground">
+              最近 question_usages 暂时无法聚合成出题事件。
+            </p>
+          )}
+
         {rerankUsages.phase === "ready" && rerankUsages.data.rerank_usages.length > 0 && (
           <div className="space-y-2">
             <div className="flex flex-wrap items-center justify-between gap-2">
-              <p className="text-xs font-medium text-muted-foreground">
-                Shadow reranker
-              </p>
+              <div>
+                <p className="text-xs font-medium text-muted-foreground">
+                  重排分歧观察
+                </p>
+                <p className="mt-0.5 text-[11px] text-muted-foreground">
+                  Shadow reranker 只做旁路观察，不直接改写实际出题。
+                </p>
+              </div>
               <div className="flex flex-wrap gap-1.5">
                 {(["rule", "llm", "tie", "neither"] as const).map((winner) => (
                   <Button
@@ -4313,33 +4422,63 @@ function QuestionBankCard({
                     size="sm"
                     variant={winner === "llm" ? "outline" : "ghost"}
                     onClick={() => handleReviewFromRerank(winner)}
-                    disabled={busy !== null}
+                    disabled={busy !== null || displayedQuestionReranks.length === 0}
                   >
-                    {winner}
+                    {formatQuestionReviewWinner(winner)}
                   </Button>
                 ))}
               </div>
             </div>
             <ul className="space-y-1.5">
-              {rerankUsages.data.rerank_usages.slice(0, 3).map((row) => (
-                <li key={row.id} className="rounded-md border bg-card/30 p-2 text-[11px]">
+              {displayedQuestionReranks.map((row) => (
+                <li key={row.id} className="rounded-md border bg-card/30 p-3 text-[11px]">
                   <div className="flex flex-wrap gap-1.5">
-                    <Badge variant={row.status === "ok" ? "success" : "warn"} className="font-mono text-[10px]">
-                      {row.status}
+                    <Badge
+                      variant={row.status === "ok" ? "success" : "warn"}
+                      className="font-mono text-[10px]"
+                    >
+                      {formatQuestionRerankStatus(row.status)}
+                    </Badge>
+                    <Badge variant="outline" className="font-mono text-[10px]">
+                      第 {row.turn_idx} 轮
                     </Badge>
                     <Badge variant="secondary" className="font-mono text-[10px]">
-                      conf {formatMaybeNumber(row.confidence)}
+                      置信度 {formatMaybeNumber(row.confidence)}
                     </Badge>
-                    <span className="font-mono text-muted-foreground">
-                      rule {row.rule_top_variant_id ?? "-"}
-                    </span>
-                    <span className="font-mono text-muted-foreground">
-                      llm {row.llm_top_variant_id ?? "-"}
-                    </span>
+                    <Badge variant="outline" className="font-mono text-[10px]">
+                      {formatQuestionRerankDecision(row)}
+                    </Badge>
+                  </div>
+                  <div className="mt-2 grid gap-2 sm:grid-cols-2">
+                    <QuestionDiagnosticChoice
+                      label="规则首选"
+                      value={row.rule_top_variant_id}
+                    />
+                    <QuestionDiagnosticChoice
+                      label="模型首选"
+                      value={row.llm_top_variant_id}
+                    />
                   </div>
                   {row.anchor_choice && (
-                    <p className="mt-1 text-muted-foreground">anchor {row.anchor_choice}</p>
+                    <p className="mt-2 text-[11px] text-muted-foreground">
+                      候选锚点：{row.anchor_choice}
+                    </p>
                   )}
+                  <details className="mt-2">
+                    <summary className="cursor-pointer text-[11px] text-muted-foreground">
+                      开发详情
+                    </summary>
+                    <div className="mt-1 space-y-1 font-mono text-[10px] text-muted-foreground">
+                      <div>selector: {row.question_selector_mode}</div>
+                      <div>model: {row.model ?? "-"}</div>
+                      <div>latency_ms: {row.latency_ms ?? "-"}</div>
+                      {row.reasons.length > 0 && (
+                        <div className="break-words">
+                          reasons: {row.reasons.slice(0, 3).join(", ")}
+                        </div>
+                      )}
+                    </div>
+                  </details>
                 </li>
               ))}
             </ul>
@@ -4348,23 +4487,38 @@ function QuestionBankCard({
 
         {reviews.phase === "ready" && reviews.data.reviews.length > 0 && (
           <div className="space-y-2">
-            <p className="text-xs font-medium text-muted-foreground">
-              最近评审
-            </p>
+            <div>
+              <p className="text-xs font-medium text-muted-foreground">
+                人工评审样本
+              </p>
+              <p className="mt-0.5 text-[11px] text-muted-foreground">
+                记录人工对规则首选和模型首选的判断，用来校准 selector/reranker。
+              </p>
+            </div>
             <ul className="space-y-1.5">
-              {reviews.data.reviews.slice(0, 3).map((review) => (
-                <li key={review.id} className="rounded-md border bg-card/30 p-2 text-[11px]">
+              {displayedQuestionReviews.map((review) => (
+                <li key={review.id} className="rounded-md border bg-card/30 p-3 text-[11px]">
                   <div className="flex flex-wrap gap-1.5">
                     <Badge variant="outline" className="font-mono text-[10px]">
-                      {review.winner}
+                      第 {review.turn_idx} 轮
                     </Badge>
-                    <span className="font-mono text-muted-foreground">
-                      {review.rule_variant_id ?? "-"} vs {review.llm_variant_id ?? "-"}
-                    </span>
+                    <Badge variant="secondary" className="font-mono text-[10px]">
+                      结论：{formatQuestionReviewWinner(review.winner)}
+                    </Badge>
+                  </div>
+                  <div className="mt-2 grid gap-2 sm:grid-cols-2">
+                    <QuestionDiagnosticChoice
+                      label="规则题"
+                      value={review.rule_variant_id}
+                    />
+                    <QuestionDiagnosticChoice
+                      label="模型题"
+                      value={review.llm_variant_id}
+                    />
                   </div>
                   {review.reasons.length > 0 && (
                     <p className="mt-1 text-muted-foreground">
-                      {review.reasons.slice(0, 2).join(", ")}
+                      原因：{review.reasons.slice(0, 2).join(", ")}
                     </p>
                   )}
                 </li>
@@ -4379,7 +4533,7 @@ function QuestionBankCard({
           rerankUsages.data.rerank_usages.length === 0 &&
           reviews.data.reviews.length === 0 && (
             <p className="text-xs text-muted-foreground">
-              暂无题目调用、reranker 或评审样本，这不是错误。
+              当前暂无选题调用、重排或评审样本，这不是错误。完成几轮面试后会出现选题诊断数据。
             </p>
           )}
           </div>
@@ -4389,15 +4543,529 @@ function QuestionBankCard({
   );
 }
 
+type QuestionVariantAction = "disable" | "archive";
+type QuestionVariantRow = QuestionSeedDetail["variants"][number];
+
+function QuestionSeedDetailPanel({
+  detail,
+  busy,
+  onVariantAction,
+}: {
+  detail: Loadable<QuestionSeedDetail> | null;
+  busy: string | null;
+  onVariantAction: (
+    variantId: string,
+    action: QuestionVariantAction,
+  ) => void;
+}) {
+  if (!detail) {
+    return (
+      <div className="rounded-lg border border-dashed bg-card/30 p-4 text-xs text-muted-foreground">
+        选择左侧题目主题后查看题目变体和出题配置。
+      </div>
+    );
+  }
+
+  if (detail.phase === "loading") {
+    return (
+      <div className="rounded-lg border bg-card/40 p-3">
+        <LoadingList rows={4} />
+      </div>
+    );
+  }
+
+  if (detail.phase === "error") {
+    return (
+      <div className="rounded-lg border bg-card/40 p-3">
+        <ErrorBox message={detail.message} />
+      </div>
+    );
+  }
+
+  const { seed, variants } = detail.data;
+  return (
+    <div className="rounded-lg border bg-card/40 p-4">
+      <div className="space-y-3">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div className="min-w-0">
+            <p className="text-[11px] font-medium text-muted-foreground">
+              题目主题
+            </p>
+            <h3 className="mt-1 text-sm font-semibold text-foreground">
+              {seed.title}
+            </h3>
+            <p className="mt-1 break-all font-mono text-[10px] text-muted-foreground">
+              {seed.id}
+            </p>
+          </div>
+          <div className="flex flex-wrap justify-end gap-1.5">
+            <Badge variant="outline" className="font-mono text-[10px]">
+              状态：{formatQuestionAssetStatus(seed.status)}
+            </Badge>
+            <Badge variant="secondary" className="font-mono text-[10px]">
+              priority {seed.priority ?? 0}
+            </Badge>
+            <Badge variant="outline" className="font-mono text-[10px]">
+              {variants.length} 题目变体
+            </Badge>
+          </div>
+        </div>
+
+        <p className="rounded-md border border-dashed bg-background/30 px-3 py-2 text-[11px] text-muted-foreground">
+          一个 seed 是一个题目主题，一个 variant 是该主题下的一种问法/追问角度。
+        </p>
+
+        <div className="grid gap-2 text-xs sm:grid-cols-2">
+          <QuestionMetaItem label="维度" value={seed.dimension} />
+          <QuestionMetaItem
+            label="适用级别"
+            value={seed.job_levels.join(" / ") || "-"}
+          />
+          <QuestionMetaItem label="来源" value={seed.source || "-"} />
+          <QuestionMetaItem label="语言" value={seed.language || "-"} />
+        </div>
+
+        <div className="space-y-2">
+          <QuestionConfigRow label="方向标签" values={seed.direction_tags} />
+          <QuestionConfigRow label="角色标签" values={seed.role_tags} />
+          <QuestionConfigRow
+            label="技能标签"
+            values={seed.skill_tags}
+            badgeVariant="secondary"
+          />
+        </div>
+
+        <Separator />
+
+        <div className="space-y-3">
+          <div className="flex flex-wrap items-end justify-between gap-2">
+            <div>
+              <p className="text-sm font-semibold text-foreground">题目变体</p>
+              <p className="mt-0.5 text-[11px] text-muted-foreground">
+                默认先看出题内容；评分与诊断配置折叠保存。
+              </p>
+            </div>
+            <Badge variant="outline" className="font-mono text-[10px]">
+              {variants.length} 题目变体
+            </Badge>
+          </div>
+
+          {variants.map((variant) => (
+            <QuestionVariantDetailCard
+              key={variant.id}
+              variant={variant}
+              busy={busy}
+              onAction={onVariantAction}
+            />
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function QuestionMetaItem({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-md border bg-background/30 px-3 py-2">
+      <p className="text-[10px] text-muted-foreground">{label}</p>
+      <p className="mt-1 break-words font-mono text-[11px] text-foreground">
+        {value}
+      </p>
+    </div>
+  );
+}
+
+function QuestionVariantDetailCard({
+  variant,
+  busy,
+  onAction,
+}: {
+  variant: QuestionVariantRow;
+  busy: string | null;
+  onAction: (variantId: string, action: QuestionVariantAction) => void;
+}) {
+  return (
+    <article className="space-y-3 rounded-md border bg-background/40 p-3 text-xs">
+      <div className="flex flex-wrap items-start justify-between gap-2">
+        <div className="min-w-0">
+          <div>
+            <span className="font-medium text-foreground">题目变体</span>
+          </div>
+          <div className="mt-2 flex flex-wrap items-center gap-1.5">
+            <Badge variant="secondary" className="font-mono text-[10px]">
+              问法：{variant.intent}
+            </Badge>
+            <Badge variant="outline" className="font-mono text-[10px]">
+              难度：{variant.difficulty}
+            </Badge>
+          </div>
+          <p className="mt-1 break-all font-mono text-[10px] text-muted-foreground">
+            {variant.id}
+          </p>
+        </div>
+        <div className="flex flex-wrap justify-end gap-1.5">
+          <Badge
+            variant={questionAssetStatusBadgeVariant(variant.status)}
+            className="font-mono text-[10px]"
+          >
+            状态：{formatQuestionAssetStatus(variant.status)}
+          </Badge>
+          <Button
+            type="button"
+            size="sm"
+            variant="ghost"
+            onClick={() => onAction(variant.id, "disable")}
+            disabled={busy !== null || variant.status !== "active"}
+          >
+            禁用
+          </Button>
+          <Button
+            type="button"
+            size="sm"
+            variant="ghost"
+            onClick={() => onAction(variant.id, "archive")}
+            disabled={busy !== null || variant.status === "archived"}
+          >
+            归档
+          </Button>
+        </div>
+      </div>
+
+      <section className="space-y-2">
+        <p className="text-[11px] font-medium text-foreground">出题内容</p>
+        <QuestionTextBlock label="场景" value={variant.scenario_brief} />
+        <QuestionTextBlock label="题干" value={variant.question_stem} />
+        <QuestionTextBlock
+          label="生成模板"
+          value={variant.prompt_template}
+          mono
+        />
+      </section>
+
+      <details className="rounded-md border border-dashed bg-muted/10 px-3 py-2">
+        <summary className="cursor-pointer text-[11px] font-medium text-muted-foreground">
+          评分与诊断配置
+        </summary>
+        <div className="mt-3 space-y-2">
+          <QuestionConfigRow
+            label="匹配技能"
+            values={variant.scenario_skill_tags}
+            badgeVariant="secondary"
+          />
+          <QuestionConfigRow
+            label="简历锚点"
+            values={variant.resume_anchor_hints}
+          />
+          <QuestionConfigRow
+            label="失败类型"
+            values={variant.failure_categories}
+          />
+          <QuestionConfigRow
+            label="评分补充"
+            values={variant.rubric_additions}
+          />
+          <QuestionConfigRow
+            label="期望信号"
+            values={variant.expected_signals}
+          />
+          <QuestionConfigRow label="反模式" values={variant.anti_patterns} />
+          <QuestionConfigRow
+            label="好答案提示"
+            values={variant.good_answer_hints}
+          />
+          <QuestionConfigRow label="角色标签" values={variant.role_tags} />
+        </div>
+      </details>
+    </article>
+  );
+}
+
+function QuestionTextBlock({
+  label,
+  value,
+  mono = false,
+}: {
+  label: string;
+  value: string;
+  mono?: boolean;
+}) {
+  if (!value) return null;
+  return (
+    <div className="rounded-md bg-muted/15 px-3 py-2">
+      <p className="text-[10px] text-muted-foreground">{label}</p>
+      <p
+        className={cn(
+          "mt-1 whitespace-pre-wrap break-words leading-relaxed text-foreground",
+          mono && "font-mono text-[11px]",
+        )}
+      >
+        {value}
+      </p>
+    </div>
+  );
+}
+
+function QuestionConfigRow({
+  label,
+  values,
+  badgeVariant = "outline",
+}: {
+  label: string;
+  values: string[];
+  badgeVariant?: React.ComponentProps<typeof Badge>["variant"];
+}) {
+  if (values.length === 0) return null;
+  return (
+    <div className="grid gap-1.5 sm:grid-cols-[88px_minmax(0,1fr)]">
+      <span className="text-[10px] text-muted-foreground">{label}</span>
+      <div className="flex min-w-0 flex-wrap gap-1.5">
+        {values.map((value, index) => (
+          <Badge
+            key={`${label}-${value}-${index}`}
+            variant={badgeVariant}
+            className="max-w-full whitespace-normal break-words font-mono text-[10px] leading-snug"
+          >
+            {value}
+          </Badge>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+type QuestionSeedRow = QuestionSeeds["question_seeds"][number];
+type QuestionUsageRow = QuestionUsages["usages"][number];
+type QuestionUsageEvent = {
+  key: string;
+  session_id: string;
+  turn_idx: number;
+  trace_id?: string | null;
+  question_selector_mode: string;
+  createdAtMs: number;
+  candidates: QuestionUsageRow[];
+  injected: QuestionUsageRow | null;
+  role_tags: string[];
+  direction_tags: string[];
+};
+type QuestionRerankRow = QuestionRerankUsages["rerank_usages"][number];
+type QuestionReviewRow = QuestionReviews["reviews"][number];
+
+function compareQuestionSeedRows(a: QuestionSeedRow, b: QuestionSeedRow): number {
+  return (
+    questionStatusRank(a.status) - questionStatusRank(b.status) ||
+    a.dimension.localeCompare(b.dimension) ||
+    (b.priority ?? 0) - (a.priority ?? 0) ||
+    a.id.localeCompare(b.id)
+  );
+}
+
+function questionStatusRank(status?: string | null): number {
+  if (status === "active") return 0;
+  if (status === "disabled") return 1;
+  if (status === "archived") return 2;
+  return 3;
+}
+
+function formatQuestionAssetStatus(status?: string | null): string {
+  if (status === "active") return "可用";
+  if (status === "disabled") return "禁用";
+  if (status === "archived") return "归档";
+  return status || "未知";
+}
+
+function questionAssetStatusBadgeVariant(
+  status?: string | null,
+): React.ComponentProps<typeof Badge>["variant"] {
+  if (status === "active") return "secondary";
+  if (status === "disabled") return "warn";
+  if (status === "archived") return "outline";
+  return "outline";
+}
+
+function formatQuestionUsageSelectionLabel(usage: QuestionUsageRow): string {
+  if (usage.injected) return "实际出题";
+  return `候选第 ${usage.rank} 名`;
+}
+
+function groupQuestionUsageEvents(usages: QuestionUsageRow[]): QuestionUsageEvent[] {
+  const events = new Map<string, QuestionUsageEvent>();
+  for (const usage of usages) {
+    const key = `${usage.session_id}::${usage.turn_idx}::${usage.question_selector_mode}`;
+    const createdAtMs = questionUsageCreatedAtMs(usage);
+    const existing = events.get(key);
+    if (!existing) {
+      events.set(key, {
+        key,
+        session_id: usage.session_id,
+        turn_idx: usage.turn_idx,
+        trace_id: usage.trace_id,
+        question_selector_mode: usage.question_selector_mode,
+        createdAtMs,
+        candidates: [usage],
+        injected: usage.injected ? usage : null,
+        role_tags: usage.role_tags ?? [],
+        direction_tags: usage.direction_tags ?? [],
+      });
+      continue;
+    }
+    existing.candidates.push(usage);
+    existing.createdAtMs = Math.max(existing.createdAtMs, createdAtMs);
+    existing.trace_id = existing.trace_id ?? usage.trace_id;
+    if (usage.injected) existing.injected = usage;
+    if (existing.role_tags.length === 0 && usage.role_tags?.length) {
+      existing.role_tags = usage.role_tags;
+    }
+    if (existing.direction_tags.length === 0 && usage.direction_tags?.length) {
+      existing.direction_tags = usage.direction_tags;
+    }
+  }
+  return Array.from(events.values())
+    .map((event) => ({
+      ...event,
+      candidates: [...event.candidates].sort(
+        (a, b) =>
+          a.rank - b.rank ||
+          Number(b.injected) - Number(a.injected) ||
+          compareQuestionUsageRows(a, b),
+      ),
+    }))
+    .sort(compareQuestionUsageEvents);
+}
+
+function compareQuestionUsageEvents(a: QuestionUsageEvent, b: QuestionUsageEvent): number {
+  return b.createdAtMs - a.createdAtMs || b.turn_idx - a.turn_idx;
+}
+
+function compareQuestionUsageRows(a: QuestionUsageRow, b: QuestionUsageRow): number {
+  return (
+    questionUsageCreatedAtMs(b) - questionUsageCreatedAtMs(a) ||
+    b.turn_idx - a.turn_idx ||
+    Number(b.injected) - Number(a.injected) ||
+    a.rank - b.rank
+  );
+}
+
+function compareQuestionRerankRows(a: QuestionRerankRow, b: QuestionRerankRow): number {
+  return (
+    questionRerankCreatedAtMs(b) - questionRerankCreatedAtMs(a) ||
+    b.turn_idx - a.turn_idx
+  );
+}
+
+function compareQuestionReviewRows(a: QuestionReviewRow, b: QuestionReviewRow): number {
+  return (
+    questionReviewCreatedAtMs(b) - questionReviewCreatedAtMs(a) ||
+    b.turn_idx - a.turn_idx
+  );
+}
+
+function questionUsageCreatedAtMs(usage: QuestionUsageRow): number {
+  const value = Date.parse(usage.created_at ?? "");
+  return Number.isFinite(value) ? value : 0;
+}
+
+function questionRerankCreatedAtMs(row: QuestionRerankRow): number {
+  const value = Date.parse(row.created_at ?? "");
+  return Number.isFinite(value) ? value : 0;
+}
+
+function questionReviewCreatedAtMs(row: QuestionReviewRow): number {
+  const value = Date.parse(row.created_at ?? "");
+  return Number.isFinite(value) ? value : 0;
+}
+
+function formatQuestionUsageTitle(
+  usage: QuestionUsageRow,
+  seedTitleById: Map<string, string>,
+): string {
+  const seedTitle = seedTitleById.get(usage.seed_id) ?? compactQuestionAssetId(usage.seed_id);
+  const variantTail = compactQuestionAssetId(usage.variant_id);
+  return `${seedTitle}：${variantTail}`;
+}
+
+function formatQuestionUsageEventCandidateSummary(event: QuestionUsageEvent): string {
+  const injectedRank = event.injected?.rank;
+  const rankCopy = injectedRank == null ? "无实际题" : `实际题 rank ${injectedRank}`;
+  return `候选 Top ${event.candidates.length}，${rankCopy}`;
+}
+
+function formatQuestionUsageEventScore(event: QuestionUsageEvent): string {
+  if (!event.injected) return "无评分回填目标";
+  return formatQuestionUsageCandidateScore(event.injected);
+}
+
+function formatQuestionUsageCandidateScore(candidate: QuestionUsageRow): string {
+  const score =
+    candidate.score == null
+      ? "评分未回填"
+      : `评分 ${formatMaybeNumber(candidate.score)}`;
+  const reward =
+    candidate.immediate_reward == null
+      ? "奖励未回填"
+      : `奖励 ${formatMaybeNumber(candidate.immediate_reward)}`;
+  return `${score} / ${reward}`;
+}
+
+function compactQuestionAssetId(value: string): string {
+  const parts = value.split(".").filter(Boolean);
+  const tail = parts.at(-1) ?? value;
+  return tail.replace(/_/g, " ");
+}
+
+function formatQuestionRerankStatus(status?: string | null): string {
+  if (status === "ok") return "已完成";
+  if (status === "error") return "异常";
+  if (status === "skipped") return "跳过";
+  return status || "未知";
+}
+
+function formatQuestionRerankDecision(row: QuestionRerankRow): string {
+  if (!row.rule_top_variant_id && !row.llm_top_variant_id) return "无首选";
+  if (row.rule_top_variant_id === row.llm_top_variant_id) return "规则与模型一致";
+  return "存在分歧";
+}
+
+function formatQuestionReviewWinner(winner: QuestionReviewRow["winner"]): string {
+  if (winner === "rule") return "规则更好";
+  if (winner === "llm") return "模型更好";
+  if (winner === "tie") return "两者接近";
+  if (winner === "neither") return "都不合适";
+  return winner;
+}
+
+function QuestionDiagnosticChoice({
+  label,
+  value,
+}: {
+  label: string;
+  value?: string | null;
+}) {
+  return (
+    <div className="rounded-md border bg-background/30 px-3 py-2">
+      <p className="text-[10px] text-muted-foreground">{label}</p>
+      <p className="mt-1 break-words font-mono text-[11px] text-foreground">
+        {value ? compactQuestionAssetId(value) : "未记录"}
+      </p>
+    </div>
+  );
+}
+
 function QuestionBankFilters({
   search,
   onSearchChange,
   dimension,
   onDimensionChange,
   dimensions,
+  direction,
+  onDirectionChange,
+  directions,
+  role,
+  onRoleChange,
+  roles,
   status,
   onStatusChange,
   statuses,
+  statusCounts,
   shown,
   total,
 }: {
@@ -4406,34 +5074,56 @@ function QuestionBankFilters({
   dimension: string;
   onDimensionChange: (value: string) => void;
   dimensions: string[];
+  direction: string;
+  onDirectionChange: (value: string) => void;
+  directions: string[];
+  role: string;
+  onRoleChange: (value: string) => void;
+  roles: string[];
   status: string;
   onStatusChange: (value: string) => void;
   statuses: string[];
+  statusCounts: Record<string, number>;
   shown: number;
   total: number;
 }) {
+  const statusOptions = Array.from(new Set(["active", ...statuses]));
   return (
     <div className="rounded-md border bg-muted/10 p-3">
       <div className="flex flex-col gap-2 lg:flex-row lg:items-center lg:justify-between">
         <div>
           <p className="text-xs font-medium text-foreground">题库筛选</p>
           <p className="mt-0.5 text-[11px] text-muted-foreground">
-            当前显示 {shown}/{total} 个 seed。
+            当前显示 {shown}/{total} 个题目主题。
           </p>
         </div>
-        <div className="grid gap-2 sm:grid-cols-3 lg:min-w-[620px]">
+        <div className="grid min-w-0 gap-2 sm:grid-cols-2 lg:min-w-[720px] lg:grid-cols-3 xl:min-w-[900px] xl:grid-cols-5">
           <Input
             name="question-seed-search"
             autoComplete="off"
-            aria-label="搜索题目种子"
+            aria-label="搜索题目主题"
             placeholder="搜索标题、ID、技能…"
             value={search}
             onChange={(event) => onSearchChange(event.target.value)}
             className="h-8 text-xs"
           />
           <select
+            name="question-seed-status"
+            aria-label="按状态筛选题目主题"
+            value={status}
+            onChange={(event) => onStatusChange(event.target.value)}
+            className="h-8 rounded-md border bg-background px-2 text-xs text-foreground"
+          >
+            <option value="all">全部状态 ({total})</option>
+            {statusOptions.map((item) => (
+              <option key={item} value={item}>
+                {formatQuestionAssetStatus(item)} ({statusCounts[item] ?? 0})
+              </option>
+            ))}
+          </select>
+          <select
             name="question-seed-dimension"
-            aria-label="按能力维度筛选题目种子"
+            aria-label="按能力维度筛选题目主题"
             value={dimension}
             onChange={(event) => onDimensionChange(event.target.value)}
             className="h-8 rounded-md border bg-background px-2 text-xs text-foreground"
@@ -4446,14 +5136,28 @@ function QuestionBankFilters({
             ))}
           </select>
           <select
-            name="question-seed-status"
-            aria-label="按状态筛选题目种子"
-            value={status}
-            onChange={(event) => onStatusChange(event.target.value)}
+            name="question-seed-direction"
+            aria-label="按方向筛选题目主题"
+            value={direction}
+            onChange={(event) => onDirectionChange(event.target.value)}
             className="h-8 rounded-md border bg-background px-2 text-xs text-foreground"
           >
-            <option value="all">全部状态</option>
-            {statuses.map((item) => (
+            <option value="all">全部方向</option>
+            {directions.map((item) => (
+              <option key={item} value={item}>
+                {item}
+              </option>
+            ))}
+          </select>
+          <select
+            name="question-seed-role"
+            aria-label="按角色筛选题目主题"
+            value={role}
+            onChange={(event) => onRoleChange(event.target.value)}
+            className="h-8 rounded-md border bg-background px-2 text-xs text-foreground"
+          >
+            <option value="all">全部角色</option>
+            {roles.map((item) => (
               <option key={item} value={item}>
                 {item}
               </option>
@@ -4465,7 +5169,7 @@ function QuestionBankFilters({
   );
 }
 
-type PlaybookDetailTab = "generator" | "observer" | "source";
+type SkillPlaybookRow = SkillPlaybooks["skill_playbooks"][number];
 
 function SkillsPlaybookCard({
   state,
@@ -4478,13 +5182,82 @@ function SkillsPlaybookCard({
   const [selectedCardId, setSelectedCardId] = useState<string | null>(null);
   const [detail, setDetail] = useState<Loadable<SkillPlaybookDetail> | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
-  const [detailTab, setDetailTab] = useState<PlaybookDetailTab>("generator");
+  const [playbookSearch, setPlaybookSearch] = useState("");
+  const [playbookStatus, setPlaybookStatus] = useState("active");
+  const [playbookDirection, setPlaybookDirection] = useState("all");
+  const [playbookRole, setPlaybookRole] = useState("all");
+  const [playbookDimension, setPlaybookDimension] = useState("all");
+  const playbookRows = useMemo(
+    () => (state.phase === "ready" ? state.data.skill_playbooks : []),
+    [state],
+  );
+  const playbookStatusCounts = useMemo(
+    () =>
+      playbookRows.reduce<Record<string, number>>((acc, card) => {
+        const status = card.status || "unknown";
+        acc[status] = (acc[status] ?? 0) + 1;
+        return acc;
+      }, {}),
+    [playbookRows],
+  );
+  const playbookStatuses = useMemo(
+    () =>
+      Array.from(
+        new Set(playbookRows.map((card) => card.status || "unknown")),
+      ).sort(),
+    [playbookRows],
+  );
+  const playbookDirections = useMemo(
+    () => collectSkillPlaybookValues(playbookRows, (card) => card.direction_tags),
+    [playbookRows],
+  );
+  const playbookRoles = useMemo(
+    () => collectSkillPlaybookValues(playbookRows, (card) => card.role_tags),
+    [playbookRows],
+  );
+  const playbookDimensions = useMemo(
+    () => collectSkillPlaybookValues(playbookRows, (card) => card.dimensions),
+    [playbookRows],
+  );
+  const filteredSkillPlaybooks = useMemo(() => {
+    const q = playbookSearch.trim().toLowerCase();
+    return playbookRows
+      .filter((card) => {
+        const matchesSearch = matchesSkillPlaybookSearch(card, q);
+        const matchesStatus =
+          playbookStatus === "all" || (card.status || "unknown") === playbookStatus;
+        const matchesDirection =
+          playbookDirection === "all" || card.direction_tags.includes(playbookDirection);
+        const matchesRole =
+          playbookRole === "all" || card.role_tags.includes(playbookRole);
+        const matchesDimension =
+          playbookDimension === "all" || card.dimensions.includes(playbookDimension);
+        return (
+          matchesSearch &&
+          matchesStatus &&
+          matchesDirection &&
+          matchesRole &&
+          matchesDimension
+        );
+      })
+      .sort(compareSkillPlaybookRows);
+  }, [
+    playbookDimension,
+    playbookDirection,
+    playbookRows,
+    playbookRole,
+    playbookSearch,
+    playbookStatus,
+  ]);
 
   useEffect(() => {
-    if (selectedCardId || state.phase !== "ready") return;
-    const first = state.data.skill_playbooks[0];
-    if (first) setSelectedCardId(first.id);
-  }, [selectedCardId, state]);
+    if (state.phase !== "ready") return;
+    const selectedStillVisible = filteredSkillPlaybooks.some(
+      (card) => card.id === selectedCardId,
+    );
+    if (selectedCardId && selectedStillVisible) return;
+    setSelectedCardId(filteredSkillPlaybooks[0]?.id ?? null);
+  }, [filteredSkillPlaybooks, selectedCardId, state.phase]);
 
   useEffect(() => {
     if (!selectedCardId) {
@@ -4539,7 +5312,7 @@ function SkillsPlaybookCard({
               技能打法库
             </CardTitle>
             <CardDescription className="mt-1">
-              从知识库导入的面试官打法卡，用于约束出题动作和观察信号。
+              Markdown 导入的出题指导资产；运行时由出题链路按角色、方向和能力维度匹配，完整使用链路请看 Trace。
             </CardDescription>
           </div>
           <div className="flex flex-wrap justify-end gap-2">
@@ -4552,7 +5325,7 @@ function SkillsPlaybookCard({
                   {state.data.active_count} 启用
                 </Badge>
                 <Badge variant="outline" className="font-mono text-[10px]">
-                  后端 {state.data.runtime_backend}
+                  后端 {formatSkillPlaybookBackend(state.data.runtime_backend)}
                 </Badge>
               </>
             )}
@@ -4594,229 +5367,120 @@ function SkillsPlaybookCard({
         {state.phase === "loading" && <LoadingList rows={3} />}
         {state.phase === "error" && <ErrorBox message={state.message} />}
         {state.phase === "ready" && (
-          <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.15fr)]">
-            <div className="space-y-3">
-              <div className="rounded-lg border bg-card/40 p-3">
-                <p className="text-xs font-medium text-muted-foreground">状态分布</p>
-                <div className="mt-2 flex flex-wrap gap-1.5">
-                  {Object.entries(state.data.status_counts).map(([status, count]) => (
-                    <Badge key={status} variant="outline" className="font-mono text-[10px]">
-                      {status}:{count}
+          <div className="space-y-3">
+            <SkillPlaybookFilters
+              search={playbookSearch}
+              onSearchChange={setPlaybookSearch}
+              status={playbookStatus}
+              onStatusChange={setPlaybookStatus}
+              statuses={playbookStatuses}
+              statusCounts={playbookStatusCounts}
+              direction={playbookDirection}
+              onDirectionChange={setPlaybookDirection}
+              directions={playbookDirections}
+              role={playbookRole}
+              onRoleChange={setPlaybookRole}
+              roles={playbookRoles}
+              dimension={playbookDimension}
+              onDimensionChange={setPlaybookDimension}
+              dimensions={playbookDimensions}
+              shown={filteredSkillPlaybooks.length}
+              total={playbookRows.length}
+            />
+
+            {playbookRows.length === 0 ? (
+              <p className="text-xs text-muted-foreground">
+                数据库中暂无技能打法卡。导入 Markdown 后会出现在这里。
+              </p>
+            ) : (
+              <div className="grid min-w-0 gap-3 lg:grid-cols-[minmax(280px,0.82fr)_minmax(0,1.35fr)]">
+                <div className="min-w-0 rounded-lg border bg-card/40 p-3">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <div>
+                      <p className="text-xs font-medium text-foreground">打法目录</p>
+                      <p className="mt-0.5 text-[11px] text-muted-foreground">
+                        轻量浏览资产卡，完整内容在右侧查看。
+                      </p>
+                    </div>
+                    <Badge variant="outline" className="font-mono text-[10px]">
+                      {filteredSkillPlaybooks.length}/{playbookRows.length}
                     </Badge>
-                  ))}
+                  </div>
+                  <div className="mt-2 flex flex-wrap gap-1.5">
+                    {Object.entries(playbookStatusCounts).map(([status, count]) => (
+                      <Badge
+                        key={status}
+                        variant={skillPlaybookStatusBadgeVariant(status)}
+                        className="font-mono text-[10px]"
+                      >
+                        {formatSkillPlaybookStatus(status)} {count}
+                      </Badge>
+                    ))}
+                  </div>
+                  {filteredSkillPlaybooks.length === 0 ? (
+                    <p className="mt-4 text-xs text-muted-foreground">
+                      没有匹配的打法卡。放宽筛选条件再看。
+                    </p>
+                  ) : (
+                    <ul className="mt-3 max-h-[1040px] min-w-0 space-y-2 overflow-y-auto pr-1">
+                      {filteredSkillPlaybooks.map((card) => (
+                        <li key={card.id}>
+                          <button
+                            type="button"
+                            className={cn(
+                              "w-full overflow-hidden rounded-md border px-3 py-2.5 text-left text-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+                              selectedCardId === card.id
+                                ? "border-primary/60 bg-primary/10"
+                                : "border-border/70 bg-background/40 hover:bg-muted/30",
+                            )}
+                            onClick={() => setSelectedCardId(card.id)}
+                          >
+                            <div className="flex items-start justify-between gap-2">
+                              <span className="min-w-0 truncate font-medium">
+                                {card.name || card.id}
+                              </span>
+                              <Badge
+                                variant={skillPlaybookStatusBadgeVariant(card.status)}
+                                className="shrink-0 font-mono text-[10px]"
+                              >
+                                {formatSkillPlaybookStatus(card.status)}
+                              </Badge>
+                            </div>
+                            <p className="mt-1 line-clamp-1 text-xs text-muted-foreground">
+                              {card.description || "暂无描述"}
+                            </p>
+                            <div className="mt-2 flex min-w-0 flex-nowrap gap-1.5 overflow-hidden">
+                              <Badge variant="secondary" className="shrink-0 font-mono text-[10px]">
+                                p{card.priority}
+                              </Badge>
+                              <SkillPlaybookTagPreview values={card.role_tags} max={2} />
+                              <SkillPlaybookTagPreview
+                                values={card.dimensions}
+                                max={2}
+                                variant="secondary"
+                              />
+                            </div>
+                          </button>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
+
+                <div className="min-w-0 rounded-lg border bg-card/40 p-4">
+                  {detail?.phase === "loading" && <LoadingList rows={4} />}
+                  {detail?.phase === "error" && <ErrorBox message={detail.message} />}
+                  {detail?.phase === "ready" && (
+                    <SkillPlaybookDetailView card={detail.data.skill_playbook} />
+                  )}
+                  {!detail && (
+                    <p className="text-xs text-muted-foreground">
+                      选择一张打法卡查看适用范围、出题指导、评分观察和开发详情。
+                    </p>
+                  )}
                 </div>
               </div>
-
-              {state.data.skill_playbooks.length === 0 ? (
-                <p className="text-xs text-muted-foreground">
-                  数据库中暂无技能打法卡。导入 Markdown 后会出现在这里。
-                </p>
-              ) : (
-                <div className="space-y-2">
-                  <p className="text-xs font-medium text-muted-foreground">
-                    全部打法卡
-                  </p>
-                  <ul className="max-h-[560px] space-y-2 overflow-y-auto pr-1">
-                  {state.data.skill_playbooks.map((card) => (
-                    <li
-                      key={card.id}
-                      className={cn(
-                        "rounded-lg border bg-card/50 p-3 text-sm",
-                        selectedCardId === card.id && "border-primary/50",
-                      )}
-                    >
-                      <button
-                        type="button"
-                        className="w-full text-left"
-                        onClick={() => setSelectedCardId(card.id)}
-                      >
-                        <div className="flex items-start justify-between gap-2">
-                          <span className="min-w-0 truncate font-medium">
-                            {card.name || card.id}
-                          </span>
-                          <Badge variant="outline" className="font-mono text-[10px]">
-                            {card.status}
-                          </Badge>
-                        </div>
-                        <div className="mt-1 font-mono text-[10px] text-muted-foreground">
-                          {card.id}
-                        </div>
-                        {card.description && (
-                          <p className="mt-1 text-xs text-muted-foreground">
-                            {card.description}
-                          </p>
-                        )}
-                        <div className="mt-2 flex flex-wrap gap-1.5">
-                          <Badge variant="secondary" className="font-mono text-[10px]">
-                            p{card.priority}
-                          </Badge>
-                          {card.direction_tags.slice(0, 2).map((tag) => (
-                            <Badge key={tag} variant="outline" className="font-mono text-[10px]">
-                              {tag}
-                            </Badge>
-                          ))}
-                          {card.role_tags.slice(0, 3).map((tag) => (
-                            <Badge key={tag} variant="outline" className="font-mono text-[10px]">
-                              {tag}
-                            </Badge>
-                          ))}
-                          {card.dimensions.slice(0, 3).map((dimension) => (
-                            <Badge key={dimension} variant="secondary" className="font-mono text-[10px]">
-                              {dimension}
-                            </Badge>
-                          ))}
-                        </div>
-                        {card.body_preview && (
-                          <p className="mt-2 line-clamp-2 text-xs text-muted-foreground">
-                            {card.body_preview}
-                          </p>
-                        )}
-                      </button>
-                    </li>
-                  ))}
-                </ul>
-                </div>
-              )}
-            </div>
-
-            <div className="rounded-lg border bg-card/40 p-3">
-              {detail?.phase === "loading" && <LoadingList rows={4} />}
-              {detail?.phase === "error" && <ErrorBox message={detail.message} />}
-              {detail?.phase === "ready" && (
-                <div className="space-y-3">
-                  <div>
-                    <p className="text-sm font-medium">
-                      {detail.data.skill_playbook.name}
-                    </p>
-                    <p className="mt-1 font-mono text-[10px] text-muted-foreground">
-                      {detail.data.skill_playbook.id}
-                    </p>
-                  </div>
-                  <div className="flex flex-wrap gap-1.5">
-                    <Badge variant="outline" className="font-mono text-[10px]">
-                      {detail.data.skill_playbook.status}
-                    </Badge>
-                    <Badge variant="secondary" className="font-mono text-[10px]">
-                      v{detail.data.skill_playbook.version ?? 1}
-                    </Badge>
-                    <Badge variant="outline" className="font-mono text-[10px]">
-                      {detail.data.skill_playbook.source ?? "unknown"}
-                    </Badge>
-                    <Badge variant="outline" className="font-mono text-[10px]">
-                      hash {truncate(detail.data.skill_playbook.content_hash ?? "")}
-                    </Badge>
-                  </div>
-                  <div className="flex flex-wrap gap-1.5">
-                    {detail.data.skill_playbook.direction_tags.map((tag) => (
-                      <Badge key={tag} variant="outline" className="font-mono text-[10px]">
-                        {tag}
-                      </Badge>
-                    ))}
-                    {detail.data.skill_playbook.role_tags.map((tag) => (
-                      <Badge key={tag} variant="outline" className="font-mono text-[10px]">
-                        {tag}
-                      </Badge>
-                    ))}
-                    {detail.data.skill_playbook.dimensions.map((dimension) => (
-                      <Badge key={dimension} variant="secondary" className="font-mono text-[10px]">
-                        {dimension}
-                      </Badge>
-                    ))}
-                    {detail.data.skill_playbook.job_levels.map((level) => (
-                      <Badge key={level} variant="outline" className="font-mono text-[10px]">
-                        {level}
-                      </Badge>
-                    ))}
-                  </div>
-                  <div className="text-[11px] text-muted-foreground">
-                    updated {formatDateTime(
-                      detail.data.skill_playbook.updated_at ||
-                        detail.data.skill_playbook.created_at ||
-                        "",
-                    )}
-                  </div>
-                  <div className="flex flex-wrap gap-2 border-b border-border/60 pb-2">
-                    <PlaybookTabButton
-                      active={detailTab === "generator"}
-                      onClick={() => setDetailTab("generator")}
-                    >
-                      生成器提示
-                    </PlaybookTabButton>
-                    <PlaybookTabButton
-                      active={detailTab === "observer"}
-                      onClick={() => setDetailTab("observer")}
-                    >
-                      观察字段
-                    </PlaybookTabButton>
-                    <PlaybookTabButton
-                      active={detailTab === "source"}
-                      onClick={() => setDetailTab("source")}
-                    >
-                      原文
-                    </PlaybookTabButton>
-                  </div>
-                  {detailTab === "generator" && (
-                    <div className="grid gap-3 md:grid-cols-3">
-                      <PlaybookFieldList
-                        label="生成器提示"
-                        items={detail.data.skill_playbook.generator_moves}
-                      />
-                      <PlaybookFieldList
-                        label="追问观察"
-                        items={detail.data.skill_playbook.watch_for}
-                      />
-                      <PlaybookFieldList
-                        label="避免事项"
-                        items={detail.data.skill_playbook.avoid}
-                      />
-                    </div>
-                  )}
-                  {detailTab === "observer" && (
-                    <div className="space-y-3">
-                      <div className="rounded-md border bg-muted/10 p-3 text-xs text-muted-foreground">
-                        这些字段目前用于观察和治理，不直接进入评分运行时。
-                        <Badge variant="outline" className="ml-2 font-mono text-[10px]">
-                          evaluator_visibility {String(detail.data.skill_playbook.evaluator_visibility)}
-                        </Badge>
-                      </div>
-                      <div className="grid gap-3 md:grid-cols-2">
-                      <PlaybookFieldList
-                        label="评分提示"
-                        items={detail.data.skill_playbook.evaluator_rubric_hints}
-                      />
-                      <PlaybookFieldList
-                        label="正向信号"
-                        items={detail.data.skill_playbook.positive_signals}
-                      />
-                      <PlaybookFieldList
-                        label="负向信号"
-                        items={detail.data.skill_playbook.negative_signals}
-                      />
-                      <PlaybookFieldList
-                        label="分数偏置规则"
-                        items={detail.data.skill_playbook.score_bias_rules}
-                      />
-                      </div>
-                    </div>
-                  )}
-                  {detailTab === "source" && (
-                    <details className="rounded-md border bg-muted/10 p-3 text-xs">
-                      <summary className="cursor-pointer font-medium text-muted-foreground">
-                        展开 Markdown 原文
-                      </summary>
-                      <pre className="mt-3 max-h-96 overflow-auto whitespace-pre-wrap rounded-md bg-background/70 p-3 text-xs leading-relaxed text-foreground/85">
-                        {detail.data.skill_playbook.body_markdown || ""}
-                      </pre>
-                    </details>
-                  )}
-                </div>
-              )}
-              {!detail && (
-                <p className="text-xs text-muted-foreground">
-                  选择一张打法卡查看生成器提示、观察字段和原文。
-                </p>
-              )}
-            </div>
+            )}
           </div>
         )}
       </CardContent>
@@ -4824,29 +5488,233 @@ function SkillsPlaybookCard({
   );
 }
 
-function PlaybookTabButton({
-  active,
-  onClick,
+function SkillPlaybookFilters({
+  search,
+  onSearchChange,
+  status,
+  onStatusChange,
+  statuses,
+  statusCounts,
+  direction,
+  onDirectionChange,
+  directions,
+  role,
+  onRoleChange,
+  roles,
+  dimension,
+  onDimensionChange,
+  dimensions,
+  shown,
+  total,
+}: {
+  search: string;
+  onSearchChange: (value: string) => void;
+  status: string;
+  onStatusChange: (value: string) => void;
+  statuses: string[];
+  statusCounts: Record<string, number>;
+  direction: string;
+  onDirectionChange: (value: string) => void;
+  directions: string[];
+  role: string;
+  onRoleChange: (value: string) => void;
+  roles: string[];
+  dimension: string;
+  onDimensionChange: (value: string) => void;
+  dimensions: string[];
+  shown: number;
+  total: number;
+}) {
+  const statusOptions = Array.from(new Set(["active", ...statuses]));
+  return (
+    <div className="rounded-md border bg-muted/10 p-3">
+      <div className="flex flex-col gap-2 xl:flex-row xl:items-center xl:justify-between">
+        <div>
+          <p className="text-xs font-medium text-foreground">打法筛选</p>
+          <p className="mt-0.5 text-[11px] text-muted-foreground">
+            当前显示 {shown}/{total} 张打法卡，默认只看启用资产。
+          </p>
+        </div>
+        <div className="grid gap-2 sm:grid-cols-2 xl:min-w-[860px] xl:grid-cols-5">
+          <Input
+            name="skill-playbook-search"
+            autoComplete="off"
+            aria-label="搜索技能打法卡"
+            placeholder="搜索名称、ID、标签…"
+            value={search}
+            onChange={(event) => onSearchChange(event.target.value)}
+            className="h-8 text-xs"
+          />
+          <select
+            name="skill-playbook-status"
+            aria-label="按状态筛选技能打法卡"
+            value={status}
+            onChange={(event) => onStatusChange(event.target.value)}
+            className="h-8 rounded-md border bg-background px-2 text-xs text-foreground"
+          >
+            <option value="all">全部状态 ({total})</option>
+            {statusOptions.map((item) => (
+              <option key={item} value={item}>
+                {formatSkillPlaybookStatus(item)} ({statusCounts[item] ?? 0})
+              </option>
+            ))}
+          </select>
+          <select
+            name="skill-playbook-direction"
+            aria-label="按方向筛选技能打法卡"
+            value={direction}
+            onChange={(event) => onDirectionChange(event.target.value)}
+            className="h-8 rounded-md border bg-background px-2 text-xs text-foreground"
+          >
+            <option value="all">全部方向</option>
+            {directions.map((item) => (
+              <option key={item} value={item}>
+                {item}
+              </option>
+            ))}
+          </select>
+          <select
+            name="skill-playbook-role"
+            aria-label="按角色筛选技能打法卡"
+            value={role}
+            onChange={(event) => onRoleChange(event.target.value)}
+            className="h-8 rounded-md border bg-background px-2 text-xs text-foreground"
+          >
+            <option value="all">全部角色</option>
+            {roles.map((item) => (
+              <option key={item} value={item}>
+                {item}
+              </option>
+            ))}
+          </select>
+          <select
+            name="skill-playbook-dimension"
+            aria-label="按能力维度筛选技能打法卡"
+            value={dimension}
+            onChange={(event) => onDimensionChange(event.target.value)}
+            className="h-8 rounded-md border bg-background px-2 text-xs text-foreground"
+          >
+            <option value="all">全部维度</option>
+            {dimensions.map((item) => (
+              <option key={item} value={item}>
+                {item}
+              </option>
+            ))}
+          </select>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function SkillPlaybookDetailView({ card }: { card: SkillPlaybookRow }) {
+  return (
+    <div className="space-y-4">
+      <div className="space-y-2">
+        <div className="flex flex-wrap items-start justify-between gap-2">
+          <div className="min-w-0">
+            <p className="text-base font-semibold leading-tight">{card.name || card.id}</p>
+            <p className="mt-1 break-all font-mono text-[11px] text-muted-foreground">
+              {card.id}
+            </p>
+          </div>
+          <div className="flex shrink-0 flex-wrap justify-end gap-1.5">
+            <Badge
+              variant={skillPlaybookStatusBadgeVariant(card.status)}
+              className="font-mono text-[10px]"
+            >
+              {formatSkillPlaybookStatus(card.status)}
+            </Badge>
+            <Badge variant="secondary" className="font-mono text-[10px]">
+              p{card.priority}
+            </Badge>
+          </div>
+        </div>
+        {card.description && (
+          <p className="text-sm leading-relaxed text-muted-foreground">
+            {card.description}
+          </p>
+        )}
+      </div>
+
+      <SkillPlaybookDetailSection heading="适用范围">
+        <div className="grid gap-3 md:grid-cols-2">
+          <SkillPlaybookTagGroup label="方向" values={card.direction_tags} />
+          <SkillPlaybookTagGroup label="角色" values={card.role_tags} />
+          <SkillPlaybookTagGroup label="能力维度" values={card.dimensions} />
+          <SkillPlaybookTagGroup label="级别" values={card.job_levels} />
+          <SkillPlaybookTagGroup label="追问意图" values={card.probe_intents} />
+          <SkillPlaybookTagGroup label="失败类别" values={card.failure_categories} />
+        </div>
+      </SkillPlaybookDetailSection>
+
+      <SkillPlaybookDetailSection heading="出题指导">
+        <div className="space-y-3">
+          <PlaybookFieldList label="生成动作" items={card.generator_moves} />
+          <PlaybookFieldList label="追问观察" items={card.watch_for} />
+          <PlaybookFieldList label="避免事项" items={card.avoid} />
+        </div>
+      </SkillPlaybookDetailSection>
+
+      <SkillPlaybookDetailSection heading="评分观察">
+        <div className="mb-3 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+          <span>这些字段用于观察和治理，是否进入评分运行时由卡片配置决定。</span>
+          <Badge variant="outline" className="font-mono text-[10px]">
+            {card.evaluator_visibility ? "评分器可见" : "仅治理观察"}
+          </Badge>
+        </div>
+        <div className="space-y-3">
+          <PlaybookFieldList label="评分提示" items={card.evaluator_rubric_hints} />
+          <PlaybookFieldList label="正向信号" items={card.positive_signals} />
+          <PlaybookFieldList label="负向信号" items={card.negative_signals} />
+          <PlaybookFieldList label="分数偏置规则" items={card.score_bias_rules} />
+        </div>
+      </SkillPlaybookDetailSection>
+
+      <details className="rounded-md border border-dashed bg-muted/10 p-3 text-xs">
+        <summary className="cursor-pointer font-medium text-muted-foreground">
+          开发详情
+        </summary>
+        <div className="mt-3 grid gap-2 sm:grid-cols-2">
+          <SkillPlaybookMetaItem label="来源" value={card.source ?? "未知"} />
+          <SkillPlaybookMetaItem label="版本" value={`v${card.version ?? 1}`} />
+          <SkillPlaybookMetaItem
+            label="内容 hash"
+            value={card.content_hash ? truncate(card.content_hash) : "未记录"}
+          />
+          <SkillPlaybookMetaItem
+            label="更新时间"
+            value={formatDateTime(card.updated_at || card.created_at || "")}
+          />
+        </div>
+        <details className="mt-3">
+          <summary className="cursor-pointer text-muted-foreground">
+            正文补充
+          </summary>
+          <p className="mt-2 text-[11px] text-muted-foreground">
+            frontmatter 是运行时读取的主体；这里仅展示 frontmatter 之外的 Markdown 正文。
+          </p>
+          <pre className="mt-2 max-h-96 overflow-auto whitespace-pre-wrap rounded-md bg-background/70 p-3 text-xs leading-relaxed text-foreground/85">
+            {card.body_markdown || ""}
+          </pre>
+        </details>
+      </details>
+    </div>
+  );
+}
+
+function SkillPlaybookDetailSection({
+  heading,
   children,
 }: {
-  active: boolean;
-  onClick: () => void;
+  heading: string;
   children: React.ReactNode;
 }) {
   return (
-    <button
-      type="button"
-      aria-pressed={active}
-      onClick={onClick}
-      className={cn(
-        "rounded-md px-2.5 py-1 text-xs transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
-        active
-          ? "bg-primary text-primary-foreground"
-          : "text-muted-foreground hover:bg-muted hover:text-foreground",
-      )}
-    >
+    <section className="space-y-3 border-t border-border/60 pt-4 first:border-t-0 first:pt-0">
+      <p className="text-sm font-semibold">{heading}</p>
       {children}
-    </button>
+    </section>
   );
 }
 
@@ -4859,19 +5727,162 @@ function PlaybookFieldList({
 }) {
   const values = items ?? [];
   return (
-    <div className="rounded-lg border bg-background/60 p-3">
+    <div className="rounded-md bg-background/50 p-3">
       <p className="text-xs font-medium">{label}</p>
       {values.length === 0 ? (
-        <p className="mt-2 text-[11px] text-muted-foreground">empty</p>
+        <p className="mt-2 text-[11px] text-muted-foreground">暂无配置</p>
       ) : (
-        <ul className="mt-2 space-y-1.5 text-xs text-muted-foreground">
-          {values.map((item) => (
-            <li key={item}>- {item}</li>
+        <ul className="mt-2 space-y-1.5 text-xs leading-relaxed text-muted-foreground">
+          {values.map((item, index) => (
+            <li key={`${index}:${item}`}>- {item}</li>
           ))}
         </ul>
       )}
     </div>
   );
+}
+
+function SkillPlaybookTagGroup({
+  label,
+  values,
+}: {
+  label: string;
+  values: string[] | undefined;
+}) {
+  const items = values ?? [];
+  return (
+    <div>
+      <p className="text-[11px] text-muted-foreground">{label}</p>
+      {items.length === 0 ? (
+        <p className="mt-1 text-xs text-muted-foreground">未配置</p>
+      ) : (
+        <div className="mt-1 flex flex-wrap gap-1.5">
+          {items.map((item) => (
+            <Badge key={item} variant="outline" className="font-mono text-[10px]">
+              {item}
+            </Badge>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function SkillPlaybookTagPreview({
+  values,
+  max,
+  variant = "outline",
+}: {
+  values: string[] | undefined;
+  max: number;
+  variant?: React.ComponentProps<typeof Badge>["variant"];
+}) {
+  const items = values ?? [];
+  if (items.length === 0) return null;
+  const visible = items.slice(0, max);
+  return (
+    <>
+      {visible.map((item) => (
+        <Badge
+          key={item}
+          variant={variant}
+          className="max-w-[9rem] shrink-0 truncate font-mono text-[10px]"
+        >
+          {item}
+        </Badge>
+      ))}
+      {items.length > max && (
+        <Badge variant="outline" className="shrink-0 font-mono text-[10px]">
+          +{items.length - max}
+        </Badge>
+      )}
+    </>
+  );
+}
+
+function SkillPlaybookMetaItem({
+  label,
+  value,
+}: {
+  label: string;
+  value: string;
+}) {
+  return (
+    <div className="rounded-md bg-background/50 px-3 py-2">
+      <p className="text-[10px] text-muted-foreground">{label}</p>
+      <p className="mt-1 break-words font-mono text-[11px] text-foreground">{value}</p>
+    </div>
+  );
+}
+
+function collectSkillPlaybookValues(
+  rows: SkillPlaybookRow[],
+  select: (row: SkillPlaybookRow) => string[] | undefined,
+): string[] {
+  return Array.from(
+    new Set(rows.flatMap((row) => select(row) ?? []).filter(Boolean)),
+  ).sort();
+}
+
+function matchesSkillPlaybookSearch(card: SkillPlaybookRow, q: string): boolean {
+  if (!q) return true;
+  const haystack = [
+    card.id,
+    card.name,
+    card.description ?? "",
+    card.source ?? "",
+    ...card.direction_tags,
+    ...card.role_tags,
+    ...card.dimensions,
+    ...card.job_levels,
+    ...card.probe_intents,
+    ...card.failure_categories,
+  ]
+    .join(" ")
+    .toLowerCase();
+  return haystack.includes(q);
+}
+
+function compareSkillPlaybookRows(
+  a: SkillPlaybookRow,
+  b: SkillPlaybookRow,
+): number {
+  return (
+    skillPlaybookStatusRank(a.status) - skillPlaybookStatusRank(b.status) ||
+    (b.priority ?? 0) - (a.priority ?? 0) ||
+    a.name.localeCompare(b.name) ||
+    a.id.localeCompare(b.id)
+  );
+}
+
+function skillPlaybookStatusRank(status?: string | null): number {
+  if (status === "active") return 0;
+  if (status === "disabled") return 1;
+  if (status === "archived") return 2;
+  return 3;
+}
+
+function formatSkillPlaybookStatus(status?: string | null): string {
+  if (status === "active") return "启用";
+  if (status === "disabled") return "禁用";
+  if (status === "archived") return "归档";
+  return status || "未知";
+}
+
+function skillPlaybookStatusBadgeVariant(
+  status?: string | null,
+): React.ComponentProps<typeof Badge>["variant"] {
+  if (status === "active") return "secondary";
+  if (status === "disabled") return "warn";
+  if (status === "archived") return "outline";
+  return "outline";
+}
+
+function formatSkillPlaybookBackend(value?: string | null): string {
+  if (value === "db_with_file_fallback") return "DB 优先，文件兜底";
+  if (value === "db") return "DB";
+  if (value === "file") return "文件";
+  return value || "未知";
 }
 
 const StrategiesCard = React.memo(function StrategiesCard({
@@ -4960,13 +5971,35 @@ const StrategiesCard = React.memo(function StrategiesCard({
   const signalCount = signals.phase === "ready" ? signals.data.count : null;
   const usageCount = usages.phase === "ready" ? usages.data.count : null;
   const statCount = stats.phase === "ready" ? stats.data.count : null;
-  const globalStatsByStrategy = new Map(
-    stats.phase === "ready"
-      ? stats.data.stats
-          .filter((row) => row.context_key === "__global__")
-          .map((row) => [row.strategy_id, row])
-      : [],
+  const strategies = state.phase === "ready" ? state.data.strategies : [];
+  const activeStrategies = strategies.filter((s) => s.status === "active");
+  const usageRows = usages.phase === "ready" ? usages.data.usages : [];
+  const recent24hUsageCount =
+    usages.phase === "ready"
+      ? usages.data.recent_24h_count ?? countRecentStrategyUsages(usageRows)
+      : null;
+  const signalGroups: StrategySignalGroup[] =
+    signals.phase === "ready" ? signals.data.groups ?? [] : [];
+  const promotionCandidateGroups = signalGroups.filter(
+    (group) => group.promotion_readiness !== "diagnostic_only",
   );
+  const statRows = stats.phase === "ready" ? stats.data.stats : [];
+  const latestStatsUpdatedAt = latestIso(
+    statRows.map((row) => row.updated_at).filter(Boolean),
+  );
+  const globalStatsByStrategy = new Map(
+    statRows
+      .filter((row) => row.context_key === "__global__")
+      .map((row) => [row.strategy_id, row]),
+  );
+  const contextStatsByStrategy = statRows
+    .filter((row) => row.context_key !== "__global__")
+    .reduce<Map<string, typeof statRows>>((acc, row) => {
+      const rows = acc.get(row.strategy_id) ?? [];
+      rows.push(row);
+      acc.set(row.strategy_id, rows);
+      return acc;
+    }, new Map());
 
   return (
     <Card>
@@ -4978,7 +6011,7 @@ const StrategiesCard = React.memo(function StrategiesCard({
               策略记忆
             </CardTitle>
             <CardDescription className="mt-1">
-              数据库里的策略记忆、晋升信号和使用归因。
+              全局策略记忆资产、最近召回归因和晋升候选分开观测。
             </CardDescription>
           </div>
           <div className="flex flex-wrap justify-end gap-2">
@@ -5005,55 +6038,72 @@ const StrategiesCard = React.memo(function StrategiesCard({
           </div>
         </div>
       </CardHeader>
-      <CardContent className="space-y-3">
-        <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border bg-secondary/20 p-3">
-          <div>
-            <p className="text-sm font-medium">晋升控制</p>
-            <p className="text-xs text-muted-foreground">
-              聚合观察信号，达标后生成低置信启用策略。
-            </p>
-          </div>
-          <div className="flex flex-wrap gap-2">
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={handleStatsRefresh}
-              disabled={busy !== null}
-            >
-              {busy === "stats" && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
-              刷新统计
-            </Button>
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={handlePromotionRun}
-              disabled={busy !== null}
-            >
-              {busy === "promotion" && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
-              运行晋升
-            </Button>
-          </div>
+      <CardContent className="space-y-5">
+        <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-5">
+          <StrategyMemoryStatusTile
+            label="启用策略"
+            value={
+              state.phase === "ready"
+                ? `${activeStrategies.length}/${state.data.count}`
+                : "—"
+            }
+            note="全局资产里可被运行时召回的策略。"
+          />
+          <StrategyMemoryStatusTile
+            label="最近 24h 召回"
+            value={recent24hUsageCount === null ? "—" : String(recent24hUsageCount)}
+            note="策略注入出题链路并完成评分后才会记录。"
+          />
+          <StrategyMemoryStatusTile
+            label="待晋升信号组"
+            value={
+              signals.phase === "ready"
+                ? String(promotionCandidateGroups.length)
+                : "—"
+            }
+            note="按 group_key 聚合，不平铺每条 raw signal。"
+          />
+          <StrategyMemoryStatusTile
+            label="排序模式"
+            value={
+              state.phase === "ready"
+                ? formatStrategyRankingMode(state.data.ranking_mode)
+                : "—"
+            }
+            note="reward_shadow 只观测奖励排序，不改变召回顺序。"
+          />
+          <StrategyMemoryStatusTile
+            label="统计更新时间"
+            value={
+              latestStatsUpdatedAt
+                ? formatRelativeTime(latestStatsUpdatedAt)
+                : "—"
+            }
+            note="打开模块时会自动补齐过期统计。"
+          />
         </div>
+
         {state.phase === "loading" && <LoadingList rows={3} />}
         {state.phase === "error" && <ErrorBox message={state.message} />}
-        {state.phase === "ready" && state.data.strategies.length === 0 && (
+        {state.phase === "ready" && strategies.length === 0 && (
           <p className="text-xs text-muted-foreground">
-            数据库中暂无启用策略记忆。可以先导入种子策略，或等待观察信号晋升。
+            数据库中暂无策略记忆资产。可以先导入种子策略，或等待观察信号晋升。
           </p>
         )}
-        {state.phase === "ready" && state.data.strategies.length > 0 && (
-          <section className="space-y-2">
+        {state.phase === "ready" && strategies.length > 0 && (
+          <section className="space-y-3">
             <div>
-              <p className="text-xs font-medium text-muted-foreground">当前策略</p>
+              <p className="text-xs font-medium text-muted-foreground">
+                策略记忆资产
+              </p>
               <p className="mt-0.5 text-[11px] text-muted-foreground">
-                默认展示策略名、置信度、支持样本和全局使用归因。
+                这些是全局策略资产，不属于单个 session；全局统计和上下文统计分开看。
               </p>
             </div>
-          <ul className="space-y-2">
-            {state.data.strategies.map((s) => {
+            <ul className="space-y-2">
+              {strategies.map((s) => {
               const strategyStats = s.id ? globalStatsByStrategy.get(s.id) : undefined;
+              const contextRows = s.id ? contextStatsByStrategy.get(s.id) ?? [] : [];
               return (
               <li
                 key={s.path}
@@ -5078,6 +6128,11 @@ const StrategiesCard = React.memo(function StrategiesCard({
                           阶段：{formatPromotionStage(s.promotion_stage)}
                         </Badge>
                       )}
+                      {typeof s.priority === "number" && (
+                        <Badge variant="outline" className="text-[10px]">
+                          优先级 {s.priority}
+                        </Badge>
+                      )}
                     </div>
                   </div>
                   <span className="max-w-[220px] truncate font-mono text-[10px] text-muted-foreground">
@@ -5094,22 +6149,52 @@ const StrategiesCard = React.memo(function StrategiesCard({
                     质量说明：{s.quality_reason}
                   </p>
                 )}
+                <div className="mt-3 grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
+                  <StrategyMemoryInlineMetric
+                    label="置信度"
+                    value={formatMaybeNumber(s.confidence)}
+                  />
+                  <StrategyMemoryInlineMetric
+                    label="支持样本"
+                    value={String(s.support_count ?? 0)}
+                  />
+                  <StrategyMemoryInlineMetric
+                    label="全局命中"
+                    value={strategyStats ? String(strategyStats.uses) : "—"}
+                  />
+                  <StrategyMemoryInlineMetric
+                    label="全局综合奖励"
+                    value={formatMaybeNumber(strategyStats?.avg_blended_reward)}
+                  />
+                  <StrategyMemoryInlineMetric
+                    label="全局 Verifier 否决率"
+                    value={
+                      strategyStats?.overrule_rate === null ||
+                      strategyStats?.overrule_rate === undefined
+                        ? "—"
+                        : formatPercent(strategyStats.overrule_rate)
+                    }
+                  />
+                  <StrategyMemoryInlineMetric
+                    label="上下文统计"
+                    value={`${contextRows.length} 条`}
+                  />
+                  <StrategyMemoryInlineMetric
+                    label="建议动作"
+                    value={s.recommended_action || "—"}
+                    mono
+                  />
+                  <StrategyMemoryInlineMetric
+                    label="建议模板"
+                    value={s.recommended_plan_template || "—"}
+                    mono
+                  />
+                </div>
                 <div className="mt-2 flex flex-wrap gap-3 text-[11px] text-muted-foreground">
-                  <span>置信度 {formatMaybeNumber(s.confidence)}</span>
-                  <span>支持样本 {s.support_count ?? 0}</span>
-                  {strategyStats && (
-                    <>
-                      <span>命中 {strategyStats.uses}</span>
-                      <span>
-                        综合奖励 {formatMaybeNumber(strategyStats.avg_blended_reward)}
-                      </span>
-                      <span>
-                        被覆盖率 {formatPercent(strategyStats.overrule_rate ?? 0)}
-                      </span>
-                      {strategyStats.last_used_at && (
-                        <span>最近 {formatRelativeTime(strategyStats.last_used_at)}</span>
-                      )}
-                    </>
+                  {s.recommended_probe_intent && (
+                    <span className="font-mono">
+                      probe_intent: {s.recommended_probe_intent}
+                    </span>
                   )}
                   {s.memory_key && (
                     <details className="basis-full text-[11px]">
@@ -5122,6 +6207,48 @@ const StrategiesCard = React.memo(function StrategiesCard({
                     </details>
                   )}
                 </div>
+                <StrategyMemoryDetailPanel
+                  strategy={s}
+                  failureCategories={s.failure_categories ?? []}
+                  bodyMarkdown={s.body_markdown ?? ""}
+                  contextCount={contextRows.length}
+                  globalUses={strategyStats ? String(strategyStats.uses) : "—"}
+                  avgReward={formatMaybeNumber(strategyStats?.avg_blended_reward)}
+                  overruleRate={
+                    strategyStats?.overrule_rate === null ||
+                    strategyStats?.overrule_rate === undefined
+                      ? "—"
+                      : formatPercent(strategyStats.overrule_rate)
+                  }
+                />
+                {contextRows.length > 0 && (
+                  <details className="mt-2 text-[11px] text-muted-foreground">
+                    <summary className="cursor-pointer">
+                      上下文统计 {contextRows.length} 条
+                    </summary>
+                    <div className="mt-2 grid gap-1.5">
+                      {contextRows.slice(0, 3).map((row) => (
+                        <div
+                          key={row.id}
+                          className="flex flex-wrap items-center gap-2 rounded-md border bg-background/40 px-2 py-1.5"
+                        >
+                          <span className="font-mono">{row.context_key}</span>
+                          <span>命中 {row.uses}</span>
+                          <span>
+                            综合奖励 {formatMaybeNumber(row.avg_blended_reward)}
+                          </span>
+                          <span>
+                            Verifier 否决率{" "}
+                            {row.overrule_rate === null ||
+                            row.overrule_rate === undefined
+                              ? "—"
+                              : formatPercent(row.overrule_rate)}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  </details>
+                )}
                 <div className="mt-2 flex flex-wrap gap-1.5">
                   {s.dimensions.map((d) => (
                     <Badge
@@ -5143,76 +6270,156 @@ const StrategiesCard = React.memo(function StrategiesCard({
                   ))}
                 </div>
                 {s.id && (
-                  <div className="mt-3 flex flex-wrap gap-2">
-                    <Button
-                      type="button"
-                      size="sm"
-                      variant="outline"
-                      onClick={() => handleStatusAction(s.id, "disable")}
-                      disabled={busy !== null || s.status !== "active"}
-                    >
-                      禁用
-                    </Button>
-                    <Button
-                      type="button"
-                      size="sm"
-                      variant="ghost"
-                      onClick={() => handleStatusAction(s.id, "archive")}
-                      disabled={busy !== null || s.status === "archived"}
-                    >
-                      归档
-                    </Button>
-                  </div>
+                  <details className="mt-3 text-xs">
+                    <summary className="cursor-pointer text-muted-foreground">
+                      维护操作
+                    </summary>
+                    <div className="mt-2 flex flex-wrap items-center gap-2">
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        onClick={() => handleStatusAction(s.id, "disable")}
+                        disabled={busy !== null || s.status !== "active"}
+                      >
+                        禁用
+                      </Button>
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => handleStatusAction(s.id, "archive")}
+                        disabled={busy !== null || s.status === "archived"}
+                      >
+                        归档
+                      </Button>
+                      <span className="text-[11px] text-muted-foreground">
+                        只影响全局策略资产状态。
+                      </span>
+                    </div>
+                  </details>
                 )}
               </li>
               );
             })}
-          </ul>
+            </ul>
           </section>
         )}
-        <section className="space-y-2 border-t border-border/40 pt-3">
+
+        <section className="space-y-2 border-t border-border/40 pt-4">
           <div>
             <p className="text-xs font-medium text-muted-foreground">
-              信号与使用归因
+              最近召回归因
             </p>
             <p className="mt-0.5 text-[11px] text-muted-foreground">
-              二级诊断：看最近晋升信号和策略被命中的轮次。
+              最近使用归因记录来自策略被注入出题链路后的评分归因。
             </p>
           </div>
-          {signals.phase === "loading" && <LoadingList rows={2} />}
-          {signals.phase === "error" && <ErrorBox message={signals.message} />}
-          {signals.phase === "ready" && signals.data.signals.length === 0 && (
+          {usages.phase === "loading" && <LoadingList rows={2} />}
+          {usages.phase === "error" && <ErrorBox message={usages.message} />}
+          {usages.phase === "ready" && usageRows.length === 0 && (
             <p className="rounded-md border border-dashed bg-muted/10 px-3 py-2 text-xs text-muted-foreground">
-              暂无晋升信号，这不是错误。跑完更多面试后会积累失败类型和改进线索。
+              暂无召回归因，这不是错误。策略只有被注入出题链路并完成评分后才会出现。
             </p>
           )}
-          {signals.phase === "ready" && signals.data.signals.length > 0 && (
+          {usages.phase === "ready" && usageRows.length > 0 && (
             <ul className="space-y-1.5">
-              {signals.data.signals.slice(0, 5).map((sig) => (
+              {usageRows.slice(0, 5).map((usage) => (
                 <li
-                  key={sig.id}
+                  key={usage.id}
                   className="rounded-md border bg-card/30 p-2 text-[11px]"
                 >
                   <div className="flex flex-wrap items-center gap-1.5">
                     <Badge variant="outline" className="font-mono text-[10px]">
-                      {sig.signal_type}
+                      第 {usage.turn_idx} 轮
                     </Badge>
                     <Badge variant="secondary" className="font-mono text-[10px]">
-                      {sig.dimension}
+                      {usage.plan_template ?? "模板 -"}
                     </Badge>
-                    {sig.job_level && (
-                      <Badge variant="outline" className="font-mono text-[10px]">
-                        {sig.job_level}
-                      </Badge>
+                    {usage.session_id && (
+                      <SessionIdTooltip
+                        sessionId={usage.session_id}
+                        side="top"
+                        align="start"
+                      />
                     )}
                     <span className="min-w-0 truncate font-mono text-muted-foreground">
-                      {sig.group_key}
+                      {usage.strategy_id}
                     </span>
                   </div>
-                  {sig.failure_categories && sig.failure_categories.length > 0 && (
+                  <div className="mt-1 flex flex-wrap gap-3 text-muted-foreground">
+                    <span>context_key {usage.context_key ?? "—"}</span>
+                    <span>action {usage.action_id ?? "—"}</span>
+                    <span>评分 {formatMaybeNumber(usage.score)}</span>
+                    <span>即时奖励 {formatMaybeNumber(usage.immediate_reward)}</span>
+                    <span>延迟奖励 {formatMaybeNumber(usage.delayed_reward)}</span>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          )}
+        </section>
+
+        <section className="space-y-2 border-t border-border/40 pt-4">
+          <div>
+            <p className="text-xs font-medium text-muted-foreground">
+              晋升候选
+            </p>
+            <p className="mt-0.5 text-[11px] text-muted-foreground">
+              按 group_key 聚合观察信号，达到跨 session 支持后才会晋升成策略记忆。
+            </p>
+          </div>
+          {signals.phase === "loading" && <LoadingList rows={2} />}
+          {signals.phase === "error" && <ErrorBox message={signals.message} />}
+          {signals.phase === "ready" && promotionCandidateGroups.length === 0 && (
+            <p className="rounded-md border border-dashed bg-muted/10 px-3 py-2 text-xs text-muted-foreground">
+              暂无晋升候选，这不是错误。需要跨 session 积累足够信号后才会进入候选池。
+            </p>
+          )}
+          {signals.phase === "ready" && promotionCandidateGroups.length > 0 && (
+            <ul className="space-y-1.5">
+              {promotionCandidateGroups.slice(0, 5).map((group) => (
+                <li
+                  key={group.group_key}
+                  className="rounded-md border bg-card/30 p-2 text-[11px]"
+                >
+                  <div className="flex flex-wrap items-center gap-1.5">
+                    <Badge variant="outline" className="font-mono text-[10px]">
+                      {formatStrategySignalType(group.signal_type)}
+                    </Badge>
+                    <Badge variant="secondary" className="font-mono text-[10px]">
+                      {group.dimension}
+                    </Badge>
+                    {group.job_level && (
+                      <Badge variant="outline" className="font-mono text-[10px]">
+                        {group.job_level}
+                      </Badge>
+                    )}
+                    <Badge variant="outline" className="text-[10px]">
+                      {formatStrategyReadiness(group.promotion_readiness)}
+                    </Badge>
+                    <span className="min-w-0 truncate font-mono text-muted-foreground">
+                      {group.group_key}
+                    </span>
+                  </div>
+                  <div className="mt-1 flex flex-wrap gap-3 text-muted-foreground">
+                    <span>session {group.distinct_sessions}</span>
+                    <span>信号 {group.signal_count}</span>
+                    <span>距低置信晋升差 {group.support_gap} 场</span>
+                    <span>平均分 {formatMaybeNumber(group.avg_score_after)}</span>
+                    <span>平均奖励 {formatMaybeNumber(group.avg_immediate_reward)}</span>
+                    <span>
+                      Verifier 否决率{" "}
+                      {group.overrule_rate === null ||
+                      group.overrule_rate === undefined
+                        ? "—"
+                        : formatPercent(group.overrule_rate)}
+                    </span>
+                  </div>
+                  {group.failure_categories && group.failure_categories.length > 0 && (
                     <div className="mt-1 flex flex-wrap gap-1">
                       <span className="text-muted-foreground">失败类型：</span>
-                      {sig.failure_categories.map((cat) => (
+                      {group.failure_categories.map((cat) => (
                         <Badge
                           key={cat}
                           variant="outline"
@@ -5227,48 +6434,289 @@ const StrategiesCard = React.memo(function StrategiesCard({
               ))}
             </ul>
           )}
-          {usages.phase === "ready" && usages.data.usages.length > 0 && (
-            <div className="space-y-1.5">
-              <p className="text-xs font-medium text-muted-foreground">
-                最近使用归因
-              </p>
-              <ul className="space-y-1.5">
-                {usages.data.usages.slice(0, 5).map((usage) => (
-                  <li
-                    key={usage.id}
-                    className="rounded-md border bg-card/30 p-2 text-[11px]"
-                  >
-                    <div className="flex flex-wrap items-center gap-1.5">
-                      <Badge variant="outline" className="font-mono text-[10px]">
-                        第 {usage.turn_idx} 轮
-                      </Badge>
-                      <Badge variant="secondary" className="font-mono text-[10px]">
-                        {usage.plan_template ?? "模板 -"}
-                      </Badge>
-                      <span className="min-w-0 truncate font-mono text-muted-foreground">
-                        {usage.strategy_id}
-                      </span>
-                    </div>
-                    <div className="mt-1 flex flex-wrap gap-3 text-muted-foreground">
-                      <span>评分 {formatMaybeNumber(usage.score)}</span>
-                      <span>即时奖励 {formatMaybeNumber(usage.immediate_reward)}</span>
-                      <span>延迟奖励 {formatMaybeNumber(usage.delayed_reward)}</span>
-                    </div>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          )}
         </section>
+
+        <details className="rounded-lg border bg-muted/10 p-3 text-xs">
+          <summary className="cursor-pointer font-medium text-muted-foreground">
+            维护操作
+          </summary>
+          <div className="mt-3 flex flex-wrap items-center gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={handleStatsRefresh}
+              disabled={busy !== null}
+            >
+              {busy === "stats" && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
+              刷新统计
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={handlePromotionRun}
+              disabled={busy !== null}
+            >
+              {busy === "promotion" && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
+              运行晋升
+            </Button>
+            <span className="text-[11px] text-muted-foreground">
+              手动刷新只用于立即同步最新 usage，不会运行晋升；运行晋升需要单独触发。
+            </span>
+          </div>
+        </details>
       </CardContent>
     </Card>
   );
 });
 
+function StrategyMemoryStatusTile({
+  label,
+  value,
+  note,
+}: {
+  label: string;
+  value: string;
+  note: string;
+}) {
+  return (
+    <div className="rounded-md border bg-muted/10 p-3">
+      <p className="text-[11px] font-medium text-muted-foreground">{label}</p>
+      <p className="mt-1 font-mono text-lg font-semibold tabular-nums text-foreground">
+        {value}
+      </p>
+      <p className="mt-1 text-[11px] leading-relaxed text-muted-foreground">
+        {note}
+      </p>
+    </div>
+  );
+}
+
+function StrategyMemoryInlineMetric({
+  label,
+  value,
+  mono = false,
+}: {
+  label: string;
+  value: string;
+  mono?: boolean;
+}) {
+  return (
+    <div className="rounded-md border bg-background/40 px-2.5 py-2">
+      <p className="text-[10px] text-muted-foreground">{label}</p>
+      <p
+        className={cn(
+          "mt-0.5 truncate text-xs font-medium text-foreground",
+          mono && "font-mono",
+        )}
+      >
+        {value}
+      </p>
+    </div>
+  );
+}
+
+function StrategyMemoryDetailPanel({
+  strategy,
+  failureCategories,
+  bodyMarkdown,
+  contextCount,
+  globalUses,
+  avgReward,
+  overruleRate,
+}: {
+  strategy: Strategies["strategies"][number];
+  failureCategories: string[];
+  bodyMarkdown: string;
+  contextCount: number;
+  globalUses: string;
+  avgReward: string;
+  overruleRate: string;
+}) {
+  const body = bodyMarkdown.trim();
+  return (
+    <details className="mt-3 rounded-md border border-dashed bg-muted/10 p-3 text-xs">
+      <summary className="cursor-pointer font-medium text-muted-foreground">
+        策略详情
+      </summary>
+      <div className="mt-3 grid gap-3 lg:grid-cols-2">
+        <StrategyMemoryDetailBlock heading="适用范围">
+          <div className="flex flex-wrap gap-1.5">
+            {strategy.dimensions.map((dimension) => (
+              <Badge
+                key={`dimension-${dimension}`}
+                variant="secondary"
+                className="font-mono text-[10px]"
+              >
+                维度 {dimension}
+              </Badge>
+            ))}
+            {strategy.job_levels.map((level) => (
+              <Badge
+                key={`level-${level}`}
+                variant="outline"
+                className="font-mono text-[10px]"
+              >
+                级别 {level}
+              </Badge>
+            ))}
+            {failureCategories.map((category) => (
+              <Badge
+                key={`failure-${category}`}
+                variant="outline"
+                className="font-mono text-[10px] text-amber-500"
+              >
+                失败类型 {category}
+              </Badge>
+            ))}
+            {strategy.dimensions.length === 0 &&
+              strategy.job_levels.length === 0 &&
+              failureCategories.length === 0 && (
+                <span className="text-[11px] text-muted-foreground">
+                  暂无适用范围标签
+                </span>
+              )}
+          </div>
+        </StrategyMemoryDetailBlock>
+
+        <StrategyMemoryDetailBlock heading="推荐动作">
+          <div className="grid gap-1.5">
+            <StrategyMemoryFact
+              label="action"
+              value={strategy.recommended_action || "—"}
+              mono
+            />
+            <StrategyMemoryFact
+              label="plan_template"
+              value={strategy.recommended_plan_template || "—"}
+              mono
+            />
+            <StrategyMemoryFact
+              label="probe_intent"
+              value={strategy.recommended_probe_intent || "—"}
+              mono
+            />
+          </div>
+        </StrategyMemoryDetailBlock>
+
+        <StrategyMemoryDetailBlock heading="证据">
+          <div className="grid gap-1.5 sm:grid-cols-2">
+            <StrategyMemoryFact
+              label="支持样本"
+              value={String(strategy.support_count ?? 0)}
+            />
+            <StrategyMemoryFact
+              label="置信度"
+              value={formatMaybeNumber(strategy.confidence)}
+            />
+            <StrategyMemoryFact label="全局命中" value={globalUses} />
+            <StrategyMemoryFact label="综合奖励" value={avgReward} />
+            <StrategyMemoryFact label="Verifier 否决率" value={overruleRate} />
+            <StrategyMemoryFact label="上下文统计" value={`${contextCount} 条`} />
+          </div>
+        </StrategyMemoryDetailBlock>
+
+        <StrategyMemoryDetailBlock heading="开发详情">
+          <div className="grid gap-1.5">
+            <StrategyMemoryFact
+              label="memory_key"
+              value={strategy.memory_key || "—"}
+              mono
+            />
+            <StrategyMemoryFact
+              label="strategy_id"
+              value={strategy.id || strategy.path}
+              mono
+            />
+          </div>
+        </StrategyMemoryDetailBlock>
+      </div>
+
+      <div className="mt-3">
+        <p className="text-[11px] font-medium text-muted-foreground">策略正文</p>
+        {body ? (
+          <pre className="mt-1 max-h-72 overflow-auto whitespace-pre-wrap break-words rounded-md border bg-background/40 p-2 text-[11px] leading-relaxed text-muted-foreground">
+            {body}
+          </pre>
+        ) : (
+          <p className="mt-1 rounded-md border border-dashed bg-background/40 px-2 py-1.5 text-[11px] text-muted-foreground">
+            暂无策略正文。
+          </p>
+        )}
+      </div>
+    </details>
+  );
+}
+
+function StrategyMemoryDetailBlock({
+  heading,
+  children,
+}: {
+  heading: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <section className="space-y-2">
+      <p className="text-[11px] font-medium text-muted-foreground">{heading}</p>
+      {children}
+    </section>
+  );
+}
+
+function StrategyMemoryFact({
+  label,
+  value,
+  mono = false,
+}: {
+  label: string;
+  value: string;
+  mono?: boolean;
+}) {
+  return (
+    <div className="min-w-0 rounded-md border bg-background/40 px-2 py-1.5">
+      <p className="text-[10px] text-muted-foreground">{label}</p>
+      <p
+        className={cn(
+          "mt-0.5 truncate text-[11px] font-medium text-foreground",
+          mono && "font-mono",
+        )}
+      >
+        {value}
+      </p>
+    </div>
+  );
+}
+
+function countRecentStrategyUsages(
+  usages: Array<{ created_at?: string | null }>,
+): number {
+  const cutoff = Date.now() - 24 * 60 * 60 * 1000;
+  return usages.filter((usage) => {
+    if (!usage.created_at) return false;
+    const time = Date.parse(usage.created_at);
+    return Number.isFinite(time) && time >= cutoff;
+  }).length;
+}
+
+function latestIso(values: Array<string | null | undefined>): string | null {
+  let latest: string | null = null;
+  let latestTime = Number.NEGATIVE_INFINITY;
+  for (const value of values) {
+    if (!value) continue;
+    const time = Date.parse(value);
+    if (!Number.isFinite(time) || time <= latestTime) continue;
+    latest = value;
+    latestTime = time;
+  }
+  return latest;
+}
+
 function formatStrategySource(value?: string | null): string {
   if (!value) return "未知";
   if (value === "seed") return "种子";
   if (value === "promoted") return "晋升";
+  if (value === "promoted_signal") return "信号晋升";
   return value;
 }
 
@@ -5282,10 +6730,39 @@ function formatStrategyStatus(value?: string | null): string {
 
 function formatPromotionStage(value?: string | null): string {
   if (!value) return "未知";
+  if (value === "seed") return "种子";
   if (value === "starter") return "起步";
   if (value === "promotion_candidate") return "待晋升";
+  if (value === "low_confidence") return "低置信";
+  if (value === "stable") return "稳定";
   if (value === "stabilized") return "稳定";
   return value;
+}
+
+function formatStrategyRankingMode(value?: string | null): string {
+  if (value === "reward_shadow") return "reward_shadow";
+  if (value === "reward") return "reward";
+  if (value === "metadata") return "metadata";
+  return value || "metadata";
+}
+
+function formatStrategySignalType(value?: string | null): string {
+  if (value === "score_recovery") return "评分恢复";
+  if (value === "hint_effective") return "提示有效";
+  if (value === "high_reward_arm") return "高奖励动作";
+  if (value === "score_decline") return "评分下降";
+  if (value === "low_reward_arm") return "低奖励动作";
+  return value || "未知信号";
+}
+
+function formatStrategyReadiness(value?: string | null): string {
+  if (value === "needs_more_sessions") return "样本不足";
+  if (value === "blocked_by_overrule") return "Verifier 阻断";
+  if (value === "weak_evidence") return "证据偏弱";
+  if (value === "ready_low_confidence") return "可低置信晋升";
+  if (value === "ready_stable") return "可稳定晋升";
+  if (value === "diagnostic_only") return "仅诊断";
+  return value || "未知状态";
 }
 
 // ---------------------------------------------------------------------------

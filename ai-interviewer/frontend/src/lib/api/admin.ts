@@ -218,17 +218,24 @@ export interface Strategy {
   name: string;
   dimensions: string[];
   job_levels: string[];
+  failure_categories?: string[];
   description: string;
+  body_markdown?: string;
   source?: string;
   status?: string;
   quality_reason?: string | null;
   promotion_stage?: string;
   confidence?: number;
   support_count?: number;
+  priority?: number;
+  recommended_action?: string | null;
+  recommended_plan_template?: string | null;
+  recommended_probe_intent?: string | null;
 }
 
 export interface Strategies {
   count: number;
+  ranking_mode?: string;
   strategies: Strategy[];
 }
 
@@ -1003,7 +1010,29 @@ export interface StrategySignalItem {
 
 export interface StrategySignals {
   count: number;
+  groups?: StrategySignalGroup[];
   signals: StrategySignalItem[];
+}
+
+export interface StrategySignalGroup {
+  group_key: string;
+  signal_type: string;
+  dimension: string;
+  job_level?: string | null;
+  action_id?: string | null;
+  plan_template?: string | null;
+  probe_intent?: string | null;
+  failure_categories?: string[];
+  signal_count: number;
+  distinct_sessions: number;
+  support_gap: number;
+  avg_immediate_reward?: number | null;
+  avg_score_after?: number | null;
+  avg_score_delta?: number | null;
+  overrule_rate?: number | null;
+  status_counts?: Record<string, number>;
+  promotion_readiness: string;
+  latest_at?: string | null;
 }
 
 export interface StrategyUsageItem {
@@ -1026,6 +1055,7 @@ export interface StrategyUsageItem {
 
 export interface StrategyUsages {
   count: number;
+  recent_24h_count?: number;
   usages: StrategyUsageItem[];
 }
 
@@ -1047,6 +1077,10 @@ export interface StrategyStatsItem {
 
 export interface StrategyStats {
   count: number;
+  auto_refresh?: boolean;
+  auto_refreshed?: boolean;
+  auto_refresh_reason?: string | null;
+  auto_refresh_result?: { refreshed: number; deleted: number } | null;
   stats: StrategyStatsItem[];
 }
 
@@ -1062,8 +1096,12 @@ export function getStrategyUsages(
   return adminGet<StrategyUsages>("/admin/strategy-usages", signal);
 }
 
-export function getStrategyStats(signal?: AbortSignal): Promise<StrategyStats> {
-  return adminGet<StrategyStats>("/admin/strategy-stats", signal);
+export function getStrategyStats(
+  autoRefresh = false,
+  signal?: AbortSignal,
+): Promise<StrategyStats> {
+  const suffix = autoRefresh ? "?auto_refresh=true" : "";
+  return adminGet<StrategyStats>(`/admin/strategy-stats${suffix}`, signal);
 }
 
 export function refreshStrategyStats(): Promise<{ refreshed: number; deleted: number }> {
