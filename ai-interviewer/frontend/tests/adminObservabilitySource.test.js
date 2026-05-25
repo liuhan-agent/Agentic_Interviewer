@@ -298,6 +298,10 @@ test("admin scoring tab uses one-column primary diagnostics and lighter secondar
 test("admin panel surfaces structured question bank controls", () => {
   const panel = read("src/components/admin/AdminPanel.tsx");
   const api = read("src/lib/api/admin.ts");
+  const questionBankCard = panel.slice(
+    panel.indexOf("function QuestionBankCard"),
+    panel.indexOf("function QuestionBankFilters"),
+  );
 
   assert.match(api, /QuestionSeed/);
   assert.match(api, /direction_tags/);
@@ -327,16 +331,96 @@ test("admin panel surfaces structured question bank controls", () => {
   assert.match(panel, /QuestionBankCard/);
   assert.match(panel, /QuestionBankFilters/);
   assert.match(panel, /题库筛选/);
-  assert.match(panel, /二级诊断/);
-  assert.match(panel, /Shadow reranker/);
-  assert.match(panel, /最近评审/);
-  assert.match(panel, /严格检查/);
-  assert.match(panel, /结构化题库/);
-  assert.match(panel, /YAML 导入/);
-  assert.match(panel, /最近题目调用/);
+  assert.match(questionBankCard, /结构化出题资产/);
+  assert.match(questionBankCard, /候选题匹配、题干生成和评分约束/);
+  assert.match(questionBankCard, /一个 seed 是一个题目主题/);
+  assert.match(questionBankCard, /一个 variant 是该主题下的一种问法\/追问角度/);
+  assert.match(questionBankCard, /题目主题/);
+  assert.match(questionBankCard, /题目变体/);
+  assert.match(questionBankCard, /题库资产概览/);
+  assert.match(questionBankCard, /useState\("active"\)/);
+  assert.match(questionBankCard, /seedDirection/);
+  assert.match(questionBankCard, /seedRole/);
+  assert.match(questionBankCard, /questionDirections/);
+  assert.match(questionBankCard, /questionRoles/);
+  assert.match(questionBankCard, /matchesDirection/);
+  assert.match(questionBankCard, /matchesRole/);
+  assert.match(panel, /全部方向/);
+  assert.match(panel, /全部角色/);
+  assert.match(panel, /aria-label="按方向筛选题目主题"/);
+  assert.match(panel, /aria-label="按角色筛选题目主题"/);
+  assert.match(questionBankCard, /sort\(compareQuestionSeedRows\)/);
+  assert.match(questionBankCard, /filteredQuestionSeeds\[0\]/);
+  assert.match(questionBankCard, /formatQuestionAssetStatus\(seed\.status\)/);
+  assert.match(questionBankCard, /问法：/);
+  assert.match(questionBankCard, /难度：/);
+  assert.match(questionBankCard, /状态：\{formatQuestionAssetStatus\(variant\.status\)\}/);
+  assert.match(questionBankCard, /出题内容/);
+  assert.match(questionBankCard, /评分与诊断配置/);
+  assert.match(questionBankCard, /选题诊断/);
+  assert.match(questionBankCard, /重排分歧观察/);
+  assert.match(questionBankCard, /旁路观察/);
+  assert.match(questionBankCard, /规则首选/);
+  assert.match(questionBankCard, /模型首选/);
+  assert.match(questionBankCard, /人工评审样本/);
+  assert.match(questionBankCard, /规则更好/);
+  assert.match(questionBankCard, /模型更好/);
+  assert.match(questionBankCard, /formatQuestionRerankStatus/);
+  assert.match(questionBankCard, /formatQuestionRerankDecision/);
+  assert.match(questionBankCard, /formatQuestionReviewWinner/);
+  assert.match(questionBankCard, /严格检查/);
+  assert.match(questionBankCard, /结构化题库/);
+  assert.match(questionBankCard, /YAML 导入/);
+  assert.match(questionBankCard, /导入 YAML/);
+  assert.match(questionBankCard, /归档缺失/);
+  assert.match(questionBankCard, /检查/);
+  assert.match(questionBankCard, /最近选题记录/);
+  assert.match(questionBankCard, /最近出题事件/);
+  assert.match(questionBankCard, /displayedQuestionUsageEvents/);
+  assert.match(questionBankCard, /groupQuestionUsageEvents/);
+  assert.match(questionBankCard, /session_id.*turn_idx.*question_selector_mode/);
+  assert.match(panel, /from "@\/components\/interview\/SessionIdTooltip"/);
+  assert.match(questionBankCard, /<SessionIdTooltip sessionId=\{event\.session_id\} side="top" \/>/);
+  assert.match(questionBankCard, /aria-label="出题事件元信息"/);
+  assert.match(questionBankCard, /Session：/);
+  assert.match(questionBankCard, /候选 Top/);
+  assert.match(questionBankCard, /未采用，不回填/);
+  assert.match(questionBankCard, /实际出题/);
+  assert.match(questionBankCard, /候选第/);
+  assert.match(questionBankCard, /匹配分/);
+  assert.match(questionBankCard, /开发详情/);
+  assert.match(questionBankCard, /formatQuestionUsageSelectionLabel/);
+  assert.match(questionBankCard, /formatQuestionUsageTitle/);
+  assert.match(questionBankCard, /groupQuestionUsageEvents\(usages\.data\.usages\)\.slice\(0, 5\)/);
+  assert.match(questionBankCard, /sort\(compareQuestionUsageEvents\)/);
+  assert.match(
+    questionBankCard,
+    /questionUsageCreatedAtMs\(b\) - questionUsageCreatedAtMs\(a\)[\s\S]*b\.turn_idx - a\.turn_idx/,
+  );
+  assert.match(
+    questionBankCard,
+    /questionRerankCreatedAtMs\(b\) - questionRerankCreatedAtMs\(a\)[\s\S]*b\.turn_idx - a\.turn_idx/,
+  );
+  assert.match(
+    questionBankCard,
+    /questionReviewCreatedAtMs\(b\) - questionReviewCreatedAtMs\(a\)[\s\S]*b\.turn_idx - a\.turn_idx/,
+  );
+  assert.match(questionBankCard, /当前暂无选题调用、重排或评审样本/);
+  assert.match(questionBankCard, /完成几轮面试后会出现选题诊断数据/);
+  assert.match(questionBankCard, /max-h-\[1280px\] space-y-2 overflow-y-auto/);
+  assert.doesNotMatch(questionBankCard, /max-h-\[560px\] space-y-2 overflow-y-auto/);
+  assert.doesNotMatch(questionBankCard, /\{variant\.status\}\s*<\/Badge>/);
   assert.doesNotMatch(panel, /最近 question usage/);
+  assert.doesNotMatch(questionBankCard, /rank \{usage\.rank\}/);
+  assert.doesNotMatch(questionBankCard, /score \{formatMaybeNumber\(usage\.match_score\)\}/);
+  assert.doesNotMatch(questionBankCard, /eval \{formatMaybeNumber\(usage\.score\)\}/);
   assert.doesNotMatch(panel, /shadow reranker pairwise review/);
   assert.doesNotMatch(panel, /recent question reviews/);
+  assert.doesNotMatch(questionBankCard, /rule \{row\.rule_top_variant_id/);
+  assert.doesNotMatch(questionBankCard, /llm \{row\.llm_top_variant_id/);
+  assert.doesNotMatch(questionBankCard, /\{review\.winner\}\s*<\/Badge>/);
+  assert.doesNotMatch(questionBankCard, /二级诊断/);
+  assert.doesNotMatch(questionBankCard, /题目种子/);
   assert.match(panel, /disableQuestionSeed/);
   assert.match(panel, /archiveQuestionVariant/);
 });
@@ -361,15 +445,42 @@ test("admin panel surfaces DB-backed skills playbook observability only", () => 
   assert.ok(api.includes("dimension"));
   assert.ok(api.includes("archive_missing=true"));
 
+  const playbookCard = panel.slice(
+    panel.indexOf("function SkillsPlaybookCard"),
+    panel.indexOf("const StrategiesCard"),
+  );
+
   assert.match(panel, /SkillsPlaybookCard/);
   assert.match(panel, /技能打法库/);
   assert.match(panel, /Markdown 导入/);
   assert.match(panel, /导入并归档缺失/);
-  assert.match(panel, /生成器提示/);
-  assert.match(panel, /观察字段/);
-  assert.match(panel, /原文/);
-  assert.match(panel, /全部打法卡/);
-  assert.match(panel, /PlaybookDetailTab/);
+  assert.match(playbookCard, /playbookSearch/);
+  assert.match(playbookCard, /playbookStatus/);
+  assert.match(playbookCard, /playbookDirection/);
+  assert.match(playbookCard, /playbookRole/);
+  assert.match(playbookCard, /playbookDimension/);
+  assert.match(playbookCard, /filteredSkillPlaybooks/);
+  assert.match(playbookCard, /SkillPlaybookFilters/);
+  assert.match(playbookCard, /打法筛选/);
+  assert.match(playbookCard, /打法目录/);
+  assert.match(playbookCard, /max-h-\[1040px\]/);
+  assert.match(playbookCard, /flex-nowrap gap-1\.5 overflow-hidden/);
+  assert.match(playbookCard, /max-w-\[9rem\][^"]*truncate/);
+  assert.match(playbookCard, /适用范围/);
+  assert.match(playbookCard, /出题指导/);
+  assert.doesNotMatch(playbookCard, /出题打法/);
+  assert.match(playbookCard, /评分观察/);
+  assert.match(playbookCard, /开发详情/);
+  assert.match(playbookCard, /正文补充/);
+  assert.match(playbookCard, /frontmatter 是运行时读取的主体/);
+  assert.match(playbookCard, /formatSkillPlaybookStatus/);
+  assert.match(playbookCard, /formatSkillPlaybookBackend/);
+  assert.doesNotMatch(playbookCard, /生成器提示/);
+  assert.doesNotMatch(playbookCard, /观察字段/);
+  assert.doesNotMatch(playbookCard, /全部打法卡/);
+  assert.doesNotMatch(playbookCard, /Markdown 原文/);
+  assert.doesNotMatch(playbookCard, /PlaybookDetailTab/);
+  assert.doesNotMatch(playbookCard, /PlaybookTabButton/);
   assert.doesNotMatch(panel, /Skills Playbook/);
   assert.doesNotMatch(panel, /runtime_backend=/);
   assert.doesNotMatch(panel, /Import \+ archive missing/);
@@ -384,6 +495,7 @@ test("admin panel surfaces DB-backed skills playbook observability only", () => 
 
 test("admin strategy tab is a one-column governance console", () => {
   const panel = read("src/components/admin/AdminPanel.tsx");
+  const api = read("src/lib/api/admin.ts");
   const banditTable = panel.slice(
     panel.indexOf("function BanditTable"),
     panel.indexOf("function parseBanditStrategyKey"),
@@ -410,11 +522,32 @@ test("admin strategy tab is a one-column governance console", () => {
   assert.match(panel, /深挖追问/);
   assert.match(panel, /开发详情/);
   assert.match(panel, /原始后验参数/);
-  assert.match(panel, /晋升控制/);
-  assert.match(panel, /当前策略/);
-  assert.match(panel, /信号与使用归因/);
+  assert.match(panel, /策略记忆资产/);
   assert.match(panel, /最近使用归因/);
-  assert.match(panel, /暂无晋升信号/);
+  assert.match(panel, /最近召回归因/);
+  assert.match(panel, /晋升候选/);
+  assert.match(panel, /维护操作/);
+  assert.match(panel, /getStrategyStats\(true, signal\)/);
+  assert.match(api, /failure_categories\?: string\[\]/);
+  assert.match(api, /body_markdown\?: string/);
+  assert.match(panel, /启用策略/);
+  assert.match(panel, /最近 24h 召回/);
+  assert.match(panel, /待晋升信号组/);
+  assert.match(panel, /排序模式/);
+  assert.match(panel, /统计更新时间/);
+  assert.match(panel, /打开模块时会自动补齐过期统计/);
+  assert.match(panel, /手动刷新只用于立即同步最新 usage/);
+  assert.match(panel, /不会运行晋升/);
+  assert.match(panel, /适用范围/);
+  assert.match(panel, /推荐动作/);
+  assert.match(panel, /证据/);
+  assert.match(panel, /策略正文/);
+  assert.match(panel, /whitespace-pre-wrap/);
+  assert.match(panel, /s\.failure_categories/);
+  assert.match(panel, /s\.body_markdown/);
+  assert.match(panel, /暂无策略正文/);
+  assert.match(panel, /暂无召回归因/);
+  assert.match(panel, /暂无晋升候选/);
   assert.match(panel, /formatBanditStrategyLabel/);
   assert.match(panel, /buildCanonicalBanditRows/);
   assert.match(panel, /canonicalBanditActionId/);
@@ -465,6 +598,10 @@ test("admin strategy tab is a one-column governance console", () => {
   assert.doesNotMatch(panel, /active \/ total/);
   assert.doesNotMatch(panel, /seed \/ variant/);
   assert.doesNotMatch(panel, /策略记忆 \/ usage/);
+  assert.doesNotMatch(panel, /当前策略/);
+  assert.doesNotMatch(panel, /信号与使用归因/);
+  assert.doesNotMatch(panel, /晋升控制/);
+  assert.doesNotMatch(panel, /暂无晋升信号/);
   assert.doesNotMatch(panel, /Strict lint/);
   assert.doesNotMatch(panel, /confidence \{formatMaybeNumber/);
   assert.doesNotMatch(panel, /support \{s\.support_count/);
