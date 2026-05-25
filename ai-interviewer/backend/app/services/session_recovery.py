@@ -44,7 +44,11 @@ class RecoveryService:
             return False
         if values.get("final_report"):
             return False
-        return not bool(values.get("current_question"))
+        current_question = values.get("current_question")
+        current_answer = str(values.get("current_answer") or "").strip()
+        if not current_question:
+            return True
+        return bool(current_answer)
 
     def checkpoint_retryable_evaluator_failure(self, session_id: str) -> bool:
         """Return whether answer evaluation can be safely retried."""

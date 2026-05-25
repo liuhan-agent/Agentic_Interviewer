@@ -372,6 +372,35 @@ def test_retry_failed_question_keeps_terminal_error_when_segment_does_not_start(
     assert marked_running == []
 
 
+def test_run_segment_marks_retryable_terminal_network_failure():
+    manager = SessionManager.__new__(SessionManager)
+    persisted: list[dict[str, object]] = []
+
+    class _FailingWorkflow:
+        def stream(self, _stream_input: object, *, config: object, stream_mode: str):
+            del config, stream_mode
+            yield {
+                "turn_idx": 5,
+                "current_question": {"question": "previous question"},
+                "current_answer": "candidate answer",
+            }
+            raise ConnectionError("Connection error.")
+
+    manager._workflow = _FailingWorkflow()
+    manager.can_retry_failed_question = lambda session_id: True  # type: ignore[method-assign]
+    manager._persist_completed = (  # type: ignore[method-assign]
+        lambda _handle, final_state: persisted.append(dict(final_state or {}))
+    )
+
+    handle = SessionHandle(session_id="sess-network", trace_id="trace-network")
+
+    manager._run_segment(handle, None)
+
+    assert handle.error_kind == "network"
+    assert persisted[-1]["status"] == "errored"
+    assert persisted[-1]["retryable"] is True
+
+
 def test_can_retry_failed_question_allows_evaluator_checkpoint():
     manager = SessionManager.__new__(SessionManager)
 

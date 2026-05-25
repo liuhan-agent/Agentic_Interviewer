@@ -6014,7 +6014,7 @@ const StrategiesCard = React.memo(function StrategiesCard({
               策略记忆
             </CardTitle>
             <CardDescription className="mt-1">
-              全局策略记忆资产、最近召回归因和晋升候选分开观测。
+              全局策略记忆资产、最近策略使用归因和晋升候选分开观测。
             </CardDescription>
           </div>
           <div className="flex flex-wrap justify-end gap-2">
@@ -6230,6 +6230,10 @@ const StrategiesCard = React.memo(function StrategiesCard({
                       : formatPercent(strategyStats.overrule_rate)
                   }
                 />
+                <StrategyMemoryScopeSummary
+                  dimensions={s.dimensions}
+                  jobLevels={s.job_levels}
+                />
                 {contextRows.length > 0 && (
                   <details className="mt-2 text-[11px] text-muted-foreground">
                     <summary className="cursor-pointer">
@@ -6237,47 +6241,11 @@ const StrategiesCard = React.memo(function StrategiesCard({
                     </summary>
                     <div className="mt-2 grid gap-1.5">
                       {contextRows.slice(0, 3).map((row) => (
-                        <div
-                          key={row.id}
-                          className="flex flex-wrap items-center gap-2 rounded-md border bg-background/40 px-2 py-1.5"
-                        >
-                          <span className="font-mono">{row.context_key}</span>
-                          <span>命中 {row.uses}</span>
-                          <span>
-                            综合奖励 {formatMaybeNumber(row.avg_blended_reward)}
-                          </span>
-                          <span>
-                            Verifier 否决率{" "}
-                            {row.overrule_rate === null ||
-                            row.overrule_rate === undefined
-                              ? "—"
-                              : formatPercent(row.overrule_rate)}
-                          </span>
-                        </div>
+                        <StrategyMemoryContextStatsRow key={row.id} row={row} />
                       ))}
                     </div>
                   </details>
                 )}
-                <div className="mt-2 flex flex-wrap gap-1.5">
-                  {s.dimensions.map((d) => (
-                    <Badge
-                      key={d}
-                      variant="secondary"
-                      className="font-mono text-[10px]"
-                    >
-                      {d}
-                    </Badge>
-                  ))}
-                  {s.job_levels.map((j) => (
-                    <Badge
-                      key={j}
-                      variant="outline"
-                      className="font-mono text-[10px]"
-                    >
-                      {j}
-                    </Badge>
-                  ))}
-                </div>
                 {s.id && (
                   <details className="mt-3 text-xs">
                     <summary className="cursor-pointer text-muted-foreground">
@@ -6318,17 +6286,17 @@ const StrategiesCard = React.memo(function StrategiesCard({
         <section className="space-y-2 border-t border-border/40 pt-4">
           <div>
             <p className="text-xs font-medium text-muted-foreground">
-              最近召回归因
+              最近策略使用归因
             </p>
             <p className="mt-0.5 text-[11px] text-muted-foreground">
-              最近使用归因记录来自策略被注入出题链路后的评分归因。
+              展示最近完成评分的出题轮次里，哪些策略记忆被注入并获得了评分/reward 归因。
             </p>
           </div>
           {usages.phase === "loading" && <LoadingList rows={2} />}
           {usages.phase === "error" && <ErrorBox message={usages.message} />}
           {usages.phase === "ready" && usageRows.length === 0 && (
             <p className="rounded-md border border-dashed bg-muted/10 px-3 py-2 text-xs text-muted-foreground">
-              暂无召回归因，这不是错误。策略只有被注入出题链路并完成评分后才会出现。
+              暂无策略使用归因，这不是错误。策略只有被注入出题链路并完成评分后才会出现。
             </p>
           )}
           {usages.phase === "ready" && usageRows.length > 0 && (
@@ -6618,6 +6586,125 @@ function StrategyMemoryInlineMetric({
       </p>
     </div>
   );
+}
+
+function StrategyMemoryScopeSummary({
+  dimensions,
+  jobLevels,
+}: {
+  dimensions: string[];
+  jobLevels: string[];
+}) {
+  if (dimensions.length === 0 && jobLevels.length === 0) return null;
+  return (
+    <div className="mt-3 space-y-1.5 text-[11px] text-muted-foreground">
+      <StrategyMemoryScopeRow label="维度" values={dimensions} variant="secondary" />
+      <StrategyMemoryScopeRow label="级别" values={jobLevels} variant="outline" />
+    </div>
+  );
+}
+
+function StrategyMemoryScopeRow({
+  label,
+  values,
+  variant,
+}: {
+  label: string;
+  values: string[];
+  variant: "secondary" | "outline";
+}) {
+  if (values.length === 0) return null;
+  return (
+    <div className="flex flex-wrap items-center gap-1.5">
+      <span className="w-8 shrink-0 text-muted-foreground">{label}</span>
+      {values.map((value) => (
+        <Badge
+          key={`${label}-${value}`}
+          variant={variant}
+          className="font-mono text-[10px]"
+        >
+          {value}
+        </Badge>
+      ))}
+    </div>
+  );
+}
+
+function StrategyMemoryContextStatsRow({
+  row,
+}: {
+  row: StrategyStats["stats"][number];
+}) {
+  const parsed = parseStrategyContextKey(row.context_key);
+  return (
+    <div className="rounded-md border bg-background/40 px-2 py-1.5">
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+        {parsed.direction && (
+          <StrategyContextPart label="方向" value={parsed.direction} />
+        )}
+        <StrategyContextPart label="级别" value={parsed.jobLevel} />
+        <StrategyContextPart label="维度" value={parsed.dimension} />
+        <span className="font-mono text-[10px] text-muted-foreground">
+          key {row.context_key}
+        </span>
+      </div>
+      <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-muted-foreground">
+        <span>命中 {row.uses}</span>
+        <span>综合奖励 {formatMaybeNumber(row.avg_blended_reward)}</span>
+        <span>
+          Verifier 否决率{" "}
+          {row.overrule_rate === null || row.overrule_rate === undefined
+            ? "—"
+            : formatPercent(row.overrule_rate)}
+        </span>
+      </div>
+    </div>
+  );
+}
+
+function StrategyContextPart({
+  label,
+  value,
+}: {
+  label: string;
+  value: string;
+}) {
+  return (
+    <span className="inline-flex items-center gap-1">
+      <span className="text-muted-foreground">{label}</span>
+      <span className="font-mono text-foreground">{value}</span>
+    </span>
+  );
+}
+
+function parseStrategyContextKey(contextKey: string): {
+  direction: string | null;
+  jobLevel: string;
+  dimension: string;
+} {
+  const parts = contextKey
+    .split(":")
+    .map((part) => part.trim())
+    .filter(Boolean);
+  if (parts.length >= 3) {
+    return {
+      direction: parts.slice(0, -2).join(":"),
+      jobLevel: parts[parts.length - 2] ?? "—",
+      dimension: parts[parts.length - 1] ?? "—",
+    };
+  }
+  if (parts.length === 2) {
+    return {
+      direction: null,
+      jobLevel: parts[0] ?? "—",
+      dimension: parts[1] ?? "—",
+    };
+  }
+  return {
+    direction: null,
+    jobLevel: "—",
+    dimension: contextKey || "—",
+  };
 }
 
 function StrategyMemoryDetailPanel({
