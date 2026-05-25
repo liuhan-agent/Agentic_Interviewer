@@ -23,6 +23,7 @@ so both old and new readers can find it.
 from __future__ import annotations
 
 import hashlib
+import re
 import time
 from typing import Any
 
@@ -1178,6 +1179,55 @@ def _normalise_question_text(value: Any) -> str:
     return " ".join(str(value or "").strip().lower().split())
 
 
+def _normalise_question_skill(value: str) -> str:
+    compact = re.sub(r"[^a-z0-9+#.]+", "", value.strip().lower())
+    aliases = {
+        "springsecurity": "springsecurity",
+        "springboot": "springboot",
+    }
+    return aliases.get(compact, compact)
+
+
+def _generic_tradeoff_signature(value: Any) -> dict[str, Any] | None:
+    text = str(value or "").strip().lower()
+    required = ("约束", "备选方案", "最终取舍", "故障复盘", "怎么演进")
+    if not text or not all(token in text for token in required):
+        return None
+
+    project_match = re.search(r"请结合「([^」]+)」", text)
+    skills_match = re.search(r"中与「([^」]+)」相关", text)
+    if not project_match or not skills_match:
+        return None
+
+    skills = {
+        normalised
+        for raw in re.split(r"[、,，/ ]+", skills_match.group(1))
+        if (normalised := _normalise_question_skill(raw))
+    }
+    return {"project": project_match.group(1), "skills": skills}
+
+
+def _is_near_duplicate_question(
+    question: Any,
+    previous_questions: set[str],
+) -> bool:
+    current = _generic_tradeoff_signature(question)
+    if not current:
+        return False
+    current_skills = current["skills"]
+    for previous in previous_questions:
+        prior = _generic_tradeoff_signature(previous)
+        if not prior or prior["project"] != current["project"]:
+            continue
+        prior_skills = prior["skills"]
+        if not current_skills or not prior_skills:
+            continue
+        overlap = current_skills & prior_skills
+        if len(overlap) >= max(1, min(len(current_skills), len(prior_skills)) - 1):
+            return True
+    return False
+
+
 def _previous_question_texts(qa_history: list[dict[str, Any]]) -> set[str]:
     texts: set[str] = set()
     for turn in qa_history:
@@ -1289,7 +1339,10 @@ def _rewrite_duplicate_question(
 ) -> None:
     previous = _previous_question_texts(ctx.get("qa_history") or [])
     question = _normalise_question_text(payload.get("question"))
-    if not question or question not in previous:
+    if not question or (
+        question not in previous
+        and not _is_near_duplicate_question(payload.get("question"), previous)
+    ):
         return
 
     original = str(payload.get("question") or "")
