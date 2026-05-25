@@ -15,6 +15,7 @@ from app.models.base import Base
 from app.models.generation_trace import GenerationTrace
 from app.models.strategy_memory import (
     StrategyMemory,
+    StrategyMemoryStats,
     StrategyMemoryUsage,
     StrategySignal,
 )
@@ -58,11 +59,16 @@ def _session_factory():
                 memory_key="seed:system_design:senior",
                 dimensions=["system_design"],
                 job_levels=["senior"],
+                failure_categories=["missing_metrics"],
                 body_markdown="Body",
                 status="active",
                 promotion_stage="seed",
                 confidence=0.8,
                 support_count=20,
+                priority=9,
+                recommended_action="plan_deep_probe",
+                recommended_plan_template="plan_deep_probe",
+                recommended_probe_intent="deep_probe",
             )
         )
         sess.add(
@@ -116,6 +122,13 @@ def test_admin_strategies_include_db_metadata_and_status_actions() -> None:
     assert strategy["promotion_stage"] == "seed"
     assert strategy["confidence"] == 0.8
     assert strategy["support_count"] == 20
+    assert strategy["priority"] == 9
+    assert strategy["recommended_action"] == "plan_deep_probe"
+    assert strategy["recommended_plan_template"] == "plan_deep_probe"
+    assert strategy["recommended_probe_intent"] == "deep_probe"
+    assert strategy["failure_categories"] == ["missing_metrics"]
+    assert strategy["body_markdown"] == "Body"
+    assert listed.json()["ranking_mode"] == "metadata"
 
     disabled = client.post("/admin/strategies/seed%3Asenior_system_design/disable")
     assert disabled.status_code == 200
@@ -154,10 +167,66 @@ def test_admin_strategy_signals_and_usages_are_listed() -> None:
     # the keyword inference. ``[]`` is also acceptable (no category).
     assert "failure_categories" in signal_row
     assert signal_row["failure_categories"] == ["missing_metrics"]
+    groups = signals.json()["groups"]
+    assert len(groups) == 1
+    group = groups[0]
+    assert group["group_key"] == "qa:score_recovery:senior:system_design:plan_hint"
+    assert group["signal_type"] == "score_recovery"
+    assert group["dimension"] == "system_design"
+    assert group["job_level"] == "senior"
+    assert group["signal_count"] == 1
+    assert group["distinct_sessions"] == 1
+    assert group["support_gap"] == 29
+    assert group["promotion_readiness"] == "needs_more_sessions"
+    assert group["avg_score_after"] == 8.0
+    assert group["avg_immediate_reward"] == 0.8
+    assert group["overrule_rate"] == 0.0
 
     assert usages.status_code == 200
     assert usages.json()["count"] == 1
     assert usages.json()["usages"][0]["strategy_id"] == "seed:senior_system_design"
+    assert usages.json()["recent_24h_count"] == 1
+
+
+def test_admin_strategy_stats_auto_refreshes_stale_usage_stats() -> None:
+    Session = _session_factory()
+    client = _client(Session)
+
+    with Session() as sess:
+        assert sess.query(StrategyMemoryStats).count() == 0
+
+    without_auto_refresh = client.get("/admin/strategy-stats")
+    assert without_auto_refresh.status_code == 200
+    assert without_auto_refresh.json()["count"] == 0
+    assert without_auto_refresh.json()["auto_refresh"] is False
+    assert without_auto_refresh.json()["auto_refreshed"] is False
+
+    refreshed = client.get("/admin/strategy-stats?auto_refresh=true")
+    assert refreshed.status_code == 200
+    payload = refreshed.json()
+    assert payload["auto_refresh"] is True
+    assert payload["auto_refreshed"] is True
+    assert payload["auto_refresh_reason"] == "stats_missing"
+    assert payload["auto_refresh_result"] == {"refreshed": 2, "deleted": 0}
+    assert payload["count"] == 2
+    assert {row["context_key"] for row in payload["stats"]} == {
+        "__global__",
+        "senior:system_design",
+    }
+    assert {row["strategy_id"] for row in payload["stats"]} == {
+        "seed:senior_system_design",
+    }
+
+    listed = client.get("/admin/strategies")
+    strategy = listed.json()["strategies"][0]
+    assert strategy["source"] == "seed"
+    assert strategy["promotion_stage"] == "seed"
+
+    second = client.get("/admin/strategy-stats?auto_refresh=true")
+    assert second.status_code == 200
+    assert second.json()["auto_refresh"] is True
+    assert second.json()["auto_refreshed"] is False
+    assert second.json()["auto_refresh_reason"] == "fresh"
 
 
 def test_admin_failure_category_overlap_endpoint_returns_counts() -> None:

@@ -336,54 +336,122 @@ def _memory_body(group: _SignalGroup, *, stage: str) -> str:
 
 def _qa_memory_body(group: _SignalGroup, *, stage: str) -> str:
     first = group.signals[0]
-    evidence_line = (
-        f"- Average hint score: {group.avg_score_after:.2f}."
+    action = canonical_action_id(first.action_id) or first.action_id or "unknown"
+    failure_categories = _merged_failure_categories(group.signals)
+    score_evidence = (
+        f"- 平均 hint 后得分：{group.avg_score_after:.2f}"
         if group.signal_type == "hint_effective"
-        else f"- Average QA score delta: {group.avg_score_delta:.2f}."
+        else f"- 平均分数提升：{group.avg_score_delta:.2f}"
     )
     return "\n".join(
         [
-            f"Promoted from {group.distinct_sessions} sessions.",
+            "## 适用场景",
+            f"- 维度：{_code_value(first.dimension)}",
+            f"- 级别：{_code_value(first.job_level)}",
+            f"- 失败类型：{_code_list(failure_categories)}",
+            f"- 信号类型：{_code_value(group.signal_type)}",
             "",
-            "How to apply:",
-            f"- In `{first.dimension}` for `{first.job_level}` candidates, consider `{first.action_id}`.",
-            f"- Average post-signal score: {group.avg_score_after:.2f}.",
-            evidence_line,
-            f"- Verifier overrule rate: {group.overrule_rate:.0%}.",
-            f"- Promotion stage: `{stage}`.",
+            "## 推荐动作",
+            f"- action：{_code_value(action)}",
+            f"- plan_template：{_code_value(action or first.plan_template)}",
+            f"- probe_intent：{_code_value(first.probe_intent)}",
+            "",
+            "## 使用方式",
+            "- 同维度、同级别、相似失败类型下，优先考虑该推荐动作。",
+            "- 如果当前上下文不相近，保持原有出题策略，不强行套用。",
+            "",
+            "## 证据",
+            f"- 支持 session：{group.distinct_sessions}",
+            f"- 平均后验分：{group.avg_score_after:.2f}",
+            score_evidence,
+            f"- Verifier 否决率：{group.overrule_rate:.0%}",
+            f"- 晋升阶段：{_code_value(stage)}",
+            "",
+            "## 使用边界",
+            "- 只在相近上下文使用，不把单条策略泛化到无关维度或级别。",
+            "- 后续 reward 或 Verifier 否决率变差时，应降权、禁用或重新观察。",
         ]
     )
 
 
 def _bandit_memory_body(group: _SignalGroup, *, stage: str) -> str:
     first = group.signals[0]
+    action = canonical_action_id(first.action_id) or first.action_id or "unknown"
     return "\n".join(
         [
-            f"Promoted from {group.distinct_sessions} sessions.",
+            "## 适用场景",
+            f"- 维度：{_code_value(first.dimension)}",
+            f"- 级别：{_code_value(first.job_level)}",
+            f"- group_key：{_code_value(group.group_key)}",
+            f"- 信号类型：{_code_value(group.signal_type)}",
             "",
-            "How to apply:",
-            f"- In `{first.dimension}` for `{first.job_level}` candidates, consider `{first.action_id}`.",
-            f"- Average immediate reward: {group.avg_reward:.2f}.",
-            f"- Verifier overrule rate: {group.overrule_rate:.0%}.",
-            f"- Promotion stage: `{stage}`.",
+            "## 推荐动作",
+            f"- action：{_code_value(action)}",
+            f"- plan_template：{_code_value(action or first.plan_template)}",
+            f"- probe_intent：{_code_value(first.probe_intent)}",
+            "",
+            "## 使用方式",
+            "- 同维度、同级别、相似上下文下，优先考虑该推荐动作。",
+            "- 如果当前上下文不相近，保持原有出题策略，不强行套用。",
+            "",
+            "## 证据",
+            f"- 支持 session：{group.distinct_sessions}",
+            f"- 平均 reward：{group.avg_reward:.2f}",
+            f"- Verifier 否决率：{group.overrule_rate:.0%}",
+            f"- 晋升阶段：{_code_value(stage)}",
+            "",
+            "## 使用边界",
+            "- 只在相近上下文使用，不把单条策略泛化到无关维度或级别。",
+            "- 后续 reward 或 Verifier 否决率变差时，应降权、禁用或重新观察。",
         ]
     )
 
 
 def _legacy_memory_body(group: _SignalGroup, *, stage: str) -> str:
     first = group.signals[0]
+    action = canonical_action_id(first.action_id) or first.action_id or "unknown"
+    failure_categories = _merged_failure_categories(group.signals)
     return "\n".join(
         [
-            f"Promoted from {group.distinct_sessions} sessions.",
+            "## 适用场景",
+            f"- 维度：{_code_value(first.dimension)}",
+            f"- 级别：{_code_value(first.job_level)}",
+            f"- 失败类型：{_code_list(failure_categories)}",
+            f"- 信号类型：{_code_value(group.signal_type)}",
             "",
-            "How to apply:",
-            f"- In `{first.dimension}` for `{first.job_level}` candidates, consider `{first.action_id}`.",
-            f"- Average immediate reward: {group.avg_reward:.2f}.",
-            f"- Average post-signal score: {group.avg_score_after:.2f}.",
-            f"- Verifier overrule rate: {group.overrule_rate:.0%}.",
-            f"- Promotion stage: `{stage}`.",
+            "## 推荐动作",
+            f"- action：{_code_value(action)}",
+            f"- plan_template：{_code_value(action or first.plan_template)}",
+            f"- probe_intent：{_code_value(first.probe_intent)}",
+            "",
+            "## 使用方式",
+            "- 同维度、同级别、相似失败类型下，优先考虑该推荐动作。",
+            "- 如果当前上下文不相近，保持原有出题策略，不强行套用。",
+            "",
+            "## 证据",
+            f"- 支持 session：{group.distinct_sessions}",
+            f"- 平均 reward：{group.avg_reward:.2f}",
+            f"- 平均后验分：{group.avg_score_after:.2f}",
+            f"- Verifier 否决率：{group.overrule_rate:.0%}",
+            f"- 晋升阶段：{_code_value(stage)}",
+            "",
+            "## 使用边界",
+            "- 只在相近上下文使用，不把单条策略泛化到无关维度或级别。",
+            "- 后续 reward 或 Verifier 否决率变差时，应降权、禁用或重新观察。",
         ]
     )
+
+
+def _code_value(value: object) -> str:
+    text = str(value or "").strip()
+    return f"`{text}`" if text else "`无`"
+
+
+def _code_list(values: list[str]) -> str:
+    cleaned = [str(value or "").strip() for value in values if str(value or "").strip()]
+    if not cleaned:
+        return "`无`"
+    return "、".join(f"`{value}`" for value in cleaned)
 
 
 def _confidence_for_stage(stage: str, group: _SignalGroup) -> float:
