@@ -7,7 +7,18 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 
-export function SessionIdTooltip({ sessionId }: { sessionId: string }) {
+type TooltipSide = "top" | "right" | "bottom" | "left";
+type TooltipAlign = "start" | "center" | "end";
+
+export function SessionIdTooltip({
+  sessionId,
+  side = "bottom",
+  align = "start",
+}: {
+  sessionId: string;
+  side?: TooltipSide;
+  align?: TooltipAlign;
+}) {
   return (
     <TooltipProvider delayDuration={150}>
       <Tooltip>
@@ -21,8 +32,8 @@ export function SessionIdTooltip({ sessionId }: { sessionId: string }) {
           </span>
         </TooltipTrigger>
         <TooltipContent
-          side="bottom"
-          align="start"
+          side={side}
+          align={align}
           sideOffset={6}
           className="max-w-[28rem] border-border/80 bg-popover px-2.5 py-1.5 font-mono text-xs text-emerald-300 shadow-lg"
         >
