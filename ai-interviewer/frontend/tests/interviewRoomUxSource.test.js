@@ -103,6 +103,14 @@ test("interview room detects final submitted turn for final-report loading copy"
   assert.match(source, /<NextQuestionLoader\s+etaMs=\{state\.lastServerLatencyMs\}\s+isFinalTurn=\{finalTurnSubmitted\}\s+answerInsight=\{latestSubmittedAnswerInsight\}/);
 });
 
+test("interview room separates retry processing from status refresh copy", () => {
+  assert.match(source, /onClick=\{handleRetryQuestionGeneration\}/);
+  assert.match(source, /继续处理/);
+  assert.match(source, /onClick=\{\(\) => router\.refresh\(\)\}/);
+  assert.match(source, /刷新状态/);
+  assert.doesNotMatch(source, /重试连接/);
+});
+
 test("interview room passes stable local answer insight while loading", () => {
   assert.match(source, /const latestSubmittedAnswerInsight =/);
   assert.match(source, /answerInsightFromHistory\(history\)/);

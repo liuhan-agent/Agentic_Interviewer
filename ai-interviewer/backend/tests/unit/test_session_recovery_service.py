@@ -68,6 +68,21 @@ def test_retryable_question_failure_is_only_before_question_exists() -> None:
     assert already_asked.checkpoint_retryable_question_failure("sess-asked") is False
 
 
+def test_retryable_question_failure_allows_answered_stale_question() -> None:
+    service = RecoveryService(
+        _Workflow(
+            values={
+                "current_question": {"question": "previous question"},
+                "current_answer": "candidate already answered it",
+                "final_report": None,
+            },
+            next_nodes=("ask_question",),
+        )
+    )
+
+    assert service.checkpoint_retryable_question_failure("sess-next-question") is True
+
+
 def test_retryable_evaluator_failure_requires_answer_and_question() -> None:
     retryable = RecoveryService(
         _Workflow(

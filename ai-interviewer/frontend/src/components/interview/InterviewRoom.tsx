@@ -805,7 +805,7 @@ export function InterviewRoom({
                   size="sm"
                   onClick={() => router.refresh()}
                 >
-                  重试连接
+                  刷新状态
                 </Button>
               </div>
             </CardContent>

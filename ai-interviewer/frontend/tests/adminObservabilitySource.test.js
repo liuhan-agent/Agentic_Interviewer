@@ -523,8 +523,7 @@ test("admin strategy tab is a one-column governance console", () => {
   assert.match(panel, /开发详情/);
   assert.match(panel, /原始后验参数/);
   assert.match(panel, /策略记忆资产/);
-  assert.match(panel, /最近使用归因/);
-  assert.match(panel, /最近召回归因/);
+  assert.match(panel, /最近策略使用归因/);
   assert.match(panel, /晋升候选/);
   assert.match(panel, /维护操作/);
   assert.match(panel, /getStrategyStats\(true, signal\)/);
@@ -539,6 +538,10 @@ test("admin strategy tab is a one-column governance console", () => {
   assert.match(panel, /手动刷新只用于立即同步最新 usage/);
   assert.match(panel, /不会运行晋升/);
   assert.match(panel, /适用范围/);
+  assert.match(panel, /StrategyMemoryScopeSummary/);
+  assert.match(panel, /StrategyMemoryContextStatsRow/);
+  assert.match(panel, /parseStrategyContextKey/);
+  assert.match(panel, /key \{row\.context_key\}/);
   assert.match(panel, /推荐动作/);
   assert.match(panel, /证据/);
   assert.match(panel, /策略正文/);
@@ -546,7 +549,7 @@ test("admin strategy tab is a one-column governance console", () => {
   assert.match(panel, /s\.failure_categories/);
   assert.match(panel, /s\.body_markdown/);
   assert.match(panel, /暂无策略正文/);
-  assert.match(panel, /暂无召回归因/);
+  assert.match(panel, /暂无策略使用归因/);
   assert.match(panel, /暂无晋升候选/);
   assert.match(panel, /formatBanditStrategyLabel/);
   assert.match(panel, /buildCanonicalBanditRows/);

@@ -761,6 +761,7 @@ class SessionManager:
             log.exception("session %s segment failed: %s", handle.session_id, safe_error)
             handle.error = safe_error
             handle.error_kind = classify_llm_error_kind(e)
+            retryable = self.can_retry_failed_question(handle.session_id)
             handle.done_event.set()
             self._persist_completed(
                 handle,
@@ -768,6 +769,7 @@ class SessionManager:
                     "status": "errored",
                     "error": safe_error,
                     "error_kind": handle.error_kind,
+                    "retryable": retryable,
                 },
             )
         finally:
