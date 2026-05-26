@@ -119,6 +119,110 @@ def test_resolve_ask_plan_legacy_flag_maps_to_adaptive():
     assert plan["template"] == "adaptive"
 
 
+def test_contract_diagnostics_accepts_evaluator_signed_contract():
+    from app.engine.workflow.nodes import ask_question as ask_mod
+
+    contract = {
+        "must_cover": ["zero-downtime", "rollback plan"],
+        "acceptance_checks": [
+            "Answer explains zero-downtime migration.",
+            "Answer includes a rollback plan.",
+        ],
+        "bar_level": "standard",
+        "signed_by": ["generator", "evaluator"],
+    }
+
+    diagnostics = ask_mod._contract_diagnostics_for_trace(
+        contract,
+        proposed_contract=contract,
+        plan={"template": "adaptive"},
+        target_difficulty="medium",
+        rewrite_fallback=False,
+    )
+
+    assert diagnostics["source"] == "evaluator_signed"
+    assert diagnostics["signed_status"] == "evaluator_signed"
+    assert diagnostics["bar_level_match"] is True
+    assert diagnostics["uncovered_must_cover_items"] == []
+    assert diagnostics["generic_items"] == []
+    assert diagnostics["warnings"] == []
+
+
+def test_contract_diagnostics_flags_generator_only_and_generic_items():
+    from app.engine.workflow.nodes import ask_question as ask_mod
+
+    contract = {
+        "must_cover": ["depth", "clarity"],
+        "acceptance_checks": ["Answer has enough depth."],
+        "bar_level": "intro",
+        "signed_by": ["generator"],
+    }
+
+    diagnostics = ask_mod._contract_diagnostics_for_trace(
+        contract,
+        proposed_contract=contract,
+        plan={"template": "simple"},
+        target_difficulty="easy",
+        rewrite_fallback=False,
+    )
+
+    assert diagnostics["source"] == "generator_only"
+    assert diagnostics["signed_status"] == "generator_only"
+    assert "not_evaluator_signed" in diagnostics["warnings"]
+    assert "generic_contract_item" in diagnostics["warnings"]
+    assert diagnostics["generic_items"] == ["depth", "clarity"]
+
+
+def test_contract_diagnostics_reports_uncovered_must_cover_and_bar_mismatch():
+    from app.engine.workflow.nodes import ask_question as ask_mod
+
+    contract = {
+        "must_cover": ["latency budget", "backpressure"],
+        "acceptance_checks": ["Answer mentions backpressure handling."],
+        "bar_level": "standard",
+        "signed_by": ["generator", "evaluator"],
+    }
+
+    diagnostics = ask_mod._contract_diagnostics_for_trace(
+        contract,
+        proposed_contract=contract,
+        plan={"template": "deep_probe"},
+        target_difficulty="hard",
+        rewrite_fallback=False,
+    )
+
+    assert diagnostics["expected_bar_level"] == "deep_probe"
+    assert diagnostics["bar_level_match"] is False
+    assert diagnostics["uncovered_must_cover_items"] == ["latency budget"]
+    assert "must_cover_without_acceptance_check" in diagnostics["warnings"]
+    assert "bar_level_mismatch" in diagnostics["warnings"]
+
+
+def test_contract_diagnostics_marks_rewrite_fallback_source():
+    from app.engine.workflow.nodes import ask_question as ask_mod
+
+    contract = {
+        "must_cover": ["具体项目证据", "方案取舍"],
+        "acceptance_checks": [
+            "回答包含具体项目证据。",
+            "回答说明方案取舍。",
+        ],
+        "bar_level": "standard",
+        "signed_by": ["generator"],
+    }
+
+    diagnostics = ask_mod._contract_diagnostics_for_trace(
+        contract,
+        proposed_contract={"must_cover": ["stale"]},
+        plan={"template": "adaptive"},
+        target_difficulty="medium",
+        rewrite_fallback=True,
+    )
+
+    assert diagnostics["source"] == "rewrite_fallback"
+    assert "rewrite_fallback" in diagnostics["warnings"]
+
+
 # ---------------------------------------------------------------------------
 # 2. ask_question_node (via stub LLM)
 # ---------------------------------------------------------------------------
@@ -199,6 +303,12 @@ def test_ask_question_writes_plan_and_contract(monkeypatch):
     assert traced_payloads[-1]["contract_must_cover_count"] == 2
     assert traced_payloads[-1]["contract_acceptance_check_count"] == 2
     assert traced_payloads[-1]["contract_bar_level"] == "standard"
+    assert traced_payloads[-1]["contract"]["must_cover"] == [
+        "zero-downtime",
+        "rollback plan",
+    ]
+    assert traced_payloads[-1]["contract_diagnostics"]["source"] == "evaluator_signed"
+    assert traced_payloads[-1]["contract_diagnostics"]["warnings"] == []
 
 
 def test_ask_question_passes_probe_intent_into_generator(monkeypatch):

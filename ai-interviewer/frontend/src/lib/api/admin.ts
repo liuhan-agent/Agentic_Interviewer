@@ -263,6 +263,8 @@ export interface SkillPlaybookCard {
   id: string;
   name: string;
   description?: string | null;
+  display_name_zh?: string | null;
+  display_description_zh?: string | null;
   status: string;
   priority: number;
   tags?: Record<string, string[]>;

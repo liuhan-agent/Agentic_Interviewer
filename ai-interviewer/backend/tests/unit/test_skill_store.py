@@ -30,6 +30,8 @@ _SKILL_CARD_A = """\
 id: senior_backend_ownership
 name: Senior Backend Ownership
 description: Probe ownership, not buzzwords.
+display_name_zh: 高级后端归属追问卡
+display_description_zh: 引导回答明确个人负责的决策、行动和结果。
 status: active
 priority: 7
 direction_tags: [internet_tech]
@@ -115,6 +117,8 @@ def _db_card(
         id=card_id,
         name=name,
         description="DB-backed probe card.",
+        display_name_zh="DB 生产事故追问卡",
+        display_description_zh="引导 DB 卡片回答覆盖事故信号和预防措施。",
         body_markdown=f"Body for {card_id}.",
         status=status,
         priority=7,
@@ -173,6 +177,8 @@ def test_list_skills_parses_frontmatter(skills_root: Path) -> None:
     e = entries[0]
     assert e.name == "Senior Backend Ownership"
     assert e.description == "Probe ownership, not buzzwords."
+    assert e.display_name_zh == "高级后端归属追问卡"
+    assert e.display_description_zh == "引导回答明确个人负责的决策、行动和结果。"
     assert e.id == "senior_backend_ownership"
     assert e.status == "active"
     assert e.priority == 7
@@ -220,6 +226,8 @@ def test_list_skills_db_backend_reads_manual_markdown_cards(
 
     assert [entry.id for entry in entries] == ["tech_db_probe"]
     assert entries[0].name == "DB Probe"
+    assert entries[0].display_name_zh == "DB 生产事故追问卡"
+    assert entries[0].display_description_zh == "引导 DB 卡片回答覆盖事故信号和预防措施。"
     assert entries[0].path.name == "tech_db_probe.md"
     assert entries[0].body == "Body for tech_db_probe."
     assert entries[0].generator_moves == ["Ask for detection signal."]
@@ -472,6 +480,8 @@ def test_retrieve_skills_with_llm_selector_filters_keyword_set(
             f"---\n"
             f"name: Skill {i}\n"
             f"description: desc {i}.\n"
+            f"display_name_zh: 技能 {i}\n"
+            f"display_description_zh: 中文展示描述 {i}。\n"
             f"dimensions: [system_design]\n"
             f"job_levels: [senior]\n"
             f"---\nBody {i}",
@@ -489,6 +499,17 @@ def test_retrieve_skills_with_llm_selector_filters_keyword_set(
     )
 
     def fake_select(candidates, context, *, top_n):
+        assert [candidate.name for candidate in candidates] == [
+            "Skill 0",
+            "Skill 1",
+            "Skill 2",
+        ]
+        assert [candidate.description for candidate in candidates] == [
+            "desc 0.",
+            "desc 1.",
+            "desc 2.",
+        ]
+        assert all(not hasattr(candidate, "display_name_zh") for candidate in candidates)
         return ["skill_2.md", "skill_0.md"]
 
     # The skill_store imports ``select_memories_with_llm`` locally inside
@@ -570,6 +591,8 @@ def test_build_skills_block_renders_entries(skills_root: Path) -> None:
     assert "dims=leadership, system_design" in block
     assert "levels=senior, staff" in block
     assert "Generator moves:" in block
+    assert "高级后端归属追问卡" not in block
+    assert "引导回答明确个人负责的决策" not in block
     assert "Ask what the candidate personally owned." in block
     assert "Watch for:" in block
     assert "Avoid:" in block
@@ -608,6 +631,8 @@ def test_build_skills_index_compact_catalog(skills_root: Path) -> None:
     assert index.startswith("## Available Interview Skills")
     assert "Senior Backend Ownership" in index
     assert "Junior Algorithm Warm-up" in index
+    assert "高级后端归属追问卡" not in index
+    assert "引导回答明确个人负责的决策" not in index
 
 
 def test_build_skills_index_empty_returns_empty_string(

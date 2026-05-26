@@ -17,6 +17,8 @@ class SkillPlaybookCard(Base):
     id: Mapped[str] = mapped_column(String(160), primary_key=True)
     name: Mapped[str] = mapped_column(String(200))
     description: Mapped[str] = mapped_column(String(512), default="")
+    display_name_zh: Mapped[str] = mapped_column(String(200), default="")
+    display_description_zh: Mapped[str] = mapped_column(String(512), default="")
     body_markdown: Mapped[str] = mapped_column(Text, default="")
 
     status: Mapped[str] = mapped_column(String(32), default="active", index=True)

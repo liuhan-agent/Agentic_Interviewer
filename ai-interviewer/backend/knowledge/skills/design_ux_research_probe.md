@@ -2,6 +2,8 @@
 id: design_ux_research_probe
 name: UX Research and Design Decision Probe
 description: Probe UX designers for user research evidence, design tradeoffs against constraints, and one shipped decision they had to defend.
+display_name_zh: UX 研究与设计决策追问卡
+display_description_zh: 引导 UX 设计回答覆盖用户研究证据、约束下的设计取舍，以及一个需要捍卫的已上线决策。
 status: active
 priority: 7
 direction_tags: [business]

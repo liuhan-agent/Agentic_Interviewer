@@ -2,6 +2,8 @@
 id: tech_code_boundary_quality_probe
 name: Code Boundary Quality Probe
 description: Check whether engineering quality is visible in contracts, tests, ownership boundaries, and failure handling.
+display_name_zh: 代码边界质量追问卡
+display_description_zh: 检查工程质量是否体现在契约、测试、责任边界和故障处理里。
 status: active
 priority: 6
 direction_tags: [internet_tech]

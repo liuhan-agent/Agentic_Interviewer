@@ -2,6 +2,8 @@
 id: sales_objection_diagnosis_probe
 name: Sales Objection Diagnosis Probe
 description: Make sales answers diagnose the objection before pitching a solution.
+display_name_zh: 销售异议诊断追问卡
+display_description_zh: 引导销售回答先诊断异议来源，再提出解决方案。
 status: active
 priority: 7
 direction_tags: [business]

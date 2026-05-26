@@ -2,6 +2,8 @@
 id: senior_backend_distributed_state_probe
 name: Senior Backend Distributed State Probe
 description: Probe senior backend / architect answers for consistency model, partition-time behavior, and one ordering / dedup invariant they personally defended.
+display_name_zh: 高级后端分布式状态追问卡
+display_description_zh: 引导高级后端或架构回答覆盖一致性模型、分区期间行为，以及亲自维护的排序或去重不变量。
 status: active
 priority: 8
 direction_tags: [internet_tech]

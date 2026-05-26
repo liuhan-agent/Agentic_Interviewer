@@ -253,6 +253,32 @@ def test_trace_node_event_writes_generic_row(
     assert row.state_snapshot["payload"] == {"verdict": "partial"}
 
 
+def test_ask_question_trace_node_event_drops_stale_answer_and_evaluation(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    adds = _patch_db(monkeypatch)
+    _patch_run_tree(monkeypatch, _RunTree("run-ask-1"))
+
+    tracer = tracer_mod.Tracer(enabled=True)
+    tracer.trace_node_event(
+        _minimal_state(),
+        node="ask_question",
+        payload={"plan_template": "adaptive", "selection_artifacts": {}},
+    )
+
+    assert len(adds) == 1
+    row = adds[0]
+    assert row.node == "ask_question"
+    assert row.question == "Q?"
+    assert row.answer is None
+    assert row.evaluation is None
+    assert row.state_snapshot["payload"] == {
+        "plan_template": "adaptive",
+        "selection_artifacts": {},
+    }
+    assert "current_answer" not in row.state_snapshot["state"]
+
+
 def test_trace_node_event_embeds_llm_timing_in_payload(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

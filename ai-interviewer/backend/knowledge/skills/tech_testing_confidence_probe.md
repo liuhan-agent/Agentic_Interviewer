@@ -2,6 +2,8 @@
 id: tech_testing_confidence_probe
 name: Testing Confidence Probe
 description: Turn testing answers into risk coverage, failure examples, and release confidence.
+display_name_zh: 测试信心追问卡
+display_description_zh: 引导测试回答落到风险覆盖、失败样例和发布信心依据。
 status: active
 priority: 7
 direction_tags: [internet_tech]

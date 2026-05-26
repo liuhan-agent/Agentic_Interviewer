@@ -2,6 +2,8 @@
 id: tech_ai_evaluation_probe
 name: AI Evaluation Probe
 description: Keep AI-system answers grounded in eval data, failure slices, feedback loops, and product risk.
+display_name_zh: AI 评估追问卡
+display_description_zh: 引导 AI 系统回答锚定评估数据、失败切片、反馈闭环和产品风险。
 status: active
 priority: 8
 direction_tags: [internet_tech]

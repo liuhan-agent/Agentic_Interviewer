@@ -2,6 +2,8 @@
 id: service_escalation_probe
 name: Service Escalation Probe
 description: Probe service, HR, and management cases for severity, owner, cadence, and closure standard.
+display_name_zh: 服务升级处理追问卡
+display_description_zh: 引导服务、HR 和管理场景回答覆盖严重级别、负责人、处理节奏和关闭标准。
 status: active
 priority: 6
 direction_tags: [business]
