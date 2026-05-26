@@ -143,6 +143,23 @@ def _strip_messages(state: dict[str, Any]) -> dict[str, Any]:
     return snapshot
 
 
+def _node_result_fields(
+    node: str,
+    state: dict[str, Any],
+    evaluation: dict[str, Any],
+) -> tuple[str | None, dict[str, Any] | None]:
+    if node == "ask_question":
+        return None, None
+    return state.get("current_answer"), evaluation or None
+
+
+def _node_state_snapshot(node: str, state: dict[str, Any]) -> dict[str, Any]:
+    snapshot = _strip_messages(state)
+    if node == "ask_question":
+        snapshot.pop("current_answer", None)
+    return snapshot
+
+
 def _timing_snapshot(*, node_elapsed_ms: int | None = None) -> dict[str, Any] | None:
     timing: dict[str, Any] = {}
     if node_elapsed_ms is not None:
@@ -383,6 +400,8 @@ class Tracer:
             question = state.get("current_question") or {}
             evaluation = state.get("evaluation") or {}
             payload = payload or {}
+            answer, row_evaluation = _node_result_fields(node, state, evaluation)
+            state_snapshot = _node_state_snapshot(node, state)
             immediate_reward = None
             immediate_reward_applied = False
             if node == "reward_update":
@@ -422,11 +441,11 @@ class Tracer:
                                 payload,
                                 node_elapsed_ms=node_elapsed_ms,
                             ),
-                            "state": _strip_messages(state),
+                            "state": state_snapshot,
                         },
                         question=question.get("question"),
-                        answer=state.get("current_answer"),
-                        evaluation=evaluation or None,
+                        answer=answer,
+                        evaluation=row_evaluation,
                         langsmith_run_id=run_id,
                     )
                 )

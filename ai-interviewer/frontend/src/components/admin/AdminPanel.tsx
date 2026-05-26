@@ -5438,7 +5438,7 @@ function SkillsPlaybookCard({
                           >
                             <div className="flex items-start justify-between gap-2">
                               <span className="min-w-0 truncate font-medium">
-                                {card.name || card.id}
+                                {skillPlaybookDisplayName(card)}
                               </span>
                               <Badge
                                 variant={skillPlaybookStatusBadgeVariant(card.status)}
@@ -5448,7 +5448,7 @@ function SkillsPlaybookCard({
                               </Badge>
                             </div>
                             <p className="mt-1 line-clamp-1 text-xs text-muted-foreground">
-                              {card.description || "暂无描述"}
+                              {skillPlaybookDisplayDescription(card) || "暂无描述"}
                             </p>
                             <div className="mt-2 flex min-w-0 flex-nowrap gap-1.5 overflow-hidden">
                               <Badge variant="secondary" className="shrink-0 font-mono text-[10px]">
@@ -5609,12 +5609,19 @@ function SkillPlaybookFilters({
 }
 
 function SkillPlaybookDetailView({ card }: { card: SkillPlaybookRow }) {
+  const displayName = skillPlaybookDisplayName(card);
+  const displayDescription = skillPlaybookDisplayDescription(card);
   return (
     <div className="space-y-4">
       <div className="space-y-2">
         <div className="flex flex-wrap items-start justify-between gap-2">
           <div className="min-w-0">
-            <p className="text-base font-semibold leading-tight">{card.name || card.id}</p>
+            <p className="text-base font-semibold leading-tight">{displayName}</p>
+            {card.name && (
+              <p className="mt-0.5 break-all font-mono text-[11px] text-muted-foreground">
+                name:{card.name}
+              </p>
+            )}
             <p className="mt-1 break-all font-mono text-[11px] text-muted-foreground">
               {card.id}
             </p>
@@ -5631,9 +5638,9 @@ function SkillPlaybookDetailView({ card }: { card: SkillPlaybookRow }) {
             </Badge>
           </div>
         </div>
-        {card.description && (
+        {displayDescription && (
           <p className="text-sm leading-relaxed text-muted-foreground">
-            {card.description}
+            {displayDescription}
           </p>
         )}
       </div>
@@ -5825,12 +5832,22 @@ function collectSkillPlaybookValues(
   ).sort();
 }
 
+function skillPlaybookDisplayName(card: SkillPlaybookRow): string {
+  return card.display_name_zh?.trim() || card.name || card.id;
+}
+
+function skillPlaybookDisplayDescription(card: SkillPlaybookRow): string {
+  return card.display_description_zh?.trim() || card.description || "";
+}
+
 function matchesSkillPlaybookSearch(card: SkillPlaybookRow, q: string): boolean {
   if (!q) return true;
   const haystack = [
     card.id,
     card.name,
     card.description ?? "",
+    card.display_name_zh ?? "",
+    card.display_description_zh ?? "",
     card.source ?? "",
     ...card.direction_tags,
     ...card.role_tags,

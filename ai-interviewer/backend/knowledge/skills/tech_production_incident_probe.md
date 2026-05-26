@@ -2,6 +2,8 @@
 id: tech_production_incident_probe
 name: Production Incident Probe
 description: Drive incident answers toward root cause, blast radius, mitigation, and prevention.
+display_name_zh: 生产事故追问卡
+display_description_zh: 引导事故回答覆盖根因、影响范围、缓解动作和预防措施。
 status: active
 priority: 7
 direction_tags: [internet_tech]

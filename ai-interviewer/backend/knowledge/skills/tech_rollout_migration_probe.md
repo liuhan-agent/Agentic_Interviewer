@@ -2,6 +2,8 @@
 id: tech_rollout_migration_probe
 name: Rollout And Migration Probe
 description: Probe staged rollout, compatibility, rollback, and ownership in technical delivery stories.
+display_name_zh: 发布与迁移追问卡
+display_description_zh: 引导技术交付故事覆盖分阶段发布、兼容性、回滚路径和责任归属。
 status: active
 priority: 6
 direction_tags: [internet_tech]

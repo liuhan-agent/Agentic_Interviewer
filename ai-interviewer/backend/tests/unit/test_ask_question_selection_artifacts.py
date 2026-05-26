@@ -80,6 +80,8 @@ def test_ask_question_records_selection_artifacts(monkeypatch) -> None:
         id="system_design_scale_reasoning",
         name="System Design Scale Reasoning",
         description="Probe scale assumptions.",
+        display_name_zh="系统设计容量追问卡",
+        display_description_zh="引导系统设计回答说明容量假设和失效边界。",
         priority=4,
         direction_tags=["internet_tech"],
         role_tags=["java_backend"],
@@ -211,6 +213,8 @@ def test_ask_question_records_selection_artifacts(monkeypatch) -> None:
             "id": "system_design_scale_reasoning",
             "name": "System Design Scale Reasoning",
             "description": "Probe scale assumptions.",
+            "display_name_zh": "系统设计容量追问卡",
+            "display_description_zh": "引导系统设计回答说明容量假设和失效边界。",
             "status": "active",
             "priority": 4,
             "direction_tags": ["internet_tech"],
@@ -265,6 +269,8 @@ def test_skill_card_ref_groups_evaluator_payload_when_visible() -> None:
         id="tech_production_incident_probe",
         name="Production Incident Probe",
         description="Probe incident answers.",
+        display_name_zh="生产事故追问卡",
+        display_description_zh="引导事故回答覆盖发现信号、缓解动作、根因和预防措施。",
         status="active",
         priority=7,
         direction_tags=["internet_tech"],
@@ -288,6 +294,8 @@ def test_skill_card_ref_groups_evaluator_payload_when_visible() -> None:
 
     ref = ask_mod._skill_card_ref(entry)
 
+    assert ref["display_name_zh"] == "生产事故追问卡"
+    assert ref["display_description_zh"] == "引导事故回答覆盖发现信号、缓解动作、根因和预防措施。"
     assert ref["evaluator_visibility"] is True
     assert ref["evaluator_payload"] == {
         "rubric_hints": ["Credit detect / mitigate / scope / diagnose / prevent."],
@@ -1604,6 +1612,39 @@ def test_retrieval_block_for_prompt_returns_block_without_seed_hit() -> None:
     assert ask_mod._retrieval_block_for_prompt(ctx) == "knowledge body"
 
 
+def test_prompt_slots_record_final_generator_inputs_and_truncation() -> None:
+    ctx = {
+        "structured_primary_seed_hit": True,
+        "retrieval_block": "legacy knowledge that should be skipped",
+        "question_seed_block": "Seed: Cache Consistency",
+        "candidate_anchor_block": "Candidate project: Coupon Guard",
+        "resume_rag_block": "[resume] " + ("Redis " * 20),
+        "self_intro_rag_block": "[self_intro] Lua atomic deduction",
+        "strategy_block": "(no relevant strategy memories)",
+        "skill_block": "(no relevant interview skills)",
+    }
+
+    slots = ask_mod._prompt_slots_for_trace(ctx, text_limit=24)
+    by_label = {slot["prompt_label"]: slot for slot in slots}
+
+    retrieved = by_label["RETRIEVED_KNOWLEDGE"]
+    assert retrieved["source_key"] == "retrieval_block"
+    assert retrieved["legacy"] is True
+    assert retrieved["text"] == ""
+    assert retrieved["injected"] is False
+    assert retrieved["empty_reason"] == "structured_question_seed_hit"
+
+    resume = by_label["CANDIDATE_RESUME_RAG"]
+    assert resume["chars"] > len(resume["text"])
+    assert resume["truncated"] is True
+    assert resume["text"] == ("[resume] " + ("Redis " * 20))[:24]
+    assert resume["injected"] is True
+
+    assert by_label["STRATEGY_MEMORY"]["injected"] is False
+    assert by_label["STRATEGY_MEMORY"]["empty_reason"] == "no_relevant_strategy_memories"
+    assert by_label["INTERVIEW_SKILLS"]["empty_reason"] == "no_relevant_interview_skills"
+
+
 def test_candidate_anchor_rag_shadow_writes_artifact_but_not_blocks(monkeypatch) -> None:
     monkeypatch.setattr(
         ask_mod,
@@ -1931,3 +1972,34 @@ def test_selection_artifacts_baseline_keys_superset_after_rag() -> None:
     }
     assert expected_baseline.issubset(set(artifacts.keys()))
     assert artifacts["candidate_anchor_rag"]["status"] == "primary"
+
+
+def test_selection_artifacts_exposes_resume_anchor_query_subject() -> None:
+    resume_anchor = {
+        "anchor_key": "focus-coupon-consistency",
+        "label": "Coupon consistency",
+        "project_name": "Coupon Guard",
+    }
+
+    artifacts = ask_mod._build_selection_artifacts(
+        {
+            "dimension": "system_design",
+            "resume_anchor": resume_anchor,
+            "anchor_scheduler": {
+                "available": True,
+                "anchor_key": "focus-coupon-consistency",
+                "anchor_attempt": 1,
+                "max_anchor_attempts": 2,
+                "expansion_reason": "first_pass_self_intro_match",
+            },
+            "candidate_anchor_rag_artifact": {
+                "status": "primary",
+                "anchor_key": "focus-coupon-consistency",
+                "hits": [{"project_name": "Coupon Guard"}],
+            },
+        }
+    )
+
+    assert artifacts["resume_anchor"] == resume_anchor
+    assert artifacts["anchor_scheduler"]["anchor_key"] == "focus-coupon-consistency"
+    assert artifacts["candidate_anchor_rag"]["hits"][0]["project_name"] == "Coupon Guard"

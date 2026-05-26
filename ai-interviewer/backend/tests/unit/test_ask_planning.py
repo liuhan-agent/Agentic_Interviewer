@@ -117,6 +117,56 @@ def test_ask_planning_off_never_calls_llm_planner(monkeypatch):
     assert out["current_ask_plan"]["source"] == "default"
 
 
+def test_ask_question_trace_payload_records_plan_and_prompt_slots(monkeypatch):
+    _wire_fake_steps(monkeypatch)
+
+    captured: dict[str, Any] = {}
+
+    class _Tracer:
+        def trace_node_event(self, state, *, node, payload, **_kwargs):
+            captured["node"] = node
+            captured["payload"] = payload
+
+    monkeypatch.setattr(ask_mod, "get_tracer", lambda: _Tracer())
+    monkeypatch.setattr(ask_mod, "retrieve_skills", lambda **_kwargs: [])
+
+    state = _base_state()
+    state["selected_action"] = {
+        "id": "plan_deep_probe",
+        "label": "Plan: Deep Probe",
+        "plan_template": "deep_probe",
+    }
+    state["pending_plan_template"] = "adaptive"
+    state["runtime_config"] = {"ask_planning": False}
+
+    ask_mod.ask_question_node(state)  # type: ignore[arg-type]
+
+    payload = captured["payload"]
+    assert captured["node"] == "ask_question"
+    assert payload["plan_template"] == "adaptive"
+    assert payload["ask_plan"]["template"] == "adaptive"
+    assert payload["ask_plan"]["source"] == "default"
+    assert payload["ask_plan"]["resolution_inputs"] == {
+        "selected_action_id": "plan_deep_probe",
+        "selected_action_label": "Plan: Deep Probe",
+        "selected_action_plan_template": "deep_probe",
+        "pending_plan_template": "adaptive",
+        "ask_planning": False,
+    }
+    assert [step["kind"] for step in payload["ask_plan"]["steps"]][:2] == [
+        "retrieve_rag",
+        "retrieve_strategy",
+    ]
+    assert "produced_keys" in payload["ask_plan"]["steps"][0]
+
+    slots = {slot["prompt_label"]: slot for slot in payload["prompt_slots"]}
+    assert slots["RETRIEVED_KNOWLEDGE"]["source_key"] == "retrieval_block"
+    assert slots["RETRIEVED_KNOWLEDGE"]["text"] == "(stub)"
+    assert slots["RETRIEVED_KNOWLEDGE"]["injected"] is True
+    assert slots["STRATEGY_MEMORY"]["empty_reason"] == "no_relevant_strategy_memories"
+    assert slots["INTERVIEW_SKILLS"]["empty_reason"] == "no_relevant_interview_skills"
+
+
 def test_ask_planning_on_but_stub_skips_llm_planner(monkeypatch):
     """Stub mode always skips the planner so CI stays deterministic."""
     _wire_fake_steps(monkeypatch)

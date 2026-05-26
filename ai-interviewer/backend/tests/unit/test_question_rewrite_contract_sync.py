@@ -37,6 +37,14 @@ def test_duplicate_rewrite_replaces_stale_contract(monkeypatch):
     )
     monkeypatch.setattr(ask_mod, "generate_question", fake_generate_question)
     monkeypatch.setattr(ask_mod, "negotiate_contract_via_evaluator", fake_negotiate)
+    traced_payloads: list[dict] = []
+
+    class _Tracer:
+        def trace_node_event(self, _state, *, node, payload, **_kwargs):
+            if node == "ask_question":
+                traced_payloads.append(payload)
+
+    monkeypatch.setattr(ask_mod, "get_tracer", lambda: _Tracer())
 
     state = {
         "session_id": "sess-contract-sync",
@@ -90,3 +98,5 @@ def test_duplicate_rewrite_replaces_stale_contract(monkeypatch):
     assert "stale" not in checks
     assert "redis" in checks
     assert out["current_question"]["contract"] == contract
+    assert traced_payloads[-1]["contract_diagnostics"]["source"] == "rewrite_fallback"
+    assert "rewrite_fallback" in traced_payloads[-1]["contract_diagnostics"]["warnings"]

@@ -142,6 +142,8 @@ _SQLITE_UPGRADES: dict[str, dict[str, str]] = {
         "resume_project_id": "VARCHAR(64)",
     },
     "skill_playbook_cards": {
+        "display_name_zh": "VARCHAR(200) DEFAULT ''",
+        "display_description_zh": "VARCHAR(512) DEFAULT ''",
         "generator_moves": "JSON DEFAULT '[]'",
         "watch_for": "JSON DEFAULT '[]'",
         "avoid": "JSON DEFAULT '[]'",
@@ -195,6 +197,8 @@ _POSTGRES_UPGRADES: dict[str, dict[str, str]] = {
         "resume_project_id": "VARCHAR(64)",
     },
     "skill_playbook_cards": {
+        "display_name_zh": "VARCHAR(200) DEFAULT ''",
+        "display_description_zh": "VARCHAR(512) DEFAULT ''",
         "generator_moves": "JSONB DEFAULT '[]'::jsonb",
         "watch_for": "JSONB DEFAULT '[]'::jsonb",
         "avoid": "JSONB DEFAULT '[]'::jsonb",

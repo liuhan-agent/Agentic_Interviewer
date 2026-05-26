@@ -2,6 +2,8 @@
 id: business_stakeholder_alignment_probe
 name: Stakeholder Alignment Probe
 description: Test how the candidate handles conflicting goals, decision rights, and communication cadence.
+display_name_zh: 干系人对齐追问卡
+display_description_zh: 检查候选人如何处理目标冲突、决策权边界和沟通节奏。
 status: active
 priority: 6
 direction_tags: [business]

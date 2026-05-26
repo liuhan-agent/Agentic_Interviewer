@@ -11,11 +11,12 @@ schema so the admin surface is not advertised to casual clients.
 """
 from __future__ import annotations
 
+from copy import deepcopy
 import hashlib
 import re
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
-from typing import Any
+from typing import Any, Mapping
 from urllib.parse import urlparse, urlunparse
 
 from fastapi import (
@@ -915,7 +916,116 @@ def _answer_excerpt(value: Any, *, limit: int = 220) -> str | None:
     return text if len(text) <= limit else text[: limit - 3].rstrip() + "..."
 
 
-def _trace_node_payload(trace: Any) -> dict[str, Any]:
+def _trace_skill_display_lookup(sess: Any) -> dict[str, dict[str, str]]:
+    try:
+        from app.models.skill_playbook import SkillPlaybookCard
+
+        rows = (
+            sess.query(
+                SkillPlaybookCard.id,
+                SkillPlaybookCard.name,
+                SkillPlaybookCard.display_name_zh,
+                SkillPlaybookCard.display_description_zh,
+            )
+            .filter(SkillPlaybookCard.status != "archived")
+            .all()
+        )
+    except Exception as exc:  # pragma: no cover - admin remains best-effort
+        log.debug("trace skill display lookup unavailable: %s", exc)
+        return {}
+
+    lookup: dict[str, dict[str, str]] = {}
+    for row in rows:
+        if isinstance(row, (tuple, list)) and len(row) < 4:
+            continue
+        mapping = getattr(row, "_mapping", None)
+        card_id = (
+            mapping.get("id") if mapping is not None else getattr(row, "id", None)
+        )
+        name = (
+            mapping.get("name") if mapping is not None else getattr(row, "name", None)
+        )
+        display_name_zh = (
+            mapping.get("display_name_zh")
+            if mapping is not None
+            else getattr(row, "display_name_zh", "")
+        )
+        display_description_zh = (
+            mapping.get("display_description_zh")
+            if mapping is not None
+            else getattr(row, "display_description_zh", "")
+        )
+        display = {
+            "display_name_zh": str(display_name_zh or ""),
+            "display_description_zh": str(display_description_zh or ""),
+        }
+        keys = [card_id, name, f"{card_id}.md" if card_id else ""]
+        for key in keys:
+            normalized = str(key or "").strip()
+            if normalized:
+                lookup[normalized] = display
+    return lookup
+
+
+def _enrich_trace_skill_display_fields(
+    payload: dict[str, Any],
+    skill_display_lookup: Mapping[str, Mapping[str, str]] | None,
+) -> dict[str, Any]:
+    if not skill_display_lookup:
+        return payload
+
+    artifacts = payload.get("selection_artifacts")
+    if not isinstance(artifacts, dict):
+        return payload
+    skills = artifacts.get("skills")
+    if not isinstance(skills, dict):
+        return payload
+    refs = skills.get("refs")
+    if not isinstance(refs, list) or not refs:
+        return payload
+
+    enriched = deepcopy(payload)
+    enriched_refs = (
+        enriched.get("selection_artifacts", {})
+        .get("skills", {})
+        .get("refs", [])
+    )
+    for ref in enriched_refs:
+        if not isinstance(ref, dict):
+            continue
+        candidates = (
+            ref.get("id"),
+            ref.get("skill_id"),
+            ref.get("filename"),
+            ref.get("name"),
+        )
+        display = next(
+            (
+                skill_display_lookup[key]
+                for value in candidates
+                if (key := str(value or "").strip()) in skill_display_lookup
+            ),
+            None,
+        )
+        if not display:
+            continue
+        display_name = str(display.get("display_name_zh") or "")
+        display_description = str(display.get("display_description_zh") or "")
+        if display_name and not str(ref.get("display_name_zh") or "").strip():
+            ref["display_name_zh"] = display_name
+        if (
+            display_description
+            and not str(ref.get("display_description_zh") or "").strip()
+        ):
+            ref["display_description_zh"] = display_description
+    return enriched
+
+
+def _trace_node_payload(
+    trace: Any,
+    *,
+    skill_display_lookup: Mapping[str, Mapping[str, str]] | None = None,
+) -> dict[str, Any]:
     snapshot = trace.state_snapshot or {}
     payload = snapshot.get("payload") if isinstance(snapshot, dict) else None
     summary = payload if isinstance(payload, dict) else {}
@@ -931,6 +1041,13 @@ def _trace_node_payload(trace: Any) -> dict[str, Any]:
             )
             if snapshot.get(key) is not None
         }
+    if is_ask_question := trace.node == "ask_question":
+        summary = _enrich_trace_skill_display_fields(
+            summary,
+            skill_display_lookup,
+        )
+    answer_excerpt = None if is_ask_question else _answer_excerpt(trace.answer)
+    evaluation = None if is_ask_question else trace.evaluation
     return {
         "id": trace.id,
         "turn_idx": trace.turn_idx,
@@ -945,8 +1062,8 @@ def _trace_node_payload(trace: Any) -> dict[str, Any]:
         "immediate_reward": trace.immediate_reward,
         "immediate_reward_applied": bool(trace.immediate_reward_applied),
         "question": trace.question,
-        "answer_excerpt": _answer_excerpt(trace.answer),
-        "evaluation": trace.evaluation,
+        "answer_excerpt": answer_excerpt,
+        "evaluation": evaluation,
         "payload": summary,
         "langsmith_run_id": trace.langsmith_run_id,
         "created_at": trace.created_at.isoformat() if trace.created_at else None,
@@ -1016,8 +1133,15 @@ def _interview_session_trace_payload(
             .limit(capped_limit)
             .all()
         )
+        skill_display_lookup = _trace_skill_display_lookup(sess)
 
-    nodes = [_trace_node_payload(trace) for trace in traces]
+    nodes = [
+        _trace_node_payload(
+            trace,
+            skill_display_lookup=skill_display_lookup,
+        )
+        for trace in traces
+    ]
     report = row.final_report or {}
     from app.services.trace_health import trace_diagnostics
 
@@ -1865,6 +1989,7 @@ _ANCHOR_SCRUB_KEYS = {
     "anchor_cards",
     "candidate_anchor_rag",
     "candidate_anchor_rag_artifact",
+    "prompt_slots",
     "resume_anchor",
     "resume_parsed",
     "resume_rag_block",
@@ -2721,6 +2846,8 @@ def _skill_playbook_payload(row: Any, *, include_body: bool = False) -> dict[str
         "id": row.id,
         "name": row.name,
         "description": row.description,
+        "display_name_zh": row.display_name_zh,
+        "display_description_zh": row.display_description_zh,
         "status": row.status,
         "priority": row.priority,
         "tags": {

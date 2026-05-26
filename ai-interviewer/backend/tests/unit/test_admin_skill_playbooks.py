@@ -74,6 +74,8 @@ def _card(
         id=card_id,
         name=name,
         description=f"{name} description.",
+        display_name_zh=f"{name} 中文名",
+        display_description_zh=f"{name} 中文描述。",
         body_markdown=f"{name} full body.\nSecond line.",
         status=status,
         priority=priority,
@@ -143,6 +145,8 @@ def test_admin_skill_playbooks_list_sorts_and_summarizes() -> None:
         "business_metric_probe",
     ]
     first = body["skill_playbooks"][0]
+    assert first["display_name_zh"] == "Tech Incident Probe 中文名"
+    assert first["display_description_zh"] == "Tech Incident Probe 中文描述。"
     assert first["body_preview"] == "Tech Incident Probe full body. Second line."
     assert "body_markdown" not in first
     assert first["direction_tags"] == ["internet_tech"]
@@ -193,6 +197,8 @@ def test_admin_skill_playbook_detail_returns_full_body_and_404() -> None:
     assert response.status_code == 200
     card = response.json()["skill_playbook"]
     assert card["id"] == "tech_incident_probe"
+    assert card["display_name_zh"] == "Tech Incident Probe 中文名"
+    assert card["display_description_zh"] == "Tech Incident Probe 中文描述。"
     assert card["body_markdown"] == "Tech Incident Probe full body.\nSecond line."
     assert card["generator_moves"] == ["Ask for concrete evidence."]
     assert card["evaluator_visibility"] is True
@@ -214,6 +220,8 @@ def test_admin_skill_playbook_import_uses_markdown_source_of_truth(
                 "id: demo_probe",
                 "name: Demo Probe",
                 "description: Demo description.",
+                "display_name_zh: 演示追问卡",
+                "display_description_zh: 演示中文描述。",
                 "status: active",
                 "priority: 4",
                 "direction_tags: [internet_tech]",
@@ -244,6 +252,8 @@ def test_admin_skill_playbook_import_uses_markdown_source_of_truth(
     detail = client.get("/admin/skill-playbooks/demo_probe")
     assert detail.status_code == 200
     assert detail.json()["skill_playbook"]["name"] == "Demo Probe"
+    assert detail.json()["skill_playbook"]["display_name_zh"] == "演示追问卡"
+    assert detail.json()["skill_playbook"]["display_description_zh"] == "演示中文描述。"
 
 
 def test_admin_skill_playbook_import_forwards_archive_missing(

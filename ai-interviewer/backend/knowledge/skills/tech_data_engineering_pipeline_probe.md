@@ -2,6 +2,8 @@
 id: tech_data_engineering_pipeline_probe
 name: Data Engineering Pipeline Probe
 description: Force data-pipeline answers toward freshness contract, ordering / dedup, and downstream consumer impact.
+display_name_zh: 数据管道追问卡
+display_description_zh: 引导数据管道回答覆盖 freshness contract、ordering / dedup，以及下游消费者影响。
 status: active
 priority: 8
 direction_tags: [internet_tech]

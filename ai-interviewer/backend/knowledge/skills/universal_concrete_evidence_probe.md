@@ -2,6 +2,8 @@
 id: universal_concrete_evidence_probe
 name: Concrete Evidence Probe
 description: Push any answer from opinion into a real example, decision, and result.
+display_name_zh: 具体证据追问卡
+display_description_zh: 引导任何回答从观点落到真实例子、具体决策和结果。
 status: active
 priority: 5
 probe_intents: [evidence_probe, case_study_probe, reference_check_probe]

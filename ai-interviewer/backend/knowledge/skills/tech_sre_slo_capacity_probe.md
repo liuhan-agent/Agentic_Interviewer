@@ -2,6 +2,8 @@
 id: tech_sre_slo_capacity_probe
 name: SRE SLO and Capacity Probe
 description: Drive SRE answers toward defined SLO / SLI, error budget governance, and one capacity bound the candidate personally signed off on.
+display_name_zh: SRE SLO 与容量追问卡
+display_description_zh: 引导 SRE 回答覆盖明确的 SLO / SLI、错误预算治理，以及候选人亲自确认的容量边界。
 status: active
 priority: 7
 direction_tags: [internet_tech]

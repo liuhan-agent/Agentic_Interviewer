@@ -44,8 +44,8 @@ test("trace explorer page and component expose workflow states", () => {
   assert.match(component, /nodeName/);
   assert.match(component, /node_count_total/);
   assert.match(component, /nodes_has_more/);
-  assert.match(component, /查看原始 trace payload/);
-  assert.match(component, /按轮次查看节点/);
+  assert.match(component, /查看原始 Trace Payload/);
+  assert.match(component, /轮次时间线/);
   assert.match(component, /route_decision/);
 });
 
@@ -63,6 +63,59 @@ test("trace explorer exposes diagnostic workbench layout and URL state", () => {
   assert.match(component, /focus-visible:ring/);
 });
 
+test("trace explorer selection syncs URL without triggering Next navigation", () => {
+  const component = read("src/components/admin/TraceExplorer.tsx");
+
+  assert.match(component, /replaceExplorerUrl/);
+  assert.match(component, /window\.history\.replaceState/);
+  assert.match(component, /replaceExplorerUrl\(\{ selectedTraceId: node\.id \}\)/);
+  assert.match(component, /replaceExplorerUrl\(\{\s*nodeType:/);
+  assert.match(component, /replaceExplorerUrl\(\{ fallback: next \|\| null, selectedTraceId: null \}\)/);
+  assert.match(component, /replaceExplorerUrl\(\{ q: value\.trim\(\) \|\| null, selectedTraceId: null \}\)/);
+  assert.doesNotMatch(component, /useRouter/);
+  assert.doesNotMatch(component, /router\.replace/);
+  assert.doesNotMatch(component, /updateExplorerQuery\(\{ selectedTraceId: node\.id \}\)/);
+});
+
+test("trace explorer command center renders node type distribution dynamically", () => {
+  const component = read("src/components/admin/TraceExplorer.tsx");
+
+  assert.match(component, /nodeTypeCounts=\{nodeTypeCounts\}/);
+  assert.match(component, /Object\.entries\(nodeTypeCounts\)/);
+  assert.match(component, /nodeDistribution\.slice\(0,\s*6\)/);
+  assert.match(component, /showAllNodeTypes/);
+  assert.match(component, /节点分布/);
+  assert.match(component, /最后节点/);
+});
+
+test("trace explorer uses Chinese keys with backend workflow terms as values", () => {
+  const component = read("src/components/admin/TraceExplorer.tsx");
+
+  assert.match(component, /execution trace/);
+  assert.match(component, /Trace Health/);
+  assert.match(component, /会话状态/);
+  assert.match(component, /总分/);
+  assert.match(component, /结论/);
+  assert.match(component, /轮次/);
+  assert.match(component, /节点数/);
+  assert.match(component, /最后节点/);
+  assert.match(component, /已加载/);
+  assert.match(component, /节点分布/);
+  assert.match(component, /轮次时间线/);
+  assert.match(component, /内容搜索/);
+  assert.match(component, /搜索问题、回答摘录、评估理由、context/);
+  assert.match(component, /原始 Trace Payload/);
+  assert.match(component, /generation_traces/);
+  assert.match(component, /node evidence/);
+  assert.match(component, /raw payload/);
+  assert.doesNotMatch(component, /搜索 node、question、answer、context/);
+  assert.doesNotMatch(component, /SummaryTile label="Session Status"/);
+  assert.doesNotMatch(component, /SummaryTile label="Last Node"/);
+  assert.doesNotMatch(component, />Node Distribution</);
+  assert.doesNotMatch(component, />Node Search</);
+  assert.doesNotMatch(component, />节点搜索</);
+});
+
 test("trace explorer renders structured node evidence and lazy raw payloads", () => {
   const component = read("src/components/admin/TraceExplorer.tsx");
 
@@ -72,8 +125,327 @@ test("trace explorer renders structured node evidence and lazy raw payloads", ()
   assert.match(component, /EvaluationEvidence/);
   assert.match(component, /RawTracePayloadDetails/);
   assert.match(component, /JSON\.stringify\(rawPayload/);
+  assert.match(component, /max-h-\[32rem\]/);
+  assert.doesNotMatch(component, /max-h-72/);
   assert.match(component, /content-visibility/);
   assert.match(component, /prefers-reduced-motion/);
+});
+
+test("trace explorer detail pane uses Chinese keys for backend evidence fields", () => {
+  const component = read("src/components/admin/TraceExplorer.tsx");
+
+  assert.match(component, /NodeFact label="轮次"/);
+  assert.match(component, /NodeFact label="上下文"/);
+  assert.match(component, /NodeFact label="策略"/);
+  assert.match(component, /NodeFact label="创建时间"/);
+  assert.match(component, /NodeFact label="策略上下文键"/);
+  assert.match(component, /回答摘录/);
+  assert.match(component, /评估证据/);
+  assert.match(component, /优势/);
+  assert.match(component, /不足/);
+  assert.match(component, /奖励状态/);
+  assert.doesNotMatch(component, /NodeFact label="turn"/);
+  assert.doesNotMatch(component, /NodeFact label="context"/);
+  assert.doesNotMatch(component, /NodeFact label="policy"/);
+  assert.doesNotMatch(component, /NodeFact label="created"/);
+  assert.doesNotMatch(component, />EvaluationEvidence</);
+});
+
+test("trace explorer explains director strategy decisions as user-facing evidence", () => {
+  const component = read("src/components/admin/TraceExplorer.tsx");
+
+  assert.match(component, /StrategyDecisionSummary/);
+  assert.match(component, /node\.node === "director_sample"/);
+  assert.match(component, /策略决策摘要/);
+  assert.match(component, /Director 出题前如何选择下一步动作/);
+  assert.match(component, /节点类型/);
+  assert.match(component, /目标维度/);
+  assert.match(component, /选择动作/);
+  assert.match(component, /决策上下文/);
+  assert.match(component, /策略算法/);
+  assert.match(component, /策略空间/);
+  assert.match(component, /奖励回填上下文/);
+  assert.match(component, /决策用一个 context；reward_update 回填全部 context keys/);
+  assert.match(component, /localizeActionDescription/);
+  assert.match(component, /切换到下一个待覆盖维度，并用 adaptive 模板出下一题。/);
+  assert.match(component, /Plan: Switch/);
+  assert.match(component, /待后续 reward_update 回填/);
+  assert.match(component, /splitPolicyId/);
+  assert.match(component, /selected_action/);
+  assert.doesNotMatch(
+    component,
+    /Adaptive plan but move on to the next pending dimension/,
+  );
+  assert.doesNotMatch(component, /候选上下文/);
+  assert.doesNotMatch(component, /StrategyDecisionSummary\(\{ node \}: \{ node: never/);
+});
+
+test("trace explorer explains ask_question evidence as grouped user-facing sections", () => {
+  const component = read("src/components/admin/TraceExplorer.tsx");
+
+  assert.match(component, /AskQuestionEvidencePanel/);
+  assert.match(component, /node\.node === "ask_question"/);
+  assert.match(component, /本轮出题总览/);
+  assert.match(component, /这条记录说明 ask_question 如何计划、检索、装配上下文并生成问题。/);
+  assert.match(component, /本节点记录出题前证据装配；回答和评分请查看同一 Turn 的 evaluator \/ verification 节点。/);
+  assert.match(component, /出题方案/);
+  assert.match(component, /问题意图/);
+  assert.match(component, /题库模式/);
+  assert.match(component, /评分契约签署方/);
+  assert.match(component, /本轮执行计划/);
+  assert.match(component, /localizeAskPlanStepTitle/);
+  assert.match(component, /localizeAskPlanSuccessCriteria/);
+  assert.match(component, /检索通用知识库/);
+  assert.match(component, /检索策略记忆/);
+  assert.match(component, /预审评分契约/);
+  assert.match(component, /后端步骤/);
+  assert.match(component, /前置依赖：先完成步骤/);
+  assert.match(component, /产出字段：/);
+  assert.match(component, /产出字段 \{producedKeys\.length\}/);
+  assert.match(component, /已写入 retrieval_block/);
+  assert.match(component, /评分契约/);
+  assert.match(component, /诊断提示/);
+  assert.match(component, /contract_diagnostics/);
+  assert.match(component, /未记录诊断/);
+  assert.match(component, /not_evaluator_signed/);
+  assert.match(component, /must_cover/);
+  assert.match(component, /acceptance_checks/);
+  assert.match(component, /minimum_bar/);
+  assert.match(component, /review_focus/);
+  assert.match(component, /仅记录模板，未记录 steps/);
+  assert.match(component, /produced_keys/);
+  assert.match(component, /出题策略记忆/);
+  assert.match(component, /localizeStrategyMemoryName/);
+  assert.match(component, /strategyMemoryTraceKey/);
+  assert.match(component, /追问时机/);
+  assert.match(component, /回避型回答模式/);
+  assert.match(component, /支撑样本/);
+  assert.match(component, /置信度/);
+  assert.match(component, /StrategyRankingReasonDetails/);
+  assert.match(component, /展开 <span className="font-mono">ranking_reason<\/span>/);
+  assert.doesNotMatch(component, /展开排序原因/);
+  assert.match(component, /基础匹配分/);
+  assert.match(component, /策略优先级/);
+  assert.match(component, /requested_context_keys/);
+  assert.match(component, /能力焦点 \/ SKILLS 命中/);
+  assert.match(component, /命中 \$\{skillRefs\.length\} skill refs/);
+  assert.match(component, /localizeSkillMatchReason/);
+  assert.match(component, /SkillMatchReasonsDetails/);
+  assert.match(component, /display_name_zh/);
+  assert.match(component, /display_description_zh/);
+  assert.match(component, /stringValue\(ref_\.display_name_zh\) \|\| rawName/);
+  assert.match(component, /stringValue\(ref_\.display_description_zh\) \|\| rawDescription/);
+  assert.doesNotMatch(component, /localizeSkillCard/);
+  assert.doesNotMatch(component, /skillNameTranslation/);
+  assert.doesNotMatch(component, /数据管道追问卡/);
+  assert.doesNotMatch(component, /调试根因追问卡/);
+  assert.match(component, /name:\{rawName\}/);
+  assert.match(component, /<span className="font-mono">description<\/span>:/);
+  assert.doesNotMatch(component, /中文说明：/);
+  assert.match(component, /skill_id:/);
+  assert.match(component, /优先级/);
+  assert.match(component, /匹配分/);
+  assert.match(component, /评分器信号（未注入）/);
+  assert.match(component, /仅出题侧/);
+  assert.match(component, /展开评分器信号 <span className="font-mono">evaluator_payload<\/span>/);
+  assert.doesNotMatch(component, /Evaluator 可见/);
+  assert.match(component, /展开 <span className="font-mono">match_reasons<\/span>/);
+  assert.match(component, /命中原因：/);
+  assert.match(component, /评分提示 rubric_hints/);
+  assert.match(component, /正向信号 positive_signals/);
+  assert.match(component, /负向信号 negative_signals/);
+  assert.match(component, /评分偏置 score_bias_rules/);
+  assert.match(component, /结构化题库/);
+  assert.match(component, /Seed 主题/);
+  assert.match(component, /Variant 问法/);
+  assert.match(component, /StructuredQuestionCandidate/);
+  assert.match(component, /QuestionMatchReasonsDetails/);
+  assert.match(component, /关键匹配项/);
+  assert.match(component, /groupQuestionMatchReasons/);
+  assert.match(component, /formatGroupedQuestionReason/);
+  assert.match(component, /border-sky-400\/45 bg-sky-500\/20 text-sky-100/);
+  assert.match(component, /localizeQuestionMatchReason/);
+  assert.match(component, /锚点关键词命中/);
+  assert.match(component, /候选人项目适配/);
+  assert.doesNotMatch(component, /命中摘要/);
+  assert.doesNotMatch(component, /简历锚点/);
+  assert.doesNotMatch(component, /match_reasons: \{stringList\(item\.match_reasons\)\.join/);
+  assert.match(component, /候选人适配提示/);
+  assert.match(component, /question_fit_profile/);
+  assert.match(component, /rank 1/);
+  assert.match(component, /展开注入内容 <span className="font-mono">CANDIDATE_ANCHOR<\/span>/);
+  assert.match(component, /候选人锚点 RAG/);
+  assert.match(component, /实际注入 Prompt 的资料/);
+  assert.match(component, /prompt_slots/);
+  assert.match(component, /PROMPT_SLOT_DEFINITIONS/);
+  assert.match(component, /PromptSlotCard/);
+  assert.match(component, /题库问法骨架/);
+  assert.match(component, /候选人适配提示/);
+  assert.match(component, /简历命中片段/);
+  assert.match(component, /自我介绍命中片段/);
+  assert.match(component, /Skills Playbook/);
+  assert.match(component, /未记录/);
+  assert.match(component, /展开完整内容/);
+  assert.match(component, /CANDIDATE_RESUME_RAG/);
+  assert.match(component, /辅助诊断/);
+  assert.match(component, /summary="legacy 通用知识库 RAG · avoid patterns · failure categories"/);
+  assert.doesNotMatch(component, /summary="legacy 通用知识库 RAG · avoid patterns · failure categories · raw payload"/);
+  assert.match(component, /通用知识库 RAG/);
+  assert.match(component, /规避模式/);
+  assert.match(component, /失败类别/);
+  assert.match(component, /ask_plan/);
+  assert.match(component, /selection_artifacts/);
+  assert.match(component, /question_items/);
+  assert.match(component, /candidate_anchor_rag/);
+  assert.match(component, /anchor_scheduler/);
+  assert.match(component, /question_reranker/);
+  assert.match(component, /statusLabelForArtifact/);
+  assert.match(component, /已注入/);
+  assert.match(component, /仅观测/);
+  assert.match(component, /未命中/);
+  assert.match(component, /关闭/);
+  assert.match(component, /轻量 warning/);
+  assert.match(component, /max-h-64/);
+  assert.match(component, /max-h-\[30rem\]/);
+  assert.match(component, /renderTopItems/);
+  assert.match(component, /ExpandableEvidenceItems/);
+  assert.match(component, /展开剩余/);
+  assert.match(component, /setExpanded/);
+  assert.match(component, /type="button"/);
+  assert.doesNotMatch(component, /JSON\.stringify\(payload/);
+});
+
+test("trace explorer hides stale answer and evaluation on ask_question rows", () => {
+  const component = read("src/components/admin/TraceExplorer.tsx");
+
+  assert.match(component, /node\.node !== "ask_question" && node\.answer_excerpt/);
+  assert.match(
+    component,
+    /node\.node === "director_sample" \|\| node\.node === "ask_question"/,
+  );
+  assert.match(component, /answer_excerpt/);
+  assert.match(component, /EvaluationEvidence/);
+});
+
+test("trace explorer separates generic RAG from candidate anchor RAG hits", () => {
+  const component = read("src/components/admin/TraceExplorer.tsx");
+
+  assert.match(component, /const anchorHits = recordArray\(candidateAnchorRag\.hits\)/);
+  assert.match(component, /renderTopItems\(anchorHits/);
+  assert.match(component, /stringValue\(hit\.excerpt\)/);
+  assert.match(component, /stringValue\(hit\.source_type\)/);
+  assert.match(component, /锚点 \$\{anchorHits\.length\}/);
+  assert.match(component, /通用知识库 RAG/);
+  assert.match(component, /候选人锚点 RAG/);
+});
+
+test("trace explorer surfaces candidate anchor RAG diagnostics", () => {
+  const component = read("src/components/admin/TraceExplorer.tsx");
+
+  assert.match(component, /候选人锚点 RAG/);
+  assert.match(component, /检索状态/);
+  assert.match(component, /耗时/);
+  assert.match(component, /Prompt 注入/);
+  assert.match(component, /注入字符/);
+  assert.match(component, /fallback_reason/);
+  assert.match(component, /boost_fallback_reason/);
+  assert.match(component, /展开检索诊断 <span className="font-mono">candidate_anchor_rag<\/span>/);
+  assert.match(component, /CandidateAnchorHitDiagnostics/);
+  assert.match(component, /CandidateAnchorRagDiagnostics/);
+  assert.match(component, /锚点相似分/);
+  assert.match(component, /增强相似分/);
+  assert.match(component, /约束匹配度/);
+  assert.match(component, /命中目标技能/);
+  assert.match(component, /命中维度/);
+  assert.match(component, /命中题库词/);
+  assert.match(component, /锚点检索词/);
+  assert.match(component, /增强检索词/);
+  assert.match(component, /约束检索词/);
+  assert.match(component, /完整检索文本/);
+  assert.match(component, /锚点检索文本/);
+  assert.match(component, /增强检索文本/);
+  assert.match(component, /约束检索文本/);
+  assert.match(component, /hit\.anchor_score/);
+  assert.match(component, /hit\.boost_score/);
+  assert.match(component, /hit\.constraint_match/);
+  assert.match(component, /hit\.matched_target_skills/);
+  assert.match(component, /candidateAnchorRag\.query_text/);
+  assert.match(component, /candidateAnchorRag\.anchor_query_text/);
+  assert.match(component, /candidateAnchorRag\.boost_query_text/);
+  assert.match(component, /candidateAnchorRag\.constraint_query_text/);
+});
+
+test("trace explorer gives heavy ask_question evidence sections full-width rows", () => {
+  const component = read("src/components/admin/TraceExplorer.tsx");
+
+  assert.match(component, /data-trace-section="ask-question-primary-evidence"/);
+  assert.match(component, /className="mt-3 space-y-3"/);
+  assert.match(
+    component,
+    /heading="本轮执行计划"[\s\S]*heading="评分契约"[\s\S]*heading="出题策略记忆"[\s\S]*heading="能力焦点 \/ SKILLS 命中"[\s\S]*heading="结构化题库"[\s\S]*heading="候选人适配提示"[\s\S]*heading="候选人锚点 RAG"[\s\S]*heading="实际注入 Prompt 的资料"/,
+  );
+  assert.doesNotMatch(
+    component,
+    /<div className="mt-3 grid gap-3 xl:grid-cols-2">[\s\S]*heading="结构化题库"[\s\S]*heading="候选人锚点 RAG"/,
+  );
+});
+
+test("trace explorer shows candidate anchor as user-facing project signal", () => {
+  const component = read("src/components/admin/TraceExplorer.tsx");
+
+  assert.match(component, /const resumeAnchor = recordFromUnknown\(\s*artifacts\.resume_anchor \?\? payload\.resume_anchor,\s*\)/);
+  assert.match(component, /const anchorLabel = resumeAnchorLabel\(\s*resumeAnchor,\s*candidateAnchorRag,\s*\)/);
+  assert.match(component, /const hitProjectLabel = candidateAnchorHitProjectLabel\(anchorHits\)/);
+  assert.match(component, /function resumeAnchorLabel/);
+  assert.match(component, /function firstAnchorTerm/);
+  assert.match(component, /function readableAnchorValue/);
+  assert.match(component, /function candidateAnchorHitProjectLabel/);
+  assert.match(component, /localizeAnchorExpansionReason/);
+  assert.match(component, /label="项目锚点"/);
+  assert.match(component, /label="锚点选择原因"/);
+  assert.match(component, /label="锚点 ID"/);
+  assert.match(component, /CandidateAnchorRagDiagnostics/);
+  assert.match(component, /自我介绍优先匹配（首次使用）/);
+  assert.match(component, /维度匹配（首次使用）/);
+  assert.match(component, /value=\{hitProjectLabel\}/);
+  assert.match(component, /looksLikeInternalAnchorId/);
+  assert.doesNotMatch(component, /candidateAnchorLabel\([^)]*anchorHits/);
+  assert.doesNotMatch(component, /NodeFact label="锚点键"/);
+  assert.doesNotMatch(component, /NodeFact label="扩展原因"/);
+
+  const anchorLabelFunction =
+    component.match(/function resumeAnchorLabel[\s\S]*?\n}\n\nfunction candidateAnchorHitProjectLabel/)?.[0] ?? "";
+  assert.match(anchorLabelFunction, /firstAnchorTerm\(candidateAnchorRag\.anchor_terms\)/);
+  assert.doesNotMatch(anchorLabelFunction, /anchorScheduler\.anchor_key/);
+  assert.doesNotMatch(anchorLabelFunction, /anchor_query_text/);
+});
+
+test("trace explorer search covers structured ask_question evidence fields", () => {
+  const component = read("src/components/admin/TraceExplorer.tsx");
+
+  assert.match(component, /askQuestionSearchFields/);
+  assert.match(component, /skill id\/name/);
+  assert.match(component, /rag source/);
+  assert.match(component, /question seed_id/);
+  assert.match(component, /variant_id/);
+  assert.match(component, /strategy id\/name/);
+  assert.match(component, /ask plan step/);
+  assert.match(component, /prompt slot/);
+  assert.match(component, /record\.ask_plan/);
+  assert.match(component, /record\.prompt_slots/);
+  assert.match(component, /record\.contract_diagnostics/);
+  assert.match(component, /record\.contract/);
+  assert.match(component, /acceptance_checks/);
+  assert.match(component, /review_focus/);
+  assert.match(component, /candidate anchor RAG diagnostics/);
+  assert.match(component, /candidateAnchorRag\.anchor_terms/);
+  assert.match(component, /candidateAnchorRag\.boost_terms/);
+  assert.match(component, /candidateAnchorRag\.constraint_terms/);
+  assert.match(component, /matched_target_skills/);
+  assert.match(component, /matched_project/);
+  assert.match(component, /match_reasons/);
+  assert.match(component, /\.\.\.askQuestionSearchFields\(node\.payload\)/);
+  assert.doesNotMatch(component, /JSON\.stringify\(node\.payload\)/);
 });
 
 test("admin sessions expose Trace link", () => {
@@ -107,8 +479,8 @@ test("trace explorer can filter and mark evaluator fallback traces", () => {
 
   assert.match(component, /isEvaluatorFallbackTrace/);
   assert.match(component, /fallbackFilter/);
-  assert.match(component, /只看 fallback/);
-  assert.match(component, /评分 fallback/);
+  assert.match(component, /仅看 fallback/);
+  assert.match(component, /Evaluator fallback/);
   assert.match(component, /fallbackTraceCount/);
 });
 

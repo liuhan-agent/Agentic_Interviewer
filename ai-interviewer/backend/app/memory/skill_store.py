@@ -78,6 +78,8 @@ class SkillEntry:
     id: str = ""
     name: str = ""
     description: str = ""
+    display_name_zh: str = ""
+    display_description_zh: str = ""
     status: str = "active"
     priority: int = 0
     direction_tags: list[str] = field(default_factory=list)
@@ -255,6 +257,10 @@ def _list_file_skills() -> list[SkillEntry]:
                 id=entry_id,
                 name=str(fm.get("name", p.stem)),
                 description=str(fm.get("description", "")),
+                display_name_zh=str(fm.get("display_name_zh", "")),
+                display_description_zh=str(
+                    fm.get("display_description_zh", "")
+                ),
                 status=_slugify(fm.get("status", "active")) or "active",
                 priority=_int_value(fm.get("priority")),
                 direction_tags=_slug_list(fm.get("direction_tags")),
@@ -300,6 +306,8 @@ def _entry_from_db_card(row: SkillPlaybookCard) -> SkillEntry:
         id=card_id,
         name=str(row.name or card_id),
         description=str(row.description or ""),
+        display_name_zh=str(row.display_name_zh or ""),
+        display_description_zh=str(row.display_description_zh or ""),
         status=_slugify(row.status or "active") or "active",
         priority=int(row.priority or 0),
         direction_tags=_list_value(row.direction_tags),

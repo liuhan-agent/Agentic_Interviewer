@@ -2,6 +2,8 @@
 id: universal_metric_baseline_probe
 name: Metric And Baseline Probe
 description: Require baseline, metric movement, and attribution instead of vague improvement claims.
+display_name_zh: 指标与基线追问卡
+display_description_zh: 引导回答提供基线、指标变化和归因依据，避免笼统的改善描述。
 status: active
 priority: 5
 dimensions: [metrics_thinking, data_analysis, product_thinking, problem_solving, project_experience]

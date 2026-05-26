@@ -24,6 +24,8 @@ def test_skill_playbook_card_round_trips_structured_metadata() -> None:
                 id="tech_production_incident_probe",
                 name="Production Incident Probe",
                 description="Drive incident answers toward root cause and prevention.",
+                display_name_zh="生产事故追问卡",
+                display_description_zh="引导事故回答覆盖发现信号、缓解动作、根因和预防措施。",
                 body_markdown="Ask for detection signal, mitigation, root cause, and prevention.",
                 status="active",
                 priority=7,
@@ -57,6 +59,8 @@ def test_skill_playbook_card_round_trips_structured_metadata() -> None:
     assert row is not None
     assert row.name == "Production Incident Probe"
     assert row.description.startswith("Drive incident")
+    assert row.display_name_zh == "生产事故追问卡"
+    assert row.display_description_zh == "引导事故回答覆盖发现信号、缓解动作、根因和预防措施。"
     assert "detection signal" in row.body_markdown
     assert row.status == "active"
     assert row.priority == 7
@@ -98,6 +102,8 @@ def test_skill_playbook_card_defaults() -> None:
 
     assert row is not None
     assert row.status == "active"
+    assert row.display_name_zh == ""
+    assert row.display_description_zh == ""
     assert row.priority == 0
     assert row.direction_tags == []
     assert row.role_tags == []
@@ -144,6 +150,8 @@ def test_skill_playbook_postgres_ddl_shape() -> None:
 
     assert "skill_playbook_cards" in ddl
     assert "id VARCHAR(160) NOT NULL" in ddl
+    assert "display_name_zh VARCHAR(200) NOT NULL" in ddl
+    assert "display_description_zh VARCHAR(512) NOT NULL" in ddl
     assert "body_markdown TEXT NOT NULL" in ddl
     assert "direction_tags JSON NOT NULL" in ddl
     assert "role_tags JSON NOT NULL" in ddl
@@ -195,6 +203,8 @@ def test_schema_upgrade_adds_playbook_quality_columns_to_legacy_sqlite() -> None
 
     cols = {col["name"] for col in inspect(engine).get_columns("skill_playbook_cards")}
     assert {
+        "display_name_zh",
+        "display_description_zh",
         "generator_moves",
         "watch_for",
         "avoid",
