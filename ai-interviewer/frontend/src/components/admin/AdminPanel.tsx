@@ -58,6 +58,7 @@ import {
   getSkillPlaybook,
   getSkillPlaybooks,
   getStrategySignals,
+  getStrategyRewardReadiness,
   getStrategyStats,
   getStrategyUsages,
   getStrategies,
@@ -65,6 +66,7 @@ import {
   getVerifierDrift,
   importSkillPlaybooks,
   importQuestionSeeds,
+  importStrategySeeds,
   runQuestionSeedLint,
   loadAdminToken,
   archiveQuestionSeed,
@@ -97,6 +99,7 @@ import {
   type SkillPlaybooks,
   type Strategies,
   type StrategyPromotionSchedulerStatus,
+  type StrategyRewardReadiness,
   type StrategySignalGroup,
   type StrategySignals,
   type StrategyStats,
@@ -386,6 +389,7 @@ function AdminStrategySection({
   strategySignals,
   strategyUsages,
   strategyStats,
+  strategyRewardReadiness,
   onRefresh,
 }: {
   bandit: Loadable<BanditSnapshot>;
@@ -398,6 +402,7 @@ function AdminStrategySection({
   strategySignals: Loadable<StrategySignals>;
   strategyUsages: Loadable<StrategyUsages>;
   strategyStats: Loadable<StrategyStats>;
+  strategyRewardReadiness: Loadable<StrategyRewardReadiness>;
   onRefresh: () => void;
 }) {
   return (
@@ -425,6 +430,7 @@ function AdminStrategySection({
           signals={strategySignals}
           usages={strategyUsages}
           stats={strategyStats}
+          rewardReadiness={strategyRewardReadiness}
           onRefresh={onRefresh}
         />
       </section>
@@ -593,6 +599,11 @@ export function AdminPanel() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [tokenSaved],
   );
+  const strategyRewardReadinessFetcher = useCallback(
+    (signal?: AbortSignal) => getStrategyRewardReadiness(true, signal),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [tokenSaved],
+  );
   const traceRollupFetcher = useCallback(
     (signal?: AbortSignal) => getTraceRollUp({ since: "24h", groupby: "health" }, signal),
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -639,6 +650,7 @@ export function AdminPanel() {
   const strategySignals = useAutoFetch(strategySignalsFetcher, tick);
   const strategyUsages = useAutoFetch(strategyUsagesFetcher, tick);
   const strategyStats = useAutoFetch(strategyStatsFetcher, tick);
+  const strategyRewardReadiness = useAutoFetch(strategyRewardReadinessFetcher, tick);
   const traceRollup = useAutoFetch(traceRollupFetcher, tick);
   const fallbackRollup = useAutoFetch(fallbackRollupFetcher, tick);
   const evidenceRollup = useAutoFetch(evidenceRollupFetcher, tick);
@@ -751,6 +763,7 @@ export function AdminPanel() {
             strategySignals={strategySignals}
             strategyUsages={strategyUsages}
             strategyStats={strategyStats}
+            strategyRewardReadiness={strategyRewardReadiness}
             onRefresh={() => setTick((t) => t + 1)}
           />
         </AdminTabPanel>
@@ -5908,12 +5921,14 @@ const StrategiesCard = React.memo(function StrategiesCard({
   signals,
   usages,
   stats,
+  rewardReadiness,
   onRefresh,
 }: {
   state: Loadable<Strategies>;
   signals: Loadable<StrategySignals>;
   usages: Loadable<StrategyUsages>;
   stats: Loadable<StrategyStats>;
+  rewardReadiness: Loadable<StrategyRewardReadiness>;
   onRefresh: () => void;
 }) {
   const { toast } = useToast();
@@ -5978,6 +5993,27 @@ const StrategiesCard = React.memo(function StrategiesCard({
     } catch (err) {
       toast({
         title: "策略统计刷新失败",
+        description: err instanceof Error ? err.message : String(err),
+        variant: "destructive",
+      });
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  async function handleSeedImport() {
+    if (busy) return;
+    setBusy("seed-import");
+    try {
+      const result = await importStrategySeeds();
+      toast({
+        title: "种子策略已导入",
+        description: `导入种子策略后会刷新策略资产和 Reward 排序就绪度。新增 ${result.imported}，更新 ${result.updated}，未变 ${result.unchanged}，跳过 ${result.skipped}。`,
+      });
+      onRefresh();
+    } catch (err) {
+      toast({
+        title: "种子策略导入失败",
         description: err instanceof Error ? err.message : String(err),
         variant: "destructive",
       });
@@ -6108,6 +6144,8 @@ const StrategiesCard = React.memo(function StrategiesCard({
             tone={schedulerStatus?.last_error ? "warn" : "default"}
           />
         </div>
+
+        <StrategyRewardReadinessPanel state={rewardReadiness} />
 
         {state.phase === "loading" && <LoadingList rows={3} />}
         {state.phase === "error" && <ErrorBox message={state.message} />}
@@ -6439,6 +6477,18 @@ const StrategiesCard = React.memo(function StrategiesCard({
               type="button"
               variant="outline"
               size="sm"
+              onClick={handleSeedImport}
+              disabled={busy !== null}
+            >
+              {busy === "seed-import" && (
+                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              )}
+              导入种子策略
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
               onClick={handleStatsRefresh}
               disabled={busy !== null}
             >
@@ -6496,6 +6546,152 @@ const StrategiesCard = React.memo(function StrategiesCard({
     </Card>
   );
 });
+
+function StrategyRewardReadinessPanel({
+  state,
+}: {
+  state: Loadable<StrategyRewardReadiness>;
+}) {
+  return (
+    <section className="space-y-3 border-t border-border/40 pt-4">
+      <div className="flex flex-wrap items-start justify-between gap-2">
+        <div>
+          <p className="text-xs font-medium text-muted-foreground">
+            Reward 排序就绪度
+          </p>
+          <p className="mt-0.5 text-[11px] text-muted-foreground">
+            reward_shadow 只诊断不改线上排序，用来判断哪些上下文适合灰度切到 reward。
+          </p>
+        </div>
+        {state.phase === "ready" && (
+          <Badge variant="outline" className="font-mono text-[10px]">
+            {state.data.summary.total_contexts} contexts
+          </Badge>
+        )}
+      </div>
+
+      {state.phase === "loading" && <LoadingList rows={2} />}
+      {state.phase === "error" && <ErrorBox message={state.message} />}
+      {state.phase === "ready" && (
+        <div className="space-y-3">
+          <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-5">
+            <StrategyMemoryInlineMetric
+              label="可灰度"
+              value={String(state.data.summary.ready_contexts)}
+            />
+            <StrategyMemoryInlineMetric
+              label="仅观测"
+              value={String(state.data.summary.shadow_only_contexts)}
+            />
+            <StrategyMemoryInlineMetric
+              label="缺候选"
+              value={String(state.data.summary.needs_candidate_contexts)}
+            />
+            <StrategyMemoryInlineMetric
+              label="缺样本"
+              value={String(state.data.summary.needs_sample_contexts)}
+            />
+            <StrategyMemoryInlineMetric
+              label="被否决阻塞"
+              value={String(state.data.summary.blocked_contexts)}
+            />
+          </div>
+
+          {state.data.contexts.length === 0 && (
+            <p className="rounded-md border border-dashed bg-muted/10 px-3 py-2 text-xs text-muted-foreground">
+              暂无上下文 reward 诊断；策略被注入并完成评分后才会形成样本。
+            </p>
+          )}
+
+          {state.data.contexts.length > 0 && (
+            <ul className="space-y-1.5">
+              {state.data.contexts.slice(0, 8).map((context) => (
+                <StrategyRewardReadinessRow
+                  key={context.context_key}
+                  context={context}
+                />
+              ))}
+            </ul>
+          )}
+        </div>
+      )}
+    </section>
+  );
+}
+
+function StrategyRewardReadinessRow({
+  context,
+}: {
+  context: StrategyRewardReadiness["contexts"][number];
+}) {
+  const parsed = parseStrategyContextKey(context.context_key);
+  const overrule =
+    context.overrule_rate === null || context.overrule_rate === undefined
+      ? "—"
+      : formatPercent(context.overrule_rate);
+  return (
+    <li className="rounded-md border bg-card/30 p-2 text-[11px]">
+      <div className="flex flex-wrap items-center gap-1.5">
+        <Badge
+          variant="outline"
+          className={cn(
+            "text-[10px]",
+            strategyRewardReadinessTone(context.readiness),
+          )}
+        >
+          {formatStrategyRewardReadiness(context.readiness)}
+        </Badge>
+        {parsed.direction && (
+          <Badge variant="secondary" className="font-mono text-[10px]">
+            {parsed.direction}
+          </Badge>
+        )}
+        <Badge variant="secondary" className="font-mono text-[10px]">
+          {parsed.jobLevel}
+        </Badge>
+        <Badge variant="outline" className="font-mono text-[10px]">
+          {parsed.dimension}
+        </Badge>
+        <span className="min-w-0 truncate font-mono text-muted-foreground">
+          {context.context_key}
+        </span>
+      </div>
+      <div className="mt-1 flex flex-wrap gap-3 text-muted-foreground">
+        <span>候选 {context.candidate_count}</span>
+        <span>usage {context.usage_count}</span>
+        <span>reward 样本 {context.rewarded_usage_count}</span>
+        <span>session {context.distinct_sessions}</span>
+        <span>综合奖励 {formatMaybeNumber(context.avg_blended_reward)}</span>
+        <span>Verifier 否决率 {overrule}</span>
+        <span>{context.rank_changed ? "排序会变化" : "排序不变"}</span>
+      </div>
+      <details className="mt-2 rounded-md border border-dashed bg-background/40 p-2">
+        <summary className="cursor-pointer text-muted-foreground">
+          展开 reward readiness 诊断
+        </summary>
+        <div className="mt-2 grid gap-2 sm:grid-cols-2">
+          <StrategyMemoryFact
+            label="metadata_top_strategy_ids"
+            value={context.metadata_top_strategy_ids.join(", ") || "—"}
+            mono
+          />
+          <StrategyMemoryFact
+            label="reward_top_strategy_ids"
+            value={context.reward_top_strategy_ids.join(", ") || "—"}
+            mono
+          />
+        </div>
+        <div className="mt-2 flex flex-wrap gap-1.5">
+          {context.reasons.map((reason) => (
+            <Badge key={reason} variant="outline" className="text-[10px]">
+              {formatStrategyRewardReason(reason)} · {reason}
+            </Badge>
+          ))}
+        </div>
+      </details>
+    </li>
+  );
+}
 
 function StrategyMemoryStatusTile({
   label,
@@ -6970,6 +7166,35 @@ function formatStrategyReadiness(value?: string | null): string {
   if (value === "ready_stable") return "可稳定晋升";
   if (value === "diagnostic_only") return "仅诊断";
   return value || "未知状态";
+}
+
+function formatStrategyRewardReadiness(value?: string | null): string {
+  if (value === "ready") return "可灰度";
+  if (value === "shadow_only") return "仅观测";
+  if (value === "needs_candidates") return "缺候选";
+  if (value === "needs_samples") return "缺样本";
+  if (value === "blocked_by_overrule") return "Verifier 阻塞";
+  return value || "未知状态";
+}
+
+function strategyRewardReadinessTone(value?: string | null): string {
+  if (value === "ready") return "border-emerald-500/50 text-emerald-600";
+  if (value === "shadow_only") return "border-sky-500/50 text-sky-600";
+  if (value === "blocked_by_overrule") return "border-red-500/50 text-red-600";
+  if (value === "needs_candidates" || value === "needs_samples") {
+    return "border-amber-500/50 text-amber-600";
+  }
+  return "text-muted-foreground";
+}
+
+function formatStrategyRewardReason(value?: string | null): string {
+  if (value === "candidate_pool_below_min") return "候选池不足";
+  if (value === "reward_samples_below_min") return "reward 样本不足";
+  if (value === "session_coverage_below_min") return "session 覆盖不足";
+  if (value === "overrule_rate_high") return "Verifier 否决率偏高";
+  if (value === "reward_shadow_rank_changed") return "reward shadow 会改变排序";
+  if (value === "reward_shadow_rank_same") return "reward shadow 排序一致";
+  return value || "未知原因";
 }
 
 // ---------------------------------------------------------------------------

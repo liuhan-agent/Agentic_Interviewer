@@ -3651,6 +3651,21 @@ def archive_strategy(strategy_id: str) -> dict[str, str]:
     return _set_strategy_status(strategy_id, "archived")
 
 
+@router.post("/strategies/import-seeds", dependencies=[Depends(require_admin_token)])
+def import_strategy_seeds() -> dict[str, int]:
+    from app.services.strategy_memory_import import import_strategy_seed_dir
+
+    strategy_dir = Path(get_settings().knowledge_dir) / "strategy"
+    with get_session() as sess:
+        result = import_strategy_seed_dir(strategy_dir, session=sess)
+    return {
+        "imported": result.imported,
+        "updated": result.updated,
+        "unchanged": result.unchanged,
+        "skipped": result.skipped,
+    }
+
+
 def _avg_optional(values: list[float | None]) -> float | None:
     numeric = [float(value) for value in values if value is not None]
     if not numeric:
@@ -3916,6 +3931,26 @@ def list_strategy_stats(
             }
             for row in rows
         ],
+    }
+
+
+@router.get("/strategy-reward-readiness", dependencies=[Depends(require_admin_token)])
+def list_strategy_reward_readiness(auto_refresh: bool = False) -> dict[str, Any]:
+    from app.services.strategy_reward_readiness import (
+        build_strategy_reward_readiness,
+    )
+
+    with get_session() as sess:
+        auto_refreshed, auto_refresh_reason, auto_refresh_result = (
+            _maybe_refresh_strategy_stats(sess, auto_refresh=auto_refresh)
+        )
+        payload = build_strategy_reward_readiness(session=sess)
+    return {
+        "auto_refresh": bool(auto_refresh),
+        "auto_refreshed": auto_refreshed,
+        "auto_refresh_reason": auto_refresh_reason,
+        "auto_refresh_result": auto_refresh_result,
+        **payload,
     }
 
 
