@@ -4,6 +4,7 @@ from contextlib import contextmanager
 from pathlib import Path
 from types import SimpleNamespace
 
+import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine
@@ -16,6 +17,7 @@ from app.models.question_bank import (
     QuestionRerankUsage,
     QuestionSeed,
     QuestionUsage,
+    QuestionUsageStats,
     QuestionVariant,
 )
 
@@ -250,6 +252,112 @@ def test_admin_question_seed_list_detail_usage_and_status_actions() -> None:
     )
     assert archived_variant.status_code == 200
     assert archived_variant.json()["status"] == "archived"
+
+
+def test_admin_question_usage_stats_refresh_and_reward_readiness() -> None:
+    session_local = _session_factory()
+    with session_local() as sess:
+        sess.add(
+            QuestionSeed(
+                id="system_design.capacity_planning",
+                version=1,
+                title="容量规划",
+                dimension="system_design",
+                job_levels=["senior"],
+                skill_tags=["capacity"],
+                direction_tags=["internet_tech"],
+                role_tags=["java_backend"],
+                rubric={"must_cover": ["容量估算"]},
+                priority=20,
+                status="active",
+                source="manual_yaml",
+                scope="global",
+                language="zh-CN",
+            )
+        )
+        sess.add(
+            QuestionVariant(
+                id="system_design.capacity_planning.live_event_ticketing",
+                seed_id="system_design.capacity_planning",
+                version=1,
+                intent="opening",
+                difficulty="standard",
+                scenario_brief="活动票务容量规划",
+                question_stem="请设计活动票务容量方案。",
+                prompt_template="围绕容量规划生成题目。",
+                scenario_skill_tags=["capacity"],
+                resume_anchor_hints=[],
+                failure_categories=[],
+                rubric_additions=[],
+                expected_signals=[],
+                anti_patterns=[],
+                good_answer_hints=[],
+                role_tags=["java_backend"],
+                priority=20,
+                status="active",
+            )
+        )
+        for idx in range(20):
+            sess.add(
+                QuestionUsage(
+                    id=f"usage-high-{idx}",
+                    session_id=f"sess-high-{idx}",
+                    turn_idx=idx,
+                    trace_id=f"trace-high-{idx}",
+                    seed_id="system_design.capacity_planning",
+                    variant_id="system_design.capacity_planning.live_event_ticketing",
+                    seed_version=1,
+                    variant_version=1,
+                    rank=2,
+                    match_score=10.0,
+                    match_reasons=["priority:10"],
+                    injected=True,
+                    question_selector_mode="structured_primary",
+                    score=9.0,
+                    passed=True,
+                    immediate_reward=0.95,
+                )
+            )
+        sess.commit()
+
+    client = _client(session_local)
+
+    refresh = client.post("/admin/question-usage-stats/refresh")
+    assert refresh.status_code == 200
+    assert refresh.json()["refreshed"] == 2
+
+    stats = client.get("/admin/question-usage-stats?auto_refresh=true")
+    assert stats.status_code == 200
+    body = stats.json()
+    assert body["count"] == 2
+    rows = {row["variant_id"]: row for row in body["stats"]}
+    assert rows[
+        "system_design.cache_consistency.flash_sale_inventory"
+    ]["rewarded_uses"] == 1
+    assert rows[
+        "system_design.capacity_planning.live_event_ticketing"
+    ]["avg_immediate_reward"] == pytest.approx(0.95)
+
+    readiness = client.get("/admin/question-reward-readiness?auto_refresh=true")
+    assert readiness.status_code == 200
+    payload = readiness.json()
+    assert payload["summary"]["shadow_changed_modes"] == 1
+    assert payload["summary"]["low_sample_variants"] == 1
+    assert payload["summary"]["ready_variants"] == 1
+    assert payload["modes"][0]["metadata_top_variant_ids"][0] == (
+        "system_design.cache_consistency.flash_sale_inventory"
+    )
+    assert payload["modes"][0]["reward_top_variant_ids"][0] == (
+        "system_design.capacity_planning.live_event_ticketing"
+    )
+    assert "reward_shadow_rank_changed" in payload["modes"][0]["reasons"]
+    variants = {row["variant_id"]: row for row in payload["variants"]}
+    assert "reward_samples_below_min" in variants[
+        "system_design.cache_consistency.flash_sale_inventory"
+    ]["reasons"]
+
+    with session_local() as sess:
+        assert sess.query(QuestionUsageStats).count() == 2
 
 
 def test_admin_question_bank_filters_business_direction_and_role() -> None:

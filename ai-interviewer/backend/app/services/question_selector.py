@@ -16,7 +16,16 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.models.base import get_session
-from app.models.question_bank import QuestionSeed, QuestionUsage, QuestionVariant
+from app.models.question_bank import (
+    QuestionSeed,
+    QuestionUsage,
+    QuestionUsageStats,
+    QuestionVariant,
+)
+from app.services.question_usage_stats import (
+    MIN_REWARDED_USES,
+    REWARD_SHADOW_BONUS_WEIGHT,
+)
 
 
 @dataclass(frozen=True)
@@ -55,6 +64,11 @@ class QuestionCandidate:
     matched_project: str | None = None
     matched_candidate_skills: list[str] | None = None
     matched_job_skills: list[str] | None = None
+    reward_shadow_rank: int | None = None
+    reward_shadow_score: float | None = None
+    reward_shadow_rank_changed: bool = False
+    usage_stats: dict[str, Any] | None = None
+    reward_shadow_reason: dict[str, Any] | None = None
 
     def with_injected(self, injected: bool) -> QuestionCandidate:
         return replace(self, injected=injected)
@@ -82,6 +96,11 @@ class QuestionCandidate:
             "matched_project": self.matched_project,
             "matched_candidate_skills": list(self.matched_candidate_skills or []),
             "matched_job_skills": list(self.matched_job_skills or []),
+            "reward_shadow_rank": self.reward_shadow_rank,
+            "reward_shadow_score": self.reward_shadow_score,
+            "reward_shadow_rank_changed": self.reward_shadow_rank_changed,
+            "usage_stats": self.usage_stats,
+            "reward_shadow_reason": self.reward_shadow_reason,
         }
 
 
@@ -111,6 +130,7 @@ def select_question_candidates(
     difficulty: str | None = None,
     qa_history: Sequence[dict[str, Any]] | None = None,
     fit_profile: Any | None = None,
+    question_selector_mode: str = "structured_primary",
     top_k: int = 3,
 ) -> QuestionSelectionResult:
     """Return deterministic top-k structured question candidates."""
@@ -215,6 +235,11 @@ def select_question_candidates(
     )
     ranked = _select_seed_diverse_top_k(ranked_candidates, max(0, int(top_k)))
     ranked = [replace(candidate, rank=idx + 1) for idx, candidate in enumerate(ranked)]
+    ranked = _apply_reward_shadow(
+        session,
+        ranked,
+        question_selector_mode=question_selector_mode,
+    )
     return QuestionSelectionResult(candidates=ranked)
 
 
@@ -243,6 +268,124 @@ def _select_seed_diverse_top_k(
         if len(selected) >= top_k:
             break
     return selected
+
+
+def _apply_reward_shadow(
+    session: Session,
+    candidates: list[QuestionCandidate],
+    *,
+    question_selector_mode: str,
+) -> list[QuestionCandidate]:
+    if not candidates:
+        return []
+    variant_ids = [candidate.variant_id for candidate in candidates]
+    stats_rows = list(
+        session.scalars(
+            select(QuestionUsageStats)
+            .where(QuestionUsageStats.variant_id.in_(variant_ids))
+            .where(QuestionUsageStats.question_selector_mode == question_selector_mode)
+        )
+    )
+    stats_by_variant = {row.variant_id: row for row in stats_rows}
+    scored: list[tuple[float, str, QuestionCandidate, QuestionUsageStats]] = []
+    for candidate in candidates:
+        stats = stats_by_variant.get(candidate.variant_id)
+        if stats is None:
+            continue
+        score = _reward_shadow_score(candidate, stats)
+        scored.append((score, candidate.variant_id, candidate, stats))
+    reward_rank_by_variant = {
+        candidate.variant_id: idx
+        for idx, (_score, _variant_id, candidate, _stats) in enumerate(
+            sorted(scored, key=lambda item: (-item[0], item[1])),
+            1,
+        )
+    }
+    output: list[QuestionCandidate] = []
+    for candidate in candidates:
+        stats = stats_by_variant.get(candidate.variant_id)
+        if stats is None:
+            output.append(
+                replace(
+                    candidate,
+                    reward_shadow_rank=None,
+                    reward_shadow_score=None,
+                    reward_shadow_rank_changed=False,
+                    usage_stats=None,
+                    reward_shadow_reason={
+                        "status": "no_stats",
+                        "metadata_rank": candidate.rank,
+                    },
+                )
+            )
+            continue
+        shadow_rank = reward_rank_by_variant.get(candidate.variant_id)
+        output.append(
+            replace(
+                candidate,
+                reward_shadow_rank=shadow_rank,
+                reward_shadow_score=_reward_shadow_score(candidate, stats),
+                reward_shadow_rank_changed=(
+                    shadow_rank is not None and shadow_rank != candidate.rank
+                ),
+                usage_stats=_usage_stats_payload(stats),
+                reward_shadow_reason=_reward_shadow_reason(candidate, stats),
+            )
+        )
+    return output
+
+
+def _reward_shadow_score(
+    candidate: QuestionCandidate,
+    stats: QuestionUsageStats,
+) -> float:
+    sample_confidence = _sample_confidence(stats)
+    reward_bonus = (
+        float(stats.avg_immediate_reward or 0.0)
+        * REWARD_SHADOW_BONUS_WEIGHT
+        * sample_confidence
+    )
+    usage_bonus = _safe_log(int(stats.uses or 0) + 1) * 0.1 * sample_confidence
+    return float(candidate.match_score) + reward_bonus + usage_bonus
+
+
+def _reward_shadow_reason(
+    candidate: QuestionCandidate,
+    stats: QuestionUsageStats,
+) -> dict[str, Any]:
+    sample_confidence = _sample_confidence(stats)
+    return {
+        "status": "scored",
+        "uses": int(stats.uses or 0),
+        "injected_uses": int(stats.injected_uses or 0),
+        "rewarded_uses": int(stats.rewarded_uses or 0),
+        "avg_immediate_reward": stats.avg_immediate_reward,
+        "pass_rate": stats.pass_rate,
+        "sample_confidence": sample_confidence,
+        "metadata_rank": candidate.rank,
+        "metadata_score": candidate.match_score,
+    }
+
+
+def _usage_stats_payload(stats: QuestionUsageStats) -> dict[str, Any]:
+    return {
+        "uses": int(stats.uses or 0),
+        "injected_uses": int(stats.injected_uses or 0),
+        "rewarded_uses": int(stats.rewarded_uses or 0),
+        "avg_score": stats.avg_score,
+        "pass_rate": stats.pass_rate,
+        "avg_immediate_reward": stats.avg_immediate_reward,
+    }
+
+
+def _sample_confidence(stats: QuestionUsageStats) -> float:
+    return min(1.0, int(stats.rewarded_uses or 0) / MIN_REWARDED_USES)
+
+
+def _safe_log(value: int) -> float:
+    import math
+
+    return math.log(max(1, value))
 
 
 def format_question_seed_block(candidate: QuestionCandidate | None) -> str:

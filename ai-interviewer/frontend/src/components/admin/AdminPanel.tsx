@@ -49,10 +49,12 @@ import {
   getFallbackRates,
   getInterviewSessionsHistory,
   getQuestionQualityRollUp,
+  getQuestionRewardReadiness,
   getQuestionRerankUsages,
   getQuestionReviews,
   getQuestionSeed,
   getQuestionSeeds,
+  getQuestionUsageStats,
   getQuestionUsages,
   getRecentTracesByNode,
   getSkillPlaybook,
@@ -77,6 +79,7 @@ import {
   disableStrategy,
   createQuestionReview,
   refreshStrategyStats,
+  refreshQuestionUsageStats,
   runStrategyPromotion,
   saveAdminToken,
   type AdminSessions,
@@ -90,8 +93,10 @@ import {
   type InterviewSessionHistoryItem,
   type QuestionSeedDetail,
   type QuestionSeeds,
+  type QuestionRewardReadiness,
   type QuestionRerankUsages,
   type QuestionReviews,
+  type QuestionUsageStatsResponse,
   type QuestionUsages,
   type QuestionQualityRollupResponse,
   type RecentTracesResponse,
@@ -382,6 +387,8 @@ function AdminStrategySection({
   bandit,
   questionSeeds,
   questionUsages,
+  questionUsageStats,
+  questionRewardReadiness,
   questionRerankUsages,
   questionReviews,
   skillPlaybooks,
@@ -395,6 +402,8 @@ function AdminStrategySection({
   bandit: Loadable<BanditSnapshot>;
   questionSeeds: Loadable<QuestionSeeds>;
   questionUsages: Loadable<QuestionUsages>;
+  questionUsageStats: Loadable<QuestionUsageStatsResponse>;
+  questionRewardReadiness: Loadable<QuestionRewardReadiness>;
   questionRerankUsages: Loadable<QuestionRerankUsages>;
   questionReviews: Loadable<QuestionReviews>;
   skillPlaybooks: Loadable<SkillPlaybooks>;
@@ -420,6 +429,8 @@ function AdminStrategySection({
         <QuestionBankCard
           state={questionSeeds}
           usages={questionUsages}
+          usageStats={questionUsageStats}
+          rewardReadiness={questionRewardReadiness}
           rerankUsages={questionRerankUsages}
           reviews={questionReviews}
           onRefresh={onRefresh}
@@ -574,6 +585,16 @@ export function AdminPanel() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [tokenSaved],
   );
+  const questionUsageStatsFetcher = useCallback(
+    (signal?: AbortSignal) => getQuestionUsageStats(true, signal),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [tokenSaved],
+  );
+  const questionRewardReadinessFetcher = useCallback(
+    (signal?: AbortSignal) => getQuestionRewardReadiness(true, signal),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [tokenSaved],
+  );
   const questionRerankUsagesFetcher = useCallback(
     (signal?: AbortSignal) => getQuestionRerankUsages(signal),
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -645,6 +666,8 @@ export function AdminPanel() {
   const skillPlaybooks = useAutoFetch(skillPlaybooksFetcher, tick);
   const questionSeeds = useAutoFetch(questionSeedsFetcher, tick);
   const questionUsages = useAutoFetch(questionUsagesFetcher, tick);
+  const questionUsageStats = useAutoFetch(questionUsageStatsFetcher, tick);
+  const questionRewardReadiness = useAutoFetch(questionRewardReadinessFetcher, tick);
   const questionRerankUsages = useAutoFetch(questionRerankUsagesFetcher, tick);
   const questionReviews = useAutoFetch(questionReviewsFetcher, tick);
   const strategySignals = useAutoFetch(strategySignalsFetcher, tick);
@@ -756,6 +779,8 @@ export function AdminPanel() {
             bandit={bandit}
             questionSeeds={questionSeeds}
             questionUsages={questionUsages}
+            questionUsageStats={questionUsageStats}
+            questionRewardReadiness={questionRewardReadiness}
             questionRerankUsages={questionRerankUsages}
             questionReviews={questionReviews}
             skillPlaybooks={skillPlaybooks}
@@ -3789,12 +3814,16 @@ function SessionStatusBadge({ session }: { session: AdminSessions["sessions"][nu
 function QuestionBankCard({
   state,
   usages,
+  usageStats,
+  rewardReadiness,
   rerankUsages,
   reviews,
   onRefresh,
 }: {
   state: Loadable<QuestionSeeds>;
   usages: Loadable<QuestionUsages>;
+  usageStats: Loadable<QuestionUsageStatsResponse>;
+  rewardReadiness: Loadable<QuestionRewardReadiness>;
   rerankUsages: Loadable<QuestionRerankUsages>;
   reviews: Loadable<QuestionReviews>;
   onRefresh: () => void;
@@ -4163,6 +4192,12 @@ function QuestionBankCard({
             </Button>
           </div>
         </div>
+
+        <QuestionRewardShadowPanel
+          stats={usageStats}
+          readiness={rewardReadiness}
+          onRefresh={onRefresh}
+        />
 
         {state.phase === "loading" && <LoadingList rows={3} />}
         {state.phase === "error" && <ErrorBox message={state.message} />}
@@ -4554,6 +4589,176 @@ function QuestionBankCard({
         </details>
       </CardContent>
     </Card>
+  );
+}
+
+function QuestionRewardShadowPanel({
+  stats,
+  readiness,
+  onRefresh,
+}: {
+  stats: Loadable<QuestionUsageStatsResponse>;
+  readiness: Loadable<QuestionRewardReadiness>;
+  onRefresh: () => void;
+}) {
+  const { toast } = useToast();
+  const [busy, setBusy] = useState(false);
+  const summary = readiness.phase === "ready" ? readiness.data.summary : null;
+  const modes = readiness.phase === "ready" ? readiness.data.modes.slice(0, 4) : [];
+  const statRows = stats.phase === "ready" ? stats.data.stats.slice(0, 4) : [];
+
+  async function handleRefreshQuestionStats() {
+    if (busy) return;
+    setBusy(true);
+    try {
+      const result = await refreshQuestionUsageStats();
+      toast({
+        title: "题库 reward shadow 已刷新",
+        description: `refreshed=${result.refreshed}, deleted=${result.deleted}`,
+      });
+      onRefresh();
+    } catch (err) {
+      toast({
+        title: "题库 reward shadow 刷新失败",
+        description: err instanceof Error ? err.message : String(err),
+        variant: "destructive",
+      });
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <section className="rounded-lg border bg-card/35 p-3">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h3 className="text-sm font-semibold text-foreground">
+            题库 Reward Shadow
+          </h3>
+          <p className="mt-1 text-xs text-muted-foreground">
+            仅观测，不改变题库真实排序；用于判断历史 reward 如果参与排序，Top K 是否会变化。
+          </p>
+        </div>
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          onClick={handleRefreshQuestionStats}
+          disabled={busy}
+        >
+          {busy && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
+          刷新 stats
+        </Button>
+      </div>
+
+      {(stats.phase === "loading" || readiness.phase === "loading") && (
+        <div className="mt-3">
+          <LoadingList rows={2} />
+        </div>
+      )}
+      {stats.phase === "error" && (
+        <ErrorBox message={`question usage stats: ${stats.message}`} />
+      )}
+      {readiness.phase === "error" && (
+        <ErrorBox message={`question reward readiness: ${readiness.message}`} />
+      )}
+
+      {summary && (
+        <div className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+          <StrategyMemoryInlineMetric
+            label="题目变体"
+            value={String(summary.total_variants)}
+          />
+          <StrategyMemoryInlineMetric
+            label="样本充足"
+            value={String(summary.ready_variants)}
+          />
+          <StrategyMemoryInlineMetric
+            label="低样本"
+            value={String(summary.low_sample_variants)}
+          />
+          <StrategyMemoryInlineMetric
+            label="Shadow 改变模式"
+            value={String(summary.shadow_changed_modes)}
+          />
+        </div>
+      )}
+
+      {modes.length > 0 && (
+        <ul className="mt-3 space-y-2">
+          {modes.map((mode) => (
+            <li
+              key={mode.question_selector_mode}
+              className="rounded-md border bg-background/40 p-2 text-[11px]"
+            >
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <span className="font-mono text-xs font-semibold">
+                  {mode.question_selector_mode}
+                </span>
+                <Badge
+                  variant={mode.rank_changed ? "warn" : "outline"}
+                  className="text-[10px]"
+                >
+                  {mode.rank_changed
+                    ? "reward_shadow 会改变 Top K"
+                    : "reward_shadow 排序一致"}
+                </Badge>
+              </div>
+              <details className="mt-2 rounded-md border border-dashed bg-background/40 p-2">
+                <summary className="cursor-pointer text-muted-foreground">
+                  展开 question reward readiness 诊断
+                </summary>
+                <div className="mt-2 grid gap-2 sm:grid-cols-2">
+                  <StrategyMemoryFact
+                    label="metadata_top_variant_ids"
+                    value={mode.metadata_top_variant_ids.join(", ") || "—"}
+                    mono
+                  />
+                  <StrategyMemoryFact
+                    label="reward_top_variant_ids"
+                    value={mode.reward_top_variant_ids.join(", ") || "—"}
+                    mono
+                  />
+                </div>
+                {mode.reasons.length > 0 && (
+                  <div className="mt-2 flex flex-wrap gap-1.5">
+                    {mode.reasons.map((reason) => (
+                      <Badge key={reason} variant="outline" className="text-[10px]">
+                        {formatQuestionRewardReason(reason)} · {reason}
+                      </Badge>
+                    ))}
+                  </div>
+                )}
+              </details>
+            </li>
+          ))}
+        </ul>
+      )}
+
+      {stats.phase === "ready" && statRows.length > 0 && (
+        <details className="mt-3 rounded-md border border-dashed bg-muted/10 px-3 py-2">
+          <summary className="cursor-pointer text-xs font-medium text-muted-foreground">
+            展开 question_usage_stats
+          </summary>
+          <ul className="mt-2 space-y-1.5">
+            {statRows.map((row) => (
+              <li key={row.id} className="rounded-md border bg-background/40 p-2 text-[11px]">
+                <div className="flex flex-wrap gap-2">
+                  <span className="font-mono">{row.question_selector_mode}</span>
+                  <span className="font-mono">{compactQuestionAssetId(row.variant_id)}</span>
+                  <span>uses {row.uses}</span>
+                  <span>rewarded {row.rewarded_uses}</span>
+                  <span>reward {formatMaybeNumber(row.avg_immediate_reward)}</span>
+                  <span>
+                    pass {row.pass_rate == null ? "—" : formatPercent(row.pass_rate)}
+                  </span>
+                </div>
+              </li>
+            ))}
+          </ul>
+        </details>
+      )}
+    </section>
   );
 }
 
@@ -7193,6 +7398,14 @@ function formatStrategyRewardReason(value?: string | null): string {
   if (value === "session_coverage_below_min") return "session 覆盖不足";
   if (value === "overrule_rate_high") return "Verifier 否决率偏高";
   if (value === "reward_shadow_rank_changed") return "reward shadow 会改变排序";
+  if (value === "reward_shadow_rank_same") return "reward shadow 排序一致";
+  return value || "未知原因";
+}
+
+function formatQuestionRewardReason(value?: string | null): string {
+  if (value === "reward_samples_below_min") return "reward 样本不足";
+  if (value === "high_reward_low_sample") return "高 reward 但样本少";
+  if (value === "reward_shadow_rank_changed") return "reward shadow 会改变 Top K";
   if (value === "reward_shadow_rank_same") return "reward shadow 排序一致";
   return value || "未知原因";
 }

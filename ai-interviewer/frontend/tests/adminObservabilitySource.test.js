@@ -799,6 +799,33 @@ test("admin panel mounts tab-scoped observability cards only once", () => {
   assert.equal(countMatches(panel, /<RagEvalSection\b/g), 1);
 });
 
+test("admin panel surfaces question reward shadow readiness", () => {
+  const panel = read("src/components/admin/AdminPanel.tsx");
+  const api = read("src/lib/api/admin.ts");
+
+  assert.match(api, /QuestionUsageStatsItem/);
+  assert.match(api, /QuestionUsageStatsResponse/);
+  assert.match(api, /QuestionRewardReadiness/);
+  assert.match(api, /getQuestionUsageStats/);
+  assert.match(api, /refreshQuestionUsageStats/);
+  assert.match(api, /getQuestionRewardReadiness/);
+  assert.ok(api.includes("/admin/question-usage-stats"));
+  assert.ok(api.includes("/admin/question-usage-stats/refresh"));
+  assert.ok(api.includes("/admin/question-reward-readiness"));
+
+  assert.match(panel, /QuestionRewardShadowPanel/);
+  assert.match(panel, /questionUsageStats/);
+  assert.match(panel, /questionRewardReadiness/);
+  assert.match(panel, /getQuestionUsageStats\(true, signal\)/);
+  assert.match(panel, /getQuestionRewardReadiness\(true, signal\)/);
+  assert.match(panel, /refreshQuestionUsageStats/);
+  assert.match(panel, /题库 Reward Shadow/);
+  assert.match(panel, /仅观测，不改变题库真实排序/);
+  assert.match(panel, /metadata_top_variant_ids/);
+  assert.match(panel, /reward_top_variant_ids/);
+  assert.match(panel, /reward_shadow 会改变 Top K/);
+});
+
 test("admin tabs own every module below the tab switcher", () => {
   const panel = read("src/components/admin/AdminPanel.tsx");
 

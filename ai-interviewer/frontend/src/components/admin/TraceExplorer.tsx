@@ -3826,6 +3826,7 @@ function StructuredQuestionCandidate({
 }) {
   const matchReasons = stringList(item.match_reasons);
   const summaryReasons = summarizeQuestionMatchReasons(matchReasons);
+  const rewardShadowChanged = item.reward_shadow_rank_changed === true;
   return (
     <EvidenceRow>
       <div className="min-w-0 flex-1 space-y-2">
@@ -3833,6 +3834,16 @@ function StructuredQuestionCandidate({
           <Badge variant="outline" className="font-mono text-[10px]">
             rank {formatCountValue(item.rank)}
           </Badge>
+          {item.reward_shadow_rank !== null && item.reward_shadow_rank !== undefined && (
+            <Badge variant="outline" className="font-mono text-[10px]">
+              reward_shadow_rank {formatCountValue(item.reward_shadow_rank)}
+            </Badge>
+          )}
+          {rewardShadowChanged && (
+            <Badge variant="warn" className="text-[10px]">
+              reward_shadow 会改变 Top K
+            </Badge>
+          )}
           <Badge
             variant="outline"
             className={
@@ -3877,12 +3888,108 @@ function StructuredQuestionCandidate({
           </div>
         )}
         <QuestionMatchReasonsDetails reasons={matchReasons} />
+        <QuestionRewardShadowDetails item={item} />
       </div>
       <Badge variant="outline" className="shrink-0 font-mono text-[10px]">
         match {formatScore(item.match_score)}
       </Badge>
     </EvidenceRow>
   );
+}
+
+function QuestionRewardShadowDetails({ item }: { item: Record<string, unknown> }) {
+  const usageStats = recordFromUnknown(item.usage_stats);
+  const rewardShadowReason = recordFromUnknown(item.reward_shadow_reason);
+  const hasShadow =
+    item.reward_shadow_rank !== undefined ||
+    item.reward_shadow_score !== undefined ||
+    Object.keys(usageStats).length > 0 ||
+    Object.keys(rewardShadowReason).length > 0;
+  if (!hasShadow) return null;
+
+  return (
+    <details className="rounded-md border border-dashed bg-background/45 p-2 text-[11px]">
+      <summary className="cursor-pointer select-none font-medium text-muted-foreground">
+        展开 <span className="font-mono">reward_shadow_reason</span>
+      </summary>
+      <p className="mt-2 text-muted-foreground">
+        仅观测，不影响当前注入题。
+      </p>
+      <div className="mt-2 grid gap-2 md:grid-cols-2">
+        <NodeFact
+          label="当前 rank"
+          value={formatCountValue(item.rank)}
+        />
+        <NodeFact
+          label="Shadow 排名 reward_shadow_rank"
+          value={formatCountValue(item.reward_shadow_rank)}
+        />
+        <NodeFact
+          label="Shadow 分数 reward_shadow_score"
+          value={formatScore(item.reward_shadow_score)}
+        />
+        <NodeFact
+          label="历史使用次数"
+          value={formatCountValue(usageStats.uses)}
+        />
+        <NodeFact
+          label="有评分样本数"
+          value={formatCountValue(usageStats.rewarded_uses)}
+        />
+        <NodeFact
+          label="平均 reward"
+          value={formatScore(usageStats.avg_immediate_reward)}
+        />
+        <NodeFact
+          label="通过率"
+          value={formatRatioValue(usageStats.pass_rate)}
+        />
+      </div>
+      {Object.keys(rewardShadowReason).length > 0 && (
+        <ul className="mt-2 space-y-1">
+          {Object.entries(rewardShadowReason).map(([key, value]) => (
+            <li key={key} className="break-words">
+              <span className="text-muted-foreground">
+                {localizeQuestionRewardShadowReasonKey(key)}{" "}
+              </span>
+              <span className="font-mono text-muted-foreground">{key}</span>
+              <span className="text-muted-foreground">: </span>
+              <span className="font-mono">
+                {formatQuestionRewardShadowValue(value)}
+              </span>
+            </li>
+          ))}
+        </ul>
+      )}
+    </details>
+  );
+}
+
+function localizeQuestionRewardShadowReasonKey(key: string): string {
+  const labels: Record<string, string> = {
+    status: "状态",
+    uses: "历史使用次数",
+    injected_uses: "实际注入次数",
+    rewarded_uses: "有评分样本数",
+    avg_immediate_reward: "平均 reward",
+    pass_rate: "通过率",
+    sample_confidence: "样本置信度",
+    metadata_rank: "metadata rank",
+    metadata_score: "metadata score",
+  };
+  return labels[key] || key;
+}
+
+function formatQuestionRewardShadowValue(value: unknown): string {
+  if (Array.isArray(value)) return value.map((item) => String(item)).join(", ");
+  if (typeof value === "number" && Number.isFinite(value)) return value.toFixed(2);
+  if (typeof value === "boolean") return value ? "true" : "false";
+  return String(value ?? "—");
+}
+
+function formatRatioValue(value: unknown): string {
+  if (typeof value !== "number" || !Number.isFinite(value)) return "—";
+  return `${Math.round(value * 100)}%`;
 }
 
 function summarizeQuestionMatchReasons(reasons: string[]): string[] {
@@ -4479,6 +4586,19 @@ function askQuestionSearchFields(
     addList(item.matched_candidate_skills);
     addList(item.matched_job_skills);
     addList(item.match_reasons);
+    add(item.reward_shadow_rank);
+    add(item.reward_shadow_score);
+    add(item.reward_shadow_rank_changed);
+    const usageStats = recordFromUnknown(item.usage_stats);
+    add(usageStats.uses);
+    add(usageStats.rewarded_uses);
+    add(usageStats.avg_immediate_reward);
+    add(usageStats.pass_rate);
+    const rewardShadowReason = recordFromUnknown(item.reward_shadow_reason);
+    add(rewardShadowReason.status);
+    add(rewardShadowReason.sample_confidence);
+    add(rewardShadowReason.metadata_rank);
+    add(rewardShadowReason.metadata_score);
   }
 
   for (const strategy of recordArray(artifacts.strategies)) {

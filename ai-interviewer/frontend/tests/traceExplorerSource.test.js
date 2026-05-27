@@ -399,6 +399,15 @@ test("trace explorer explains ask_question evidence as grouped user-facing secti
   assert.match(component, /Variant 问法/);
   assert.match(component, /StructuredQuestionCandidate/);
   assert.match(component, /QuestionMatchReasonsDetails/);
+  assert.match(component, /QuestionRewardShadowDetails/);
+  assert.match(component, /reward_shadow_rank/);
+  assert.match(component, /reward_shadow_score/);
+  assert.match(component, /reward_shadow_reason/);
+  assert.match(component, /仅观测，不影响当前注入题/);
+  assert.match(component, /历史使用次数/);
+  assert.match(component, /有评分样本数/);
+  assert.match(component, /平均 reward/);
+  assert.match(component, /通过率/);
   assert.match(component, /关键匹配项/);
   assert.match(component, /groupQuestionMatchReasons/);
   assert.match(component, /formatGroupedQuestionReason/);
@@ -585,6 +594,12 @@ test("trace explorer search covers structured ask_question evidence fields", () 
   assert.match(component, /matched_target_skills/);
   assert.match(component, /matched_project/);
   assert.match(component, /match_reasons/);
+  assert.match(component, /reward_shadow_rank/);
+  assert.match(component, /reward_shadow_score/);
+  assert.match(component, /reward_shadow_reason/);
+  assert.match(component, /usage_stats/);
+  assert.match(component, /sample_confidence/);
+  assert.match(component, /metadata_rank/);
   assert.match(component, /\.\.\.askQuestionSearchFields\(node\.payload\)/);
   assert.match(component, /successorNodeSearchFields/);
   assert.match(component, /\.\.\.successorNodeSearchFields\(node\.payload\)/);

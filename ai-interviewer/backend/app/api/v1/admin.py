@@ -3011,6 +3011,22 @@ def _question_usage_payload(
     }
 
 
+def _question_usage_stats_payload(row: Any) -> dict[str, Any]:
+    return {
+        "id": row.id,
+        "variant_id": row.variant_id,
+        "question_selector_mode": row.question_selector_mode,
+        "uses": row.uses,
+        "injected_uses": row.injected_uses,
+        "rewarded_uses": row.rewarded_uses,
+        "avg_score": row.avg_score,
+        "pass_rate": row.pass_rate,
+        "avg_immediate_reward": row.avg_immediate_reward,
+        "last_used_at": row.last_used_at.isoformat() if row.last_used_at else None,
+        "updated_at": row.updated_at.isoformat() if row.updated_at else None,
+    }
+
+
 def _question_rerank_usage_payload(row: Any) -> dict[str, Any]:
     return {
         "id": row.id,
@@ -3347,6 +3363,64 @@ def list_question_usages(
         "count": len(payloads),
         "usages": payloads,
     }
+
+
+@router.get("/question-usage-stats", dependencies=[Depends(require_admin_token)])
+def list_question_usage_stats(
+    auto_refresh: bool = False,
+    limit: int = 100,
+) -> dict[str, Any]:
+    from app.models.question_bank import QuestionUsageStats
+    from app.services.question_usage_stats import refresh_question_usage_stats
+
+    capped_limit = max(1, min(int(limit or 100), 500))
+    with get_session() as sess:
+        refresh_payload = None
+        if bool(auto_refresh):
+            refreshed = refresh_question_usage_stats(session=sess)
+            refresh_payload = {
+                "refreshed": refreshed.refreshed,
+                "deleted": refreshed.deleted,
+            }
+        rows = (
+            sess.query(QuestionUsageStats)
+            .order_by(
+                QuestionUsageStats.question_selector_mode.asc(),
+                QuestionUsageStats.variant_id.asc(),
+            )
+            .limit(capped_limit)
+            .all()
+        )
+    return {
+        "count": len(rows),
+        "refreshed": refresh_payload,
+        "stats": [_question_usage_stats_payload(row) for row in rows],
+    }
+
+
+@router.post("/question-usage-stats/refresh", dependencies=[Depends(require_admin_token)])
+def refresh_question_usage_stats_endpoint() -> dict[str, int]:
+    from app.services.question_usage_stats import refresh_question_usage_stats
+
+    with get_session() as sess:
+        result = refresh_question_usage_stats(session=sess)
+    return {
+        "refreshed": result.refreshed,
+        "deleted": result.deleted,
+    }
+
+
+@router.get("/question-reward-readiness", dependencies=[Depends(require_admin_token)])
+def get_question_reward_readiness(auto_refresh: bool = False) -> dict[str, Any]:
+    from app.services.question_usage_stats import (
+        build_question_reward_readiness,
+        refresh_question_usage_stats,
+    )
+
+    with get_session() as sess:
+        if bool(auto_refresh):
+            refresh_question_usage_stats(session=sess)
+        return build_question_reward_readiness(session=sess)
 
 
 @router.get("/question-rerank-usages", dependencies=[Depends(require_admin_token)])

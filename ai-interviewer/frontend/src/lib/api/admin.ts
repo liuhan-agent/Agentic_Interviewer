@@ -401,6 +401,70 @@ export interface QuestionUsages {
   usages: QuestionUsageItem[];
 }
 
+export interface QuestionUsageStatsItem {
+  id: string;
+  variant_id: string;
+  question_selector_mode: string;
+  uses: number;
+  injected_uses: number;
+  rewarded_uses: number;
+  avg_score?: number | null;
+  pass_rate?: number | null;
+  avg_immediate_reward?: number | null;
+  last_used_at?: string | null;
+  updated_at?: string | null;
+}
+
+export interface QuestionUsageStatsResponse {
+  count: number;
+  refreshed?: { refreshed: number; deleted: number } | null;
+  stats: QuestionUsageStatsItem[];
+}
+
+export interface QuestionRewardReadinessVariant {
+  variant_id: string;
+  seed_id?: string | null;
+  title?: string | null;
+  dimension?: string | null;
+  question_selector_mode: string;
+  uses: number;
+  injected_uses: number;
+  rewarded_uses: number;
+  avg_score?: number | null;
+  pass_rate?: number | null;
+  avg_immediate_reward?: number | null;
+  metadata_score?: number | null;
+  reward_shadow_score?: number | null;
+  sample_confidence?: number | null;
+  readiness: string;
+  reasons: string[];
+}
+
+export interface QuestionRewardReadinessMode {
+  question_selector_mode: string;
+  metadata_top_variant_ids: string[];
+  reward_top_variant_ids: string[];
+  rank_changed: boolean;
+  reasons: string[];
+}
+
+export interface QuestionRewardReadiness {
+  thresholds: {
+    min_rewarded_uses: number;
+    high_reward_threshold: number;
+    top_k: number;
+  };
+  summary: {
+    total_variants: number;
+    ready_variants: number;
+    low_sample_variants: number;
+    high_reward_low_sample_variants: number;
+    shadow_changed_modes: number;
+  };
+  modes: QuestionRewardReadinessMode[];
+  variants: QuestionRewardReadinessVariant[];
+}
+
 export interface QuestionRerankUsageItem {
   id: string;
   session_id: string;
@@ -945,6 +1009,39 @@ export function getQuestionUsages(
   if (filters?.directionTag) params.set("direction_tag", filters.directionTag);
   if (filters?.roleTag) params.set("role_tag", filters.roleTag);
   return adminGet<QuestionUsages>(`/admin/question-usages?${params.toString()}`, signal);
+}
+
+export function getQuestionUsageStats(
+  autoRefresh = false,
+  signal?: AbortSignal,
+): Promise<QuestionUsageStatsResponse> {
+  const params = new URLSearchParams({ limit: "100" });
+  if (autoRefresh) params.set("auto_refresh", "true");
+  return adminGet<QuestionUsageStatsResponse>(
+    `/admin/question-usage-stats?${params.toString()}`,
+    signal,
+  );
+}
+
+export function refreshQuestionUsageStats(): Promise<{
+  refreshed: number;
+  deleted: number;
+}> {
+  return adminPost<{ refreshed: number; deleted: number }>(
+    "/admin/question-usage-stats/refresh",
+    {},
+  );
+}
+
+export function getQuestionRewardReadiness(
+  autoRefresh = false,
+  signal?: AbortSignal,
+): Promise<QuestionRewardReadiness> {
+  const suffix = autoRefresh ? "?auto_refresh=true" : "";
+  return adminGet<QuestionRewardReadiness>(
+    `/admin/question-reward-readiness${suffix}`,
+    signal,
+  );
 }
 
 export function getQuestionRerankUsages(
