@@ -259,6 +259,13 @@ export interface Strategies {
   strategies: Strategy[];
 }
 
+export interface StrategySeedImportResult {
+  imported: number;
+  updated: number;
+  unchanged: number;
+  skipped: number;
+}
+
 export interface SkillPlaybookCard {
   id: string;
   name: string;
@@ -1106,6 +1113,47 @@ export interface StrategyStats {
   stats: StrategyStatsItem[];
 }
 
+export interface StrategyRewardReadinessContext {
+  context_key: string;
+  direction?: string | null;
+  job_level?: string | null;
+  dimension: string;
+  candidate_count: number;
+  usage_count: number;
+  rewarded_usage_count: number;
+  distinct_sessions: number;
+  avg_blended_reward?: number | null;
+  overrule_rate?: number | null;
+  metadata_top_strategy_ids: string[];
+  reward_top_strategy_ids: string[];
+  rank_changed: boolean;
+  readiness: string;
+  reasons: string[];
+}
+
+export interface StrategyRewardReadiness {
+  auto_refresh?: boolean;
+  auto_refreshed?: boolean;
+  auto_refresh_reason?: string | null;
+  auto_refresh_result?: { refreshed: number; deleted: number } | null;
+  thresholds: {
+    min_candidates: number;
+    min_rewarded_usages: number;
+    min_distinct_sessions: number;
+    max_overrule_rate: number;
+    top_k: number;
+  };
+  summary: {
+    total_contexts: number;
+    ready_contexts: number;
+    shadow_only_contexts: number;
+    needs_candidate_contexts: number;
+    needs_sample_contexts: number;
+    blocked_contexts: number;
+  };
+  contexts: StrategyRewardReadinessContext[];
+}
+
 export function getStrategySignals(
   signal?: AbortSignal,
 ): Promise<StrategySignals> {
@@ -1124,6 +1172,24 @@ export function getStrategyStats(
 ): Promise<StrategyStats> {
   const suffix = autoRefresh ? "?auto_refresh=true" : "";
   return adminGet<StrategyStats>(`/admin/strategy-stats${suffix}`, signal);
+}
+
+export function getStrategyRewardReadiness(
+  autoRefresh = false,
+  signal?: AbortSignal,
+): Promise<StrategyRewardReadiness> {
+  const suffix = autoRefresh ? "?auto_refresh=true" : "";
+  return adminGet<StrategyRewardReadiness>(
+    `/admin/strategy-reward-readiness${suffix}`,
+    signal,
+  );
+}
+
+export function importStrategySeeds(): Promise<StrategySeedImportResult> {
+  return adminPost<StrategySeedImportResult>(
+    "/admin/strategies/import-seeds",
+    {},
+  );
 }
 
 export function refreshStrategyStats(): Promise<{ refreshed: number; deleted: number }> {
