@@ -5,6 +5,12 @@ from contextlib import contextmanager
 from datetime import UTC, datetime
 from typing import Any
 
+from sqlalchemy import create_engine
+from sqlalchemy.orm import sessionmaker
+
+from app.models.base import Base
+from app.models.strategy_memory import StrategyMemory
+
 
 class _SessionRow:
     session_id = "sess-long"
@@ -166,6 +172,90 @@ def test_trace_node_payload_enriches_legacy_skill_refs_from_lookup() -> None:
     assert ref["display_description_zh"] == "引导调试回答锚定证据和根因。"
 
 
+def test_trace_node_payload_enriches_legacy_strategy_refs_from_lookup() -> None:
+    from app.api.v1 import admin as admin_mod
+
+    trace = _TraceRow(0, "ask_question")
+    trace.state_snapshot = {
+        "payload": {
+            "strategy_memory_refs": [
+                {
+                    "id": "promoted:communication-plan-hint",
+                    "slug": "communication_plan_hint",
+                    "memory_key": "promoted:qa:score_recovery:junior:communication:plan_hint",
+                    "name": "Auto: plan_hint for communication",
+                    "description": "Promoted from 30 sessions.",
+                }
+            ],
+            "selection_artifacts": {
+                "strategies": [
+                    {
+                        "memory_key": "promoted:qa:score_recovery:junior:communication:plan_hint",
+                        "name": "Auto: plan_hint for communication",
+                    }
+                ]
+            },
+        }
+    }
+
+    payload = admin_mod._trace_node_payload(
+        trace,
+        strategy_display_lookup={
+            "promoted:qa:score_recovery:junior:communication:plan_hint": {
+                "display_name_zh": "沟通恢复：提示引导",
+                "display_description_zh": "从历史面试中观察到提示引导有效。",
+            }
+        },
+    )
+
+    ref = payload["payload"]["strategy_memory_refs"][0]
+    selection_ref = payload["payload"]["selection_artifacts"]["strategies"][0]
+    assert ref["name"] == "Auto: plan_hint for communication"
+    assert ref["display_name_zh"] == "沟通恢复：提示引导"
+    assert ref["display_description_zh"] == "从历史面试中观察到提示引导有效。"
+    assert selection_ref["display_name_zh"] == "沟通恢复：提示引导"
+    assert selection_ref["display_description_zh"] == "从历史面试中观察到提示引导有效。"
+
+
+def test_trace_strategy_display_lookup_indexes_strategy_identifiers() -> None:
+    from app.api.v1 import admin as admin_mod
+
+    engine = create_engine("sqlite:///:memory:", future=True)
+    Base.metadata.create_all(engine)
+    Session = sessionmaker(bind=engine, expire_on_commit=False, autoflush=False)
+
+    with Session() as sess:
+        sess.add(
+            StrategyMemory(
+                id="promoted:communication-plan-hint",
+                slug="communication_plan_hint",
+                memory_key="promoted:qa:score_recovery:junior:communication:plan_hint",
+                name="Auto: plan_hint for communication",
+                description="Promoted from 30 sessions.",
+                display_name_zh="沟通恢复：提示引导",
+                display_description_zh="从历史面试中观察到提示引导有效。",
+                source="promoted_signal",
+                status="active",
+            )
+        )
+        sess.commit()
+
+        lookup = admin_mod._trace_strategy_display_lookup(sess)
+
+    expected = {
+        "display_name_zh": "沟通恢复：提示引导",
+        "display_description_zh": "从历史面试中观察到提示引导有效。",
+    }
+    assert lookup["promoted:communication-plan-hint"] == expected
+    assert lookup["communication_plan_hint"] == expected
+    assert lookup["communication_plan_hint.md"] == expected
+    assert (
+        lookup["promoted:qa:score_recovery:junior:communication:plan_hint"]
+        == expected
+    )
+    assert lookup["Auto: plan_hint for communication"] == expected
+
+
 def test_trace_node_payload_keeps_evaluator_answer_and_evaluation() -> None:
     from app.api.v1 import admin as admin_mod
 
@@ -175,4 +265,48 @@ def test_trace_node_payload_keeps_evaluator_answer_and_evaluation() -> None:
 
     assert payload["node"] == "evaluator"
     assert payload["answer_excerpt"] == "A"
+    assert payload["evaluation"] == {"score": 8.0, "passed": True}
+
+
+def test_trace_node_payload_enriches_legacy_evaluator_contract_from_ask_question() -> None:
+    from app.api.v1 import admin as admin_mod
+
+    trace = _TraceRow(1, "evaluator")
+    trace.turn_idx = 1
+    trace.state_snapshot = {"payload": {"node": "evaluator"}}
+
+    payload = admin_mod._trace_node_payload(
+        trace,
+        evaluator_contract_lookup={
+            1: {
+                "contract": {
+                    "must_cover": ["rollback plan"],
+                    "acceptance_checks": ["Answer includes rollback plan."],
+                    "bar_level": "standard",
+                    "signed_by": ["generator", "evaluator"],
+                },
+                "contract_source": "ask_question.contract",
+            }
+        },
+    )
+
+    assert payload["payload"]["contract_source"] == "ask_question.contract"
+    assert payload["payload"]["contract"]["must_cover"] == ["rollback plan"]
+    assert payload["payload"]["contract_must_cover_count"] == 1
+    assert payload["payload"]["contract_acceptance_check_count"] == 1
+    assert payload["payload"]["contract_bar_level"] == "standard"
+    assert payload["payload"]["signed_by"] == ["generator", "evaluator"]
+    assert payload["evaluation"] == {"score": 8.0, "passed": True}
+
+
+def test_trace_node_payload_keeps_evaluator_without_contract_when_lookup_missing() -> None:
+    from app.api.v1 import admin as admin_mod
+
+    trace = _TraceRow(1, "evaluator")
+    trace.turn_idx = 1
+    trace.state_snapshot = {"payload": {"node": "evaluator"}}
+
+    payload = admin_mod._trace_node_payload(trace, evaluator_contract_lookup={})
+
+    assert payload["payload"] == {"node": "evaluator"}
     assert payload["evaluation"] == {"score": 8.0, "passed": True}

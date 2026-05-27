@@ -125,6 +125,13 @@ def test_completed_session_emits_final_report_node_event(
     assert "verdict" in payload
     assert "overall_score" in payload
     assert payload["final_status"] == "completed"
+    assert payload["report_status"] == "completed"
+    assert payload["dimension_count"] == 1
+    assert payload["training_plan_queued"] is True
+    assert payload["experience_extractor_queued"] is True
+    assert payload["fallback_count"] == 0
+    assert payload["evaluator_turn_count"] == 1
+    assert payload["missing_sections"] == []
 
 
 def test_cancelled_session_marks_final_status_in_payload(
@@ -142,6 +149,9 @@ def test_cancelled_session_marks_final_status_in_payload(
     event = fake_tracer.node_events[0]
     assert event["node"] == "final_report"
     assert event["payload"]["final_status"] == "cancelled"
+    assert event["payload"]["report_status"] == "cancelled"
+    assert event["payload"]["training_plan_queued"] is False
+    assert event["payload"]["experience_extractor_queued"] is False
     assert event["status"] == "cancelled"
 
 

@@ -139,11 +139,73 @@ test("trace explorer detail pane uses Chinese keys for backend evidence fields",
   assert.match(component, /NodeFact label="策略"/);
   assert.match(component, /NodeFact label="创建时间"/);
   assert.match(component, /NodeFact label="策略上下文键"/);
+  assert.match(component, /TraceTextExcerpt/);
+  assert.match(component, /label="问题"/);
+  assert.match(component, /value=\{node\.question\}/);
   assert.match(component, /回答摘录/);
+  assert.match(component, /label="回答摘录"/);
+  assert.match(component, /value=\{node\.answer_excerpt\}/);
   assert.match(component, /评估证据/);
+  assert.match(component, /EvaluatorScoringBasis/);
+  assert.match(component, /评分依据/);
+  assert.match(component, /展开评分依据明细/);
+  assert.match(component, /EvidenceList label="覆盖要求" values=\{mustCover\}/);
+  assert.match(component, /label="验收检查"\s+values=\{acceptanceChecks\}/);
+  assert.match(component, /label="最低门槛"/);
+  assert.match(component, /EvidenceList label="复核重点" values=\{reviewFocus\}/);
+  assert.match(component, /EvidenceList label="旧版评分点" values=\{rubricPoints\}/);
+  assert.doesNotMatch(component, /展开评分依据 <span className="font-mono">contract<\/span>/);
+  assert.doesNotMatch(component, /EvidenceList label="must_cover" values=\{mustCover\}/);
+  assert.doesNotMatch(component, /label="acceptance_checks"\s+values=\{acceptanceChecks\}/);
+  assert.doesNotMatch(component, /EvidenceList label="review_focus" values=\{reviewFocus\}/);
+  assert.doesNotMatch(component, /EvidenceList label="rubric_points" values=\{rubricPoints\}/);
+  assert.match(component, /contract_source/);
+  assert.match(component, /current_question\.contract/);
+  assert.match(component, /legacy rubric/);
+  assert.match(component, /未记录评分依据/);
+  assert.doesNotMatch(component, /label="评分覆盖"/);
+  assert.doesNotMatch(component, /EvidenceList label="rubric_coverage"/);
+  assert.match(component, /acceptance_check_results/);
+  assert.match(component, /AcceptanceCheckResults/);
+  assert.match(component, /<AcceptanceCheckResults results=\{acceptanceCheckResults\} \/>/);
+  assert.match(component, /yes \/ partial \/ no/);
+  assert.match(component, /acceptanceVerdictBadgeClass/);
+  assert.match(component, /verdict === "yes"/);
+  assert.match(component, /verdict === "partial"/);
+  assert.match(component, /verdict === "no"/);
+  assert.match(component, /VerificationReviewPanel/);
+  assert.match(component, /<VerificationReviewPanel node=\{node\} \/>/);
+  assert.match(component, /复核结果/);
+  assert.match(component, /Verifier 检查 evaluator 的评分是否站得住/);
+  assert.match(component, /NodeFact label="是否触发"/);
+  assert.match(component, /NodeFact label="Verifier 结论"/);
+  assert.match(component, /NodeFact label="置信度"/);
+  assert.match(component, /label="Evaluator 原结论"/);
+  assert.match(component, /label="复核后结论"/);
+  assert.match(component, /label="是否改写"/);
+  assert.match(component, /NodeFact label="复核影响"/);
+  assert.match(component, /改写明细/);
+  assert.match(component, /展开改写明细/);
+  assert.match(component, /verification_changes/);
+  assert.match(component, /verification_effect/);
+  assert.match(component, /展开软警告/);
+  assert.match(component, /未改写/);
+  assert.match(component, /改写为继续追问/);
+  assert.match(component, /NodeFact label="强制追问"/);
+  assert.match(component, /label="低置信保留原判"/);
+  assert.match(component, /EvidenceList label="质疑原因"/);
+  assert.match(component, /VerificationChangeList/);
+  assert.match(component, /verificationEffectLabel/);
+  assert.match(component, /verificationRewriteLabel/);
+  assert.match(component, /formatVerificationChangeValue/);
+  assert.match(component, /verificationReviewStatus/);
+  assert.match(component, /verificationVerdictLabel/);
+  assert.match(component, /formatVerifierPassState/);
+  assert.doesNotMatch(component, /校验器（Verifier）：/);
   assert.match(component, /优势/);
   assert.match(component, /不足/);
   assert.match(component, /奖励状态/);
+  assert.doesNotMatch(component, /line-clamp-2 text-sm leading-relaxed/);
   assert.doesNotMatch(component, /NodeFact label="turn"/);
   assert.doesNotMatch(component, /NodeFact label="context"/);
   assert.doesNotMatch(component, /NodeFact label="policy"/);
@@ -156,28 +218,102 @@ test("trace explorer explains director strategy decisions as user-facing evidenc
 
   assert.match(component, /StrategyDecisionSummary/);
   assert.match(component, /node\.node === "director_sample"/);
-  assert.match(component, /策略决策摘要/);
-  assert.match(component, /Director 出题前如何选择下一步动作/);
+  assert.match(component, /出题决策摘要/);
+  assert.match(component, /本节点承接 route_decision=next_question/);
+  assert.match(component, /只解释进入下一题后 Director 选了什么动作与上下文/);
   assert.match(component, /节点类型/);
   assert.match(component, /目标维度/);
-  assert.match(component, /选择动作/);
+  assert.match(component, /出题动作/);
+  assert.match(component, /计划模板/);
+  assert.match(component, /计划模板来源/);
+  assert.match(component, /动作说明/);
+  assert.match(component, /维度变化/);
+  assert.match(component, /出题动作决策原因/);
   assert.match(component, /决策上下文/);
   assert.match(component, /策略算法/);
   assert.match(component, /策略空间/);
   assert.match(component, /奖励回填上下文/);
-  assert.match(component, /决策用一个 context；reward_update 回填全部 context keys/);
+  assert.match(component, /路由原因请看 route_decision/);
+  assert.match(component, /localizeActionName/);
   assert.match(component, /localizeActionDescription/);
+  assert.match(component, /localizePlanTemplateName/);
+  assert.match(component, /localizeDimensionEffect/);
+  assert.match(component, /planTemplateSourceLabel/);
+  assert.match(component, /diagnosticModeLabel/);
+  assert.match(component, /轻量探测/);
+  assert.match(component, /轻量模板/);
+  assert.match(component, /plan_simple/);
+  assert.match(component, /deep_probe/);
+  assert.match(component, /plan_deep_probe/);
   assert.match(component, /切换到下一个待覆盖维度，并用 adaptive 模板出下一题。/);
   assert.match(component, /Plan: Switch/);
   assert.match(component, /待后续 reward_update 回填/);
   assert.match(component, /splitPolicyId/);
   assert.match(component, /selected_action/);
+  assert.doesNotMatch(component, /追问\/计划模板/);
+  assert.doesNotMatch(component, /Lightweight first-turn probe; skip contract negotiation\./);
   assert.doesNotMatch(
     component,
     /Adaptive plan but move on to the next pending dimension/,
   );
   assert.doesNotMatch(component, /候选上下文/);
   assert.doesNotMatch(component, /StrategyDecisionSummary\(\{ node \}: \{ node: never/);
+});
+
+test("trace explorer explains route decisions without generic evaluation evidence", () => {
+  const component = read("src/components/admin/TraceExplorer.tsx");
+
+  assert.match(component, /RouteDecisionPanel/);
+  assert.match(component, /node\.node === "route_decision"/);
+  assert.match(component, /路由决策/);
+  assert.match(component, /决策原因/);
+  assert.match(component, /下一节点/);
+  assert.match(component, /后续影响/);
+  assert.match(component, /旧 trace 未记录路由原因/);
+  assert.match(component, /继续追问/);
+  assert.match(component, /进入下一题/);
+  assert.match(component, /结束面试/);
+  assert.match(component, /refine_followup/);
+  assert.match(component, /pending_plan_template \/ pending_contract_hints/);
+  assert.match(component, /decision_reason/);
+  assert.match(component, /next_node/);
+  assert.match(component, /decision_inputs/);
+  assert.match(component, /recommended_next_plan/);
+  assert.match(component, /fallback_reason/);
+  assert.match(component, /routeDecisionSearchFields/);
+  assert.match(component, /\.\.\.routeDecisionSearchFields\(node\.payload\)/);
+});
+
+test("trace explorer explains successor workflow nodes with dedicated panels", () => {
+  const component = read("src/components/admin/TraceExplorer.tsx");
+
+  assert.match(component, /RefineFollowupPanel/);
+  assert.match(component, /node\.node === "refine_followup"/);
+  assert.match(component, /追问准备/);
+  assert.match(component, /本节点承接 route_decision=refine/);
+  assert.match(component, /下一轮计划模板/);
+  assert.match(component, /pending_contract_hints/);
+  assert.match(component, /must_address/);
+  assert.match(component, /missing_must_cover/);
+  assert.match(component, /failure_categories/);
+  assert.match(component, /prior_soft_warnings/);
+  assert.match(component, /旧 trace 未记录追问提示/);
+
+  assert.match(component, /FinalReportPanel/);
+  assert.match(component, /node\.node === "final_report"/);
+  assert.match(component, /报告收尾/);
+  assert.match(component, /本节点承接 route_decision=end/);
+  assert.match(component, /report_status/);
+  assert.match(component, /training_plan_queued/);
+  assert.match(component, /experience_extractor_queued/);
+  assert.match(component, /missing_sections/);
+
+  assert.match(component, /承接 route_decision=next_question/);
+  assert.match(component, /真实 workflow node/);
+  const routePanelStart = component.indexOf("function RouteDecisionPanel");
+  const routePanelEnd = component.indexOf("function RefineFollowupPanel");
+  const routePanelBody = component.slice(routePanelStart, routePanelEnd);
+  assert.doesNotMatch(routePanelBody, /RefineFollowupPanel|FinalReportPanel/);
 });
 
 test("trace explorer explains ask_question evidence as grouped user-facing sections", () => {
@@ -216,7 +352,10 @@ test("trace explorer explains ask_question evidence as grouped user-facing secti
   assert.match(component, /produced_keys/);
   assert.match(component, /出题策略记忆/);
   assert.match(component, /localizeStrategyMemoryName/);
+  assert.match(component, /strategyMemoryDescription/);
   assert.match(component, /strategyMemoryTraceKey/);
+  assert.match(component, /stringValue\(strategy\.display_name_zh\)/);
+  assert.match(component, /stringValue\(strategy\.display_description_zh\) \|\| stringValue\(strategy\.description\)/);
   assert.match(component, /追问时机/);
   assert.match(component, /回避型回答模式/);
   assert.match(component, /支撑样本/);
@@ -318,10 +457,12 @@ test("trace explorer explains ask_question evidence as grouped user-facing secti
 test("trace explorer hides stale answer and evaluation on ask_question rows", () => {
   const component = read("src/components/admin/TraceExplorer.tsx");
 
-  assert.match(component, /node\.node !== "ask_question" && node\.answer_excerpt/);
+  assert.match(component, /node\.node !== "ask_question"/);
+  assert.match(component, /node\.node !== "route_decision"/);
+  assert.match(component, /node\.answer_excerpt &&/);
   assert.match(
     component,
-    /node\.node === "director_sample" \|\| node\.node === "ask_question"/,
+    /node\.node === "route_decision"/,
   );
   assert.match(component, /answer_excerpt/);
   assert.match(component, /EvaluationEvidence/);
@@ -445,6 +586,17 @@ test("trace explorer search covers structured ask_question evidence fields", () 
   assert.match(component, /matched_project/);
   assert.match(component, /match_reasons/);
   assert.match(component, /\.\.\.askQuestionSearchFields\(node\.payload\)/);
+  assert.match(component, /successorNodeSearchFields/);
+  assert.match(component, /\.\.\.successorNodeSearchFields\(node\.payload\)/);
+  assert.match(component, /verificationChangeSearchFields/);
+  assert.match(component, /\.\.\.verificationChangeSearchFields\(node\.payload\)/);
+  assert.match(component, /record\.verification_changes/);
+  assert.match(component, /record\.verification_effect/);
+  assert.match(component, /record\.pending_contract_hints/);
+  assert.match(component, /record\.missing_sections/);
+  assert.match(component, /record\.report_status/);
+  assert.match(component, /record\.selected_action/);
+  assert.match(component, /record\.diagnostics/);
   assert.doesNotMatch(component, /JSON\.stringify\(node\.payload\)/);
 });
 

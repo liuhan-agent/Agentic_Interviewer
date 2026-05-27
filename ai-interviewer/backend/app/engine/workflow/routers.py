@@ -7,7 +7,7 @@ condition function" split).
 """
 from __future__ import annotations
 
-from typing import Literal
+from typing import Any, Literal, cast
 
 from app.core.logging import get_logger
 from app.engine.resume_plan import has_available_resume_anchor_slot
@@ -21,6 +21,12 @@ AfterSkip = Literal["next_question", "end"]
 AfterWait = Literal["self_intro_parse", "skip_question", "evaluator", "end"]
 
 DEFAULT_MAX_REFINES_PER_DIMENSION = 2
+
+_AFTER_EVAL_NEXT_NODE: dict[AfterEval, str] = {
+    "refine": "refine_followup",
+    "next_question": "director_sample",
+    "end": "final_report",
+}
 
 
 def _all_dims_done(state: InterviewState) -> bool:
@@ -101,6 +107,132 @@ def should_advance_for_coverage(state: InterviewState) -> bool:
     )
 
 
+def _route_after_eval_result(
+    *,
+    decision: AfterEval,
+    decision_reason: str,
+    decision_inputs: dict[str, Any],
+) -> dict[str, Any]:
+    return {
+        "decision": decision,
+        "next_node": _AFTER_EVAL_NEXT_NODE[decision],
+        "decision_reason": decision_reason,
+        "decision_inputs": decision_inputs,
+    }
+
+
+def route_after_eval_diagnostics(state: InterviewState) -> dict[str, Any]:
+    """Explain the post-evaluation conditional edge without mutating state."""
+    evaluation = state.get("evaluation", {}) or {}
+    question = state.get("current_question") or {}
+    formal_turn_idx = state.get("formal_turn_idx", state.get("turn_idx", 0))
+    max_turns = state.get("max_turns", 8)
+    budget = state.get("turn_budget_remaining", 0)
+    current_dim = str(
+        state.get("current_dimension")
+        or question.get("dimension")
+        or ""
+    )
+    all_dims_done = _all_dims_done(state)
+    has_anchor_expansion_slot = _has_anchor_expansion_slot(state)
+    current_dimension_attempts = (
+        _attempts_for_dimension(state, current_dim) if current_dim else 0
+    )
+    max_refines = _max_refines_per_dimension(state)
+    has_pending_other = (
+        _has_pending_other_dimension(state, current_dim) if current_dim else False
+    )
+    evaluator_fallback = bool(
+        evaluation.get("source") == "fallback"
+        or evaluation.get("fallback_reason")
+    )
+    coverage_advance = bool(
+        not evaluation.get("passed")
+        and current_dim
+        and has_pending_other
+        and current_dimension_attempts >= max_refines
+    )
+    decision_inputs = {
+        "formal_turn_idx": formal_turn_idx,
+        "max_turns": max_turns,
+        "turn_budget_remaining": budget,
+        "current_dimension": current_dim or None,
+        "recommended_next": evaluation.get("recommended_next"),
+        "passed": bool(evaluation.get("passed")),
+        "evaluator_fallback": evaluator_fallback,
+        "all_dimensions_done": all_dims_done,
+        "has_anchor_expansion_slot": has_anchor_expansion_slot,
+        "coverage_advance": coverage_advance,
+        "current_dimension_attempts": current_dimension_attempts,
+        "max_refines_per_dimension": max_refines,
+        "has_pending_other_dimension": has_pending_other,
+    }
+
+    if state.get("status") == "cancelled":
+        return _route_after_eval_result(
+            decision="end",
+            decision_reason="session_cancelled",
+            decision_inputs=decision_inputs,
+        )
+
+    if formal_turn_idx >= max_turns:
+        return _route_after_eval_result(
+            decision="end",
+            decision_reason="turn_limit_reached",
+            decision_inputs=decision_inputs,
+        )
+    if budget <= 0:
+        return _route_after_eval_result(
+            decision="end",
+            decision_reason="budget_exhausted",
+            decision_inputs=decision_inputs,
+        )
+
+    if all_dims_done and not has_anchor_expansion_slot:
+        return _route_after_eval_result(
+            decision="end",
+            decision_reason="all_dimensions_passed",
+            decision_inputs=decision_inputs,
+        )
+    if all_dims_done:
+        return _route_after_eval_result(
+            decision="next_question",
+            decision_reason="anchor_expansion",
+            decision_inputs=decision_inputs,
+        )
+
+    recommended = evaluation.get("recommended_next")
+    if evaluator_fallback:
+        return _route_after_eval_result(
+            decision="next_question",
+            decision_reason="evaluator_fallback",
+            decision_inputs=decision_inputs,
+        )
+    if recommended == "refine" and not evaluation.get("passed"):
+        if coverage_advance:
+            return _route_after_eval_result(
+                decision="next_question",
+                decision_reason="coverage_advance",
+                decision_inputs=decision_inputs,
+            )
+        return _route_after_eval_result(
+            decision="refine",
+            decision_reason="evaluator_recommended_refine",
+            decision_inputs=decision_inputs,
+        )
+    if evaluation.get("passed"):
+        return _route_after_eval_result(
+            decision="next_question",
+            decision_reason="dimension_passed",
+            decision_inputs=decision_inputs,
+        )
+    return _route_after_eval_result(
+        decision="refine",
+        decision_reason="default_not_passed_refine",
+        decision_inputs=decision_inputs,
+    )
+
+
 def route_after_wait(state: InterviewState) -> AfterWait:
     """Cancel short-circuit between ``wait_answer`` and ``evaluator``.
 
@@ -154,43 +286,11 @@ def route_after_eval(state: InterviewState) -> AfterEval:
     - ``end`` : budget exhausted, max turns reached, all dimensions
       passed, or the session was cancelled.
     """
-    if state.get("status") == "cancelled":
-        log.info("router: end (session cancelled by client)")
-        return "end"
-
-    evaluation = state.get("evaluation", {})
-    formal_turn_idx = state.get("formal_turn_idx", state.get("turn_idx", 0))
-    max_turns = state.get("max_turns", 8)
-    budget = state.get("turn_budget_remaining", 0)
-
-    if formal_turn_idx >= max_turns or budget <= 0:
-        log.info(
-            "router: end (budget exhausted: formal_turn=%d/%d, budget=%d)",
-            formal_turn_idx,
-            max_turns,
-            budget,
-        )
-        return "end"
-
-    if _all_dims_done(state) and not _has_anchor_expansion_slot(state):
-        log.info("router: end (all dims passed)")
-        return "end"
-    if _all_dims_done(state):
-        log.info("router: next_question (anchor expansion)")
-        return "next_question"
-
-    recommended = evaluation.get("recommended_next")
-    if evaluation.get("source") == "fallback" or evaluation.get("fallback_reason"):
-        log.info("router: next_question (evaluator fallback)")
-        return "next_question"
-    if recommended == "refine" and not evaluation.get("passed"):
-        if should_advance_for_coverage(state):
-            log.info("router: next_question (refine cap reached)")
-            return "next_question"
-        log.info("router: refine (evaluator recommended)")
-        return "refine"
-    if evaluation.get("passed"):
-        log.info("router: next_question (dim passed)")
-        return "next_question"
-    log.info("router: refine (default, not passed)")
-    return "refine"
+    diagnostics = route_after_eval_diagnostics(state)
+    decision = cast(AfterEval, diagnostics["decision"])
+    log.info(
+        "router: %s (%s)",
+        decision,
+        diagnostics.get("decision_reason") or "unknown",
+    )
+    return decision

@@ -342,6 +342,7 @@ def build_context_frame_for_contract_negotiator(
     question: str,
     proposed_contract: dict[str, Any],
     contract_hints: dict[str, Any] | None = None,
+    target_difficulty: str = "",
     turn_idx: int = 0,
 ) -> ContextFrame:
     """Assemble a :class:`ContextFrame` for the Contract-Negotiator role.
@@ -359,6 +360,7 @@ def build_context_frame_for_contract_negotiator(
         "question": question,
         "proposed_contract": json.dumps(proposed_contract, ensure_ascii=False),
         "contract_hints": json.dumps(hints, ensure_ascii=False),
+        "target_difficulty": target_difficulty,
     }
     return ContextFrame(
         agent_role="contract_negotiator",

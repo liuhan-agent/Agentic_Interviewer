@@ -23,6 +23,8 @@ def _write_strategy(path: Path, *, body: str = "Use deep probes.") -> None:
                 "---",
                 "name: Senior System Design Strategy",
                 "description: Deep follow-ups for senior system design candidates",
+                "display_name_zh: 高级系统设计追问策略",
+                "display_description_zh: 用于高级候选人的系统设计深挖追问。",
                 "type: strategy",
                 "dimensions: [system_design, architecture]",
                 "job_levels: [senior, staff]",
@@ -62,6 +64,8 @@ def test_import_strategy_seed_dir_imports_markdown_and_skips_memory_index(
     assert row.slug == "senior_system_design"
     assert row.name == "Senior System Design Strategy"
     assert row.description == "Deep follow-ups for senior system design candidates"
+    assert row.display_name_zh == "高级系统设计追问策略"
+    assert row.display_description_zh == "用于高级候选人的系统设计深挖追问。"
     assert row.source == "seed"
     assert row.memory_key == "seed:system_design:senior"
     assert row.dimensions == ["system_design", "architecture"]
@@ -100,3 +104,5 @@ def test_import_strategy_seed_dir_is_idempotent_and_versions_content_changes(
     assert changed.version == 2
     assert changed.content_hash != first_hash
     assert changed.body_markdown == "Use deep probes and quantify scale."
+    assert changed.display_name_zh == "高级系统设计追问策略"
+    assert changed.display_description_zh == "用于高级候选人的系统设计深挖追问。"

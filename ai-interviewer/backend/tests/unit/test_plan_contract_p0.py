@@ -16,11 +16,13 @@ Covers:
 """
 from __future__ import annotations
 
+import json
 import random
 from typing import Any
 
 import pytest
 
+from app.engine.workflow.nodes import refine_followup as refine_mod
 from app.engine.workflow.nodes.director_sample import director_sample_node
 from app.engine.workflow.nodes.refine_followup import refine_followup_node
 from app.engine.workflow.plans import PLAN_TEMPLATES, resolve_ask_plan
@@ -198,6 +200,38 @@ def test_contract_diagnostics_reports_uncovered_must_cover_and_bar_mismatch():
     assert "bar_level_mismatch" in diagnostics["warnings"]
 
 
+def test_contract_diagnostics_accepts_semantically_aligned_chinese_checks():
+    from app.engine.workflow.nodes import ask_question as ask_mod
+
+    contract = {
+        "must_cover": [
+            "用户侧可理解的事实和影响",
+            "研发恢复与补偿计划（含时间线）",
+            "最终一致性延迟对用户体验的具体影响",
+            "引用项目MQ具体机制（如延迟队列、幂等、死信、补偿）",
+        ],
+        "acceptance_checks": [
+            "YES: 明确区分客服口径和技术恢复计划",
+            "YES: 给出具体时间线和补偿机制（如手动补单或对账）",
+            "YES: 引用项目中的MQ具体机制（如延迟队列、幂等、死信、补偿）",
+            "YES: 说明最终一致性延迟对用户的具体影响（如用户看到订单未确认但实际已扣款）",
+        ],
+        "bar_level": "deep_probe",
+        "signed_by": ["generator", "evaluator"],
+    }
+
+    diagnostics = ask_mod._contract_diagnostics_for_trace(
+        contract,
+        proposed_contract=contract,
+        plan={"template": "adaptive"},
+        target_difficulty="hard",
+        rewrite_fallback=False,
+    )
+
+    assert diagnostics["uncovered_must_cover_items"] == []
+    assert "must_cover_without_acceptance_check" not in diagnostics["warnings"]
+
+
 def test_contract_diagnostics_marks_rewrite_fallback_source():
     from app.engine.workflow.nodes import ask_question as ask_mod
 
@@ -221,6 +255,43 @@ def test_contract_diagnostics_marks_rewrite_fallback_source():
 
     assert diagnostics["source"] == "rewrite_fallback"
     assert "rewrite_fallback" in diagnostics["warnings"]
+
+
+def test_contract_negotiator_enforces_target_difficulty_bar_level(monkeypatch):
+    from app.engine.agents import contract as contract_mod
+
+    def fake_call_chat(*args, **kwargs):
+        return json.dumps(
+            {
+                "must_cover": ["恢复计划", "用户影响"],
+                "acceptance_checks": [
+                    "YES: 给出恢复计划",
+                    "YES: 说明用户影响",
+                ],
+                "minimum_bar": "覆盖恢复计划和用户影响。",
+                "review_focus": ["恢复计划"],
+                "bar_level": "standard",
+            },
+            ensure_ascii=False,
+        )
+
+    monkeypatch.setattr(contract_mod, "call_chat", fake_call_chat)
+
+    contract = contract_mod.negotiate_contract_via_evaluator(
+        dimension="communication",
+        job_level="junior",
+        question="请说明 MQ 积压时如何对客服说明用户影响和恢复计划。",
+        proposed_contract={
+            "must_cover": ["恢复计划", "用户影响"],
+            "acceptance_checks": ["说明恢复计划", "说明用户影响"],
+            "bar_level": "standard",
+        },
+        contract_hints={},
+        target_difficulty="hard",
+    )
+
+    assert contract["signed_by"] == ["generator", "evaluator"]
+    assert contract["bar_level"] == "deep_probe"
 
 
 # ---------------------------------------------------------------------------
@@ -727,6 +798,44 @@ def test_refine_followup_writes_pending_plan_template():
     hints = out["pending_contract_hints"]
     assert "missed quantification" in hints["must_address"]
     assert "rollback plan" in hints["missing_must_cover"]
+
+
+def test_refine_followup_trace_payload_includes_pending_hints(monkeypatch):
+    traced: list[dict[str, Any]] = []
+
+    class _Tracer:
+        def trace_node_event(self, _state, *, node, payload, **_kwargs):
+            if node == "refine_followup":
+                traced.append(dict(payload))
+
+    monkeypatch.setattr(refine_mod, "get_tracer", lambda: _Tracer())
+
+    state = _base_state()
+    state["evaluation"] = {
+        "score": 5.0,
+        "passed": False,
+        "weaknesses": ["missed quantification"],
+        "rubric_coverage": {"rollback plan": "missing"},
+        "recommended_next_plan": "adaptive",
+        "recommended_probe_intent": "metric_probe",
+        "failure_reason": "answer lacks metrics",
+        "failure_categories": ["missing_metrics"],
+        "soft_warnings": ["weak evidence quote"],
+    }
+
+    out = refine_followup_node(state)  # type: ignore[arg-type]
+
+    assert traced
+    payload = traced[-1]
+    assert payload["refine_mode"] is True
+    assert payload["pending_plan_template"] == out["pending_plan_template"]
+    assert payload["pending_contract_hints"] == out["pending_contract_hints"]
+    assert payload["must_address_count"] == 1
+    assert payload["missing_must_cover_count"] == 1
+    assert payload["failure_categories"] == ["missing_metrics"]
+    assert payload["probe_intent"] == "metric_probe"
+    assert payload["failure_reason"] == "answer lacks metrics"
+    assert payload["prior_soft_warnings"] == ["weak evidence quote"]
 
 
 def test_refine_followup_carries_probe_intent_hints():

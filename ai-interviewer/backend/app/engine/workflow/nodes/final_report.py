@@ -647,6 +647,48 @@ def _target_skill_coverage(qa_history: list[dict[str, Any]]) -> dict[str, int]:
     return counts
 
 
+def _final_report_missing_sections(report: dict[str, Any]) -> list[str]:
+    missing: list[str] = []
+    if report.get("overall_score") is None:
+        missing.append("overall_score")
+    if not report.get("dimension_scores"):
+        missing.append("dimension_scores")
+    if not report.get("total_turns"):
+        missing.append("qa_history")
+    if not report.get("credibility_summary"):
+        missing.append("credibility_summary")
+    return missing
+
+
+def _final_report_trace_payload(
+    report: dict[str, Any],
+    *,
+    verdict: str,
+    overall: float | None,
+    final_status: str,
+) -> dict[str, Any]:
+    dimension_scores = report.get("dimension_scores")
+    dimension_count = len(dimension_scores) if isinstance(dimension_scores, dict) else 0
+    evaluator_turn_count = int(report.get("total_turns") or 0)
+    queued = final_status == "completed"
+    return {
+        "verdict": verdict,
+        "overall_score": overall,
+        "final_status": final_status,
+        "report_status": final_status,
+        "conclusion": report.get("growth_signal")
+        or report.get("overall_verdict")
+        or verdict,
+        "dimension_count": dimension_count,
+        "training_plan_queued": queued,
+        "experience_extractor_queued": queued,
+        "fallback_count": int(report.get("evaluator_fallback_count") or 0),
+        "evaluator_turn_count": evaluator_turn_count,
+        "missing_sections": _final_report_missing_sections(report),
+        "summary": report.get("summary"),
+    }
+
+
 def final_report_node(state: InterviewState) -> dict[str, Any]:
     scores = state.get("scores_per_dim", {})
     threshold = state.get("quality_threshold", 7.5)
@@ -797,11 +839,12 @@ def final_report_node(state: InterviewState) -> dict[str, Any]:
         get_tracer().trace_node_event(
             trace_view,
             node="final_report",
-            payload={
-                "verdict": verdict,
-                "overall_score": overall,
-                "final_status": final_status,
-            },
+            payload=_final_report_trace_payload(
+                report,
+                verdict=verdict,
+                overall=overall,
+                final_status=final_status,
+            ),
         )
     except Exception as e:  # pragma: no cover
         log.warning("tracer.trace_node_event(final_report) failed: %s", e)

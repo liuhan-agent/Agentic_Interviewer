@@ -980,11 +980,6 @@ function TraceNodeDetail({
               <span className="text-xs text-muted-foreground">{node.dimension}</span>
             )}
           </div>
-          {node.question && (
-            <p className="mt-2 line-clamp-2 text-sm leading-relaxed">
-              {node.question}
-            </p>
-          )}
         </div>
         <div className="flex flex-wrap items-center gap-1.5">
           {node.action_id && <Badge variant="secondary">{node.action_id}</Badge>}
@@ -1022,20 +1017,29 @@ function TraceNodeDetail({
         <NodeFact label="策略上下文键" value={node.policy_context_keys.join(", ")} />
       )}
 
+      <TraceTextExcerpt label="问题" value={node.question} />
+
       {node.node === "director_sample" && (
         <StrategyDecisionSummary node={node} />
       )}
 
       <NodeTimingBar payload={node.payload} />
 
-      {node.node !== "ask_question" && node.answer_excerpt && (
-        <section className="mt-3 rounded-md border bg-background/60 p-3 text-xs">
-          <p className="font-mono text-[10px] uppercase tracking-wider text-muted-foreground">
-            回答摘录
-          </p>
-          <p className="mt-1 leading-relaxed">{node.answer_excerpt}</p>
-        </section>
+      <RouteDecisionPanel node={node} />
+      <RefineFollowupPanel node={node} />
+      <FinalReportPanel node={node} />
+
+      {node.node !== "ask_question" &&
+        node.node !== "route_decision" &&
+        node.node !== "refine_followup" &&
+        node.node !== "final_report" &&
+        node.answer_excerpt && (
+        <TraceTextExcerpt label="回答摘录" value={node.answer_excerpt} />
       )}
+
+      <VerificationReviewPanel node={node} />
+
+      <EvaluatorScoringBasis node={node} />
 
       <EvaluationEvidence node={node} />
 
@@ -1069,30 +1073,590 @@ function TraceNodeDetail({
   );
 }
 
+function RouteDecisionPanel({ node }: { node: TraceExplorerNode }) {
+  if (node.node !== "route_decision") return null;
+
+  const payload = recordFromUnknown(node.payload);
+  const inputs = recordFromUnknown(payload.decision_inputs);
+  const decision = stringValue(payload.decision);
+  const nextNode = stringValue(payload.next_node) || routeDecisionNextNode(decision);
+  const reason = stringValue(payload.decision_reason);
+  const dimension =
+    stringValue(payload.dimension) ||
+    stringValue(inputs.current_dimension) ||
+    node.dimension ||
+    "—";
+  const formalTurn = payload.formal_turn_idx ?? inputs.formal_turn_idx;
+  const maxTurns = payload.max_turns ?? inputs.max_turns;
+  const budget =
+    payload.turn_budget_remaining ?? inputs.turn_budget_remaining;
+
+  return (
+    <section className="mt-3 rounded-md border border-sky-500/25 bg-sky-500/[0.035] p-3 text-xs">
+      <div className="flex flex-wrap items-start justify-between gap-2">
+        <div>
+          <div className="flex items-center gap-2">
+            <GitBranch className="h-3.5 w-3.5 text-sky-300" />
+            <p className="font-medium text-sky-100">路由决策</p>
+          </div>
+          <p className="mt-1 max-w-3xl text-[11px] text-muted-foreground">
+            这条记录说明条件边如何决定本轮之后继续追问、进入下一题或结束面试；评分细节请看同一 Turn 的 evaluator / verification。
+          </p>
+        </div>
+        <Badge variant={routeDecisionBadgeVariant(decision)} className="text-[10px]">
+          {routeDecisionLabel(decision)}
+        </Badge>
+      </div>
+
+      {!reason && (
+        <p className="mt-3 rounded-md border border-amber-500/25 bg-amber-500/[0.06] p-2 text-[11px] text-amber-200">
+          旧 trace 未记录路由原因；这里只能展示已有 decision / recommended_next / passed / budget。
+        </p>
+      )}
+
+      <div className="mt-3 grid gap-2 md:grid-cols-2 lg:grid-cols-4">
+        <NodeFact label="路由结果" value={routeDecisionLabel(decision)} />
+        <NodeFact label="下一节点" value={nextNode || "—"} />
+        <NodeFact
+          label="决策原因"
+          value={routeDecisionReasonLabel(reason)}
+        />
+        <NodeFact label="当前维度" value={dimension} />
+        <NodeFact
+          label="Evaluator 建议"
+          value={stringValue(payload.recommended_next) || "—"}
+        />
+        <NodeFact
+          label="推荐计划"
+          value={stringValue(payload.recommended_next_plan) || "—"}
+        />
+        <NodeFact
+          label="追问意图"
+          value={stringValue(payload.recommended_probe_intent) || "—"}
+        />
+        <NodeFact label="是否通过" value={formatBooleanValue(payload.passed)} />
+        <NodeFact label="fallback" value={formatBooleanValue(payload.fallback)} />
+        <NodeFact
+          label="轮次进度"
+          value={formatRouteTurnProgress(formalTurn, maxTurns)}
+        />
+        <NodeFact label="剩余预算" value={formatDiagnosticScalar(budget)} />
+        <NodeFact
+          label="覆盖推进"
+          value={formatBooleanValue(inputs.coverage_advance)}
+        />
+        <NodeFact
+          label="锚点扩展"
+          value={formatBooleanValue(inputs.has_anchor_expansion_slot)}
+        />
+        <NodeFact
+          label="当前维度尝试"
+          value={formatRouteAttemptValue(
+            inputs.current_dimension_attempts,
+            inputs.max_refines_per_dimension,
+          )}
+        />
+        <NodeFact
+          label="仍有待覆盖维度"
+          value={formatBooleanValue(inputs.has_pending_other_dimension)}
+        />
+        <NodeFact
+          label="评估来源"
+          value={stringValue(payload.evaluation_source) || "—"}
+        />
+        <NodeFact
+          label="fallback 原因"
+          value={stringValue(payload.fallback_reason) || "—"}
+        />
+      </div>
+
+      <div className="mt-3 rounded-md border bg-background/50 p-2">
+        <p className="font-medium">后续影响</p>
+        <p className="mt-1 break-words text-[11px] leading-relaxed text-muted-foreground">
+          {routeDecisionEffect(decision, nextNode)}
+        </p>
+      </div>
+    </section>
+  );
+}
+
+function RefineFollowupPanel({ node }: { node: TraceExplorerNode }) {
+  if (node.node !== "refine_followup") return null;
+
+  const payload = recordFromUnknown(node.payload);
+  const hints = recordFromUnknown(payload.pending_contract_hints);
+  const hasHints = Object.keys(hints).length > 0;
+  const planTemplate =
+    stringValue(payload.pending_plan_template) ||
+    stringValue(payload.next_template);
+  const mustAddress = stringList(hints.must_address);
+  const missingMustCover = stringList(hints.missing_must_cover);
+  const failureCategories =
+    stringList(payload.failure_categories).length > 0
+      ? stringList(payload.failure_categories)
+      : stringList(hints.failure_categories);
+  const priorSoftWarnings =
+    stringList(payload.prior_soft_warnings).length > 0
+      ? stringList(payload.prior_soft_warnings)
+      : stringList(hints.prior_soft_warnings);
+  const probeIntent =
+    stringValue(payload.probe_intent) || stringValue(hints.probe_intent);
+  const failureReason =
+    stringValue(payload.failure_reason) || stringValue(hints.failure_reason);
+
+  return (
+    <section className="mt-3 rounded-md border border-amber-500/25 bg-amber-500/[0.035] p-3 text-xs">
+      <div className="flex flex-wrap items-start justify-between gap-2">
+        <div>
+          <div className="flex items-center gap-2">
+            <GitBranch className="h-3.5 w-3.5 text-amber-300" />
+            <p className="font-medium text-amber-100">追问准备</p>
+          </div>
+          <p className="mt-1 max-w-3xl text-[11px] text-muted-foreground">
+            本节点承接 route_decision=refine，把 evaluator / verification 的评分信号整理成下一轮 ask_question 可用的追问提示。
+          </p>
+        </div>
+        <Badge variant={hasHints ? "warn" : "outline"} className="text-[10px]">
+          真实 workflow node
+        </Badge>
+      </div>
+
+      {!hasHints && !planTemplate && (
+        <p className="mt-3 rounded-md border border-amber-500/25 bg-amber-500/[0.06] p-2 text-[11px] text-amber-200">
+          旧 trace 未记录追问提示；只能查看 raw payload。
+        </p>
+      )}
+
+      <div className="mt-3 grid gap-2 md:grid-cols-2 lg:grid-cols-3">
+        <NodeFact label="下一轮计划模板" value={planTemplate || "—"} />
+        <NodeFact
+          label="目标维度"
+          value={stringValue(payload.dimension) || node.dimension || "—"}
+        />
+        <NodeFact label="refine_mode" value={formatBooleanValue(payload.refine_mode)} />
+        <NodeFact
+          label="必须处理"
+          value={formatCountValue(payload.must_address_count ?? mustAddress.length)}
+        />
+        <NodeFact
+          label="缺失覆盖项"
+          value={formatCountValue(
+            payload.missing_must_cover_count ?? missingMustCover.length,
+          )}
+        />
+        <NodeFact label="probe intent" value={probeIntent || "—"} />
+        <NodeFact label="failure reason" value={failureReason || "—"} />
+        <NodeFact
+          label="failure categories"
+          value={failureCategories.length > 0 ? failureCategories.join(", ") : "—"}
+        />
+        <NodeFact
+          label="soft warnings"
+          value={priorSoftWarnings.length > 0 ? String(priorSoftWarnings.length) : "—"}
+        />
+      </div>
+
+      <div className="mt-3 grid gap-3 md:grid-cols-2">
+        <EvidenceList label="must_address" values={mustAddress} />
+        <EvidenceList label="missing_must_cover" values={missingMustCover} />
+        <EvidenceList label="failure_categories" values={failureCategories} />
+        <EvidenceList label="prior_soft_warnings" values={priorSoftWarnings} />
+      </div>
+
+      {hasHints && (
+        <details className="mt-3 rounded-md border bg-background/50 p-2">
+          <summary className="cursor-pointer select-none font-medium">
+            展开追问提示 <span className="font-mono">pending_contract_hints</span>
+          </summary>
+          <div className="mt-2 grid gap-2 md:grid-cols-2">
+            {Object.entries(hints).map(([key, value]) => (
+              <NodeFact
+                key={key}
+                label={refineHintKeyLabel(key)}
+                value={formatDiagnosticScalar(value) || "—"}
+              />
+            ))}
+          </div>
+        </details>
+      )}
+    </section>
+  );
+}
+
+function FinalReportPanel({ node }: { node: TraceExplorerNode }) {
+  if (node.node !== "final_report") return null;
+
+  const payload = recordFromUnknown(node.payload);
+  const status =
+    stringValue(payload.report_status) ||
+    stringValue(payload.final_status) ||
+    "—";
+  const missingSections = stringList(payload.missing_sections);
+  const summary = stringValue(payload.summary);
+
+  return (
+    <section className="mt-3 rounded-md border border-emerald-500/25 bg-emerald-500/[0.035] p-3 text-xs">
+      <div className="flex flex-wrap items-start justify-between gap-2">
+        <div>
+          <div className="flex items-center gap-2">
+            <FileText className="h-3.5 w-3.5 text-emerald-300" />
+            <p className="font-medium text-emerald-100">报告收尾</p>
+          </div>
+          <p className="mt-1 max-w-3xl text-[11px] text-muted-foreground">
+            本节点承接 route_decision=end，汇总面试结果并进入训练计划 / 经验抽取收尾链路。
+          </p>
+        </div>
+        <Badge variant={status === "completed" ? "success" : "outline"} className="text-[10px]">
+          真实 workflow node
+        </Badge>
+      </div>
+
+      <div className="mt-3 grid gap-2 md:grid-cols-2 lg:grid-cols-4">
+        <NodeFact label="报告状态 report_status" value={status} />
+        <NodeFact label="总分" value={formatScore(payload.overall_score)} />
+        <NodeFact
+          label="结论"
+          value={
+            stringValue(payload.conclusion) ||
+            stringValue(payload.verdict) ||
+            "—"
+          }
+        />
+        <NodeFact
+          label="覆盖维度"
+          value={formatCountValue(payload.dimension_count)}
+        />
+        <NodeFact
+          label="fallback 次数"
+          value={formatCountValue(payload.fallback_count)}
+        />
+        <NodeFact
+          label="evaluator turn"
+          value={formatCountValue(payload.evaluator_turn_count)}
+        />
+        <NodeFact
+          label="training_plan_queued"
+          value={formatBooleanValue(payload.training_plan_queued)}
+        />
+        <NodeFact
+          label="experience_extractor_queued"
+          value={formatBooleanValue(payload.experience_extractor_queued)}
+        />
+      </div>
+
+      {summary && (
+        <div className="mt-3 rounded-md border bg-background/50 p-2">
+          <p className="font-mono text-[10px] uppercase tracking-wider text-muted-foreground">
+            报告摘要
+          </p>
+          <p className="mt-1 whitespace-pre-wrap break-words leading-relaxed">
+            {summary}
+          </p>
+        </div>
+      )}
+
+      <EvidenceList label="missing_sections" values={missingSections} />
+    </section>
+  );
+}
+
+function VerificationReviewPanel({ node }: { node: TraceExplorerNode }) {
+  if (node.node !== "verification") return null;
+
+  const payload = recordFromUnknown(node.payload);
+  const evaluation = recordFromUnknown(node.evaluation);
+  const verification = recordFromUnknown(payload.verification);
+  const status = verificationReviewStatus(payload, evaluation);
+  const verdict = stringValue(payload.verdict) || stringValue(verification.verdict);
+  const confidence = payload.confidence ?? verification.confidence;
+  const forcedRefine =
+    payload.forced_refine ?? evaluation.verifier_forced_refine;
+  const verifierAbstained =
+    payload.verifier_abstained ?? evaluation.verifier_abstained;
+  const updatedPassed = payload.updated_passed ?? evaluation.passed;
+  const verificationChanges = recordArray(payload.verification_changes);
+  const verificationEffect = verificationEffectValue(
+    payload,
+    evaluation,
+    verificationChanges,
+  );
+  const softWarnings = stringList(evaluation.soft_warnings);
+  const reasonsToDoubt = Array.from(
+    new Set([
+      ...stringList(payload.reasons_to_doubt),
+      ...stringList(verification.reasons_to_doubt),
+      ...stringList(evaluation.soft_warnings),
+    ]),
+  );
+  const verifierRationale =
+    stringValue(payload.rationale) ||
+    stringValue(payload.verifier_rationale) ||
+    stringValue(verification.rationale);
+
+  return (
+    <section className="mt-3 rounded-md border border-amber-500/25 bg-amber-500/[0.035] p-3 text-xs">
+      <div className="flex flex-wrap items-start justify-between gap-2">
+        <div>
+          <p className="font-medium text-amber-100">复核结果</p>
+          <p className="mt-0.5 text-[11px] text-muted-foreground">
+            Verifier 检查 evaluator 的评分是否站得住；下方“评估证据”是复核后的最终评分解释。
+          </p>
+        </div>
+        <Badge
+          variant={verificationReviewBadgeVariant(status)}
+          className="text-[10px]"
+        >
+          {status}
+        </Badge>
+      </div>
+
+      <div className="mt-3 grid gap-2 md:grid-cols-2 lg:grid-cols-4">
+        <NodeFact label="是否触发" value={formatBooleanValue(payload.triggered)} />
+        <NodeFact label="Verifier 结论" value={verificationVerdictLabel(verdict)} />
+        <NodeFact label="置信度" value={formatConfidenceValue(confidence)} />
+        <NodeFact
+          label="Evaluator 原结论"
+          value={formatVerifierPassState(payload.evaluator_passed)}
+        />
+        <NodeFact
+          label="复核后结论"
+          value={formatVerifierPassState(updatedPassed)}
+        />
+        <NodeFact
+          label="是否改写"
+          value={verificationRewriteLabel(payload.verdict_changed, verificationEffect)}
+        />
+        <NodeFact label="复核影响" value={verificationEffectLabel(verificationEffect)} />
+        <NodeFact label="强制追问" value={formatBooleanValue(forcedRefine)} />
+        <NodeFact
+          label="低置信保留原判"
+          value={formatBooleanValue(verifierAbstained)}
+        />
+      </div>
+
+      {verificationEffect === "soft_warning_only" && (
+        <details className="mt-3 rounded-md border border-amber-500/25 bg-background/50 p-2">
+          <summary className="cursor-pointer select-none font-medium">
+            展开软警告 <span className="font-mono">soft_warnings</span>
+          </summary>
+          <div className="mt-2">
+            <EvidenceList
+              label="软警告"
+              values={softWarnings.length > 0 ? softWarnings : reasonsToDoubt}
+            />
+          </div>
+        </details>
+      )}
+
+      {verificationEffect !== "soft_warning_only" && verificationChanges.length > 0 && (
+        <VerificationChangeList changes={verificationChanges} />
+      )}
+
+      {(verifierRationale || reasonsToDoubt.length > 0) && (
+        <div className="mt-3 grid gap-3 md:grid-cols-2">
+          {verifierRationale && (
+            <div className="rounded-md border bg-background/50 p-2">
+              <p className="font-mono text-[10px] uppercase tracking-wider text-muted-foreground">
+                Verifier 理由
+              </p>
+              <p className="mt-1 whitespace-pre-wrap break-words leading-relaxed">
+                {verifierRationale}
+              </p>
+            </div>
+          )}
+          <EvidenceList label="质疑原因" values={reasonsToDoubt} />
+        </div>
+      )}
+    </section>
+  );
+}
+
+function VerificationChangeList({
+  changes,
+}: {
+  changes: Record<string, unknown>[];
+}) {
+  return (
+    <details open className="mt-3 rounded-md border border-amber-500/25 bg-background/50 p-2">
+      <summary className="cursor-pointer select-none font-medium">
+        展开改写明细 <span className="font-mono">verification_changes</span>
+      </summary>
+      <ul className="mt-2 space-y-2">
+        {changes.map((change, idx) => {
+          const field = stringValue(change.field);
+          const label = stringValue(change.label) || field || "改写项";
+          const reason = stringValue(change.reason);
+          return (
+            <li key={`${field || "change"}-${idx}`} className="rounded border bg-background/40 p-2">
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="font-medium">{label}</span>
+                {field && (
+                  <Badge variant="outline" className="font-mono text-[10px]">
+                    {field}
+                  </Badge>
+                )}
+                {reason && (
+                  <Badge variant="warn" className="font-mono text-[10px]">
+                    {reason}
+                  </Badge>
+                )}
+              </div>
+              <p className="mt-1 break-words font-mono text-[11px]">
+                {formatVerificationChangeValue(field, change.before)} {"->"}{" "}
+                {formatVerificationChangeValue(field, change.after)}
+              </p>
+            </li>
+          );
+        })}
+      </ul>
+    </details>
+  );
+}
+
+function EvaluatorScoringBasis({ node }: { node: TraceExplorerNode }) {
+  if (node.node !== "evaluator") return null;
+
+  const payload = recordFromUnknown(node.payload);
+  const contract = recordFromUnknown(payload.contract);
+  const rubricPoints = stringList(payload.rubric_points);
+  const mustCover = stringList(contract.must_cover);
+  const acceptanceChecks = stringList(contract.acceptance_checks);
+  const reviewFocus = stringList(contract.review_focus);
+  const signedBy = stringList(payload.signed_by);
+  const contractSignedBy = stringList(contract.signed_by);
+  const contractSource = stringValue(payload.contract_source);
+  const hasBasis =
+    Object.keys(contract).length > 0 ||
+    rubricPoints.length > 0 ||
+    Boolean(contractSource && contractSource !== "missing");
+  const sourceLabel = evaluatorContractSourceLabel(contractSource);
+  const signedByValue =
+    contractSignedBy.length > 0
+      ? contractSignedBy.join(", ")
+      : signedBy.length > 0
+        ? signedBy.join(", ")
+        : "—";
+  const barLevel =
+    stringValue(payload.contract_bar_level) ||
+    stringValue(contract.bar_level) ||
+    "—";
+
+  return (
+    <section className="mt-3 rounded-md border border-cyan-500/25 bg-cyan-500/[0.035] p-3 text-xs">
+      <div className="flex flex-wrap items-start justify-between gap-2">
+        <div>
+          <p className="font-medium text-cyan-100">评分依据</p>
+          <p className="mt-0.5 text-[11px] text-muted-foreground">
+            evaluator 实际评分时使用的 contract；下方“评估证据”是评分后的结果解释。
+          </p>
+        </div>
+        <Badge variant={hasBasis ? "outline" : "warn"} className="text-[10px]">
+          {hasBasis ? sourceLabel : "未记录评分依据"}
+        </Badge>
+      </div>
+
+      {!hasBasis ? (
+        <p className="mt-3 rounded-md border bg-background/50 p-2 text-[11px] text-muted-foreground">
+          未记录评分依据。
+        </p>
+      ) : (
+        <>
+          <div className="mt-3 grid gap-2 md:grid-cols-2 lg:grid-cols-3">
+            <NodeFact label="来源 contract_source" value={sourceLabel} />
+            <NodeFact label="签署方" value={signedByValue} />
+            <NodeFact label="评分门槛" value={barLevel} />
+            <NodeFact
+              label="覆盖要求"
+              value={formatCountValue(
+                payload.contract_must_cover_count ?? mustCover.length,
+              )}
+            />
+            <NodeFact
+              label="验收检查"
+              value={formatCountValue(
+                payload.contract_acceptance_check_count ?? acceptanceChecks.length,
+              )}
+            />
+          </div>
+
+          <details className="mt-3 rounded-md border bg-background/50 p-2">
+            <summary className="cursor-pointer select-none font-medium">
+              展开评分依据明细
+            </summary>
+            <div className="mt-2 grid gap-3 xl:grid-cols-2">
+              <EvidenceList label="覆盖要求" values={mustCover} />
+              <EvidenceList
+                label="验收检查"
+                values={acceptanceChecks}
+              />
+              <EvidenceList
+                label="最低门槛"
+                values={
+                  stringValue(contract.minimum_bar)
+                    ? [stringValue(contract.minimum_bar)]
+                    : []
+                }
+              />
+              <EvidenceList label="复核重点" values={reviewFocus} />
+              <EvidenceList label="旧版评分点" values={rubricPoints} />
+            </div>
+          </details>
+        </>
+      )}
+    </section>
+  );
+}
+
+function TraceTextExcerpt({
+  label,
+  value,
+}: {
+  label: string;
+  value?: string | null;
+}) {
+  const text = stringValue(value);
+  if (!text) return null;
+
+  return (
+    <section className="mt-3 rounded-md border bg-background/60 p-3 text-xs">
+      <p className="font-mono text-[10px] uppercase tracking-wider text-muted-foreground">
+        {label}
+      </p>
+      <p className="mt-1 whitespace-pre-wrap break-words leading-relaxed">{text}</p>
+    </section>
+  );
+}
+
 function EvaluationEvidence({ node }: { node: TraceExplorerNode }) {
-  if (node.node === "director_sample" || node.node === "ask_question") return null;
+  if (
+    node.node === "director_sample" ||
+    node.node === "ask_question" ||
+    node.node === "route_decision" ||
+    node.node === "refine_followup" ||
+    node.node === "final_report"
+  ) {
+    return null;
+  }
 
   const evaluation = recordFromUnknown(node.evaluation);
   const payload = recordFromUnknown(node.payload);
-  const verifierRationale =
-    typeof payload.rationale === "string"
-      ? payload.rationale
-      : typeof payload.verifier_rationale === "string"
-        ? payload.verifier_rationale
-        : "";
+  const acceptanceCheckResults = recordWithPayloadFallback(
+    evaluation.acceptance_check_results,
+    payload.acceptance_check_results,
+  );
   const strengths = stringList(evaluation.strengths);
   const weaknesses = stringList(evaluation.weaknesses);
   const rationale =
     stringValue(evaluation.rationale) ||
     stringValue(evaluation.reasoning) ||
     stringValue(evaluation.feedback) ||
-    stringValue(payload.rationale);
+    (node.node === "verification" ? "" : stringValue(payload.rationale));
 
   if (
     strengths.length === 0 &&
     weaknesses.length === 0 &&
+    Object.keys(acceptanceCheckResults).length === 0 &&
     !rationale &&
-    !verifierRationale &&
     typeof node.immediate_reward_applied !== "boolean"
   ) {
     return null;
@@ -1114,15 +1678,15 @@ function EvaluationEvidence({ node }: { node: TraceExplorerNode }) {
         )}
       </div>
       {rationale && <p className="mt-2 leading-relaxed">{rationale}</p>}
-      {verifierRationale && node.node === "verification" && (
-        <p className="mt-2 leading-relaxed text-amber-200">
-          校验器（Verifier）：{verifierRationale}
-        </p>
-      )}
       {(strengths.length > 0 || weaknesses.length > 0) && (
         <div className="mt-3 grid gap-2 md:grid-cols-2">
           <EvidenceList label="优势" values={strengths} />
           <EvidenceList label="不足" values={weaknesses} />
+        </div>
+      )}
+      {Object.keys(acceptanceCheckResults).length > 0 && (
+        <div className="mt-3">
+          <AcceptanceCheckResults results={acceptanceCheckResults} />
         </div>
       )}
     </section>
@@ -1146,11 +1710,18 @@ function StrategyDecisionSummary({ node }: { node: TraceExplorerNode }) {
   const actionId =
     stringValue(selectedAction.id) || node.action_id || stringValue(diagnostics.chosen) || "—";
   const actionLabel = stringValue(selectedAction.label);
+  const actionName = localizeActionName(actionId, actionLabel);
   const actionDescription = localizeActionDescription(
     actionId,
     actionLabel,
     stringValue(selectedAction.description),
   );
+  const actionBackendLabel =
+    actionLabel && actionId !== "—" ? `${actionId} / ${actionLabel}` : actionId;
+  const planTemplate = stringValue(selectedAction.plan_template);
+  const planTemplateHint = stringValue(selectedAction.plan_template_hint);
+  const dimensionEffect = stringValue(selectedAction.dimension_effect);
+  const diagnosticMode = stringValue(diagnostics.mode);
   const decisionContext =
     node.context_key ||
     stringValue(selectedAction.policy_context_key) ||
@@ -1173,35 +1744,59 @@ function StrategyDecisionSummary({ node }: { node: TraceExplorerNode }) {
         <div>
           <div className="flex items-center gap-2">
             <GitBranch className="h-3.5 w-3.5 text-emerald-300" />
-            <p className="font-medium text-emerald-200">策略决策摘要</p>
+            <p className="font-medium text-emerald-200">出题决策摘要</p>
+            <Badge variant="outline" className="text-[10px]">
+              真实 workflow node
+            </Badge>
           </div>
           <p className="mt-1 max-w-3xl text-muted-foreground">
-            这条记录说明 Director 出题前如何选择下一步动作，不是候选人答题评分。
-            决策用一个 context；reward_update 回填全部 context keys。
+            本节点承接 route_decision=next_question，只解释进入下一题后 Director 选了什么动作与上下文；
+            路由原因请看 route_decision，评分细节请看 evaluator / verification。
           </p>
         </div>
-        {actionDescription && (
-          <p className="max-w-md rounded-md bg-background/50 px-2 py-1 text-[11px] leading-relaxed text-muted-foreground">
-            {actionDescription}
-          </p>
-        )}
       </div>
       <div className="mt-3 grid gap-2 md:grid-cols-3">
         <NodeFact label="节点类型" value={node.node} />
         <NodeFact label="目标维度" value={targetDimension} />
         <NodeFact
-          label="选择动作"
-          value={actionLabel ? `${actionId} · ${actionLabel}` : actionId}
+          label="出题动作"
+          value={`${actionName} · ${actionBackendLabel}`}
+        />
+        <NodeFact label="计划模板" value={localizePlanTemplateName(planTemplate)} />
+        <NodeFact
+          label="计划模板来源"
+          value={planTemplateSourceLabel(selectedAction)}
+        />
+        <NodeFact
+          label="维度变化"
+          value={localizeDimensionEffect(dimensionEffect)}
+        />
+        <NodeFact
+          label="出题动作决策原因"
+          value={diagnosticModeLabel(diagnosticMode)}
         />
         <NodeFact label="决策上下文" value={decisionContext} />
         <NodeFact label="策略算法" value={policy.algorithm} />
         <NodeFact label="策略空间" value={policy.space} />
+        {planTemplateHint && (
+          <NodeFact label="计划模板 hint" value={planTemplateHint} />
+        )}
         <NodeFact
           label="奖励回填上下文"
           value={candidateContexts.length > 0 ? candidateContexts.join(", ") : "—"}
         />
         <NodeFact label="奖励状态" value={rewardStatus} />
       </div>
+      {actionDescription && (
+        <div className="mt-3 rounded-md border bg-background/50 p-2">
+          <p className="font-mono text-[10px] uppercase tracking-wider text-muted-foreground">
+            动作说明
+          </p>
+          <p className="mt-1 break-words text-[11px] leading-relaxed">
+            {actionDescription}
+          </p>
+        </div>
+      )}
     </section>
   );
 }
@@ -1575,6 +2170,11 @@ function AskQuestionEvidencePanelV2({ node }: { node: TraceExplorerNode }) {
                   <p className="break-words font-medium">
                     {localizeStrategyMemoryName(strategy)}
                   </p>
+                  {strategyMemoryDescription(strategy) && (
+                    <p className="mt-1 break-words text-[11px] leading-relaxed text-muted-foreground">
+                      {strategyMemoryDescription(strategy)}
+                    </p>
+                  )}
                   <p className="mt-0.5 break-words font-mono text-[10px] text-muted-foreground">
                     {strategyMemoryTraceKey(strategy) || "strategy id —"}
                   </p>
@@ -2110,6 +2710,11 @@ function LegacyAskQuestionEvidencePanel({ node }: { node: TraceExplorerNode }) {
                   <p className="break-words font-medium">
                     {localizeStrategyMemoryName(strategy)}
                   </p>
+                  {strategyMemoryDescription(strategy) && (
+                    <p className="mt-1 break-words text-[11px] leading-relaxed text-muted-foreground">
+                      {strategyMemoryDescription(strategy)}
+                    </p>
+                  )}
                   <p className="mt-0.5 break-words font-mono text-[10px] text-muted-foreground">
                     {strategyMemoryTraceKey(strategy) || "strategy id —"}
                   </p>
@@ -2481,6 +3086,58 @@ function EvidenceList({ label, values }: { label: string; values: string[] }) {
   );
 }
 
+function AcceptanceCheckResults({
+  results,
+}: {
+  results: Record<string, unknown>;
+}) {
+  const entries = Object.entries(results);
+  if (entries.length === 0) return null;
+
+  return (
+    <details className="rounded-md border bg-background/45 p-2">
+      <summary className="cursor-pointer select-none font-medium">
+        展开验收检查 <span className="font-mono">acceptance_check_results</span>
+        <span className="ml-1 text-muted-foreground">yes / partial / no</span>
+      </summary>
+      <div className="mt-2 space-y-2">
+        {entries.map(([check, value]) => {
+          const item = recordFromUnknown(value);
+          const verdict = acceptanceVerdict(value);
+          const evidenceQuotes = acceptanceEvidenceQuotes(item);
+          return (
+            <div key={check} className="rounded-md border bg-background/50 p-2">
+              <div className="flex flex-wrap items-start justify-between gap-2">
+                <p className="break-words font-medium">{check}</p>
+                <Badge
+                  variant="outline"
+                  className={`font-mono text-[10px] ${acceptanceVerdictBadgeClass(verdict)}`}
+                >
+                  {verdict || "verdict —"}
+                </Badge>
+              </div>
+              {evidenceQuotes.length > 0 && (
+                <details className="mt-2 rounded-md border bg-background/50 p-2">
+                  <summary className="cursor-pointer select-none text-muted-foreground">
+                    展开 evidence quotes
+                  </summary>
+                  <ul className="mt-2 list-disc space-y-1 pl-4">
+                    {evidenceQuotes.map((quote, idx) => (
+                      <li key={idx} className="break-words">
+                        {quote}
+                      </li>
+                    ))}
+                  </ul>
+                </details>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </details>
+  );
+}
+
 function RawTracePayloadDetails({
   rawPayload,
 }: {
@@ -2615,10 +3272,88 @@ function localizeActionDescription(
   actionLabel: string,
   description: string,
 ): string {
-  if (actionId === "plan_switch" || actionLabel === "Plan: Switch") {
-    return "切换到下一个待覆盖维度，并用 adaptive 模板出下一题。";
+  const labels: Record<string, string> = {
+    plan_simple: "轻量首轮探测，不进行评分契约预审。",
+    plan_quick_review: "紧凑复核当前维度，快速确认一个信号后继续推进。",
+    plan_adaptive: "标准自适应出题，并让 evaluator 预审评分契约。",
+    plan_deep_probe: "围绕上一轮弱点深挖，使用更严格的评分契约与挑战场景。",
+    plan_hint: "保持当前维度，用更轻的提示式问题帮助候选人展开。",
+    plan_switch: "切换到下一个待覆盖维度，并用 adaptive 模板出下一题。",
+    deepen_technical: "在当前技术维度继续加深，要求候选人给出具体机制。",
+    switch_dimension: "切换到下一个尚未评估的维度。",
+    give_hint: "给一个小提示，保持当前维度后重新提问。",
+    skip_to_next: "收束当前问题线，进入下一题。",
+  };
+  return labels[actionId] || localizeActionDescriptionByLabel(actionLabel) || description;
+}
+
+function localizeActionDescriptionByLabel(actionLabel: string): string {
+  const labels: Record<string, string> = {
+    "Plan: Simple": "轻量首轮探测，不进行评分契约预审。",
+    "Plan: Quick Review": "紧凑复核当前维度，快速确认一个信号后继续推进。",
+    "Plan: Adaptive": "标准自适应出题，并让 evaluator 预审评分契约。",
+    "Plan: Deep Probe": "围绕上一轮弱点深挖，使用更严格的评分契约与挑战场景。",
+    "Plan: Hint": "保持当前维度，用更轻的提示式问题帮助候选人展开。",
+    "Plan: Switch": "切换到下一个待覆盖维度，并用 adaptive 模板出下一题。",
+    "Deepen Technical": "在当前技术维度继续加深，要求候选人给出具体机制。",
+    "Switch Dimension": "切换到下一个尚未评估的维度。",
+    "Give Hint": "给一个小提示，保持当前维度后重新提问。",
+    "Skip To Next": "收束当前问题线，进入下一题。",
+  };
+  return labels[actionLabel] || "";
+}
+
+function localizeActionName(actionId: string, actionLabel: string): string {
+  const labels: Record<string, string> = {
+    plan_simple: "轻量探测",
+    plan_quick_review: "快速复核",
+    plan_adaptive: "自适应出题",
+    plan_deep_probe: "深挖探测",
+    plan_hint: "提示式出题",
+    plan_switch: "切换维度出题",
+    deepen_technical: "技术加深",
+    switch_dimension: "切换维度",
+    give_hint: "给出提示",
+    skip_to_next: "跳到下一题",
+  };
+  return labels[actionId] || labels[actionLabel] || actionLabel || actionId || "—";
+}
+
+function localizePlanTemplateName(template: string): string {
+  const labels: Record<string, string> = {
+    simple: "轻量模板",
+    quick_review: "快速复核模板",
+    adaptive: "标准自适应模板",
+    deep_probe: "深挖探测模板",
+  };
+  if (!template) return "—";
+  return `${labels[template] || "未识别模板"} · ${template}`;
+}
+
+function localizeDimensionEffect(effect: string): string {
+  if (effect === "switch") return "切换到下一个待覆盖维度 · dimension_effect=switch";
+  if (effect === "none") return "保持当前维度 · dimension_effect=none";
+  return effect ? `${effect}` : "—";
+}
+
+function planTemplateSourceLabel(selectedAction: Record<string, unknown>): string {
+  if (stringValue(selectedAction.plan_template_hint)) {
+    return "上游 pending_plan_template 覆盖";
   }
-  return description;
+  if (stringValue(selectedAction.plan_template)) {
+    return "出题动作默认模板";
+  }
+  return "未记录";
+}
+
+function diagnosticModeLabel(mode: string): string {
+  const labels: Record<string, string> = {
+    coverage_priority_switch: "覆盖优先，切到未评分维度",
+    coverage_force_switch: "当前维度追问次数已到上限，强制推进覆盖",
+    anchor_expansion: "所有维度已过，扩展候选人项目锚点",
+  };
+  if (!mode) return "Thompson Sampling 按当前 context 选择";
+  return `${labels[mode] || "后端诊断模式"} · ${mode}`;
 }
 
 function recordArray(value: unknown): Record<string, unknown>[] {
@@ -2630,6 +3365,62 @@ function recordArray(value: unknown): Record<string, unknown>[] {
     : [];
 }
 
+function recordWithPayloadFallback(
+  primary: unknown,
+  fallback: unknown,
+): Record<string, unknown> {
+  const primaryRecord = recordFromUnknown(primary);
+  if (Object.keys(primaryRecord).length > 0) return primaryRecord;
+  return recordFromUnknown(fallback);
+}
+
+function evaluatorContractSourceLabel(source: string): string {
+  const labels: Record<string, string> = {
+    current_contract: "current_contract",
+    "current_question.contract": "current_question.contract",
+    legacy_rubric_points: "legacy rubric",
+    "ask_question.contract": "ask_question contract",
+    missing: "未记录",
+  };
+  return labels[source] || source || "未记录";
+}
+
+function acceptanceVerdict(value: unknown): string {
+  if (typeof value === "string") return value.trim();
+  const record = recordFromUnknown(value);
+  return (
+    stringValue(record.verdict) ||
+    stringValue(record.status) ||
+    stringValue(record.result)
+  );
+}
+
+function acceptanceVerdictBadgeClass(verdict: string): string {
+  if (verdict === "yes") {
+    return "border-transparent bg-emerald-500/20 text-emerald-300";
+  }
+  if (verdict === "partial") {
+    return "border-transparent bg-sky-500/20 text-sky-300";
+  }
+  if (verdict === "no") {
+    return "border-transparent bg-rose-500/20 text-rose-300";
+  }
+  return "";
+}
+
+function acceptanceEvidenceQuotes(item: Record<string, unknown>): string[] {
+  const quotes = [
+    ...stringList(item.evidence),
+    ...stringList(item.evidence_quotes),
+    ...stringList(item.quotes),
+  ];
+  for (const span of recordArray(item.evidence_spans)) {
+    const quote = stringValue(span.quote) || stringValue(span.text);
+    if (quote) quotes.push(quote);
+  }
+  return Array.from(new Set(quotes));
+}
+
 function formatCountValue(value: unknown): string {
   return typeof value === "number" && Number.isFinite(value) ? String(value) : "—";
 }
@@ -2638,9 +3429,190 @@ function formatScore(value: unknown): string {
   return typeof value === "number" && Number.isFinite(value) ? value.toFixed(2) : "—";
 }
 
+function formatConfidenceValue(value: unknown): string {
+  if (typeof value === "number" && Number.isFinite(value)) return value.toFixed(2);
+  const raw = stringValue(value);
+  if (!raw) return "—";
+  const parsed = Number.parseFloat(raw);
+  return Number.isFinite(parsed) ? parsed.toFixed(2) : raw;
+}
+
 function formatBooleanValue(value: unknown): string {
   if (typeof value !== "boolean") return "—";
   return value ? "是" : "否";
+}
+
+function formatVerifierPassState(value: unknown): string {
+  if (typeof value !== "boolean") return "—";
+  return value ? "通过" : "未通过";
+}
+
+function verificationVerdictLabel(value: string): string {
+  const labels: Record<string, string> = {
+    pass: "pass · 确认",
+    partial: "partial · 部分质疑",
+    fail: "fail · 未通过",
+  };
+  return labels[value] || value || "—";
+}
+
+function verificationReviewStatus(
+  payload: Record<string, unknown>,
+  evaluation: Record<string, unknown>,
+): string {
+  const effect = stringValue(payload.verification_effect);
+  if (effect === "not_triggered") return "未触发";
+  if (effect === "soft_warning_only") return "低置信保留原判";
+  if (effect === "overruled_to_refine") return "已改写";
+  if (effect === "no_change") {
+    const verdict = stringValue(payload.verdict);
+    if (verdict === "pass") return "已确认";
+    return "未改写";
+  }
+  if (payload.triggered === false) return "未触发";
+  if (payload.verifier_abstained === true || evaluation.verifier_abstained === true) {
+    return "低置信保留原判";
+  }
+  if (payload.verdict_changed === true) return "已改写";
+  if (payload.forced_refine === true || evaluation.verifier_forced_refine === true) {
+    return "强制追问";
+  }
+  const verdict = stringValue(payload.verdict);
+  if (verdict === "pass") return "已确认";
+  if (verdict === "partial") return "部分质疑";
+  if (verdict === "fail") return "复核未通过";
+  return "未记录复核";
+}
+
+function verificationReviewBadgeVariant(
+  status: string,
+): "outline" | "success" | "warn" {
+  if (status === "已确认") return "success";
+  if (status === "未触发" || status === "未记录复核") return "outline";
+  return "warn";
+}
+
+function verificationEffectValue(
+  payload: Record<string, unknown>,
+  evaluation: Record<string, unknown>,
+  changes: Record<string, unknown>[],
+): string {
+  const recorded = stringValue(payload.verification_effect);
+  if (recorded) return recorded;
+  if (payload.triggered === false) return "not_triggered";
+  const fields = new Set(changes.map((change) => stringValue(change.field)));
+  if (fields.size > 0 && [...fields].every((field) =>
+    field === "soft_warnings" || field === "verifier_abstained"
+  )) {
+    return "soft_warning_only";
+  }
+  if (changes.length > 0 || payload.verdict_changed === true) {
+    if (payload.verifier_abstained === true || evaluation.verifier_abstained === true) {
+      return "soft_warning_only";
+    }
+    return "overruled_to_refine";
+  }
+  return "no_change";
+}
+
+function verificationEffectLabel(effect: string): string {
+  const labels: Record<string, string> = {
+    not_triggered: "未触发",
+    no_change: "未改写",
+    soft_warning_only: "低置信保留原判",
+    overruled_to_refine: "改写为继续追问",
+  };
+  return effect ? `${labels[effect] || "未知影响"} · ${effect}` : "—";
+}
+
+function verificationRewriteLabel(value: unknown, effect: string): string {
+  if (effect === "overruled_to_refine") return "已改写";
+  if (effect === "soft_warning_only") return "未改写，仅记录软警告";
+  if (effect === "not_triggered" || effect === "no_change") return "否";
+  return formatBooleanValue(value);
+}
+
+function formatVerificationChangeValue(field: string, value: unknown): string {
+  if (field === "passed") return formatVerifierPassState(value);
+  if (typeof value === "boolean") return formatBooleanValue(value);
+  if (Array.isArray(value)) {
+    const values = value.map((item) => String(item ?? "")).filter(Boolean);
+    return values.length > 0 ? values.join(", ") : "-";
+  }
+  if (value === null || value === undefined || value === "") return "-";
+  return String(value);
+}
+
+function routeDecisionLabel(decision: string): string {
+  const labels: Record<string, string> = {
+    refine: "继续追问",
+    next_question: "进入下一题",
+    end: "结束面试",
+  };
+  return labels[decision] || decision || "—";
+}
+
+function routeDecisionBadgeVariant(
+  decision: string,
+): "outline" | "success" | "warn" {
+  if (decision === "refine") return "warn";
+  if (decision === "next_question") return "success";
+  return "outline";
+}
+
+function routeDecisionNextNode(decision: string): string {
+  const nodes: Record<string, string> = {
+    refine: "refine_followup",
+    next_question: "director_sample",
+    end: "final_report",
+  };
+  return nodes[decision] || "";
+}
+
+function routeDecisionReasonLabel(reason: string): string {
+  const labels: Record<string, string> = {
+    session_cancelled: "会话已取消",
+    turn_limit_reached: "轮次达到上限",
+    budget_exhausted: "剩余预算耗尽",
+    all_dimensions_passed: "所有维度已通过",
+    anchor_expansion: "进入候选人锚点扩展",
+    evaluator_fallback: "Evaluator fallback，跳过追问",
+    coverage_advance: "追问次数已到上限，推进覆盖",
+    evaluator_recommended_refine: "Evaluator 建议继续追问",
+    dimension_passed: "当前维度已通过",
+    default_not_passed_refine: "未通过，默认继续追问",
+  };
+  if (!reason) return "—";
+  return `${labels[reason] || "未识别原因"} · ${reason}`;
+}
+
+function routeDecisionEffect(decision: string, nextNode: string): string {
+  if (decision === "refine") {
+    return "下一步进入 refine_followup；它会把 evaluator 的 recommended_next_plan 转成 pending_plan_template / pending_contract_hints，再回到 director_sample 组织下一轮追问。";
+  }
+  if (decision === "next_question") {
+    return "下一步进入 director_sample，跳过 refine_followup，由 Director 重新选择维度和出题策略。";
+  }
+  if (decision === "end") {
+    return "下一步进入 final_report，停止主面试链路并生成最终报告。";
+  }
+  return nextNode
+    ? `下一步进入 ${nextNode}。`
+    : "旧 trace 只记录了部分路由字段，无法确定后续节点。";
+}
+
+function formatRouteTurnProgress(formalTurn: unknown, maxTurns: unknown): string {
+  const current = formatDiagnosticScalar(formalTurn);
+  const max = formatDiagnosticScalar(maxTurns);
+  if (!current && !max) return "—";
+  return `${current || "?"}/${max || "?"}`;
+}
+
+function formatRouteAttemptValue(attempts: unknown, maxRefines: unknown): string {
+  const current = formatDiagnosticScalar(attempts);
+  const max = formatDiagnosticScalar(maxRefines);
+  if (!current && !max) return "—";
+  return `${current || "?"}/${max || "?"}`;
 }
 
 function formatStringListValue(value: unknown): string {
@@ -2666,6 +3638,21 @@ function formatDiagnosticScalar(value: unknown): string {
   const list = stringList(value);
   if (list.length > 0) return list.join(",");
   return stringValue(value);
+}
+
+function refineHintKeyLabel(key: string): string {
+  const labels: Record<string, string> = {
+    must_address: "必须处理 must_address",
+    missing_must_cover: "缺失覆盖项 missing_must_cover",
+    failure_categories: "失败类别 failure_categories",
+    probe_intent: "追问意图 probe_intent",
+    failure_reason: "失败原因 failure_reason",
+    prior_soft_warnings: "历史软警告 prior_soft_warnings",
+    recommended_next_plan: "推荐计划 recommended_next_plan",
+    recommended_next: "推荐动作 recommended_next",
+    dimension: "目标维度 dimension",
+  };
+  return labels[key] || key;
 }
 
 function inferQuestionSelectorMode(
@@ -2741,6 +3728,8 @@ function strategyMemoryTraceKey(strategy: Record<string, unknown>): string {
 }
 
 function localizeStrategyMemoryName(strategy: Record<string, unknown>): string {
+  const displayName = stringValue(strategy.display_name_zh);
+  if (displayName) return displayName;
   const key = strategyMemoryTraceKey(strategy);
   const name = stringValue(strategy.name);
   const labels: Record<string, string> = {
@@ -2752,6 +3741,12 @@ function localizeStrategyMemoryName(strategy: Record<string, unknown>): string {
     "Evasive Answer Patterns": "回避型回答模式",
   };
   return labels[key] || labels[name] || name || key || "未命名策略";
+}
+
+function strategyMemoryDescription(strategy: Record<string, unknown>): string {
+  return (
+    stringValue(strategy.display_description_zh) || stringValue(strategy.description)
+  );
 }
 
 function localizeAskPlanStepTitle(
@@ -3242,8 +4237,162 @@ function nodeMatchesQuery(node: TraceExplorerNode, query: string): boolean {
     stringValue(evaluation.rationale),
     stringValue(evaluation.feedback),
     ...askQuestionSearchFields(node.payload),
+    ...verificationChangeSearchFields(node.payload),
+    ...evaluatorScoringSearchFields(node.payload, evaluation),
+    ...routeDecisionSearchFields(node.payload),
+    ...successorNodeSearchFields(node.payload),
   ];
   return fields.some((field) => String(field ?? "").toLowerCase().includes(query));
+}
+
+function verificationChangeSearchFields(
+  payload?: Record<string, unknown> | null,
+): string[] {
+  const record = recordFromUnknown(payload);
+  const fields: string[] = [];
+  const add = (value: unknown) => {
+    if (typeof value === "string" && value.trim()) fields.push(value);
+  };
+
+  add(record.verification_effect);
+  for (const change of recordArray(record.verification_changes)) {
+    add(change.field);
+    add(change.label);
+    add(change.reason);
+    add(formatVerificationChangeValue(stringValue(change.field), change.before));
+    add(formatVerificationChangeValue(stringValue(change.field), change.after));
+  }
+  return fields;
+}
+
+function evaluatorScoringSearchFields(
+  payload?: Record<string, unknown> | null,
+  evaluation?: Record<string, unknown> | null,
+): string[] {
+  const fields: string[] = [];
+  const add = (value: unknown) => {
+    if (typeof value === "string" && value.trim()) fields.push(value);
+  };
+  const addList = (value: unknown) => {
+    for (const item of stringList(value)) fields.push(item);
+  };
+  const addRecord = (value: unknown) => {
+    for (const [key, item] of Object.entries(recordFromUnknown(value))) {
+      add(key);
+      add(formatDiagnosticScalar(item));
+      const record = recordFromUnknown(item);
+      add(record.verdict);
+      add(record.status);
+      addList(record.evidence);
+      addList(record.evidence_quotes);
+      for (const span of recordArray(record.evidence_spans)) {
+        add(span.quote);
+        add(span.text);
+      }
+    }
+  };
+
+  for (const record of [
+    recordFromUnknown(payload),
+    recordFromUnknown(evaluation),
+  ]) {
+    add(record.contract_source);
+    add(record.contract_bar_level);
+    addList(record.signed_by);
+    addList(record.rubric_points);
+    addRecord(record.rubric_coverage);
+    addRecord(record.acceptance_check_results);
+    add(record.recommended_next);
+    add(record.recommended_next_plan);
+    add(record.recommended_probe_intent);
+    add(record.failure_reason);
+    addList(record.failure_categories);
+    const contract = recordFromUnknown(record.contract);
+    addList(contract.must_cover);
+    addList(contract.acceptance_checks);
+    add(contract.minimum_bar);
+    addList(contract.review_focus);
+  }
+  return fields;
+}
+
+function routeDecisionSearchFields(
+  payload?: Record<string, unknown> | null,
+): string[] {
+  const record = recordFromUnknown(payload);
+  const inputs = recordFromUnknown(record.decision_inputs);
+  const fields: string[] = [];
+  const add = (value: unknown) => {
+    if (typeof value === "string" && value.trim()) fields.push(value);
+  };
+
+  add(record.router);
+  add(record.decision);
+  add(record.next_node);
+  add(record.decision_reason);
+  add(record.dimension);
+  add(record.recommended_next);
+  add(record.recommended_next_plan);
+  add(record.recommended_probe_intent);
+  add(record.evaluation_source);
+  add(record.fallback_reason);
+
+  for (const [key, value] of Object.entries(inputs)) {
+    add(key);
+    add(formatDiagnosticScalar(value));
+  }
+
+  return fields;
+}
+
+function successorNodeSearchFields(
+  payload?: Record<string, unknown> | null,
+): string[] {
+  const record = recordFromUnknown(payload);
+  const fields: string[] = [];
+  const add = (value: unknown) => {
+    if (typeof value === "string" && value.trim()) fields.push(value);
+    else if (typeof value === "number" || typeof value === "boolean") {
+      fields.push(formatDiagnosticScalar(value));
+    }
+  };
+  const addList = (value: unknown) => {
+    for (const item of stringList(value)) fields.push(item);
+  };
+  const addRecord = (value: unknown) => {
+    for (const [key, item] of Object.entries(recordFromUnknown(value))) {
+      add(key);
+      add(formatDiagnosticScalar(item));
+      addList(item);
+    }
+  };
+
+  add(record.pending_plan_template);
+  add(record.next_template);
+  add(record.dimension);
+  add(record.probe_intent);
+  add(record.failure_reason);
+  addList(record.failure_categories);
+  addList(record.prior_soft_warnings);
+  addRecord(record.pending_contract_hints);
+
+  addRecord(record.selected_action);
+  addRecord(record.diagnostics);
+  addList(record.policy_context_keys);
+
+  add(record.report_status);
+  add(record.final_status);
+  add(record.overall_score);
+  add(record.conclusion);
+  add(record.verdict);
+  add(record.summary);
+  addList(record.missing_sections);
+  add(record.training_plan_queued);
+  add(record.experience_extractor_queued);
+  add(record.fallback_count);
+  add(record.evaluator_turn_count);
+
+  return fields;
 }
 
 function askQuestionSearchFields(
@@ -3336,6 +4485,9 @@ function askQuestionSearchFields(
     // strategy id/name
     add(strategy.id);
     add(strategy.name);
+    add(strategy.description);
+    add(strategy.display_name_zh);
+    add(strategy.display_description_zh);
     add(strategy.memory_key);
     add(strategy.slug);
     add(strategy.source);

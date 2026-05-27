@@ -23,6 +23,8 @@ class StrategyMemory(Base):
     slug: Mapped[str] = mapped_column(String(128), unique=True, index=True)
     name: Mapped[str] = mapped_column(String(160))
     description: Mapped[str] = mapped_column(String(512), default="")
+    display_name_zh: Mapped[str] = mapped_column(String(200), default="")
+    display_description_zh: Mapped[str] = mapped_column(String(512), default="")
     source: Mapped[str] = mapped_column(String(32), default="seed", index=True)
     memory_key: Mapped[str | None] = mapped_column(String(256), unique=True, index=True)
 
