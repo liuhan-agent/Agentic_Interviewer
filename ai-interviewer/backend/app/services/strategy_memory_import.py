@@ -30,6 +30,8 @@ class ParsedStrategySeed:
     slug: str
     name: str
     description: str
+    display_name_zh: str
+    display_description_zh: str
     memory_key: str | None
     dimensions: list[str]
     job_levels: list[str]
@@ -86,6 +88,10 @@ def parse_strategy_seed(path: Path) -> ParsedStrategySeed:
         slug=slug,
         name=str(frontmatter.get("name") or slug),
         description=str(frontmatter.get("description") or ""),
+        display_name_zh=str(frontmatter.get("display_name_zh") or ""),
+        display_description_zh=str(
+            frontmatter.get("display_description_zh") or ""
+        ),
         memory_key=_optional_str(frontmatter.get("memory_key")),
         dimensions=_string_list(frontmatter.get("dimensions")),
         job_levels=_string_list(frontmatter.get("job_levels")),
@@ -100,6 +106,8 @@ def _new_strategy_memory(seed: ParsedStrategySeed) -> StrategyMemory:
         slug=seed.slug,
         name=seed.name,
         description=seed.description,
+        display_name_zh=seed.display_name_zh,
+        display_description_zh=seed.display_description_zh,
         source="seed",
         memory_key=seed.memory_key,
         dimensions=seed.dimensions,
@@ -116,6 +124,8 @@ def _update_strategy_memory(row: StrategyMemory, seed: ParsedStrategySeed) -> No
     row.slug = seed.slug
     row.name = seed.name
     row.description = seed.description
+    row.display_name_zh = seed.display_name_zh
+    row.display_description_zh = seed.display_description_zh
     row.source = "seed"
     row.memory_key = seed.memory_key
     row.dimensions = seed.dimensions

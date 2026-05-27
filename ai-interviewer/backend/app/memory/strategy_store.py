@@ -62,6 +62,8 @@ class StrategyEntry:
     memory_key: str | None = None
     name: str = ""
     description: str = ""
+    display_name_zh: str = ""
+    display_description_zh: str = ""
     entry_type: str = "strategy"
     source: str = "file"
     status: str = "active"
@@ -165,6 +167,10 @@ def _list_db_strategies() -> list[StrategyEntry]:
             memory_key=row.memory_key,
             name=row.name,
             description=row.description,
+            display_name_zh=str(getattr(row, "display_name_zh", "") or ""),
+            display_description_zh=str(
+                getattr(row, "display_description_zh", "") or ""
+            ),
             entry_type="strategy",
             source=row.source,
             status=row.status,
@@ -208,6 +214,8 @@ def _list_file_strategies() -> list[StrategyEntry]:
             slug=p.stem,
             name=fm.get("name", p.stem),
             description=fm.get("description", ""),
+            display_name_zh=str(fm.get("display_name_zh", "")),
+            display_description_zh=str(fm.get("display_description_zh", "")),
             entry_type=fm.get("type", "strategy"),
             source="file",
             status="active",

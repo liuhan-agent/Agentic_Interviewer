@@ -134,6 +134,8 @@ _SQLITE_UPGRADES: dict[str, dict[str, str]] = {
         "helpful_score": "REAL",
     },
     "strategy_memories": {
+        "display_name_zh": "VARCHAR(200) DEFAULT ''",
+        "display_description_zh": "VARCHAR(512) DEFAULT ''",
         "quality_reason": "VARCHAR(512)",
     },
     "interview_turns": {
@@ -189,6 +191,8 @@ _POSTGRES_UPGRADES: dict[str, dict[str, str]] = {
         "helpful_score": "DOUBLE PRECISION",
     },
     "strategy_memories": {
+        "display_name_zh": "VARCHAR(200) DEFAULT ''",
+        "display_description_zh": "VARCHAR(512) DEFAULT ''",
         "quality_reason": "VARCHAR(512)",
     },
     "interview_turns": {

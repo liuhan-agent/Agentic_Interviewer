@@ -1021,10 +1021,215 @@ def _enrich_trace_skill_display_fields(
     return enriched
 
 
+def _trace_strategy_display_lookup(sess: Any) -> dict[str, dict[str, str]]:
+    try:
+        from app.models.strategy_memory import StrategyMemory
+
+        rows = (
+            sess.query(
+                StrategyMemory.id,
+                StrategyMemory.slug,
+                StrategyMemory.memory_key,
+                StrategyMemory.name,
+                StrategyMemory.display_name_zh,
+                StrategyMemory.display_description_zh,
+            )
+            .filter(StrategyMemory.status != "archived")
+            .all()
+        )
+    except Exception as exc:  # pragma: no cover - admin remains best-effort
+        log.debug("trace strategy display lookup unavailable: %s", exc)
+        return {}
+
+    lookup: dict[str, dict[str, str]] = {}
+    for row in rows:
+        if isinstance(row, (tuple, list)) and len(row) < 6:
+            continue
+        mapping = getattr(row, "_mapping", None)
+        strategy_id = (
+            mapping.get("id") if mapping is not None else getattr(row, "id", None)
+        )
+        slug = (
+            mapping.get("slug") if mapping is not None else getattr(row, "slug", None)
+        )
+        memory_key = (
+            mapping.get("memory_key")
+            if mapping is not None
+            else getattr(row, "memory_key", None)
+        )
+        name = (
+            mapping.get("name") if mapping is not None else getattr(row, "name", None)
+        )
+        display_name_zh = (
+            mapping.get("display_name_zh")
+            if mapping is not None
+            else getattr(row, "display_name_zh", "")
+        )
+        display_description_zh = (
+            mapping.get("display_description_zh")
+            if mapping is not None
+            else getattr(row, "display_description_zh", "")
+        )
+        display = {
+            "display_name_zh": str(display_name_zh or ""),
+            "display_description_zh": str(display_description_zh or ""),
+        }
+        keys = [
+            strategy_id,
+            slug,
+            f"{slug}.md" if slug else "",
+            memory_key,
+            name,
+        ]
+        for key in keys:
+            normalized = str(key or "").strip()
+            if normalized:
+                lookup[normalized] = display
+    return lookup
+
+
+def _enrich_trace_strategy_display_fields(
+    payload: dict[str, Any],
+    strategy_display_lookup: Mapping[str, Mapping[str, str]] | None,
+) -> dict[str, Any]:
+    if not strategy_display_lookup:
+        return payload
+
+    refs: list[Any] = []
+    top_refs = payload.get("strategy_memory_refs")
+    if isinstance(top_refs, list):
+        refs.extend(top_refs)
+    artifacts = payload.get("selection_artifacts")
+    if isinstance(artifacts, dict):
+        artifact_refs = artifacts.get("strategies")
+        if isinstance(artifact_refs, list):
+            refs.extend(artifact_refs)
+    if not refs:
+        return payload
+
+    enriched = deepcopy(payload)
+    enriched_refs: list[Any] = []
+    top_enriched = enriched.get("strategy_memory_refs")
+    if isinstance(top_enriched, list):
+        enriched_refs.extend(top_enriched)
+    enriched_artifacts = enriched.get("selection_artifacts")
+    if isinstance(enriched_artifacts, dict):
+        artifact_refs = enriched_artifacts.get("strategies")
+        if isinstance(artifact_refs, list):
+            enriched_refs.extend(artifact_refs)
+
+    for ref in enriched_refs:
+        if not isinstance(ref, dict):
+            continue
+        candidates = (
+            ref.get("id"),
+            ref.get("slug"),
+            f"{ref.get('slug')}.md" if ref.get("slug") else "",
+            ref.get("memory_key"),
+            ref.get("name"),
+        )
+        display = next(
+            (
+                strategy_display_lookup[key]
+                for value in candidates
+                if (key := str(value or "").strip()) in strategy_display_lookup
+            ),
+            None,
+        )
+        if not display:
+            continue
+        display_name = str(display.get("display_name_zh") or "")
+        display_description = str(display.get("display_description_zh") or "")
+        if display_name and not str(ref.get("display_name_zh") or "").strip():
+            ref["display_name_zh"] = display_name
+        if (
+            display_description
+            and not str(ref.get("display_description_zh") or "").strip()
+        ):
+            ref["display_description_zh"] = display_description
+    return enriched
+
+
+def _list_from_unknown(value: Any) -> list[Any]:
+    return value if isinstance(value, list) else []
+
+
+def _contract_trace_payload(
+    contract: Mapping[str, Any],
+    *,
+    source: str,
+) -> dict[str, Any]:
+    must_cover = _list_from_unknown(contract.get("must_cover"))
+    acceptance_checks = _list_from_unknown(contract.get("acceptance_checks"))
+    signed_by = _list_from_unknown(contract.get("signed_by"))
+    return {
+        "contract_source": source,
+        "contract": deepcopy(dict(contract)),
+        "contract_must_cover_count": len(must_cover),
+        "contract_acceptance_check_count": len(acceptance_checks),
+        "contract_bar_level": contract.get("bar_level"),
+        "signed_by": deepcopy(signed_by),
+    }
+
+
+def _trace_ask_question_contract_lookup(
+    traces: list[Any],
+) -> dict[Any, dict[str, Any]]:
+    lookup: dict[Any, dict[str, Any]] = {}
+    for trace in traces:
+        if getattr(trace, "node", None) != "ask_question":
+            continue
+        snapshot = _trace_record_from_unknown(getattr(trace, "state_snapshot", None))
+        payload = _trace_record_from_unknown(snapshot.get("payload"))
+        contract = _trace_record_from_unknown(payload.get("contract"))
+        if not contract:
+            continue
+        turn_idx = getattr(trace, "turn_idx", None)
+        if turn_idx is None:
+            continue
+        lookup[turn_idx] = _contract_trace_payload(
+            contract,
+            source="ask_question.contract",
+        )
+    return lookup
+
+
+def _enrich_trace_evaluator_contract_payload(
+    payload: dict[str, Any],
+    trace: Any,
+    evaluator_contract_lookup: Mapping[Any, Mapping[str, Any]] | None,
+) -> dict[str, Any]:
+    if getattr(trace, "node", None) != "evaluator" or not evaluator_contract_lookup:
+        return payload
+    if "contract_source" in payload or "contract" in payload:
+        return payload
+    contract_payload = evaluator_contract_lookup.get(getattr(trace, "turn_idx", None))
+    if not contract_payload:
+        return payload
+    contract = _trace_record_from_unknown(contract_payload.get("contract"))
+    if contract and (
+        "contract_must_cover_count" not in contract_payload
+        or "contract_acceptance_check_count" not in contract_payload
+    ):
+        contract_payload = {
+            **_contract_trace_payload(
+                contract,
+                source=str(contract_payload.get("contract_source") or "ask_question.contract"),
+            ),
+            **dict(contract_payload),
+        }
+    enriched = dict(payload)
+    for key, value in contract_payload.items():
+        enriched.setdefault(key, deepcopy(value))
+    return enriched
+
+
 def _trace_node_payload(
     trace: Any,
     *,
     skill_display_lookup: Mapping[str, Mapping[str, str]] | None = None,
+    strategy_display_lookup: Mapping[str, Mapping[str, str]] | None = None,
+    evaluator_contract_lookup: Mapping[Any, Mapping[str, Any]] | None = None,
 ) -> dict[str, Any]:
     snapshot = trace.state_snapshot or {}
     payload = snapshot.get("payload") if isinstance(snapshot, dict) else None
@@ -1045,6 +1250,16 @@ def _trace_node_payload(
         summary = _enrich_trace_skill_display_fields(
             summary,
             skill_display_lookup,
+        )
+        summary = _enrich_trace_strategy_display_fields(
+            summary,
+            strategy_display_lookup,
+        )
+    if trace.node == "evaluator":
+        summary = _enrich_trace_evaluator_contract_payload(
+            summary,
+            trace,
+            evaluator_contract_lookup,
         )
     answer_excerpt = None if is_ask_question else _answer_excerpt(trace.answer)
     evaluation = None if is_ask_question else trace.evaluation
@@ -1134,11 +1349,15 @@ def _interview_session_trace_payload(
             .all()
         )
         skill_display_lookup = _trace_skill_display_lookup(sess)
+        strategy_display_lookup = _trace_strategy_display_lookup(sess)
+        evaluator_contract_lookup = _trace_ask_question_contract_lookup(all_traces)
 
     nodes = [
         _trace_node_payload(
             trace,
             skill_display_lookup=skill_display_lookup,
+            strategy_display_lookup=strategy_display_lookup,
+            evaluator_contract_lookup=evaluator_contract_lookup,
         )
         for trace in traces
     ]

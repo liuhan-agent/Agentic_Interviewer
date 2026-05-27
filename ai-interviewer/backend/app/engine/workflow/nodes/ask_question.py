@@ -1067,6 +1067,7 @@ def _step_negotiate_contract(state: InterviewState, ctx: dict[str, Any]) -> None
         question=question,
         proposed_contract=ctx.get("proposed_contract") or {},
         contract_hints=ctx.get("contract_hints"),
+        target_difficulty=state.get("target_difficulty", "medium"),
     )
     ctx["contract"] = contract
 
@@ -1433,6 +1434,9 @@ def _strategy_memory_ref(entry: Any) -> dict[str, Any]:
         "slug": getattr(entry, "slug", None),
         "memory_key": getattr(entry, "memory_key", None),
         "name": getattr(entry, "name", ""),
+        "description": getattr(entry, "description", ""),
+        "display_name_zh": getattr(entry, "display_name_zh", ""),
+        "display_description_zh": getattr(entry, "display_description_zh", ""),
         "source": getattr(entry, "source", ""),
         "status": getattr(entry, "status", ""),
         "promotion_stage": getattr(entry, "promotion_stage", ""),
@@ -1585,6 +1589,44 @@ def _strings_for_trace(value: Any) -> list[str]:
     return []
 
 
+def _normalise_contract_coverage_text(value: str) -> str:
+    return re.sub(r"\s+", "", str(value or "").strip().lower())
+
+
+def _contract_coverage_terms(value: str) -> set[str]:
+    text = str(value or "").strip().lower()
+    terms = {
+        token
+        for token in re.findall(r"[a-z0-9][a-z0-9_+-]{1,}", text)
+        if len(token) >= 2
+    }
+    for run in re.findall(r"[\u4e00-\u9fff]{2,}", text):
+        terms.update(run[idx : idx + 2] for idx in range(len(run) - 1))
+    return terms
+
+
+def _contract_item_is_covered(
+    item: str,
+    *,
+    checks_text: str,
+    check_terms: set[str],
+) -> bool:
+    item_norm = _normalise_contract_coverage_text(item)
+    checks_norm = _normalise_contract_coverage_text(checks_text)
+    if not item_norm:
+        return True
+    if item_norm in checks_norm or checks_norm in item_norm:
+        return True
+
+    item_terms = _contract_coverage_terms(item)
+    if not item_terms or not check_terms:
+        return False
+    overlap = item_terms & check_terms
+    if len(overlap) < 2:
+        return False
+    return len(overlap) / min(len(item_terms), 10) >= 0.2
+
+
 def _contract_diagnostics_for_trace(
     contract: dict[str, Any] | None,
     *,
@@ -1623,9 +1665,16 @@ def _contract_diagnostics_for_trace(
     else:
         signed_status = "unsigned"
 
-    checks_text = "\n".join(acceptance_checks).lower()
+    checks_text = "\n".join(acceptance_checks)
+    check_terms = _contract_coverage_terms(checks_text)
     uncovered_must_cover_items = [
-        item for item in must_cover if item.lower() not in checks_text
+        item
+        for item in must_cover
+        if not _contract_item_is_covered(
+            item,
+            checks_text=checks_text,
+            check_terms=check_terms,
+        )
     ]
     generic_items = [
         item for item in must_cover if item.strip().lower() in _GENERIC_CONTRACT_ITEMS

@@ -379,6 +379,110 @@ def _apply_verification(
     return out
 
 
+def _verification_changes(
+    evaluation: dict[str, Any],
+    updated_evaluation: dict[str, Any],
+    verification: dict[str, Any],
+) -> list[dict[str, Any]]:
+    """Return a compact, UI-safe diff of verifier changes."""
+    changes: list[dict[str, Any]] = []
+
+    for field, label in [
+        ("passed", "是否通过"),
+        ("recommended_next", "推荐下一步"),
+        ("recommended_next_plan", "推荐计划"),
+        ("verifier_forced_refine", "强制追问"),
+    ]:
+        before = _verification_change_value(field, evaluation.get(field))
+        after = _verification_change_value(field, updated_evaluation.get(field))
+        if before != after:
+            changes.append(
+                {
+                    "field": field,
+                    "label": label,
+                    "before": before,
+                    "after": after,
+                    "reason": _verification_change_reason(verification, field),
+                }
+            )
+
+    for field, label in [
+        ("weaknesses", "弱点补充"),
+        ("soft_warnings", "软警告"),
+    ]:
+        before_items = _string_items(evaluation.get(field))
+        after_items = _string_items(updated_evaluation.get(field))
+        added = [item for item in after_items if item not in before_items]
+        if added:
+            changes.append(
+                {
+                    "field": field,
+                    "label": label,
+                    "before": before_items,
+                    "after": added,
+                    "reason": _verification_change_reason(verification, field),
+                }
+            )
+
+    field = "verifier_abstained"
+    before = _verification_change_value(field, evaluation.get(field))
+    after = _verification_change_value(field, updated_evaluation.get(field))
+    if before != after:
+        changes.append(
+            {
+                "field": field,
+                "label": "低置信保留原判",
+                "before": before,
+                "after": after,
+                "reason": _verification_change_reason(verification, field),
+            }
+        )
+
+    return changes
+
+
+def _verification_effect(triggered: bool, changes: list[dict[str, Any]]) -> str:
+    if not triggered:
+        return "not_triggered"
+    if not changes:
+        return "no_change"
+    fields = {str(change.get("field") or "") for change in changes}
+    if fields and fields <= {"soft_warnings", "verifier_abstained"}:
+        return "soft_warning_only"
+    if fields & {
+        "passed",
+        "recommended_next",
+        "recommended_next_plan",
+        "weaknesses",
+        "verifier_forced_refine",
+    }:
+        return "overruled_to_refine"
+    return "no_change"
+
+
+def _verification_change_value(field: str, value: Any) -> Any:
+    if field in {"passed", "verifier_forced_refine", "verifier_abstained"}:
+        return bool(value)
+    return value
+
+
+def _verification_change_reason(verification: dict[str, Any], field: str) -> str:
+    verdict = str(verification.get("verdict") or "").lower()
+    if field in {"soft_warnings", "verifier_abstained"}:
+        return "verifier_low_confidence_abstain"
+    if verdict == "fail":
+        return "verifier_high_confidence_fail"
+    if verdict == "partial":
+        return "verifier_high_confidence_partial"
+    return "verification_update"
+
+
+def _string_items(value: Any) -> list[str]:
+    if not isinstance(value, list):
+        return []
+    return [str(item) for item in value if item]
+
+
 def verification_node(state: InterviewState) -> dict[str, Any]:
     """Optionally verify the evaluator's verdict.
 
@@ -413,6 +517,9 @@ def verification_node(state: InterviewState) -> dict[str, Any]:
                 payload={
                     "triggered": False,
                     "dimension": dimension,
+                    "verification_changes": [],
+                    "verification_change_count": 0,
+                    "verification_effect": "not_triggered",
                     "elapsed_ms": int((time.perf_counter() - node_started_at) * 1000),
                 },
                 logical_turn_idx=answer_turn_idx,
@@ -525,6 +632,12 @@ def verification_node(state: InterviewState) -> dict[str, Any]:
     }
     evaluator_passed = bool(evaluation.get("passed", False))
     updated_passed = bool(updated_evaluation.get("passed", False))
+    verification_changes = _verification_changes(
+        evaluation,
+        updated_evaluation,
+        verification,
+    )
+    verification_effect = _verification_effect(True, verification_changes)
     try:
         get_tracer().trace_node_event(
             {**state, **update},
@@ -542,6 +655,9 @@ def verification_node(state: InterviewState) -> dict[str, Any]:
                 "updated_passed": updated_passed,
                 "verdict_changed": updated_evaluation != evaluation,
                 "verifier_abstained": bool(updated_evaluation.get("verifier_abstained")),
+                "verification_changes": verification_changes,
+                "verification_change_count": len(verification_changes),
+                "verification_effect": verification_effect,
                 "elapsed_ms": int((time.perf_counter() - node_started_at) * 1000),
             },
             logical_turn_idx=answer_turn_idx,

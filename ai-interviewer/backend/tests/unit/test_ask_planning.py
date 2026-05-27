@@ -13,6 +13,7 @@ actually hooked up to the node. The integration is:
 """
 from __future__ import annotations
 
+from types import SimpleNamespace
 from typing import Any
 
 from app.engine.workflow.nodes import ask_question as ask_mod
@@ -165,6 +166,61 @@ def test_ask_question_trace_payload_records_plan_and_prompt_slots(monkeypatch):
     assert slots["RETRIEVED_KNOWLEDGE"]["injected"] is True
     assert slots["STRATEGY_MEMORY"]["empty_reason"] == "no_relevant_strategy_memories"
     assert slots["INTERVIEW_SKILLS"]["empty_reason"] == "no_relevant_interview_skills"
+
+
+def test_ask_question_trace_payload_records_strategy_display_fields(monkeypatch):
+    _wire_fake_steps(monkeypatch)
+
+    captured: dict[str, Any] = {}
+
+    class _Tracer:
+        def trace_node_event(self, state, *, node, payload, **_kwargs):
+            captured["node"] = node
+            captured["payload"] = payload
+
+    strategy = SimpleNamespace(
+        id="promoted:communication-plan-hint",
+        slug="communication_plan_hint",
+        memory_key="promoted:qa:score_recovery:junior:communication:plan_hint",
+        name="Auto: plan_hint for communication",
+        description="Promoted from 30 sessions; avg post-signal score 8.20.",
+        display_name_zh="沟通恢复：提示引导",
+        display_description_zh="从 30 场面试中观察到提示引导对沟通恢复有效。",
+        source="promoted_signal",
+        status="active",
+        promotion_stage="low_confidence",
+        confidence=0.35,
+        support_count=30,
+        ranking_reason={"stats_scope": "global"},
+        ranking_score=2.1,
+        shadow_rank=1,
+    )
+
+    monkeypatch.setattr(ask_mod, "get_tracer", lambda: _Tracer())
+    monkeypatch.setattr(ask_mod, "retrieve_skills", lambda **_kwargs: [])
+    monkeypatch.setattr(ask_mod, "retrieve_strategies", lambda **_kwargs: [strategy])
+    monkeypatch.setattr(
+        ask_mod,
+        "format_strategies_for_prompt",
+        lambda _entries: "[Strategy 1] Auto: plan_hint for communication",
+    )
+
+    state = _base_state()
+    state["runtime_config"] = {"ask_planning": False}
+    ask_mod.ask_question_node(state)  # type: ignore[arg-type]
+
+    refs = captured["payload"]["strategy_memory_refs"]
+    selection_refs = captured["payload"]["selection_artifacts"]["strategies"]
+    assert refs == selection_refs
+    assert refs[0]["name"] == "Auto: plan_hint for communication"
+    assert refs[0]["description"] == (
+        "Promoted from 30 sessions; avg post-signal score 8.20."
+    )
+    assert refs[0]["display_name_zh"] == "沟通恢复：提示引导"
+    assert refs[0]["display_description_zh"] == (
+        "从 30 场面试中观察到提示引导对沟通恢复有效。"
+    )
+    assert refs[0]["ranking_reason"] == {"stats_scope": "global"}
 
 
 def test_ask_planning_on_but_stub_skips_llm_planner(monkeypatch):

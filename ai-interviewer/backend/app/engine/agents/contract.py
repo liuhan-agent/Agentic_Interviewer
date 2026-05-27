@@ -38,16 +38,25 @@ from app.engine.context import (
     build_context_frame_for_contract_negotiator,
     frame_to_contract_negotiator_messages,
 )
+from app.engine.workflow.difficulty_adapter import difficulty_to_bar_level
 
 from .llm_client import call_chat, parse_json_response
 
 log = get_logger(__name__)
 
 
+def _expected_bar_level(target_difficulty: str | None) -> str | None:
+    value = str(target_difficulty or "").strip().lower()
+    if value not in {"easy", "medium", "hard"}:
+        return None
+    return difficulty_to_bar_level(value)  # type: ignore[arg-type]
+
+
 def _default_contract(
     *,
     proposed: dict[str, Any],
     dimension: str,
+    expected_bar_level: str | None = None,
 ) -> dict[str, Any]:
     """Fallback contract if both generator proposal and LLM reply fail.
 
@@ -73,7 +82,7 @@ def _default_contract(
             "Covers the core concept with one concrete example.",
         ),
         "review_focus": proposed.get("review_focus", []),
-        "bar_level": proposed.get("bar_level", "standard"),
+        "bar_level": expected_bar_level or proposed.get("bar_level", "standard"),
         "signed_by": ["generator"],
     }
 
@@ -85,6 +94,7 @@ def negotiate_contract_via_evaluator(
     question: str,
     proposed_contract: dict[str, Any],
     contract_hints: dict[str, Any] | None = None,
+    target_difficulty: str | None = None,
 ) -> dict[str, Any]:
     """Have the Evaluator confirm/amend ``proposed_contract``.
 
@@ -94,12 +104,14 @@ def negotiate_contract_via_evaluator(
     (happy path).
     """
     hints = contract_hints or {}
+    expected_bar_level = _expected_bar_level(target_difficulty)
     frame = build_context_frame_for_contract_negotiator(
         dimension=dimension,
         job_level=job_level,
         question=question,
         proposed_contract=proposed_contract,
         contract_hints=hints,
+        target_difficulty=target_difficulty or "",
     )
     messages = frame_to_contract_negotiator_messages(frame)
     try:
@@ -110,7 +122,11 @@ def negotiate_contract_via_evaluator(
         data = {}
 
     if not isinstance(data, dict) or not data:
-        return _default_contract(proposed=proposed_contract, dimension=dimension)
+        return _default_contract(
+            proposed=proposed_contract,
+            dimension=dimension,
+            expected_bar_level=expected_bar_level,
+        )
 
     must_cover = data.get("must_cover") or proposed_contract.get(
         "must_cover"
@@ -148,7 +164,8 @@ def negotiate_contract_via_evaluator(
         "review_focus": list(
             data.get("review_focus") or proposed_contract.get("review_focus", [])
         ),
-        "bar_level": data.get("bar_level")
+        "bar_level": expected_bar_level
+        or data.get("bar_level")
         or proposed_contract.get("bar_level", "standard"),
         "signed_by": signed,
     }

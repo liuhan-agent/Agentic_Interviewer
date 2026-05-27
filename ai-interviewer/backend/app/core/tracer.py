@@ -186,6 +186,69 @@ def _attach_timing(
     return enriched
 
 
+def _list_or_empty(value: Any) -> list[Any]:
+    return value if isinstance(value, list) else []
+
+
+def _record_or_empty(value: Any) -> dict[str, Any]:
+    return value if isinstance(value, dict) else {}
+
+
+def _evaluator_contract_and_source(
+    state: dict[str, Any],
+    question: dict[str, Any],
+) -> tuple[dict[str, Any], str]:
+    """Mirror the evaluator's contract lookup without changing scoring."""
+    current_contract = state.get("current_contract")
+    if isinstance(current_contract, dict) and current_contract:
+        return copy.deepcopy(current_contract), "current_contract"
+
+    question_contract = question.get("contract")
+    if isinstance(question_contract, dict) and question_contract:
+        return copy.deepcopy(question_contract), "current_question.contract"
+
+    rubric_points = question.get("rubric_points")
+    if isinstance(rubric_points, list) and rubric_points:
+        return {}, "legacy_rubric_points"
+
+    return {}, "missing"
+
+
+def _evaluator_trace_payload(
+    state: dict[str, Any],
+    question: dict[str, Any],
+    evaluation: dict[str, Any],
+) -> dict[str, Any]:
+    contract, contract_source = _evaluator_contract_and_source(state, question)
+    rubric_points = _list_or_empty(question.get("rubric_points"))
+    must_cover = _list_or_empty(contract.get("must_cover"))
+    acceptance_checks = _list_or_empty(contract.get("acceptance_checks"))
+    signed_by = _list_or_empty(contract.get("signed_by"))
+
+    return {
+        "contract_source": contract_source,
+        "contract": copy.deepcopy(contract),
+        "contract_must_cover_count": len(must_cover),
+        "contract_acceptance_check_count": len(acceptance_checks),
+        "contract_bar_level": contract.get("bar_level"),
+        "signed_by": copy.deepcopy(signed_by),
+        "rubric_points": copy.deepcopy(rubric_points),
+        "rubric_coverage": copy.deepcopy(
+            _record_or_empty(evaluation.get("rubric_coverage"))
+        ),
+        "acceptance_check_results": copy.deepcopy(
+            _record_or_empty(evaluation.get("acceptance_check_results"))
+        ),
+        "recommended_next": evaluation.get("recommended_next"),
+        "recommended_next_plan": evaluation.get("recommended_next_plan"),
+        "recommended_probe_intent": evaluation.get("recommended_probe_intent"),
+        "failure_reason": evaluation.get("failure_reason"),
+        "failure_categories": copy.deepcopy(
+            _list_or_empty(evaluation.get("failure_categories"))
+        ),
+    }
+
+
 def trace_write_failures_total(operation: str) -> int:
     """Return the current failure counter for tests/admin diagnostics."""
     return _metric_trace_write_failures_total(operation)
@@ -347,9 +410,12 @@ class Tracer:
             action = (state.get("selected_action") or {})
             run_id = _current_langsmith_run_id()
             snapshot = _strip_messages(state)
+            payload = _evaluator_trace_payload(state, question, evaluation)
             timing = _timing_snapshot(node_elapsed_ms=node_elapsed_ms)
             if timing:
                 snapshot["timing"] = timing
+                payload["timing"] = timing
+            snapshot["payload"] = payload
             with get_session() as sess:
                 sess.add(
                     GenerationTrace(

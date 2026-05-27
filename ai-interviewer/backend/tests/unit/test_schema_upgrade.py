@@ -170,6 +170,32 @@ def test_upgrade_adds_resume_anchor_columns_on_sqlite(tmp_path) -> None:
     } <= post_cols
 
 
+def test_upgrade_adds_strategy_memory_display_columns_on_sqlite(tmp_path) -> None:
+    eng = _sqlite_engine(tmp_path)
+    with eng.begin() as conn:
+        conn.execute(
+            text(
+                """
+                CREATE TABLE strategy_memories (
+                    id VARCHAR(96) PRIMARY KEY,
+                    slug VARCHAR(128),
+                    name VARCHAR(160),
+                    description VARCHAR(512),
+                    quality_reason VARCHAR(512)
+                )
+                """
+            )
+        )
+
+    pre_cols = {c["name"] for c in inspect(eng).get_columns("strategy_memories")}
+    assert "display_name_zh" not in pre_cols
+
+    base_mod._upgrade_schema(eng)
+
+    post_cols = {c["name"] for c in inspect(eng).get_columns("strategy_memories")}
+    assert {"display_name_zh", "display_description_zh"} <= post_cols
+
+
 def test_upgrade_is_idempotent_on_sqlite(tmp_path) -> None:
     """Running the upgrade twice must not raise (no duplicate column
     error). This simulates two workers racing on cold start."""
@@ -298,6 +324,51 @@ def test_postgres_upgrade_adds_setup_snapshot_jsonb(
     assert setup_snapshot_stmts
     assert any("IF NOT EXISTS" in stmt for stmt in setup_snapshot_stmts)
     assert any("setup_snapshot JSONB" in stmt for stmt in setup_snapshot_stmts)
+
+
+def test_postgres_upgrade_adds_strategy_memory_display_columns(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    executed: list[str] = []
+
+    class _FakeInspector:
+        def get_table_names(self) -> list[str]:
+            return ["strategy_memories"]
+
+        def get_columns(self, table: str) -> list[dict[str, Any]]:
+            return [{"name": "id"}, {"name": "quality_reason"}]
+
+    class _FakeConn:
+        def execute(self, clause) -> None:  # noqa: ANN001
+            executed.append(str(clause))
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc, tb) -> None:
+            return None
+
+    class _FakeEngine:
+        class dialect:  # noqa: N801
+            name = "postgresql"
+
+        def begin(self):
+            return _FakeConn()
+
+    monkeypatch.setattr(base_mod, "inspect", lambda _eng: _FakeInspector())
+
+    base_mod._upgrade_schema(_FakeEngine())  # type: ignore[arg-type]
+
+    assert any(
+        "ALTER TABLE strategy_memories ADD COLUMN IF NOT EXISTS display_name_zh VARCHAR(200) DEFAULT ''"
+        in stmt
+        for stmt in executed
+    )
+    assert any(
+        "ALTER TABLE strategy_memories ADD COLUMN IF NOT EXISTS display_description_zh VARCHAR(512) DEFAULT ''"
+        in stmt
+        for stmt in executed
+    )
 
 
 def test_generation_trace_answer_ddl_is_unbounded_text() -> None:

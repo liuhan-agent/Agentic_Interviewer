@@ -281,6 +281,8 @@ def _memory_from_group(group: _SignalGroup, *, stage: str) -> StrategyMemory:
         slug=_slug(group.group_key),
         name=_memory_name(first),
         description=_memory_description(group),
+        display_name_zh=_memory_display_name_zh(first, signal_type=group.signal_type),
+        display_description_zh=_memory_display_description_zh(group, stage=stage),
         source="promoted_signal",
         memory_key=f"promoted:{group.group_key}",
         dimensions=[first.dimension],
@@ -324,6 +326,75 @@ def _memory_description(group: _SignalGroup) -> str:
         f"Promoted from {support} sessions; avg reward "
         f"{group.avg_reward:.2f}, overrule rate {group.overrule_rate:.0%}."
     )
+
+
+def _memory_display_name_zh(
+    signal: StrategySignal,
+    *,
+    signal_type: str = "",
+) -> str:
+    action = canonical_action_id(signal.action_id) or signal.action_id or "strategy"
+    dimension = _display_dimension_zh(signal.dimension)
+    action_label = _display_action_zh(action, raw_action=signal.action_id)
+    if signal_type == "hint_effective":
+        return f"{dimension}：提示有效"
+    if signal.dimension == "communication" and action in {
+        "plan_deep_probe",
+        "plan_hint",
+    }:
+        return f"沟通恢复：{action_label}"
+    return f"{dimension}：{action_label}"
+
+
+def _memory_display_description_zh(group: _SignalGroup, *, stage: str) -> str:
+    stage_label = _display_stage_zh(stage)
+    support = group.distinct_sessions
+    if group.signal_type == "hint_effective":
+        evidence = f"平均 hint 后得分 {group.avg_score_after:.2f}"
+    elif group.group_key.startswith("qa:"):
+        evidence = f"平均后验分 {group.avg_score_after:.2f}"
+    else:
+        evidence = f"平均 reward {group.avg_reward:.2f}"
+    return (
+        f"从 {support} 场面试中观察到该策略有效"
+        f"（{stage_label}，{evidence}）。"
+    )
+
+
+def _display_dimension_zh(value: str | None) -> str:
+    labels = {
+        "communication": "沟通",
+        "system_design": "系统设计",
+        "technical_depth": "技术深度",
+        "problem_solving": "问题解决",
+        "project_experience": "项目经验",
+        "coding_quality": "代码质量",
+        "product_sense": "产品理解",
+    }
+    key = str(value or "").strip()
+    return labels.get(key, key.replace("_", " ") or "通用策略")
+
+
+def _display_action_zh(action: str, *, raw_action: str | None = None) -> str:
+    raw = str(raw_action or "")
+    if raw == "give_hint":
+        return "提示有效"
+    labels = {
+        "plan_deep_probe": "深挖追问",
+        "plan_hint": "提示引导",
+        "plan_switch": "切换维度",
+        "plan_adaptive": "自适应追问",
+    }
+    return labels.get(action, action.replace("_", " "))
+
+
+def _display_stage_zh(stage: str) -> str:
+    labels = {
+        "low_confidence": "低置信",
+        "stable": "稳定",
+        "seed": "种子策略",
+    }
+    return labels.get(stage, stage.replace("_", " "))
 
 
 def _memory_body(group: _SignalGroup, *, stage: str) -> str:
