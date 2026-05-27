@@ -644,6 +644,7 @@ def _step_select_structured_question(
             top_k=3,
             direction_tags=ctx.get("question_direction_tags") or [],
             role_tags=ctx.get("question_role_tags") or [],
+            question_selector_mode=mode,
         )
     except Exception as e:  # pragma: no cover - non-critical shadow path
         log.debug("structured question selector failed: %s", e)

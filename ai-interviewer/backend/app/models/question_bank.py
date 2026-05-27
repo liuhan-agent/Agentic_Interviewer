@@ -112,6 +112,30 @@ class QuestionUsage(Base):
     )
 
 
+class QuestionUsageStats(Base):
+    """Aggregated reward-shadow health for question-bank variants."""
+
+    __tablename__ = "question_usage_stats"
+
+    id: Mapped[str] = mapped_column(String(160), primary_key=True)
+    variant_id: Mapped[str] = mapped_column(String(200), index=True)
+    question_selector_mode: Mapped[str] = mapped_column(String(32), index=True)
+
+    uses: Mapped[int] = mapped_column(Integer, default=0)
+    injected_uses: Mapped[int] = mapped_column(Integer, default=0)
+    rewarded_uses: Mapped[int] = mapped_column(Integer, default=0)
+    avg_score: Mapped[float | None] = mapped_column(Float)
+    pass_rate: Mapped[float | None] = mapped_column(Float)
+    avg_immediate_reward: Mapped[float | None] = mapped_column(Float)
+
+    last_used_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=lambda: datetime.now(UTC),
+        onupdate=lambda: datetime.now(UTC),
+    )
+
+
 class QuestionRerankUsage(Base):
     """Shadow LLM reranker attribution for rule-vs-LLM comparison."""
 

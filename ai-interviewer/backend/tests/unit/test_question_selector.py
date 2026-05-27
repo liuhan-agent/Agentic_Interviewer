@@ -6,7 +6,7 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
 from app.models.base import Base
-from app.models.question_bank import QuestionSeed, QuestionVariant
+from app.models.question_bank import QuestionSeed, QuestionUsageStats, QuestionVariant
 from app.services import question_selector
 from app.services.question_fit_profile import build_question_fit_profile
 from app.services.question_seed_import import import_question_seed_dir
@@ -240,6 +240,73 @@ def test_selector_prefers_distinct_seed_ids_in_top_k_when_available() -> None:
         "system_design.gamma.opening",
     ]
     assert [candidate.rank for candidate in result.candidates] == [1, 2, 3]
+
+
+def test_selector_adds_reward_shadow_rank_without_changing_candidate_order() -> None:
+    session_local = _session_factory()
+    with session_local() as sess:
+        metadata_top = _add_seed(
+            sess,
+            "system_design.cache",
+            seed_priority=20,
+            variant_priority=20,
+            variant_id="system_design.cache.opening",
+        )
+        reward_top = _add_seed(
+            sess,
+            "system_design.capacity",
+            seed_priority=19,
+            variant_priority=20,
+            variant_id="system_design.capacity.opening",
+        )
+        sess.add_all(
+            [
+                QuestionUsageStats(
+                    id="stats-cache",
+                    variant_id=metadata_top,
+                    question_selector_mode="structured_primary",
+                    uses=3,
+                    injected_uses=3,
+                    rewarded_uses=3,
+                    avg_score=6.0,
+                    pass_rate=0.33,
+                    avg_immediate_reward=0.2,
+                ),
+                QuestionUsageStats(
+                    id="stats-capacity",
+                    variant_id=reward_top,
+                    question_selector_mode="structured_primary",
+                    uses=20,
+                    injected_uses=20,
+                    rewarded_uses=20,
+                    avg_score=9.0,
+                    pass_rate=1.0,
+                    avg_immediate_reward=0.95,
+                ),
+            ]
+        )
+        sess.commit()
+
+        result = select_question_candidates(
+            sess,
+            dimension="system_design",
+            job_level="senior",
+            probe_intent="opening",
+            question_selector_mode="structured_primary",
+            top_k=2,
+        )
+
+    assert [candidate.variant_id for candidate in result.candidates] == [
+        metadata_top,
+        reward_top,
+    ]
+    artifacts = result.as_artifacts()
+    by_variant = {item["variant_id"]: item for item in artifacts}
+    assert by_variant[metadata_top]["reward_shadow_rank"] == 2
+    assert by_variant[metadata_top]["reward_shadow_rank_changed"] is True
+    assert by_variant[reward_top]["reward_shadow_rank"] == 1
+    assert by_variant[reward_top]["usage_stats"]["rewarded_uses"] == 20
+    assert by_variant[reward_top]["reward_shadow_reason"]["sample_confidence"] == 1.0
 
 
 def test_selector_ranking_uses_tags_failures_resume_intent_difficulty_and_priority() -> None:

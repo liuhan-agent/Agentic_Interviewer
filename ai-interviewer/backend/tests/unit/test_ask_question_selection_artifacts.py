@@ -927,11 +927,26 @@ def test_question_selector_structured_shadow_records_items_without_prompt_change
         skills=[_make_skill()],
     )
     monkeypatch.setattr(ask_mod, "generate_question", fake_generate_question)
+    shadow_candidate = QuestionCandidate(
+        **{
+            **_question_candidate().__dict__,
+            "reward_shadow_rank": 1,
+            "reward_shadow_score": 56.5,
+            "reward_shadow_rank_changed": False,
+            "usage_stats": {"uses": 4, "rewarded_uses": 2},
+            "reward_shadow_reason": {
+                "uses": 4,
+                "rewarded_uses": 2,
+                "sample_confidence": 0.1,
+                "metadata_rank": 1,
+            },
+        }
+    )
     monkeypatch.setattr(
         ask_mod,
         "select_question_candidates",
         lambda **kwargs: select_kwargs.update(kwargs)
-        or QuestionSelectionResult(candidates=[_question_candidate()]),
+        or QuestionSelectionResult(candidates=[shadow_candidate]),
     )
     monkeypatch.setattr(ask_mod, "record_question_usages", fake_record)
 
@@ -955,6 +970,9 @@ def test_question_selector_structured_shadow_records_items_without_prompt_change
     assert generated_kwargs.get("candidate_anchor_block", "") == ""
     assert "question_seed" not in (generated_kwargs.get("contract_hints") or {})
     assert select_kwargs["fit_profile"].dimension == "system_design"
+    assert select_kwargs["question_selector_mode"] == "structured_shadow"
+    assert artifacts["question_items"][0]["reward_shadow_rank"] == 1
+    assert artifacts["question_items"][0]["reward_shadow_reason"]["metadata_rank"] == 1
     assert recorded["question_selector_mode"] == "structured_shadow"
     assert [candidate.injected for candidate in recorded["candidates"]] == [False]
 

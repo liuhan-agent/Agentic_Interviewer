@@ -11,6 +11,7 @@ from .question_bank import (
     QuestionReview,
     QuestionSeed,
     QuestionUsage,
+    QuestionUsageStats,
     QuestionVariant,
 )
 from .resume_anchor_cache import ResumeAnchorCacheChunk
@@ -46,6 +47,7 @@ __all__ = [
     "QuestionRerankUsage",
     "QuestionReview",
     "QuestionUsage",
+    "QuestionUsageStats",
     "QuestionVariant",
     "ResumeAnchorCacheChunk",
     "ResumeParseArtifact",
