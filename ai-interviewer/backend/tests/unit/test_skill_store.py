@@ -30,6 +30,8 @@ _SKILL_CARD_A = """\
 id: senior_backend_ownership
 name: Senior Backend Ownership
 description: Probe ownership, not buzzwords.
+display_name_zh: 高级后端归属追问卡
+display_description_zh: 引导回答明确个人负责的决策、行动和结果。
 status: active
 priority: 7
 direction_tags: [internet_tech]
@@ -115,6 +117,8 @@ def _db_card(
         id=card_id,
         name=name,
         description="DB-backed probe card.",
+        display_name_zh="DB 生产事故追问卡",
+        display_description_zh="引导 DB 卡片回答覆盖事故信号和预防措施。",
         body_markdown=f"Body for {card_id}.",
         status=status,
         priority=7,
@@ -173,6 +177,8 @@ def test_list_skills_parses_frontmatter(skills_root: Path) -> None:
     e = entries[0]
     assert e.name == "Senior Backend Ownership"
     assert e.description == "Probe ownership, not buzzwords."
+    assert e.display_name_zh == "高级后端归属追问卡"
+    assert e.display_description_zh == "引导回答明确个人负责的决策、行动和结果。"
     assert e.id == "senior_backend_ownership"
     assert e.status == "active"
     assert e.priority == 7
@@ -220,6 +226,8 @@ def test_list_skills_db_backend_reads_manual_markdown_cards(
 
     assert [entry.id for entry in entries] == ["tech_db_probe"]
     assert entries[0].name == "DB Probe"
+    assert entries[0].display_name_zh == "DB 生产事故追问卡"
+    assert entries[0].display_description_zh == "引导 DB 卡片回答覆盖事故信号和预防措施。"
     assert entries[0].path.name == "tech_db_probe.md"
     assert entries[0].body == "Body for tech_db_probe."
     assert entries[0].generator_moves == ["Ask for detection signal."]
@@ -472,6 +480,8 @@ def test_retrieve_skills_with_llm_selector_filters_keyword_set(
             f"---\n"
             f"name: Skill {i}\n"
             f"description: desc {i}.\n"
+            f"display_name_zh: 技能 {i}\n"
+            f"display_description_zh: 中文展示描述 {i}。\n"
             f"dimensions: [system_design]\n"
             f"job_levels: [senior]\n"
             f"---\nBody {i}",
@@ -489,6 +499,17 @@ def test_retrieve_skills_with_llm_selector_filters_keyword_set(
     )
 
     def fake_select(candidates, context, *, top_n):
+        assert [candidate.name for candidate in candidates] == [
+            "Skill 0",
+            "Skill 1",
+            "Skill 2",
+        ]
+        assert [candidate.description for candidate in candidates] == [
+            "desc 0.",
+            "desc 1.",
+            "desc 2.",
+        ]
+        assert all(not hasattr(candidate, "display_name_zh") for candidate in candidates)
         return ["skill_2.md", "skill_0.md"]
 
     # The skill_store imports ``select_memories_with_llm`` locally inside
@@ -551,6 +572,264 @@ def test_retrieve_skills_respects_limit(skills_root: Path) -> None:
     assert len(entries) == 2
 
 
+def test_retrieve_skills_adds_reward_shadow_without_changing_return_order(
+    skills_root: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from app.models.skill_playbook import SkillRewardRollout, SkillUsageStats
+
+    _write_skill(
+        skills_root,
+        "metadata_top.md",
+        "---\n"
+        "id: metadata_top\n"
+        "name: Metadata Top\n"
+        "priority: 10\n"
+        "role_tags: [java_backend]\n"
+        "dimensions: [system_design]\n"
+        "job_levels: [senior]\n"
+        "probe_intents: [evidence_probe]\n"
+        "---\nMetadata top body",
+    )
+    _write_skill(
+        skills_root,
+        "reward_top.md",
+        "---\n"
+        "id: reward_top\n"
+        "name: Reward Top\n"
+        "priority: 1\n"
+        "role_tags: [java_backend]\n"
+        "dimensions: [system_design]\n"
+        "job_levels: [senior]\n"
+        "probe_intents: [evidence_probe]\n"
+        "---\nReward top body",
+    )
+
+    engine = create_engine(
+        "sqlite://",
+        connect_args={"check_same_thread": False},
+        poolclass=StaticPool,
+        future=True,
+    )
+    Base.metadata.create_all(engine)
+    session_local = sessionmaker(bind=engine, expire_on_commit=False, autoflush=False)
+    with session_local() as sess:
+        sess.add_all(
+            [
+                SkillUsageStats(
+                    id="skill-usage-stats:metadata",
+                    skill_id="metadata_top",
+                    skill_context_key="java_backend:senior:system_design:evidence_probe",
+                    role="java_backend",
+                    job_level="senior",
+                    dimension="system_design",
+                    probe_intent="evidence_probe",
+                    uses=25,
+                    injected_uses=25,
+                    rewarded_uses=25,
+                    avg_blended_reward=0.1,
+                    pass_rate=0.2,
+                    overrule_rate=0.0,
+                ),
+                SkillUsageStats(
+                    id="skill-usage-stats:reward",
+                    skill_id="reward_top",
+                    skill_context_key="java_backend:senior:system_design:evidence_probe",
+                    role="java_backend",
+                    job_level="senior",
+                    dimension="system_design",
+                    probe_intent="evidence_probe",
+                    uses=25,
+                    injected_uses=25,
+                    rewarded_uses=25,
+                    avg_blended_reward=1.0,
+                    pass_rate=1.0,
+                    overrule_rate=0.0,
+                ),
+            ]
+        )
+        sess.commit()
+
+    @contextmanager
+    def fake_get_session():
+        with session_local() as sess:
+            yield sess
+
+    monkeypatch.setattr(skill_store, "get_session", fake_get_session, raising=False)
+
+    entries = skill_store.retrieve_skills(
+        dimension="system_design",
+        job_level="senior",
+        role_tags=["java_backend"],
+        probe_intent="evidence_probe",
+        limit=2,
+    )
+
+    assert [entry.id for entry in entries] == ["metadata_top", "reward_top"]
+    assert entries[0].reward_shadow_rank == 2
+    assert entries[0].reward_shadow_rank_changed is True
+    assert entries[1].reward_shadow_rank == 1
+    assert entries[1].reward_shadow_rank_changed is True
+    assert entries[1].usage_stats == {
+        "uses": 25,
+        "injected_uses": 25,
+        "rewarded_uses": 25,
+        "avg_score": None,
+        "pass_rate": 1.0,
+        "avg_immediate_reward": None,
+        "avg_blended_reward": 1.0,
+        "overrule_rate": 0.0,
+    }
+    assert entries[1].reward_shadow_reason["metadata_rank"] == 2
+    assert entries[1].reward_shadow_reason["shadow_rank"] == 1
+    assert entries[1].reward_shadow_reason["status"] == "scored"
+
+
+def test_retrieve_skills_reward_rollout_can_change_return_order(
+    skills_root: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from app.models.skill_playbook import SkillRewardRollout, SkillUsageStats
+
+    for idx in range(5):
+        _write_skill(
+            skills_root,
+            f"skill_{idx}.md",
+            "---\n"
+            f"id: skill_{idx}\n"
+            f"name: Skill {idx}\n"
+            f"priority: {10 - idx}\n"
+            "role_tags: [java_backend]\n"
+            "dimensions: [system_design]\n"
+            "job_levels: [senior]\n"
+            "probe_intents: [evidence_probe]\n"
+            "---\nSkill body",
+        )
+
+    context_key = "java_backend:senior:system_design:evidence_probe"
+    engine = create_engine(
+        "sqlite://",
+        connect_args={"check_same_thread": False},
+        poolclass=StaticPool,
+        future=True,
+    )
+    Base.metadata.create_all(engine)
+    session_local = sessionmaker(bind=engine, expire_on_commit=False, autoflush=False)
+    with session_local() as sess:
+        sess.add(SkillRewardRollout(context_key=context_key, mode="reward"))
+        for idx in range(5):
+            sess.add(
+                SkillUsageStats(
+                    id=f"skill-usage-stats:{idx}",
+                    skill_id=f"skill_{idx}",
+                    skill_context_key=context_key,
+                    role="java_backend",
+                    job_level="senior",
+                    dimension="system_design",
+                    probe_intent="evidence_probe",
+                    uses=25,
+                    injected_uses=25,
+                    rewarded_uses=25,
+                    avg_blended_reward=1.0 if idx == 4 else 0.1,
+                    pass_rate=1.0 if idx == 4 else 0.2,
+                    overrule_rate=0.0,
+                )
+            )
+        sess.commit()
+
+    @contextmanager
+    def fake_get_session():
+        with session_local() as sess:
+            yield sess
+
+    monkeypatch.setattr(skill_store, "get_session", fake_get_session, raising=False)
+
+    entries = skill_store.retrieve_skills(
+        dimension="system_design",
+        job_level="senior",
+        role_tags=["java_backend"],
+        probe_intent="evidence_probe",
+        limit=3,
+    )
+
+    assert [entry.id for entry in entries][:3] == ["skill_4", "skill_0", "skill_1"]
+    assert entries[0].reward_shadow_reason["live_order"] == "reward"
+    assert entries[0].reward_shadow_reason["rollout_mode"] == "reward"
+
+
+def test_retrieve_skills_reward_rollout_falls_back_when_gate_blocks(
+    skills_root: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from app.models.skill_playbook import SkillRewardRollout, SkillUsageStats
+
+    for idx in range(2):
+        _write_skill(
+            skills_root,
+            f"small_{idx}.md",
+            "---\n"
+            f"id: small_{idx}\n"
+            f"name: Small {idx}\n"
+            f"priority: {10 - idx}\n"
+            "role_tags: [java_backend]\n"
+            "dimensions: [system_design]\n"
+            "job_levels: [senior]\n"
+            "probe_intents: [evidence_probe]\n"
+            "---\nSkill body",
+        )
+
+    context_key = "java_backend:senior:system_design:evidence_probe"
+    engine = create_engine(
+        "sqlite://",
+        connect_args={"check_same_thread": False},
+        poolclass=StaticPool,
+        future=True,
+    )
+    Base.metadata.create_all(engine)
+    session_local = sessionmaker(bind=engine, expire_on_commit=False, autoflush=False)
+    with session_local() as sess:
+        sess.add(SkillRewardRollout(context_key=context_key, mode="reward"))
+        for idx in range(2):
+            sess.add(
+                SkillUsageStats(
+                    id=f"skill-usage-stats:small-{idx}",
+                    skill_id=f"small_{idx}",
+                    skill_context_key=context_key,
+                    role="java_backend",
+                    job_level="senior",
+                    dimension="system_design",
+                    probe_intent="evidence_probe",
+                    uses=2,
+                    injected_uses=2,
+                    rewarded_uses=2,
+                    avg_blended_reward=1.0 if idx == 1 else 0.1,
+                    pass_rate=1.0,
+                    overrule_rate=0.0,
+                )
+            )
+        sess.commit()
+
+    @contextmanager
+    def fake_get_session():
+        with session_local() as sess:
+            yield sess
+
+    monkeypatch.setattr(skill_store, "get_session", fake_get_session, raising=False)
+
+    entries = skill_store.retrieve_skills(
+        dimension="system_design",
+        job_level="senior",
+        role_tags=["java_backend"],
+        probe_intent="evidence_probe",
+        limit=2,
+    )
+
+    assert [entry.id for entry in entries] == ["small_0", "small_1"]
+    assert entries[0].reward_shadow_reason["live_order"] == "metadata_fallback"
+    assert "candidate_pool_below_min" in entries[0].reward_shadow_reason["gate_reasons"]
+    assert "reward_samples_below_min" in entries[0].reward_shadow_reason["gate_reasons"]
+
+
 def test_build_skills_block_empty_input_returns_placeholder(
     skills_root: Path,
 ) -> None:
@@ -570,6 +849,8 @@ def test_build_skills_block_renders_entries(skills_root: Path) -> None:
     assert "dims=leadership, system_design" in block
     assert "levels=senior, staff" in block
     assert "Generator moves:" in block
+    assert "高级后端归属追问卡" not in block
+    assert "引导回答明确个人负责的决策" not in block
     assert "Ask what the candidate personally owned." in block
     assert "Watch for:" in block
     assert "Avoid:" in block
@@ -608,6 +889,8 @@ def test_build_skills_index_compact_catalog(skills_root: Path) -> None:
     assert index.startswith("## Available Interview Skills")
     assert "Senior Backend Ownership" in index
     assert "Junior Algorithm Warm-up" in index
+    assert "高级后端归属追问卡" not in index
+    assert "引导回答明确个人负责的决策" not in index
 
 
 def test_build_skills_index_empty_returns_empty_string(

@@ -8,6 +8,7 @@ variables:
   - question
   - proposed_contract
   - contract_hints
+  - target_difficulty
 ---
 You are the Evaluator (Critic). Another agent (the
 Generator) has drafted the following interview question and a proposed
@@ -31,9 +32,11 @@ Ground rules:
   prefer outcome-based items; if technical, prefer mechanism/tradeoff
   items.
 - Every item in must_cover should map to at least one acceptance_check.
-- Pick bar_level honestly for the job_level and the proposed contract:
-  "intro" for first-turn probes, "standard" by default, "deep_probe"
-  only for follow-up / senior-level scrutiny.
+- Pick bar_level according to TARGET_DIFFICULTY:
+  * "easy"   -> "intro"
+  * "medium" -> "standard"
+  * "hard"   -> "deep_probe"
+  If the proposed contract disagrees with TARGET_DIFFICULTY, correct it.
 - If the generator's proposal already satisfies the ground rules,
   return it (possibly tightened) rather than rewriting it wholesale.
 
@@ -42,3 +45,4 @@ JOB_LEVEL       = {job_level}
 QUESTION        = {question}
 PROPOSED_CONTRACT = {proposed_contract}
 CONTRACT_HINTS  = {contract_hints}
+TARGET_DIFFICULTY = {target_difficulty}

@@ -81,12 +81,25 @@ from app.services.question_selector import (
 from app.services.question_selector import (
     select_question_candidates as _select_question_candidates,
 )
+from app.services.question_usage_stats import build_question_reward_context_key
 from app.services.resume_vector_jobs import refresh_resume_vector_status
 from app.services.session_anchor_retriever import retrieve_candidate_anchors
 
 log = get_logger(__name__)
 
 _QUESTION_SELECTOR_MODES = {"vector", "structured_shadow", "structured_primary"}
+_PROMPT_SLOT_TEXT_LIMIT = 2000
+_PROMPT_SLOT_PLACEHOLDER_REASONS = {
+    "(no relevant knowledge retrieved)": "no_relevant_knowledge",
+    "(no relevant strategy memories)": "no_relevant_strategy_memories",
+    "(no relevant interview skills)": "no_relevant_interview_skills",
+}
+_EXPECTED_CONTRACT_BAR_BY_DIFFICULTY = {
+    "easy": "intro",
+    "medium": "standard",
+    "hard": "deep_probe",
+}
+_GENERIC_CONTRACT_ITEMS = {"depth", "clarity"}
 
 
 def select_question_candidates(**kwargs: Any) -> QuestionSelectionResult:
@@ -287,10 +300,12 @@ def _step_retrieve_skills(state: InterviewState, ctx: dict[str, Any]) -> None:
                 ctx.get("contract_hints"),
             ),
         )
-        ctx["skill_artifact"]["refs"] = [
-            _skill_card_ref(skill)
-            for skill in skills
-        ]
+        skill_refs = []
+        for idx, skill in enumerate(skills, 1):
+            ref = _skill_card_ref(skill)
+            ref["rank"] = idx
+            skill_refs.append(ref)
+        ctx["skill_artifact"]["refs"] = skill_refs
         ctx["skill_block"] = build_skills_block(skills)
     except Exception as e:  # pragma: no cover - defensive degradation
         log.warning("skill retrieval failed; continuing without skills: %s", e)
@@ -376,6 +391,8 @@ def _skill_card_ref(entry: Any) -> dict[str, Any]:
         "id": getattr(entry, "id", ""),
         "name": getattr(entry, "name", ""),
         "description": getattr(entry, "description", ""),
+        "display_name_zh": getattr(entry, "display_name_zh", ""),
+        "display_description_zh": getattr(entry, "display_description_zh", ""),
         "status": getattr(entry, "status", "active"),
         "priority": int(getattr(entry, "priority", 0) or 0),
         "direction_tags": list(getattr(entry, "direction_tags", []) or []),
@@ -395,6 +412,13 @@ def _skill_card_ref(entry: Any) -> dict[str, Any]:
         "evaluator_payload": evaluator_payload,
         "match_score": float(getattr(entry, "match_score", 0.0) or 0.0),
         "match_reasons": list(getattr(entry, "match_reasons", []) or []),
+        "reward_shadow_rank": getattr(entry, "reward_shadow_rank", None),
+        "reward_shadow_score": getattr(entry, "reward_shadow_score", None),
+        "reward_shadow_rank_changed": bool(
+            getattr(entry, "reward_shadow_rank_changed", False)
+        ),
+        "usage_stats": getattr(entry, "usage_stats", None),
+        "reward_shadow_reason": getattr(entry, "reward_shadow_reason", None),
     }
 
 
@@ -425,6 +449,7 @@ def _build_selection_artifacts(ctx: dict[str, Any]) -> dict[str, Any]:
         ),
         "candidate_anchor_rag": ctx.get("candidate_anchor_rag_artifact")
         or {"status": "off"},
+        "resume_anchor": ctx.get("resume_anchor") or {},
         "anchor_scheduler": ctx.get("anchor_scheduler")
         or {
             "available": False,
@@ -593,6 +618,14 @@ def _step_select_structured_question(
     )
     ctx["question_direction_tags"] = direction_tags
     ctx["question_role_tags"] = role_tags
+    job_level = str((state.get("job_spec") or {}).get("level", "mid") or "mid")
+    question_context_key = build_question_reward_context_key(
+        direction_tags=direction_tags,
+        role_tags=role_tags,
+        job_level=job_level,
+        dimension=ctx["dimension"],
+    )
+    ctx["question_context_key"] = question_context_key
     fit_profile = None
     if bool(getattr(settings, "enable_question_fit_profile", True)):
         try:
@@ -616,7 +649,7 @@ def _step_select_structured_question(
     try:
         selection = select_question_candidates(
             dimension=ctx["dimension"],
-            job_level=(state.get("job_spec") or {}).get("level", "mid"),
+            job_level=job_level,
             target_skills=ctx.get("target_skills") or [],
             failure_categories=_failure_categories_from_hints(ctx.get("contract_hints")),
             resume_anchor_text=_resume_anchor_text(ctx.get("resume_anchor")),
@@ -629,6 +662,7 @@ def _step_select_structured_question(
             top_k=3,
             direction_tags=ctx.get("question_direction_tags") or [],
             role_tags=ctx.get("question_role_tags") or [],
+            question_selector_mode=mode,
         )
     except Exception as e:  # pragma: no cover - non-critical shadow path
         log.debug("structured question selector failed: %s", e)
@@ -704,6 +738,11 @@ def _step_select_structured_question(
                 turn_idx=int(state.get("formal_turn_idx", state.get("turn_idx", 0)) or 0),
                 trace_id=state.get("trace_id"),
                 question_selector_mode=mode,
+                question_context_key=question_context_key,
+                direction_tag=direction_tags[0] if direction_tags else None,
+                role_tag=role_tags[0] if role_tags else None,
+                job_level=job_level,
+                dimension=ctx["dimension"],
             )
         except Exception as e:  # pragma: no cover - observability only
             log.debug("question usage write failed: %s", e)
@@ -713,6 +752,144 @@ def _retrieval_block_for_prompt(ctx: dict[str, Any]) -> str:
     if ctx.get("structured_primary_seed_hit"):
         return ""
     return ctx.get("retrieval_block", "")
+
+
+def _ask_plan_for_trace(
+    plan: AskPlan,
+    *,
+    state: InterviewState,
+    runtime_config: dict[str, Any],
+) -> dict[str, Any]:
+    selected_action = state.get("selected_action") or {}
+    return {
+        "plan_id": str(plan.get("plan_id") or ""),
+        "template": plan.get("template"),
+        "complexity": plan.get("complexity"),
+        "source": plan.get("source"),
+        "resolution_inputs": {
+            "selected_action_id": selected_action.get("id"),
+            "selected_action_label": selected_action.get("label"),
+            "selected_action_plan_template": selected_action.get("plan_template"),
+            "pending_plan_template": state.get("pending_plan_template"),
+            "ask_planning": bool(runtime_config.get("ask_planning")),
+        },
+        "steps": [
+            {
+                "step_id": step.get("step_id"),
+                "kind": step.get("kind"),
+                "goal": step.get("goal"),
+                "success_criteria": step.get("success_criteria"),
+                "produced_keys": list(step.get("produced_keys") or []),
+                "dependencies": list(step.get("dependencies") or []),
+                "optional": bool(step.get("optional")),
+            }
+            for step in plan.get("steps", [])
+        ],
+    }
+
+
+def _prompt_slot_for_trace(
+    *,
+    prompt_label: str,
+    source_key: str,
+    text: Any,
+    text_limit: int,
+    legacy: bool = False,
+    empty_reason: str | None = None,
+) -> dict[str, Any]:
+    raw = text if isinstance(text, str) else ""
+    stripped = raw.strip()
+    reason = empty_reason
+    if reason is None:
+        reason = _PROMPT_SLOT_PLACEHOLDER_REASONS.get(stripped)
+    if reason is None and not stripped:
+        reason = "empty"
+    limit = max(0, int(text_limit))
+    return {
+        "prompt_label": prompt_label,
+        "source_key": source_key,
+        "injected": bool(stripped) and reason is None,
+        "chars": len(raw),
+        "truncated": len(raw) > limit,
+        "text": raw[:limit],
+        "empty_reason": reason if reason is not None else None,
+        "legacy": bool(legacy),
+    }
+
+
+def _prompt_slots_for_trace(
+    ctx: dict[str, Any],
+    *,
+    text_limit: int = _PROMPT_SLOT_TEXT_LIMIT,
+) -> list[dict[str, Any]]:
+    retrieval_text = _retrieval_block_for_prompt(ctx)
+    retrieval_empty_reason = (
+        "structured_question_seed_hit"
+        if ctx.get("structured_primary_seed_hit") and not retrieval_text.strip()
+        else None
+    )
+    slots = [
+        (
+            "RETRIEVED_KNOWLEDGE",
+            "retrieval_block",
+            retrieval_text,
+            True,
+            retrieval_empty_reason,
+        ),
+        (
+            "STRUCTURED_QUESTION_SEED",
+            "question_seed_block",
+            ctx.get("question_seed_block", ""),
+            False,
+            None,
+        ),
+        (
+            "CANDIDATE_ANCHOR",
+            "candidate_anchor_block",
+            ctx.get("candidate_anchor_block", ""),
+            False,
+            None,
+        ),
+        (
+            "CANDIDATE_RESUME_RAG",
+            "resume_rag_block",
+            ctx.get("resume_rag_block", ""),
+            False,
+            None,
+        ),
+        (
+            "SELF_INTRO_RAG",
+            "self_intro_rag_block",
+            ctx.get("self_intro_rag_block", ""),
+            False,
+            None,
+        ),
+        (
+            "STRATEGY_MEMORY",
+            "strategy_block",
+            ctx.get("strategy_block", ""),
+            False,
+            None,
+        ),
+        (
+            "INTERVIEW_SKILLS",
+            "skill_block",
+            ctx.get("skill_block", ""),
+            False,
+            None,
+        ),
+    ]
+    return [
+        _prompt_slot_for_trace(
+            prompt_label=prompt_label,
+            source_key=source_key,
+            text=text,
+            text_limit=text_limit,
+            legacy=legacy,
+            empty_reason=empty_reason,
+        )
+        for prompt_label, source_key, text, legacy, empty_reason in slots
+    ]
 
 
 def _step_retrieve_candidate_anchors(
@@ -914,6 +1091,7 @@ def _step_negotiate_contract(state: InterviewState, ctx: dict[str, Any]) -> None
         question=question,
         proposed_contract=ctx.get("proposed_contract") or {},
         contract_hints=ctx.get("contract_hints"),
+        target_difficulty=state.get("target_difficulty", "medium"),
     )
     ctx["contract"] = contract
 
@@ -1280,6 +1458,9 @@ def _strategy_memory_ref(entry: Any) -> dict[str, Any]:
         "slug": getattr(entry, "slug", None),
         "memory_key": getattr(entry, "memory_key", None),
         "name": getattr(entry, "name", ""),
+        "description": getattr(entry, "description", ""),
+        "display_name_zh": getattr(entry, "display_name_zh", ""),
+        "display_description_zh": getattr(entry, "display_description_zh", ""),
         "source": getattr(entry, "source", ""),
         "status": getattr(entry, "status", ""),
         "promotion_stage": getattr(entry, "promotion_stage", ""),
@@ -1419,6 +1600,142 @@ def _finalise_contract(
         "review_focus": proposed.get("review_focus", []),
         "bar_level": proposed.get("bar_level", "standard"),
         "signed_by": ["generator"],
+    }
+
+
+def _strings_for_trace(value: Any) -> list[str]:
+    if isinstance(value, list):
+        return [str(item).strip() for item in value if str(item).strip()]
+    if isinstance(value, tuple):
+        return [str(item).strip() for item in value if str(item).strip()]
+    if isinstance(value, str) and value.strip():
+        return [value.strip()]
+    return []
+
+
+def _normalise_contract_coverage_text(value: str) -> str:
+    return re.sub(r"\s+", "", str(value or "").strip().lower())
+
+
+def _contract_coverage_terms(value: str) -> set[str]:
+    text = str(value or "").strip().lower()
+    terms = {
+        token
+        for token in re.findall(r"[a-z0-9][a-z0-9_+-]{1,}", text)
+        if len(token) >= 2
+    }
+    for run in re.findall(r"[\u4e00-\u9fff]{2,}", text):
+        terms.update(run[idx : idx + 2] for idx in range(len(run) - 1))
+    return terms
+
+
+def _contract_item_is_covered(
+    item: str,
+    *,
+    checks_text: str,
+    check_terms: set[str],
+) -> bool:
+    item_norm = _normalise_contract_coverage_text(item)
+    checks_norm = _normalise_contract_coverage_text(checks_text)
+    if not item_norm:
+        return True
+    if item_norm in checks_norm or checks_norm in item_norm:
+        return True
+
+    item_terms = _contract_coverage_terms(item)
+    if not item_terms or not check_terms:
+        return False
+    overlap = item_terms & check_terms
+    if len(overlap) < 2:
+        return False
+    return len(overlap) / min(len(item_terms), 10) >= 0.2
+
+
+def _contract_diagnostics_for_trace(
+    contract: dict[str, Any] | None,
+    *,
+    proposed_contract: dict[str, Any] | None,
+    plan: AskPlan | dict[str, Any] | None,
+    target_difficulty: str | None,
+    rewrite_fallback: bool,
+) -> dict[str, Any]:
+    """Return trace-only contract quality diagnostics without mutating inputs."""
+
+    final_contract = contract or {}
+    proposed = proposed_contract or {}
+    signed_by = set(_strings_for_trace(final_contract.get("signed_by")))
+    must_cover = _strings_for_trace(final_contract.get("must_cover"))
+    acceptance_checks = _strings_for_trace(final_contract.get("acceptance_checks"))
+    bar_level = str(final_contract.get("bar_level") or "").strip() or None
+    expected_bar_level = _EXPECTED_CONTRACT_BAR_BY_DIFFICULTY.get(
+        str(target_difficulty or "").strip().lower(),
+    )
+
+    if rewrite_fallback:
+        source = "rewrite_fallback"
+    elif "evaluator" in signed_by:
+        source = "evaluator_signed"
+    elif "generator" in signed_by:
+        source = "generator_only"
+    elif proposed:
+        source = "generator_only"
+    else:
+        source = "fallback"
+
+    if "evaluator" in signed_by:
+        signed_status = "evaluator_signed"
+    elif "generator" in signed_by:
+        signed_status = "generator_only"
+    else:
+        signed_status = "unsigned"
+
+    checks_text = "\n".join(acceptance_checks)
+    check_terms = _contract_coverage_terms(checks_text)
+    uncovered_must_cover_items = [
+        item
+        for item in must_cover
+        if not _contract_item_is_covered(
+            item,
+            checks_text=checks_text,
+            check_terms=check_terms,
+        )
+    ]
+    generic_items = [
+        item for item in must_cover if item.strip().lower() in _GENERIC_CONTRACT_ITEMS
+    ]
+    bar_level_match = (
+        None
+        if expected_bar_level is None or bar_level is None
+        else bar_level == expected_bar_level
+    )
+
+    warnings: list[str] = []
+    if rewrite_fallback:
+        warnings.append("rewrite_fallback")
+    if signed_status != "evaluator_signed":
+        warnings.append("not_evaluator_signed")
+    if not must_cover:
+        warnings.append("empty_must_cover")
+    if not acceptance_checks:
+        warnings.append("empty_acceptance_checks")
+    if uncovered_must_cover_items:
+        warnings.append("must_cover_without_acceptance_check")
+    if bar_level_match is False:
+        warnings.append("bar_level_mismatch")
+    if generic_items:
+        warnings.append("generic_contract_item")
+
+    return {
+        "source": source,
+        "signed_status": signed_status,
+        "must_cover_count": len(must_cover),
+        "acceptance_check_count": len(acceptance_checks),
+        "bar_level": bar_level,
+        "expected_bar_level": expected_bar_level,
+        "bar_level_match": bar_level_match,
+        "uncovered_must_cover_items": uncovered_must_cover_items,
+        "generic_items": generic_items,
+        "warnings": warnings,
     }
 
 
@@ -1611,7 +1928,9 @@ def ask_question_node(state: InterviewState) -> dict[str, Any]:
     question_payload.setdefault(
         "rubric_points", list(contract.get("must_cover", [])),
     )
+    rewrite_contract_fallback = False
     if question_payload.get("duplicate_rewrite") or question_payload.get("language_fallback"):
+        rewrite_contract_fallback = True
         contract = _fallback_contract_for_rewritten_question(
             dimension=dimension,
             target_skills=ctx.get("target_skills") or [],
@@ -1619,6 +1938,14 @@ def ask_question_node(state: InterviewState) -> dict[str, Any]:
         )
         question_payload["contract"] = contract
         question_payload["rubric_points"] = list(contract.get("must_cover", []))
+
+    contract_diagnostics = _contract_diagnostics_for_trace(
+        contract,
+        proposed_contract=ctx.get("proposed_contract") or {},
+        plan=plan,
+        target_difficulty=state.get("target_difficulty", "medium"),
+        rewrite_fallback=rewrite_contract_fallback,
+    )
 
     if "evaluator" not in (contract.get("signed_by") or []):
         record_question_fallback("contract_unsigned")
@@ -1666,10 +1993,18 @@ def ask_question_node(state: InterviewState) -> dict[str, Any]:
                     contract.get("acceptance_checks") or []
                 ),
                 "contract_bar_level": contract.get("bar_level"),
+                "contract": contract,
+                "contract_diagnostics": contract_diagnostics,
                 "target_skills": ctx.get("target_skills") or [],
                 "skill_focus": ctx.get("skill_focus") or {},
                 "strategy_memory_refs": ctx.get("strategy_memory_refs") or [],
                 "selection_artifacts": selection_artifacts,
+                "ask_plan": _ask_plan_for_trace(
+                    plan,
+                    state=state,
+                    runtime_config=runtime_config,
+                ),
+                "prompt_slots": _prompt_slots_for_trace(ctx),
                 "elapsed_ms": int((time.perf_counter() - node_started_at) * 1000),
             },
         )

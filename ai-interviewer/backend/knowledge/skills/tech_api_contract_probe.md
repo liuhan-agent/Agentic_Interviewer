@@ -2,6 +2,8 @@
 id: tech_api_contract_probe
 name: API Contract Probe
 description: Probe API and integration answers for compatibility, error semantics, idempotency, and ownership.
+display_name_zh: API 契约追问卡
+display_description_zh: 引导 API 和集成回答覆盖兼容性、错误语义、幂等性和责任归属。
 status: active
 priority: 7
 direction_tags: [internet_tech]

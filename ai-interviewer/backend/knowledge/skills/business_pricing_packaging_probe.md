@@ -2,6 +2,8 @@
 id: business_pricing_packaging_probe
 name: Pricing and Packaging Probe
 description: Probe pricing / packaging answers for willingness-to-pay evidence, unit-economics math, and one packaging move that traded short-term revenue for long-term position.
+display_name_zh: 定价与套餐追问卡
+display_description_zh: 引导定价和套餐回答覆盖支付意愿证据、单位经济模型，以及为长期定位牺牲短期收入的取舍。
 status: active
 priority: 7
 direction_tags: [business]

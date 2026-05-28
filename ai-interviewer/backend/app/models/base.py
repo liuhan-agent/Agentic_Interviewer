@@ -134,6 +134,8 @@ _SQLITE_UPGRADES: dict[str, dict[str, str]] = {
         "helpful_score": "REAL",
     },
     "strategy_memories": {
+        "display_name_zh": "VARCHAR(200) DEFAULT ''",
+        "display_description_zh": "VARCHAR(512) DEFAULT ''",
         "quality_reason": "VARCHAR(512)",
     },
     "interview_turns": {
@@ -142,6 +144,8 @@ _SQLITE_UPGRADES: dict[str, dict[str, str]] = {
         "resume_project_id": "VARCHAR(64)",
     },
     "skill_playbook_cards": {
+        "display_name_zh": "VARCHAR(200) DEFAULT ''",
+        "display_description_zh": "VARCHAR(512) DEFAULT ''",
         "generator_moves": "JSON DEFAULT '[]'",
         "watch_for": "JSON DEFAULT '[]'",
         "avoid": "JSON DEFAULT '[]'",
@@ -150,6 +154,13 @@ _SQLITE_UPGRADES: dict[str, dict[str, str]] = {
         "negative_signals": "JSON DEFAULT '[]'",
         "score_bias_rules": "JSON DEFAULT '[]'",
         "evaluator_visibility": "BOOLEAN DEFAULT 0",
+    },
+    "question_usages": {
+        "question_context_key": "VARCHAR(160)",
+        "direction_tag": "VARCHAR(64)",
+        "role_tag": "VARCHAR(64)",
+        "job_level": "VARCHAR(64)",
+        "dimension": "VARCHAR(64)",
     },
 }
 
@@ -187,6 +198,8 @@ _POSTGRES_UPGRADES: dict[str, dict[str, str]] = {
         "helpful_score": "DOUBLE PRECISION",
     },
     "strategy_memories": {
+        "display_name_zh": "VARCHAR(200) DEFAULT ''",
+        "display_description_zh": "VARCHAR(512) DEFAULT ''",
         "quality_reason": "VARCHAR(512)",
     },
     "interview_turns": {
@@ -195,6 +208,8 @@ _POSTGRES_UPGRADES: dict[str, dict[str, str]] = {
         "resume_project_id": "VARCHAR(64)",
     },
     "skill_playbook_cards": {
+        "display_name_zh": "VARCHAR(200) DEFAULT ''",
+        "display_description_zh": "VARCHAR(512) DEFAULT ''",
         "generator_moves": "JSONB DEFAULT '[]'::jsonb",
         "watch_for": "JSONB DEFAULT '[]'::jsonb",
         "avoid": "JSONB DEFAULT '[]'::jsonb",
@@ -203,6 +218,13 @@ _POSTGRES_UPGRADES: dict[str, dict[str, str]] = {
         "negative_signals": "JSONB DEFAULT '[]'::jsonb",
         "score_bias_rules": "JSONB DEFAULT '[]'::jsonb",
         "evaluator_visibility": "BOOLEAN DEFAULT FALSE",
+    },
+    "question_usages": {
+        "question_context_key": "VARCHAR(160)",
+        "direction_tag": "VARCHAR(64)",
+        "role_tag": "VARCHAR(64)",
+        "job_level": "VARCHAR(64)",
+        "dimension": "VARCHAR(64)",
     },
 }
 

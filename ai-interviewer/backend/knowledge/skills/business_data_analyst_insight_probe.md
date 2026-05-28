@@ -2,6 +2,8 @@
 id: business_data_analyst_insight_probe
 name: Data Analyst Insight Probe
 description: Force data-analyst answers toward the decision changed, a ruled-out confounder, and the stakeholder who acted on the insight.
+display_name_zh: 数据分析洞察追问卡
+display_description_zh: 引导数据分析回答说明改变了什么决策、排除了什么混杂因素，以及哪个干系人据此行动。
 status: active
 priority: 7
 direction_tags: [business]

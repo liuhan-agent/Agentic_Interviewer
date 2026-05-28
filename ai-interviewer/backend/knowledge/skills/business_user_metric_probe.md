@@ -2,6 +2,8 @@
 id: business_user_metric_probe
 name: Business User Metric Probe
 description: Tie business answers to user segment, behavior change, metric definition, and attribution.
+display_name_zh: 业务用户指标追问卡
+display_description_zh: 引导业务回答落到用户分群、行为变化、指标定义和归因依据。
 status: active
 priority: 7
 direction_tags: [business]

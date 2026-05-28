@@ -2,6 +2,8 @@
 id: tech_debug_root_cause_probe
 name: Debug Root Cause Probe
 description: Keep debugging answers anchored in evidence, hypothesis ordering, and verified root cause.
+display_name_zh: 调试根因追问卡
+display_description_zh: 引导调试回答锚定证据、假设排序和已验证的根因。
 status: active
 priority: 8
 direction_tags: [internet_tech]

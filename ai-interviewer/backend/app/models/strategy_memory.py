@@ -23,6 +23,8 @@ class StrategyMemory(Base):
     slug: Mapped[str] = mapped_column(String(128), unique=True, index=True)
     name: Mapped[str] = mapped_column(String(160))
     description: Mapped[str] = mapped_column(String(512), default="")
+    display_name_zh: Mapped[str] = mapped_column(String(200), default="")
+    display_description_zh: Mapped[str] = mapped_column(String(512), default="")
     source: Mapped[str] = mapped_column(String(32), default="seed", index=True)
     memory_key: Mapped[str | None] = mapped_column(String(256), unique=True, index=True)
 
@@ -143,6 +145,25 @@ class StrategyMemoryStats(Base):
     helpful_avg: Mapped[float | None] = mapped_column(Float)
 
     last_used_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=lambda: datetime.now(UTC),
+        onupdate=lambda: datetime.now(UTC),
+    )
+
+
+class StrategyRewardRollout(Base):
+    """Per-context rollout override for live strategy reward ranking."""
+
+    __tablename__ = "strategy_reward_rollouts"
+
+    context_key: Mapped[str] = mapped_column(String(128), primary_key=True)
+    mode: Mapped[str] = mapped_column(String(32), default="reward_shadow", index=True)
+    reason: Mapped[str] = mapped_column(String(512), default="")
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=lambda: datetime.now(UTC),
+    )
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         default=lambda: datetime.now(UTC),

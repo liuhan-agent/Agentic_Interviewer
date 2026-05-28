@@ -25,6 +25,8 @@ def _db_session_context():
                     slug="senior_system_design",
                     name="Senior System Design",
                     description="Deep probes for senior system design.",
+                    display_name_zh="高级系统设计策略",
+                    display_description_zh="用于高级候选人的系统设计追问。",
                     source="seed",
                     memory_key="seed:system_design:senior",
                     dimensions=["system_design"],
@@ -103,6 +105,8 @@ def test_retrieve_strategies_uses_db_metadata_and_formats_prompt(monkeypatch) ->
 
     assert [entry.id for entry in entries] == ["seed:senior_system_design"]
     assert entries[0].memory_key == "seed:system_design:senior"
+    assert entries[0].display_name_zh == "高级系统设计策略"
+    assert entries[0].display_description_zh == "用于高级候选人的系统设计追问。"
     assert entries[0].source == "seed"
     assert entries[0].promotion_stage == "seed"
     assert "Senior System Design" in block
@@ -119,6 +123,8 @@ def test_file_backend_still_reads_markdown_strategies(
         "---\n"
         "name: seed\n"
         "description: seed strategy\n"
+        "display_name_zh: 文件策略展示名\n"
+        "display_description_zh: 文件策略中文描述。\n"
         "dimensions: [system_design]\n"
         "job_levels: [senior]\n"
         "---\n\n"
@@ -137,4 +143,6 @@ def test_file_backend_still_reads_markdown_strategies(
 
     assert len(entries) == 1
     assert entries[0].name == "seed"
+    assert entries[0].display_name_zh == "文件策略展示名"
+    assert entries[0].display_description_zh == "文件策略中文描述。"
     assert entries[0].body == "File-backed body."

@@ -2,6 +2,8 @@
 id: senior_backend_ownership_probe
 name: Senior Backend Ownership Probe
 description: Force ownership and quantified impact in senior backend answers.
+display_name_zh: 高级后端 Ownership 追问卡
+display_description_zh: 引导高级后端回答明确个人 ownership 和可量化影响。
 status: active
 priority: 7
 direction_tags: [internet_tech]

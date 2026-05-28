@@ -4,6 +4,7 @@ from contextlib import contextmanager
 from pathlib import Path
 from types import SimpleNamespace
 
+import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine
@@ -13,9 +14,11 @@ from sqlalchemy.pool import StaticPool
 from app.api.v1 import admin as admin_api
 from app.models.base import Base
 from app.models.question_bank import (
+    QuestionRewardRollout,
     QuestionRerankUsage,
     QuestionSeed,
     QuestionUsage,
+    QuestionUsageStats,
     QuestionVariant,
 )
 
@@ -185,6 +188,7 @@ def test_admin_question_seed_list_detail_usage_and_status_actions() -> None:
         "system_design.cache_consistency.flash_sale_inventory"
     )
     assert usages.json()["usages"][0]["immediate_reward"] == 0.42
+    assert "question_context_key" in usages.json()["usages"][0]
 
     reranks = client.get("/admin/question-rerank-usages?limit=10")
     assert reranks.status_code == 200
@@ -250,6 +254,170 @@ def test_admin_question_seed_list_detail_usage_and_status_actions() -> None:
     )
     assert archived_variant.status_code == 200
     assert archived_variant.json()["status"] == "archived"
+
+
+def test_admin_question_usage_stats_refresh_and_reward_readiness() -> None:
+    session_local = _session_factory()
+    with session_local() as sess:
+        sess.add(
+            QuestionSeed(
+                id="system_design.capacity_planning",
+                version=1,
+                title="容量规划",
+                dimension="system_design",
+                job_levels=["senior"],
+                skill_tags=["capacity"],
+                direction_tags=["internet_tech"],
+                role_tags=["java_backend"],
+                rubric={"must_cover": ["容量估算"]},
+                priority=20,
+                status="active",
+                source="manual_yaml",
+                scope="global",
+                language="zh-CN",
+            )
+        )
+        sess.add(
+            QuestionVariant(
+                id="system_design.capacity_planning.live_event_ticketing",
+                seed_id="system_design.capacity_planning",
+                version=1,
+                intent="opening",
+                difficulty="standard",
+                scenario_brief="活动票务容量规划",
+                question_stem="请设计活动票务容量方案。",
+                prompt_template="围绕容量规划生成题目。",
+                scenario_skill_tags=["capacity"],
+                resume_anchor_hints=[],
+                failure_categories=[],
+                rubric_additions=[],
+                expected_signals=[],
+                anti_patterns=[],
+                good_answer_hints=[],
+                role_tags=["java_backend"],
+                priority=20,
+                status="active",
+            )
+        )
+        for idx in range(20):
+            sess.add(
+                QuestionUsage(
+                    id=f"usage-high-{idx}",
+                    session_id=f"sess-high-{idx}",
+                    turn_idx=idx,
+                    trace_id=f"trace-high-{idx}",
+                    seed_id="system_design.capacity_planning",
+                    variant_id="system_design.capacity_planning.live_event_ticketing",
+                    seed_version=1,
+                    variant_version=1,
+                    rank=2,
+                    match_score=10.0,
+                    match_reasons=["priority:10"],
+                    injected=True,
+                    question_selector_mode="structured_primary",
+                    score=9.0,
+                    passed=True,
+                    immediate_reward=0.95,
+                )
+            )
+        sess.commit()
+
+    client = _client(session_local)
+
+    refresh = client.post("/admin/question-usage-stats/refresh")
+    assert refresh.status_code == 200
+    assert refresh.json()["refreshed"] == 2
+
+    stats = client.get("/admin/question-usage-stats?auto_refresh=true")
+    assert stats.status_code == 200
+    body = stats.json()
+    assert body["count"] == 2
+    rows = {row["variant_id"]: row for row in body["stats"]}
+    assert rows[
+        "system_design.cache_consistency.flash_sale_inventory"
+    ]["rewarded_uses"] == 1
+    assert rows[
+        "system_design.capacity_planning.live_event_ticketing"
+    ]["avg_immediate_reward"] == pytest.approx(0.95)
+
+    paged = client.get("/admin/question-usage-stats?limit=1&offset=1")
+    assert paged.status_code == 200
+    paged_body = paged.json()
+    assert paged_body["count"] == 2
+    assert paged_body["limit"] == 1
+    assert paged_body["offset"] == 1
+    assert len(paged_body["stats"]) == 1
+    assert paged_body["stats"][0]["variant_id"] == (
+        "system_design.capacity_planning.live_event_ticketing"
+    )
+
+    readiness = client.get("/admin/question-reward-readiness?auto_refresh=true")
+    assert readiness.status_code == 200
+    payload = readiness.json()
+    assert payload["selector_rollout_mode"] == "structured_primary"
+    assert payload["reward_ranking_mode"] == "reward_shadow"
+    assert payload["candidate_count"] == 2
+    assert payload["usage_count"] == 21
+    assert payload["rewarded_usage_count"] == 21
+    assert payload["summary"]["shadow_changed_modes"] == 1
+    assert payload["summary"]["low_sample_variants"] == 1
+    assert payload["summary"]["ready_variants"] == 1
+    assert payload["modes"] == []
+    assert payload["metadata_top_variant_ids"][0] == (
+        "system_design.cache_consistency.flash_sale_inventory"
+    )
+    assert payload["reward_top_variant_ids"][0] == (
+        "system_design.capacity_planning.live_event_ticketing"
+    )
+    assert "reward_shadow_rank_changed" not in payload["reasons"]
+    assert "candidate_pool_below_min" in payload["reasons"]
+    variants = {row["variant_id"]: row for row in payload["variants"]}
+    assert "reward_samples_below_min" in variants[
+        "system_design.cache_consistency.flash_sale_inventory"
+    ]["reasons"]
+    assert "contexts" in payload
+    assert "seeds" in payload
+
+    with session_local() as sess:
+        assert sess.query(QuestionUsageStats).count() == 2
+
+
+def test_admin_question_reward_rollout_endpoint_updates_context_and_seed_override() -> None:
+    session_local = _session_factory()
+    client = _client(session_local)
+
+    context_key = "internet_tech:java_backend:senior:system_design"
+    context_rollout = client.post(
+        f"/admin/question-reward-rollouts/context/{context_key}",
+        json={"mode": "reward", "reason": "pilot context"},
+    )
+    assert context_rollout.status_code == 200
+    assert context_rollout.json()["scope"] == "context"
+    assert context_rollout.json()["scope_key"] == context_key
+    assert context_rollout.json()["mode"] == "reward"
+
+    seed_rollout = client.post(
+        "/admin/question-reward-rollouts/seed/system_design.cache_consistency",
+        json={"mode": "reward_shadow", "reason": "back to shadow"},
+    )
+    assert seed_rollout.status_code == 200
+    assert seed_rollout.json()["scope"] == "seed"
+    assert seed_rollout.json()["scope_key"] == "system_design.cache_consistency"
+    assert seed_rollout.json()["mode"] == "reward_shadow"
+
+    invalid_scope = client.post(
+        "/admin/question-reward-rollouts/global/anything",
+        json={"mode": "reward"},
+    )
+    assert invalid_scope.status_code == 400
+
+    with session_local() as sess:
+        rows = {
+            (row.scope, row.scope_key): row
+            for row in sess.query(QuestionRewardRollout).all()
+        }
+    assert rows[("context", context_key)].reason == "pilot context"
+    assert rows[("seed", "system_design.cache_consistency")].reason == "back to shadow"
 
 
 def test_admin_question_bank_filters_business_direction_and_role() -> None:

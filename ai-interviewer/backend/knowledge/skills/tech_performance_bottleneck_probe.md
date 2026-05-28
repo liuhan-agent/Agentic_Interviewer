@@ -2,6 +2,8 @@
 id: tech_performance_bottleneck_probe
 name: Performance Bottleneck Probe
 description: Push performance answers toward baseline, bottleneck evidence, and tradeoff-aware optimization.
+display_name_zh: 性能瓶颈追问卡
+display_description_zh: 引导性能回答覆盖基线、瓶颈证据和带有取舍意识的优化方案。
 status: active
 priority: 8
 direction_tags: [internet_tech]

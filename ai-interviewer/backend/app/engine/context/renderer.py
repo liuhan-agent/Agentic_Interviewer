@@ -286,6 +286,7 @@ _CONTRACT_NEGOTIATOR_PAYLOAD_KEYS = (
     "question",
     "proposed_contract",
     "contract_hints",
+    "target_difficulty",
 )
 
 

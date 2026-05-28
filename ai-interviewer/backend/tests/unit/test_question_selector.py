@@ -6,7 +6,12 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
 from app.models.base import Base
-from app.models.question_bank import QuestionSeed, QuestionVariant
+from app.models.question_bank import (
+    QuestionRewardRollout,
+    QuestionSeed,
+    QuestionUsageStats,
+    QuestionVariant,
+)
 from app.services import question_selector
 from app.services.question_fit_profile import build_question_fit_profile
 from app.services.question_seed_import import import_question_seed_dir
@@ -240,6 +245,323 @@ def test_selector_prefers_distinct_seed_ids_in_top_k_when_available() -> None:
         "system_design.gamma.opening",
     ]
     assert [candidate.rank for candidate in result.candidates] == [1, 2, 3]
+
+
+def test_selector_adds_reward_shadow_rank_without_changing_candidate_order() -> None:
+    session_local = _session_factory()
+    with session_local() as sess:
+        metadata_top = _add_seed(
+            sess,
+            "system_design.cache",
+            seed_priority=20,
+            variant_priority=20,
+            variant_id="system_design.cache.opening",
+        )
+        reward_top = _add_seed(
+            sess,
+            "system_design.capacity",
+            seed_priority=19,
+            variant_priority=20,
+            variant_id="system_design.capacity.opening",
+        )
+        sess.add_all(
+            [
+                QuestionUsageStats(
+                    id="stats-cache",
+                    variant_id=metadata_top,
+                    question_selector_mode="structured_primary",
+                    uses=3,
+                    injected_uses=3,
+                    rewarded_uses=3,
+                    avg_score=6.0,
+                    pass_rate=0.33,
+                    avg_immediate_reward=0.2,
+                ),
+                QuestionUsageStats(
+                    id="stats-capacity",
+                    variant_id=reward_top,
+                    question_selector_mode="structured_primary",
+                    uses=20,
+                    injected_uses=20,
+                    rewarded_uses=20,
+                    avg_score=9.0,
+                    pass_rate=1.0,
+                    avg_immediate_reward=0.95,
+                ),
+            ]
+        )
+        sess.commit()
+
+        result = select_question_candidates(
+            sess,
+            dimension="system_design",
+            job_level="senior",
+            probe_intent="opening",
+            question_selector_mode="structured_primary",
+            top_k=2,
+        )
+
+    assert [candidate.variant_id for candidate in result.candidates] == [
+        metadata_top,
+        reward_top,
+    ]
+    artifacts = result.as_artifacts()
+    by_variant = {item["variant_id"]: item for item in artifacts}
+    assert by_variant[metadata_top]["reward_shadow_rank"] == 2
+    assert by_variant[metadata_top]["reward_shadow_rank_changed"] is True
+    assert by_variant[reward_top]["reward_shadow_rank"] == 1
+    assert by_variant[reward_top]["usage_stats"]["rewarded_uses"] == 20
+    assert by_variant[reward_top]["reward_shadow_reason"]["sample_confidence"] == 1.0
+
+
+def test_selector_context_reward_override_reorders_seed_representatives_when_gate_passes() -> None:
+    session_local = _session_factory()
+    context_key = "internet_tech:java_backend:senior:system_design"
+    with session_local() as sess:
+        metadata_top = _add_seed(
+            sess,
+            "system_design.metadata_top",
+            seed_priority=100,
+            variant_priority=0,
+            variant_id="system_design.metadata_top.opening",
+        )
+        reward_top = _add_seed(
+            sess,
+            "system_design.reward_top",
+            seed_priority=90,
+            variant_priority=0,
+            variant_id="system_design.reward_top.opening",
+        )
+        filler_variants = [
+            _add_seed(
+                sess,
+                f"system_design.filler_{idx}",
+                seed_priority=80 - idx,
+                variant_priority=0,
+                variant_id=f"system_design.filler_{idx}.opening",
+            )
+            for idx in range(3)
+        ]
+        sess.add(
+            QuestionRewardRollout(
+                id=f"context:{context_key}",
+                scope="context",
+                scope_key=context_key,
+                mode="reward",
+                reason="pilot context",
+            )
+        )
+        stats = [
+            QuestionUsageStats(
+                id="stats-metadata-top",
+                variant_id=metadata_top,
+                question_selector_mode="structured_primary",
+                uses=20,
+                injected_uses=20,
+                rewarded_uses=20,
+                avg_score=5.0,
+                pass_rate=0.2,
+                avg_immediate_reward=0.1,
+            ),
+            QuestionUsageStats(
+                id="stats-reward-top",
+                variant_id=reward_top,
+                question_selector_mode="structured_shadow",
+                uses=20,
+                injected_uses=20,
+                rewarded_uses=20,
+                avg_score=9.0,
+                pass_rate=1.0,
+                avg_immediate_reward=1.0,
+            ),
+        ]
+        stats.extend(
+            QuestionUsageStats(
+                id=f"stats-filler-{idx}",
+                variant_id=variant_id,
+                question_selector_mode="structured_primary",
+                uses=20,
+                injected_uses=20,
+                rewarded_uses=20,
+                avg_score=6.0,
+                pass_rate=0.4,
+                avg_immediate_reward=0.2,
+            )
+            for idx, variant_id in enumerate(filler_variants)
+        )
+        sess.add_all(stats)
+        sess.commit()
+
+        result = select_question_candidates(
+            sess,
+            dimension="system_design",
+            job_level="senior",
+            direction_tags=["internet_tech"],
+            role_tags=["java_backend"],
+            probe_intent="opening",
+            question_selector_mode="structured_shadow",
+            top_k=5,
+        )
+
+    assert result.candidates[0].variant_id == reward_top
+    assert result.candidates[1].variant_id == metadata_top
+    assert result.candidates[0].reward_shadow_reason["live_order"] == "reward"
+    assert result.candidates[0].reward_shadow_reason["context_rollout_mode"] == "reward"
+
+
+def test_selector_seed_reward_override_reorders_variants_inside_seed_when_gate_passes() -> None:
+    session_local = _session_factory()
+    with session_local() as sess:
+        metadata_variant = _add_seed(
+            sess,
+            "system_design.multi_variant",
+            seed_priority=100,
+            variant_priority=20,
+            variant_id="system_design.multi_variant.metadata",
+        )
+        reward_variant = "system_design.multi_variant.reward"
+        sess.add(
+            QuestionVariant(
+                id=reward_variant,
+                seed_id="system_design.multi_variant",
+                version=1,
+                intent="opening",
+                difficulty="standard",
+                scenario_brief="reward variant",
+                question_stem="reward question",
+                prompt_template="reward prompt",
+                scenario_skill_tags=[],
+                resume_anchor_hints=[],
+                failure_categories=[],
+                rubric_additions=[],
+                expected_signals=[],
+                anti_patterns=[],
+                good_answer_hints=[],
+                role_tags=["java_backend"],
+                priority=10,
+                status="active",
+            )
+        )
+        sess.add_all(
+            [
+                QuestionRewardRollout(
+                    id="seed:system_design.multi_variant",
+                    scope="seed",
+                    scope_key="system_design.multi_variant",
+                    mode="reward",
+                    reason="pilot seed",
+                ),
+                QuestionUsageStats(
+                    id="stats-metadata-variant",
+                    variant_id=metadata_variant,
+                    question_selector_mode="structured_primary",
+                    uses=20,
+                    injected_uses=20,
+                    rewarded_uses=20,
+                    avg_score=5.0,
+                    pass_rate=0.2,
+                    avg_immediate_reward=0.1,
+                ),
+                QuestionUsageStats(
+                    id="stats-reward-variant",
+                    variant_id=reward_variant,
+                    question_selector_mode="structured_primary",
+                    uses=20,
+                    injected_uses=20,
+                    rewarded_uses=20,
+                    avg_score=9.0,
+                    pass_rate=1.0,
+                    avg_immediate_reward=1.0,
+                ),
+            ]
+        )
+        sess.commit()
+
+        result = select_question_candidates(
+            sess,
+            dimension="system_design",
+            job_level="senior",
+            direction_tags=["internet_tech"],
+            role_tags=["java_backend"],
+            probe_intent="opening",
+            top_k=1,
+        )
+
+    assert result.candidates[0].variant_id == reward_variant
+    assert result.candidates[0].reward_shadow_reason["seed_rollout_mode"] == "reward"
+    assert result.candidates[0].reward_shadow_reason["seed_live_order"] == "reward"
+
+
+def test_selector_reward_override_falls_back_to_metadata_when_context_gate_fails() -> None:
+    session_local = _session_factory()
+    context_key = "internet_tech:java_backend:senior:system_design"
+    with session_local() as sess:
+        metadata_top = _add_seed(
+            sess,
+            "system_design.metadata_small_pool",
+            seed_priority=100,
+            variant_priority=0,
+            variant_id="system_design.metadata_small_pool.opening",
+        )
+        reward_top = _add_seed(
+            sess,
+            "system_design.reward_small_pool",
+            seed_priority=90,
+            variant_priority=0,
+            variant_id="system_design.reward_small_pool.opening",
+        )
+        sess.add_all(
+            [
+                QuestionRewardRollout(
+                    id=f"context:{context_key}",
+                    scope="context",
+                    scope_key=context_key,
+                    mode="reward",
+                    reason="pilot context",
+                ),
+                QuestionUsageStats(
+                    id="stats-small-metadata",
+                    variant_id=metadata_top,
+                    question_selector_mode="structured_primary",
+                    uses=3,
+                    injected_uses=3,
+                    rewarded_uses=3,
+                    avg_score=5.0,
+                    pass_rate=0.2,
+                    avg_immediate_reward=0.1,
+                ),
+                QuestionUsageStats(
+                    id="stats-small-reward",
+                    variant_id=reward_top,
+                    question_selector_mode="structured_primary",
+                    uses=3,
+                    injected_uses=3,
+                    rewarded_uses=3,
+                    avg_score=9.0,
+                    pass_rate=1.0,
+                    avg_immediate_reward=1.0,
+                ),
+            ]
+        )
+        sess.commit()
+
+        result = select_question_candidates(
+            sess,
+            dimension="system_design",
+            job_level="senior",
+            direction_tags=["internet_tech"],
+            role_tags=["java_backend"],
+            probe_intent="opening",
+            top_k=2,
+        )
+
+    assert [candidate.variant_id for candidate in result.candidates] == [
+        metadata_top,
+        reward_top,
+    ]
+    assert result.candidates[0].reward_shadow_reason["live_order"] == "metadata_fallback"
+    assert "candidate_pool_below_min" in result.candidates[0].reward_shadow_reason["gate_reasons"]
+    assert "reward_samples_below_min" in result.candidates[0].reward_shadow_reason["gate_reasons"]
 
 
 def test_selector_ranking_uses_tags_failures_resume_intent_difficulty_and_priority() -> None:

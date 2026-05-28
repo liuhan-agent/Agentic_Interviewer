@@ -2,6 +2,8 @@
 id: system_design_scale_reasoning
 name: System Design Scale Reasoning
 description: Force one concrete failure mode + one quantified scale argument per answer.
+display_name_zh: 系统设计规模推理追问卡
+display_description_zh: 引导系统设计回答至少包含一个具体失效模式和一个量化规模论证。
 status: active
 priority: 8
 direction_tags: [internet_tech]

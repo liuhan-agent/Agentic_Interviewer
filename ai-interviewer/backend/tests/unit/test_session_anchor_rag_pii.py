@@ -254,6 +254,17 @@ def test_subject_deletion_wipes_all_anchor_rows_and_trace_payloads(
                                 "candidate_anchor_rag": {"hits": [{"id": 1}]},
                             },
                             "resume_rag_block": "[resume] Redis secret anchor",
+                            "prompt_slots": [
+                                {
+                                    "prompt_label": "CANDIDATE_RESUME_RAG",
+                                    "source_key": "resume_rag_block",
+                                    "injected": True,
+                                    "chars": 27,
+                                    "truncated": False,
+                                    "text": "[resume] Redis secret anchor",
+                                    "empty_reason": None,
+                                }
+                            ],
                         }
                     },
                 )
