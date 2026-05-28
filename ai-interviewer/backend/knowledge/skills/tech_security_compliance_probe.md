@@ -2,6 +2,8 @@
 id: tech_security_compliance_probe
 name: Security Compliance Probe
 description: Probe security / compliance answers for asset inventory, control mapping, audit evidence, and one residual risk the team chose to accept.
+display_name_zh: 安全合规追问卡
+display_description_zh: 引导安全或合规回答覆盖资产清单、控制项映射、审计证据，以及团队选择接受的残余风险。
 status: active
 priority: 7
 direction_tags: [internet_tech]

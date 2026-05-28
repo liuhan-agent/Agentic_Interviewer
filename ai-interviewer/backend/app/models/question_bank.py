@@ -97,6 +97,11 @@ class QuestionUsage(Base):
     match_reasons: Mapped[list] = mapped_column(JSON, default=list)
     injected: Mapped[bool] = mapped_column(Boolean, default=False, index=True)
     question_selector_mode: Mapped[str] = mapped_column(String(32), index=True)
+    question_context_key: Mapped[str | None] = mapped_column(String(160), index=True)
+    direction_tag: Mapped[str | None] = mapped_column(String(64), index=True)
+    role_tag: Mapped[str | None] = mapped_column(String(64), index=True)
+    job_level: Mapped[str | None] = mapped_column(String(64), index=True)
+    dimension: Mapped[str | None] = mapped_column(String(64), index=True)
     score: Mapped[float | None] = mapped_column(Float)
     passed: Mapped[bool | None] = mapped_column(Boolean)
     immediate_reward: Mapped[float | None] = mapped_column(Float)
@@ -105,6 +110,51 @@ class QuestionUsage(Base):
         default=lambda: datetime.now(UTC),
         index=True,
     )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=lambda: datetime.now(UTC),
+        onupdate=lambda: datetime.now(UTC),
+    )
+
+
+class QuestionRewardRollout(Base):
+    """Context/seed rollout override for live question reward ranking."""
+
+    __tablename__ = "question_reward_rollouts"
+
+    id: Mapped[str] = mapped_column(String(240), primary_key=True)
+    scope: Mapped[str] = mapped_column(String(32), index=True)
+    scope_key: Mapped[str] = mapped_column(String(200), index=True)
+    mode: Mapped[str] = mapped_column(String(32), default="reward_shadow", index=True)
+    reason: Mapped[str] = mapped_column(String(512), default="")
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=lambda: datetime.now(UTC),
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=lambda: datetime.now(UTC),
+        onupdate=lambda: datetime.now(UTC),
+    )
+
+
+class QuestionUsageStats(Base):
+    """Aggregated reward-shadow health for question-bank variants."""
+
+    __tablename__ = "question_usage_stats"
+
+    id: Mapped[str] = mapped_column(String(160), primary_key=True)
+    variant_id: Mapped[str] = mapped_column(String(200), index=True)
+    question_selector_mode: Mapped[str] = mapped_column(String(32), index=True)
+
+    uses: Mapped[int] = mapped_column(Integer, default=0)
+    injected_uses: Mapped[int] = mapped_column(Integer, default=0)
+    rewarded_uses: Mapped[int] = mapped_column(Integer, default=0)
+    avg_score: Mapped[float | None] = mapped_column(Float)
+    pass_rate: Mapped[float | None] = mapped_column(Float)
+    avg_immediate_reward: Mapped[float | None] = mapped_column(Float)
+
+    last_used_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         default=lambda: datetime.now(UTC),

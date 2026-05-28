@@ -2,6 +2,8 @@
 id: tech_frontend_perf_render_probe
 name: Frontend Performance and Render Probe
 description: Push frontend performance answers toward Core Web Vitals baseline, render-path bottleneck, and one regression caught in production.
+display_name_zh: 前端性能与渲染追问卡
+display_description_zh: 引导前端性能回答覆盖 Core Web Vitals 基线、渲染路径瓶颈和一次线上回归发现。
 status: active
 priority: 8
 direction_tags: [internet_tech]

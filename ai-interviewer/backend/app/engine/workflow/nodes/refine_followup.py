@@ -188,6 +188,21 @@ def refine_followup_node(state: InterviewState) -> dict[str, Any]:
                 "dimension": dim,
                 "next_template": next_template,
                 "weakness_count": len(weaknesses),
+                "refine_mode": True,
+                "pending_plan_template": next_template,
+                "pending_contract_hints": contract_hints,
+                "must_address_count": len(contract_hints.get("must_address") or []),
+                "missing_must_cover_count": len(
+                    contract_hints.get("missing_must_cover") or []
+                ),
+                "failure_categories": list(
+                    contract_hints.get("failure_categories") or []
+                ),
+                "probe_intent": contract_hints.get("probe_intent"),
+                "failure_reason": contract_hints.get("failure_reason"),
+                "prior_soft_warnings": list(
+                    contract_hints.get("prior_soft_warnings") or []
+                ),
                 "elapsed_ms": int((time.perf_counter() - node_started_at) * 1000),
             },
         )

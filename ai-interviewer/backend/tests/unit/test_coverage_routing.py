@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from app.engine.workflow.routers import route_after_eval
+from app.engine.workflow.routers import route_after_eval, route_after_eval_diagnostics
 from app.ml.rl.action_space import PLAN_ADAPTIVE, PLAN_DEEP_PROBE, PLAN_SWITCH
 
 
@@ -170,6 +170,135 @@ def test_route_after_eval_ends_when_anchor_expansion_exhausted() -> None:
     }
 
     assert route_after_eval(state) == "end"  # type: ignore[arg-type]
+
+
+def test_route_after_eval_diagnostics_explains_evaluator_refine() -> None:
+    state = {
+        "status": "running",
+        "evaluation": {"passed": False, "recommended_next": "refine"},
+        "current_dimension": "technical_depth",
+        "turn_idx": 1,
+        "formal_turn_idx": 1,
+        "max_turns": 8,
+        "turn_budget_remaining": 7,
+        "runtime_config": {"max_refines_per_dimension": 2},
+        "dimensions": ["technical_depth", "system_design"],
+        "dimension_status": {
+            "technical_depth": "active",
+            "system_design": "pending",
+        },
+        "qa_history": [_failed_turn(0, "technical_depth")],
+    }
+
+    diagnostics = route_after_eval_diagnostics(state)  # type: ignore[arg-type]
+
+    assert diagnostics["decision"] == "refine"
+    assert diagnostics["next_node"] == "refine_followup"
+    assert diagnostics["decision_reason"] == "evaluator_recommended_refine"
+    assert diagnostics["decision_inputs"]["current_dimension_attempts"] == 1
+    assert diagnostics["decision_inputs"]["max_refines_per_dimension"] == 2
+
+
+def test_route_after_eval_diagnostics_explains_coverage_advance() -> None:
+    state = {
+        "status": "running",
+        "evaluation": {"passed": False, "recommended_next": "refine"},
+        "current_dimension": "technical_depth",
+        "turn_idx": 2,
+        "formal_turn_idx": 2,
+        "max_turns": 8,
+        "turn_budget_remaining": 6,
+        "runtime_config": {"max_refines_per_dimension": 2},
+        "dimensions": ["technical_depth", "system_design"],
+        "dimension_status": {
+            "technical_depth": "active",
+            "system_design": "pending",
+        },
+        "qa_history": [
+            _failed_turn(0, "technical_depth"),
+            _failed_turn(1, "technical_depth"),
+        ],
+    }
+
+    diagnostics = route_after_eval_diagnostics(state)  # type: ignore[arg-type]
+
+    assert diagnostics["decision"] == "next_question"
+    assert diagnostics["next_node"] == "director_sample"
+    assert diagnostics["decision_reason"] == "coverage_advance"
+    assert diagnostics["decision_inputs"]["coverage_advance"] is True
+    assert diagnostics["decision_inputs"]["current_dimension_attempts"] == 2
+    assert diagnostics["decision_inputs"]["has_pending_other_dimension"] is True
+
+
+def test_route_after_eval_diagnostics_explains_evaluator_fallback() -> None:
+    state = {
+        "status": "running",
+        "evaluation": {
+            "passed": False,
+            "recommended_next": "refine",
+            "source": "fallback",
+            "fallback_reason": "llm_failed",
+        },
+        "current_dimension": "technical_depth",
+        "turn_idx": 1,
+        "formal_turn_idx": 1,
+        "max_turns": 8,
+        "turn_budget_remaining": 7,
+        "dimensions": ["technical_depth", "system_design"],
+        "dimension_status": {
+            "technical_depth": "active",
+            "system_design": "pending",
+        },
+        "qa_history": [_failed_turn(0, "technical_depth")],
+    }
+
+    diagnostics = route_after_eval_diagnostics(state)  # type: ignore[arg-type]
+
+    assert diagnostics["decision"] == "next_question"
+    assert diagnostics["next_node"] == "director_sample"
+    assert diagnostics["decision_reason"] == "evaluator_fallback"
+    assert diagnostics["decision_inputs"]["evaluator_fallback"] is True
+
+
+def test_route_after_eval_diagnostics_explains_all_dimensions_done() -> None:
+    state = {
+        "status": "running",
+        "evaluation": {"passed": True},
+        "current_dimension": "system_design",
+        "turn_idx": 2,
+        "formal_turn_idx": 2,
+        "max_turns": 8,
+        "turn_budget_remaining": 6,
+        "runtime_config": {"interview_depth": "standard"},
+        "candidate": _candidate_with_focus(),
+        "job_spec": {
+            "required_skills": ["Redis"],
+            "rubric_dimensions": ["system_design", "technical_depth"],
+        },
+        "dimensions": ["system_design", "technical_depth"],
+        "dimension_status": {
+            "system_design": "passed",
+            "technical_depth": "passed",
+        },
+        "qa_history": [
+            {
+                **_scored_turn(0, "system_design", passed=True),
+                "resume_anchor": {"anchor_key": "focus-coupon-design"},
+            },
+            {
+                **_scored_turn(1, "technical_depth", passed=True),
+                "resume_anchor": {"anchor_key": "focus-coupon-design"},
+            },
+        ],
+    }
+
+    diagnostics = route_after_eval_diagnostics(state)  # type: ignore[arg-type]
+
+    assert diagnostics["decision"] == "end"
+    assert diagnostics["next_node"] == "final_report"
+    assert diagnostics["decision_reason"] == "all_dimensions_passed"
+    assert diagnostics["decision_inputs"]["all_dimensions_done"] is True
+    assert diagnostics["decision_inputs"]["has_anchor_expansion_slot"] is False
 
 
 def test_director_forces_switch_when_refine_cap_reached(monkeypatch) -> None:

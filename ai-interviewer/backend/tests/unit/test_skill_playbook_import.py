@@ -29,6 +29,8 @@ def _write_skill(
     card_id: str = "tech_production_incident_probe",
     name: str = "Production Incident Probe",
     description: str = "Drive answers toward root cause and prevention.",
+    display_name_zh: str = "生产事故追问卡",
+    display_description_zh: str = "引导事故回答覆盖发现信号、缓解动作、根因和预防措施。",
     status: str = "active",
     priority: str = "7",
     body: str = "Ask for detection signal, mitigation, root cause, and prevention.",
@@ -41,6 +43,8 @@ def _write_skill(
                 f"id: {card_id}",
                 f"name: {name}",
                 f"description: {description}",
+                f"display_name_zh: {display_name_zh}",
+                f"display_description_zh: {display_description_zh}",
                 f"status: {status}",
                 f"priority: {priority}",
                 "direction_tags: [Internet Tech]",
@@ -95,6 +99,8 @@ def test_import_skill_playbook_dir_imports_markdown_and_skips_index(
     assert row.id == "tech_production_incident_probe"
     assert row.name == "Production Incident Probe"
     assert row.description == "Drive answers toward root cause and prevention."
+    assert row.display_name_zh == "生产事故追问卡"
+    assert row.display_description_zh == "引导事故回答覆盖发现信号、缓解动作、根因和预防措施。"
     assert row.body_markdown == (
         "Ask for detection signal, mitigation, root cause, and prevention."
     )
@@ -141,6 +147,8 @@ def test_parse_bundled_skill_playbooks_is_strict_clean() -> None:
         "tech_ai_evaluation_probe",
     }
     assert all(card.values["generator_moves"] for card in cards)
+    assert all(card.values["display_name_zh"] for card in cards)
+    assert all(card.values["display_description_zh"] for card in cards)
     assert any(card.values["evaluator_rubric_hints"] for card in cards)
 
 

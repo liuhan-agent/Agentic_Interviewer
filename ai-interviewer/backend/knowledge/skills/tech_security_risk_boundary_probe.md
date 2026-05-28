@@ -2,6 +2,8 @@
 id: tech_security_risk_boundary_probe
 name: Security Risk Boundary Probe
 description: Make security answers name assets, trust boundaries, abuse paths, and mitigation limits.
+display_name_zh: 安全风险边界追问卡
+display_description_zh: 引导安全回答明确资产、信任边界、滥用途径和缓解措施的边界。
 status: active
 priority: 7
 direction_tags: [internet_tech]

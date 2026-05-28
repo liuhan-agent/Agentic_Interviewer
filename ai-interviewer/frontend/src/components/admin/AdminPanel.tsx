@@ -49,15 +49,20 @@ import {
   getFallbackRates,
   getInterviewSessionsHistory,
   getQuestionQualityRollUp,
+  getQuestionRewardReadiness,
   getQuestionRerankUsages,
   getQuestionReviews,
   getQuestionSeed,
   getQuestionSeeds,
+  getQuestionUsageStats,
   getQuestionUsages,
   getRecentTracesByNode,
   getSkillPlaybook,
   getSkillPlaybooks,
+  getSkillRewardReadiness,
+  getSkillUsageStats,
   getStrategySignals,
+  getStrategyRewardReadiness,
   getStrategyStats,
   getStrategyUsages,
   getStrategies,
@@ -65,6 +70,7 @@ import {
   getVerifierDrift,
   importSkillPlaybooks,
   importQuestionSeeds,
+  importStrategySeeds,
   runQuestionSeedLint,
   loadAdminToken,
   archiveQuestionSeed,
@@ -75,8 +81,13 @@ import {
   disableStrategy,
   createQuestionReview,
   refreshStrategyStats,
+  refreshQuestionUsageStats,
+  refreshSkillUsageStats,
   runStrategyPromotion,
   saveAdminToken,
+  setSkillRewardRollout,
+  setQuestionRewardRollout,
+  setStrategyRewardRollout,
   type AdminSessions,
   type BackendHealth,
   type BanditSnapshot,
@@ -88,15 +99,25 @@ import {
   type InterviewSessionHistoryItem,
   type QuestionSeedDetail,
   type QuestionSeeds,
+  type QuestionRewardReadiness,
+  type QuestionRewardReadinessGroup,
+  type QuestionRewardRolloutMode,
+  type QuestionRewardRolloutScope,
   type QuestionRerankUsages,
   type QuestionReviews,
+  type QuestionUsageStatsResponse,
   type QuestionUsages,
   type QuestionQualityRollupResponse,
   type RecentTracesResponse,
   type SkillPlaybookDetail,
   type SkillPlaybooks,
+  type SkillRewardReadiness,
+  type SkillRewardRolloutMode,
+  type SkillUsageStatsResponse,
   type Strategies,
   type StrategyPromotionSchedulerStatus,
+  type StrategyRewardReadiness,
+  type StrategyRewardRolloutMode,
   type StrategySignalGroup,
   type StrategySignals,
   type StrategyStats,
@@ -116,6 +137,8 @@ import { cn } from "@/lib/utils";
 const REFRESH_INTERVAL_MS = 15_000;
 const HISTORY_PAGE_SIZE = 20;
 const HISTORY_SEARCH_DEBOUNCE_MS = 300;
+const QUESTION_USAGE_STATS_PAGE_SIZE = 25;
+const SKILL_USAGE_STATS_PAGE_SIZE = 25;
 const ADMIN_ACTIVE_TAB_STORAGE_KEY = "agentic-interviewer:admin-active-tab";
 const BANDIT_RAW_DETAILS_PAGE_SIZE = 50;
 
@@ -379,25 +402,43 @@ function AdminStrategySection({
   bandit,
   questionSeeds,
   questionUsages,
+  questionUsageStats,
+  questionUsageStatsPage,
+  onQuestionUsageStatsPageChange,
+  questionRewardReadiness,
   questionRerankUsages,
   questionReviews,
   skillPlaybooks,
+  skillUsageStats,
+  skillUsageStatsPage,
+  onSkillUsageStatsPageChange,
+  skillRewardReadiness,
   strategies,
   strategySignals,
   strategyUsages,
   strategyStats,
+  strategyRewardReadiness,
   onRefresh,
 }: {
   bandit: Loadable<BanditSnapshot>;
   questionSeeds: Loadable<QuestionSeeds>;
   questionUsages: Loadable<QuestionUsages>;
+  questionUsageStats: Loadable<QuestionUsageStatsResponse>;
+  questionUsageStatsPage: number;
+  onQuestionUsageStatsPageChange: (page: number) => void;
+  questionRewardReadiness: Loadable<QuestionRewardReadiness>;
   questionRerankUsages: Loadable<QuestionRerankUsages>;
   questionReviews: Loadable<QuestionReviews>;
   skillPlaybooks: Loadable<SkillPlaybooks>;
+  skillUsageStats: Loadable<SkillUsageStatsResponse>;
+  skillUsageStatsPage: number;
+  onSkillUsageStatsPageChange: (page: number) => void;
+  skillRewardReadiness: Loadable<SkillRewardReadiness>;
   strategies: Loadable<Strategies>;
   strategySignals: Loadable<StrategySignals>;
   strategyUsages: Loadable<StrategyUsages>;
   strategyStats: Loadable<StrategyStats>;
+  strategyRewardReadiness: Loadable<StrategyRewardReadiness>;
   onRefresh: () => void;
 }) {
   return (
@@ -415,16 +456,28 @@ function AdminStrategySection({
         <QuestionBankCard
           state={questionSeeds}
           usages={questionUsages}
+          usageStats={questionUsageStats}
+          usageStatsPage={questionUsageStatsPage}
+          onUsageStatsPageChange={onQuestionUsageStatsPageChange}
+          rewardReadiness={questionRewardReadiness}
           rerankUsages={questionRerankUsages}
           reviews={questionReviews}
           onRefresh={onRefresh}
         />
-        <SkillsPlaybookCard state={skillPlaybooks} onRefresh={onRefresh} />
+        <SkillsPlaybookCard
+          state={skillPlaybooks}
+          usageStats={skillUsageStats}
+          usageStatsPage={skillUsageStatsPage}
+          onUsageStatsPageChange={onSkillUsageStatsPageChange}
+          rewardReadiness={skillRewardReadiness}
+          onRefresh={onRefresh}
+        />
         <StrategiesCard
           state={strategies}
           signals={strategySignals}
           usages={strategyUsages}
           stats={strategyStats}
+          rewardReadiness={strategyRewardReadiness}
           onRefresh={onRefresh}
         />
       </section>
@@ -462,6 +515,8 @@ export function AdminPanel() {
   const [recentNode, setRecentNode] = useState<string>("evaluator");
   const [activeTab, setActiveTab] = useState<AdminTabId>("health");
   const [historyPage, setHistoryPage] = useState(0);
+  const [questionUsageStatsPage, setQuestionUsageStatsPage] = useState(0);
+  const [skillUsageStatsPage, setSkillUsageStatsPage] = useState(0);
   const [historyFilters, setHistoryFilters] =
     useState<InterviewSessionHistoryFilters>({});
   const [historySearchText, setHistorySearchText] = useState("");
@@ -558,6 +613,21 @@ export function AdminPanel() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [tokenSaved],
   );
+  const skillUsageStatsFetcher = useCallback(
+    (signal?: AbortSignal) =>
+      getSkillUsageStats(true, {
+        limit: SKILL_USAGE_STATS_PAGE_SIZE,
+        offset: skillUsageStatsPage * SKILL_USAGE_STATS_PAGE_SIZE,
+        signal,
+      }),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [tokenSaved, skillUsageStatsPage],
+  );
+  const skillRewardReadinessFetcher = useCallback(
+    (signal?: AbortSignal) => getSkillRewardReadiness(true, signal),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [tokenSaved],
+  );
   const questionSeedsFetcher = useCallback(
     (signal?: AbortSignal) => getQuestionSeeds(signal),
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -565,6 +635,21 @@ export function AdminPanel() {
   );
   const questionUsagesFetcher = useCallback(
     (signal?: AbortSignal) => getQuestionUsages(signal),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [tokenSaved],
+  );
+  const questionUsageStatsFetcher = useCallback(
+    (signal?: AbortSignal) =>
+      getQuestionUsageStats(true, {
+        limit: QUESTION_USAGE_STATS_PAGE_SIZE,
+        offset: questionUsageStatsPage * QUESTION_USAGE_STATS_PAGE_SIZE,
+        signal,
+      }),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [tokenSaved, questionUsageStatsPage],
+  );
+  const questionRewardReadinessFetcher = useCallback(
+    (signal?: AbortSignal) => getQuestionRewardReadiness(true, signal),
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [tokenSaved],
   );
@@ -590,6 +675,11 @@ export function AdminPanel() {
   );
   const strategyStatsFetcher = useCallback(
     (signal?: AbortSignal) => getStrategyStats(true, signal),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [tokenSaved],
+  );
+  const strategyRewardReadinessFetcher = useCallback(
+    (signal?: AbortSignal) => getStrategyRewardReadiness(true, signal),
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [tokenSaved],
   );
@@ -632,13 +722,18 @@ export function AdminPanel() {
   const history = useAutoFetch(historyFetcher, tick);
   const strategies = useAutoFetch(strategiesFetcher, tick);
   const skillPlaybooks = useAutoFetch(skillPlaybooksFetcher, tick);
+  const skillUsageStats = useAutoFetch(skillUsageStatsFetcher, tick);
+  const skillRewardReadiness = useAutoFetch(skillRewardReadinessFetcher, tick);
   const questionSeeds = useAutoFetch(questionSeedsFetcher, tick);
   const questionUsages = useAutoFetch(questionUsagesFetcher, tick);
+  const questionUsageStats = useAutoFetch(questionUsageStatsFetcher, tick);
+  const questionRewardReadiness = useAutoFetch(questionRewardReadinessFetcher, tick);
   const questionRerankUsages = useAutoFetch(questionRerankUsagesFetcher, tick);
   const questionReviews = useAutoFetch(questionReviewsFetcher, tick);
   const strategySignals = useAutoFetch(strategySignalsFetcher, tick);
   const strategyUsages = useAutoFetch(strategyUsagesFetcher, tick);
   const strategyStats = useAutoFetch(strategyStatsFetcher, tick);
+  const strategyRewardReadiness = useAutoFetch(strategyRewardReadinessFetcher, tick);
   const traceRollup = useAutoFetch(traceRollupFetcher, tick);
   const fallbackRollup = useAutoFetch(fallbackRollupFetcher, tick);
   const evidenceRollup = useAutoFetch(evidenceRollupFetcher, tick);
@@ -744,13 +839,22 @@ export function AdminPanel() {
             bandit={bandit}
             questionSeeds={questionSeeds}
             questionUsages={questionUsages}
+            questionUsageStats={questionUsageStats}
+            questionUsageStatsPage={questionUsageStatsPage}
+            onQuestionUsageStatsPageChange={setQuestionUsageStatsPage}
+            questionRewardReadiness={questionRewardReadiness}
             questionRerankUsages={questionRerankUsages}
             questionReviews={questionReviews}
             skillPlaybooks={skillPlaybooks}
+            skillUsageStats={skillUsageStats}
+            skillUsageStatsPage={skillUsageStatsPage}
+            onSkillUsageStatsPageChange={setSkillUsageStatsPage}
+            skillRewardReadiness={skillRewardReadiness}
             strategies={strategies}
             strategySignals={strategySignals}
             strategyUsages={strategyUsages}
             strategyStats={strategyStats}
+            strategyRewardReadiness={strategyRewardReadiness}
             onRefresh={() => setTick((t) => t + 1)}
           />
         </AdminTabPanel>
@@ -3776,12 +3880,20 @@ function SessionStatusBadge({ session }: { session: AdminSessions["sessions"][nu
 function QuestionBankCard({
   state,
   usages,
+  usageStats,
+  usageStatsPage,
+  onUsageStatsPageChange,
+  rewardReadiness,
   rerankUsages,
   reviews,
   onRefresh,
 }: {
   state: Loadable<QuestionSeeds>;
   usages: Loadable<QuestionUsages>;
+  usageStats: Loadable<QuestionUsageStatsResponse>;
+  usageStatsPage: number;
+  onUsageStatsPageChange: (page: number) => void;
+  rewardReadiness: Loadable<QuestionRewardReadiness>;
   rerankUsages: Loadable<QuestionRerankUsages>;
   reviews: Loadable<QuestionReviews>;
   onRefresh: () => void;
@@ -3803,6 +3915,10 @@ function QuestionBankCard({
     () => new Map(questionSeedRows.map((seed) => [seed.id, seed.title])),
     [questionSeedRows],
   );
+  const seedReadinessById = useMemo(() => {
+    const rows = rewardReadiness.phase === "ready" ? rewardReadiness.data.seeds ?? [] : [];
+    return new Map(rows.map((row) => [row.seed_id ?? row.scope_key, row]));
+  }, [rewardReadiness]);
   const questionStatusCounts = useMemo(
     () =>
       questionSeedRows.reduce<Record<string, number>>((acc, seed) => {
@@ -4061,6 +4177,40 @@ function QuestionBankCard({
     }
   }
 
+  async function handleQuestionRewardRollout(
+    scope: QuestionRewardRolloutScope,
+    scopeKey: string,
+    mode: QuestionRewardRolloutMode,
+  ) {
+    if (busy) return;
+    const busyKey = `question-rollout:${scope}:${scopeKey}:${mode}`;
+    setBusy(busyKey);
+    try {
+      await setQuestionRewardRollout(scope, scopeKey, {
+        mode,
+        reason:
+          mode === "reward"
+            ? "admin reward ranking pilot"
+            : "admin fallback to reward shadow",
+      });
+      const rolloutTarget =
+        scope === "context" ? "context" : scope === "seed" ? "seed" : "scope";
+      toast({
+        title: `题库 ${rolloutTarget} reward 排序灰度已更新`,
+        description: `${scopeKey} -> ${mode}`,
+      });
+      onRefresh();
+    } catch (err) {
+      toast({
+        title: "题库 reward 排序灰度更新失败",
+        description: err instanceof Error ? err.message : String(err),
+        variant: "destructive",
+      });
+    } finally {
+      setBusy(null);
+    }
+  }
+
   return (
     <Card>
       <CardHeader>
@@ -4151,6 +4301,19 @@ function QuestionBankCard({
           </div>
         </div>
 
+        <QuestionRewardRolloutPanel
+          readiness={rewardReadiness}
+          onQuestionRewardRollout={handleQuestionRewardRollout}
+        />
+
+        <QuestionRewardShadowDiagnosticsPanel
+          stats={usageStats}
+          statsPage={usageStatsPage}
+          onStatsPageChange={onUsageStatsPageChange}
+          readiness={rewardReadiness}
+          onRefresh={onRefresh}
+        />
+
         {state.phase === "loading" && <LoadingList rows={3} />}
         {state.phase === "error" && <ErrorBox message={state.message} />}
         {state.phase === "ready" && state.data.question_seeds.length === 0 && (
@@ -4194,8 +4357,10 @@ function QuestionBankCard({
                   当前筛选下的题目主题多展示一些，超过后在左侧滚动。
                 </p>
               </div>
-              <ul className="max-h-[1280px] space-y-2 overflow-y-auto pr-1">
-                {filteredQuestionSeeds.map((seed) => (
+              <ul className="max-h-[1440px] space-y-2 overflow-y-auto pr-1">
+                {filteredQuestionSeeds.map((seed) => {
+                  const seedReadiness = seedReadinessById.get(seed.id);
+                  return (
                   <li
                     key={seed.id}
                     className={cn(
@@ -4234,6 +4399,16 @@ function QuestionBankCard({
                         <Badge variant="outline" className="font-mono text-[10px]">
                           {seed.variant_count ?? 0} 题目变体
                         </Badge>
+                        {seedReadiness && (
+                          <Badge variant="outline" className="font-mono text-[10px]">
+                            reward 排序灰度: {seedReadiness.rollout.mode}
+                          </Badge>
+                        )}
+                        {seedReadiness && (
+                          <Badge variant="secondary" className="font-mono text-[10px]">
+                            reward {seedReadiness.rewarded_usage_count}
+                          </Badge>
+                        )}
                         {seed.job_levels.slice(0, 3).map((level) => (
                           <Badge key={level} variant="outline" className="font-mono text-[10px]">
                             {level}
@@ -4262,13 +4437,20 @@ function QuestionBankCard({
                       </Button>
                     </div>
                   </li>
-                ))}
+                  );
+                })}
               </ul>
             </aside>
 
             <QuestionSeedDetailPanel
               detail={detail}
               busy={busy}
+              readiness={
+                detail?.phase === "ready"
+                  ? seedReadinessById.get(detail.data.seed.id) ?? null
+                  : null
+              }
+              onQuestionRewardRollout={handleQuestionRewardRollout}
               onVariantAction={handleVariantAction}
             />
           </div>
@@ -4544,16 +4726,579 @@ function QuestionBankCard({
   );
 }
 
+function QuestionRewardTopKList({
+  label,
+  description,
+  suffix = "完整 Top K",
+  values,
+}: {
+  label: string;
+  description?: string;
+  suffix?: string;
+  values: string[];
+}) {
+  return (
+    <div className="min-w-0 rounded-md border bg-background/40 px-2 py-1.5">
+      <p className="text-[10px] text-muted-foreground">
+        {label}
+        {suffix ? ` · ${suffix}` : ""}
+      </p>
+      {description && (
+        <p className="mt-0.5 text-[10px] leading-relaxed text-muted-foreground">
+          {description}
+        </p>
+      )}
+      {values.length > 0 ? (
+        <ol className="mt-1 space-y-1">
+          {values.map((value, index) => (
+            <li key={`${label}:${value}:${index}`} className="flex min-w-0 gap-2">
+              <span className="shrink-0 font-mono text-[10px] text-muted-foreground">
+                #{index + 1}
+              </span>
+              <span className="min-w-0 break-all font-mono text-[11px] font-medium text-foreground">
+                {value}
+              </span>
+            </li>
+          ))}
+        </ol>
+      ) : (
+        <p className="mt-1 text-[11px] text-muted-foreground">—</p>
+      )}
+    </div>
+  );
+}
+
+function QuestionRewardRolloutPanel({
+  readiness,
+  onQuestionRewardRollout,
+}: {
+  readiness: Loadable<QuestionRewardReadiness>;
+  onQuestionRewardRollout: (
+    scope: QuestionRewardRolloutScope,
+    scopeKey: string,
+    mode: QuestionRewardRolloutMode,
+  ) => void;
+}) {
+  const readinessData = readiness.phase === "ready" ? readiness.data : null;
+  const summary = readinessData?.summary ?? null;
+  return (
+    <section className="rounded-lg border bg-card/35 p-3">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h3 className="text-sm font-semibold text-foreground">
+            题库 Reward 排序灰度
+          </h3>
+          <p className="mt-1 text-xs text-muted-foreground">
+            只控制候选题排序，不切换 structured_primary / structured_shadow；context 控制跨 Seed 排序，seed 控制同 Seed 内 Variant。
+          </p>
+        </div>
+        {readinessData && (
+          <Badge variant="outline" className="font-mono text-[10px]">
+            ranking: {readinessData.reward_ranking_mode}
+          </Badge>
+        )}
+      </div>
+
+      {readiness.phase === "loading" && (
+        <div className="mt-3">
+          <LoadingList rows={2} />
+        </div>
+      )}
+      {readiness.phase === "error" && (
+        <ErrorBox message={`question reward readiness: ${readiness.message}`} />
+      )}
+
+      {summary && (
+        <div className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+          <StrategyMemoryInlineMetric
+            label="候选题 variants"
+            value={String(readinessData?.candidate_count ?? summary.total_variants)}
+          />
+          <StrategyMemoryInlineMetric
+            label="usage 样本"
+            value={String(readinessData?.usage_count ?? summary.usage_count ?? 0)}
+          />
+          <StrategyMemoryInlineMetric
+            label="reward 样本"
+            value={String(
+              readinessData?.rewarded_usage_count
+                ?? summary.rewarded_usage_count
+                ?? 0,
+            )}
+          />
+          <StrategyMemoryInlineMetric
+            label="readiness"
+            value={readinessData?.readiness ?? summary.readiness ?? "unknown"}
+          />
+        </div>
+      )}
+
+      {readinessData && (
+        <QuestionRewardContextReadinessList
+          contexts={readinessData.contexts ?? []}
+          onQuestionRewardRollout={onQuestionRewardRollout}
+        />
+      )}
+    </section>
+  );
+}
+
+function QuestionRewardModeStatus({
+  label,
+  backendKey,
+  value,
+}: {
+  label: string;
+  backendKey: string;
+  value: string;
+}) {
+  return (
+    <div className="min-w-[220px] rounded-md border bg-muted/10 px-2.5 py-1.5">
+      <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
+        <span className="text-[10px] font-medium uppercase tracking-normal text-muted-foreground">
+          {label}
+        </span>
+        <span className="font-mono text-[10px] text-muted-foreground">
+          {backendKey}
+        </span>
+      </div>
+      <p className="mt-0.5 break-all font-mono text-[11px] font-semibold text-foreground">
+        {value}
+      </p>
+    </div>
+  );
+}
+
+function QuestionRewardShadowDiagnosticsPanel({
+  stats,
+  statsPage,
+  onStatsPageChange,
+  readiness,
+  onRefresh,
+}: {
+  stats: Loadable<QuestionUsageStatsResponse>;
+  statsPage: number;
+  onStatsPageChange: (page: number) => void;
+  readiness: Loadable<QuestionRewardReadiness>;
+  onRefresh: () => void;
+}) {
+  const { toast } = useToast();
+  const [busy, setBusy] = useState(false);
+  const readinessData = readiness.phase === "ready" ? readiness.data : null;
+  const statRows = stats.phase === "ready" ? stats.data.stats : [];
+
+  async function handleRefreshQuestionStats() {
+    if (busy) return;
+    setBusy(true);
+    try {
+      const result = await refreshQuestionUsageStats();
+      toast({
+        title: "题库 reward shadow 已刷新",
+        description: `refreshed=${result.refreshed}, deleted=${result.deleted}`,
+      });
+      onStatsPageChange(0);
+      onRefresh();
+    } catch (err) {
+      toast({
+        title: "题库 reward shadow 刷新失败",
+        description: err instanceof Error ? err.message : String(err),
+        variant: "destructive",
+      });
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <section className="rounded-lg border bg-card/35 p-3">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <p className="text-[11px] font-medium text-muted-foreground">
+            全局总览
+          </p>
+          <h3 className="text-sm font-semibold text-foreground">
+            全局题库排序模拟
+          </h3>
+          <p className="mt-1 text-xs text-muted-foreground">
+            范围：全局。基于历史 QuestionUsage 中出现过、当前仍启用的题目变体做整体信号观察；这里不直接开启 live 排序，真实单轮候选请看 Trace Explorer 的 ask_question / 结构化题库。
+          </p>
+        </div>
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          onClick={handleRefreshQuestionStats}
+          disabled={busy}
+        >
+          {busy && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
+          刷新 stats
+        </Button>
+      </div>
+
+      {(stats.phase === "loading" || readiness.phase === "loading") && (
+        <div className="mt-3">
+          <LoadingList rows={2} />
+        </div>
+      )}
+      {stats.phase === "error" && (
+        <ErrorBox message={`question usage stats: ${stats.message}`} />
+      )}
+      {readiness.phase === "error" && (
+        <ErrorBox message={`question reward readiness: ${readiness.message}`} />
+      )}
+
+      {readinessData && (
+        <div className="mt-3 rounded-md border bg-background/40 p-2 text-[11px]">
+          <div className="flex flex-wrap items-start justify-between gap-2">
+            <div className="flex flex-wrap gap-2">
+              <QuestionRewardModeStatus
+                label="范围"
+                backendKey="scope"
+                value="global"
+              />
+              <QuestionRewardModeStatus
+                label="题库选择模式"
+                backendKey="selector_rollout_mode"
+                value={readinessData.selector_rollout_mode}
+              />
+              <QuestionRewardModeStatus
+                label="Reward 排序模式"
+                backendKey="reward_ranking_mode"
+                value={readinessData.reward_ranking_mode}
+              />
+            </div>
+            <Badge
+              variant={readinessData.rank_changed ? "warn" : "outline"}
+              className="text-[10px]"
+            >
+              {readinessData.rank_changed
+                ? "模拟 reward 后 Top K 会变化"
+                : "模拟 reward 后 Top K 不变"}
+            </Badge>
+          </div>
+          <details className="mt-2 rounded-md border border-dashed bg-background/40 p-2">
+            <summary className="cursor-pointer text-muted-foreground">
+              展开排序模拟与就绪诊断
+            </summary>
+            <div className="mt-2 grid gap-2">
+              <QuestionRewardTopKList
+                label="静态优先级 Top K · metadata_top_variant_ids"
+                description="按 seed.priority + variant.priority 排序。"
+                suffix=""
+                values={readinessData.metadata_top_variant_ids}
+              />
+              <QuestionRewardTopKList
+                label="reward 模拟 Top K · reward_top_variant_ids"
+                description="在静态优先级基础上叠加历史 reward、样本置信度和使用次数。"
+                suffix=""
+                values={readinessData.reward_top_variant_ids}
+              />
+            </div>
+            {readinessData.reasons.length > 0 && (
+              <div className="mt-2 flex flex-wrap gap-1.5">
+                {readinessData.reasons.map((reason) => (
+                  <Badge key={reason} variant="outline" className="text-[10px]">
+                    {formatQuestionRewardReason(reason)} · {reason}
+                  </Badge>
+                ))}
+              </div>
+            )}
+          </details>
+        </div>
+      )}
+
+      {stats.phase === "ready" && statRows.length > 0 && (
+        <QuestionUsageStatsList
+          rows={statRows}
+          count={stats.data.count}
+          limit={stats.data.limit ?? QUESTION_USAGE_STATS_PAGE_SIZE}
+          offset={
+            stats.data.offset ?? statsPage * QUESTION_USAGE_STATS_PAGE_SIZE
+          }
+          onPageChange={onStatsPageChange}
+        />
+      )}
+    </section>
+  );
+}
+
+type QuestionUsageStatsRow = QuestionUsageStatsResponse["stats"][number];
+
+function QuestionRewardContextReadinessList({
+  contexts,
+  onQuestionRewardRollout,
+}: {
+  contexts: QuestionRewardReadinessGroup[];
+  onQuestionRewardRollout: (
+    scope: QuestionRewardRolloutScope,
+    scopeKey: string,
+    mode: QuestionRewardRolloutMode,
+  ) => void;
+}) {
+  const visibleContexts = contexts.slice(0, 8);
+  return (
+    <section className="mt-3 rounded-md border bg-background/40 px-3 py-2">
+      <div className="text-xs font-semibold text-foreground">
+        Context 级灰度候选
+      </div>
+      <p className="mt-0.5 text-[11px] text-muted-foreground">
+        范围：direction / role / level / dimension。这里才是 context 级 reward 灰度开关；context 只按历史 usage 分组，不重放单轮 resume anchor / skills / qa_history 等动态匹配条件。
+      </p>
+      <div className="mt-2 space-y-2">
+        {visibleContexts.length === 0 ? (
+          <p className="text-[11px] text-muted-foreground">
+            暂无带 question_context_key 的 usage；新跑面试后会出现 context 级诊断。
+          </p>
+        ) : (
+          visibleContexts.map((context) => (
+            <QuestionRewardReadinessRow
+              key={context.context_key ?? context.scope_key}
+              group={context}
+              primaryLabel={context.context_key ?? context.scope_key}
+              onQuestionRewardRollout={onQuestionRewardRollout}
+            />
+          ))
+        )}
+        {contexts.length > visibleContexts.length && (
+          <p className="text-[11px] text-muted-foreground">
+            已展示前 {visibleContexts.length} 个 context；完整列表保留在 readiness payload。
+          </p>
+        )}
+      </div>
+    </section>
+  );
+}
+
+function QuestionRewardReadinessRow({
+  group,
+  primaryLabel,
+  onQuestionRewardRollout,
+}: {
+  group: QuestionRewardReadinessGroup;
+  primaryLabel: string;
+  onQuestionRewardRollout: (
+    scope: QuestionRewardRolloutScope,
+    scopeKey: string,
+    mode: QuestionRewardRolloutMode,
+  ) => void;
+}) {
+  const scope = group.scope;
+  const scopeKey = group.scope_key;
+  return (
+    <div className="rounded-md border bg-background/40 p-2 text-[11px]">
+      <div className="flex flex-wrap items-start justify-between gap-2">
+        <div className="min-w-0">
+          <p className="break-all font-mono text-xs font-semibold text-foreground">
+            {primaryLabel}
+          </p>
+          <p className="mt-1 text-muted-foreground">
+            candidates {group.candidate_count} · usage {group.usage_count} · reward {group.rewarded_usage_count}
+          </p>
+        </div>
+        <div className="flex flex-wrap items-center justify-end gap-1.5">
+          <Badge variant={group.rank_changed ? "warn" : "outline"} className="text-[10px]">
+            {group.rank_changed ? "模拟 reward 后 Top K 会变化" : "模拟 reward 后 Top K 不变"}
+          </Badge>
+          <Badge variant="secondary" className="font-mono text-[10px]">
+            override {group.rollout.mode}
+          </Badge>
+        </div>
+      </div>
+      <div className="mt-2 grid gap-2 md:grid-cols-2">
+        <QuestionRewardTopKList
+          label="静态优先级 Top K"
+          description="按 seed.priority + variant.priority 排序。"
+          suffix=""
+          values={group.metadata_top_variant_ids}
+        />
+        <QuestionRewardTopKList
+          label="reward 模拟 Top K"
+          description="叠加历史 reward、样本置信度和使用次数的 shadow 排序。"
+          suffix=""
+          values={group.reward_top_variant_ids}
+        />
+      </div>
+      <div className="mt-2 flex flex-wrap items-center gap-1.5">
+        {group.reasons.map((reason) => (
+          <Badge key={reason} variant="outline" className="text-[10px]">
+            {formatQuestionRewardReason(reason)} · {reason}
+          </Badge>
+        ))}
+        <Button
+          type="button"
+          size="sm"
+          variant="outline"
+          className="h-7 text-[11px]"
+          onClick={() => onQuestionRewardRollout(scope, scopeKey, "reward")}
+        >
+          开启 reward
+        </Button>
+        <Button
+          type="button"
+          size="sm"
+          variant="ghost"
+          className="h-7 text-[11px]"
+          onClick={() => onQuestionRewardRollout(scope, scopeKey, "reward_shadow")}
+        >
+          回退 shadow
+        </Button>
+      </div>
+    </div>
+  );
+}
+
+function QuestionUsageStatsList({
+  rows,
+  count,
+  limit,
+  offset,
+  onPageChange,
+}: {
+  rows: QuestionUsageStatsRow[];
+  count: number;
+  limit: number;
+  offset: number;
+  onPageChange: (page: number) => void;
+}) {
+  const currentPageIndex = Math.floor(offset / Math.max(1, limit));
+  const currentPage = currentPageIndex + 1;
+  const totalPages = Math.max(1, Math.ceil(count / Math.max(1, limit)));
+  const hasPrevious = currentPageIndex > 0;
+  const hasNext = offset + rows.length < count;
+  return (
+    <details className="mt-3 rounded-md border border-dashed bg-muted/10 px-3 py-2">
+      <summary className="cursor-pointer text-xs font-medium text-muted-foreground">
+        question_usage_stats
+      </summary>
+      <div className="mt-2 flex flex-wrap items-center justify-between gap-2">
+        <div className="space-y-0.5">
+          <p className="text-[11px] font-medium text-foreground">
+            第 {currentPage} / {totalPages} 页 · 已加载 {rows.length} / 共{" "}
+            {count} 条
+          </p>
+          <p className="text-[11px] text-muted-foreground">
+            每页 {limit} 条，按后端稳定排序分页；variant_id 保持完整展示。
+          </p>
+        </div>
+        <div className="flex items-center gap-2">
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            disabled={!hasPrevious}
+            onClick={() => onPageChange(Math.max(0, currentPageIndex - 1))}
+            className="h-7 text-[11px]"
+          >
+            上一页
+          </Button>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            disabled={!hasNext}
+            onClick={() => onPageChange(currentPageIndex + 1)}
+            className="h-7 text-[11px]"
+          >
+            下一页
+          </Button>
+        </div>
+      </div>
+      <ul className="mt-2 space-y-2">
+        {rows.map((row) => (
+          <li key={row.id} className="rounded-md border bg-background/40 p-2 text-[11px]">
+            <div className="flex min-w-0 flex-col gap-1">
+              <div className="flex flex-wrap items-center gap-1.5">
+                <Badge variant="secondary" className="font-mono text-[10px]">
+                  {row.question_selector_mode}
+                </Badge>
+                <span className="text-[10px] text-muted-foreground">
+                  variant_id
+                </span>
+              </div>
+              <p className="break-all font-mono text-[11px] font-medium text-foreground">
+                {row.variant_id}
+              </p>
+            </div>
+            <div className="mt-2 grid gap-1.5 sm:grid-cols-2 lg:grid-cols-4">
+              <QuestionUsageStatsMetric
+                label="使用次数 uses"
+                value={String(row.uses)}
+              />
+              <QuestionUsageStatsMetric
+                label="注入次数 injected"
+                value={String(row.injected_uses)}
+              />
+              <QuestionUsageStatsMetric
+                label="奖励样本 rewarded"
+                value={String(row.rewarded_uses)}
+              />
+              <QuestionUsageStatsMetric
+                label="平均分 avg_score"
+                value={formatMaybeNumber(row.avg_score)}
+              />
+              <QuestionUsageStatsMetric
+                label="通过率 pass_rate"
+                value={row.pass_rate == null ? "—" : formatPercent(row.pass_rate)}
+              />
+              <QuestionUsageStatsMetric
+                label="平均奖励 avg_reward"
+                value={formatMaybeNumber(row.avg_immediate_reward)}
+              />
+              <QuestionUsageStatsMetric
+                label="最近使用 last_used"
+                value={formatQuestionUsageStatsTime(row.last_used_at)}
+              />
+              <QuestionUsageStatsMetric
+                label="更新时间 updated"
+                value={formatQuestionUsageStatsTime(row.updated_at)}
+              />
+            </div>
+          </li>
+        ))}
+      </ul>
+    </details>
+  );
+}
+
+function QuestionUsageStatsMetric({
+  label,
+  value,
+}: {
+  label: string;
+  value: string;
+}) {
+  return (
+    <div className="min-w-0 rounded-md border bg-background/40 px-2 py-1.5">
+      <p className="text-[10px] text-muted-foreground">{label}</p>
+      <p className="mt-0.5 break-words font-mono text-[11px] font-medium text-foreground">
+        {value}
+      </p>
+    </div>
+  );
+}
+
+function formatQuestionUsageStatsTime(value?: string | null): string {
+  return value ? formatDateTime(value) : "—";
+}
+
 type QuestionVariantAction = "disable" | "archive";
 type QuestionVariantRow = QuestionSeedDetail["variants"][number];
 
 function QuestionSeedDetailPanel({
   detail,
   busy,
+  readiness,
+  onQuestionRewardRollout,
   onVariantAction,
 }: {
   detail: Loadable<QuestionSeedDetail> | null;
   busy: string | null;
+  readiness: QuestionRewardReadinessGroup | null;
+  onQuestionRewardRollout: (
+    scope: QuestionRewardRolloutScope,
+    scopeKey: string,
+    mode: QuestionRewardRolloutMode,
+  ) => void;
   onVariantAction: (
     variantId: string,
     action: QuestionVariantAction,
@@ -4616,6 +5361,12 @@ function QuestionSeedDetailPanel({
           一个 seed 是一个题目主题，一个 variant 是该主题下的一种问法/追问角度。
         </p>
 
+        <QuestionSeedRewardReadinessPanel
+          readiness={readiness}
+          seedId={seed.id}
+          onQuestionRewardRollout={onQuestionRewardRollout}
+        />
+
         <div className="grid gap-2 text-xs sm:grid-cols-2">
           <QuestionMetaItem label="维度" value={seed.dimension} />
           <QuestionMetaItem
@@ -4660,6 +5411,103 @@ function QuestionSeedDetailPanel({
             />
           ))}
         </div>
+      </div>
+    </div>
+  );
+}
+
+function QuestionSeedRewardReadinessPanel({
+  readiness,
+  seedId,
+  onQuestionRewardRollout,
+}: {
+  readiness: QuestionRewardReadinessGroup | null;
+  seedId: string;
+  onQuestionRewardRollout: (
+    scope: QuestionRewardRolloutScope,
+    scopeKey: string,
+    mode: QuestionRewardRolloutMode,
+  ) => void;
+}) {
+  if (!readiness) {
+    return (
+      <div className="rounded-md border border-dashed bg-muted/10 px-3 py-2 text-[11px] text-muted-foreground">
+        Seed 内 Variant 灰度暂无 usage 样本；新跑面试后会出现 Seed 级诊断。
+      </div>
+    );
+  }
+  return (
+    <div className="rounded-md border bg-background/40 p-3 text-[11px]">
+      <div className="flex flex-wrap items-start justify-between gap-2">
+        <div>
+          <p className="text-xs font-semibold text-foreground">
+            Seed 内 Variant 灰度
+          </p>
+          <p className="mt-1 text-muted-foreground">
+            范围：当前 Seed。只影响该 Seed 下多个 Variant 的 reward 排序；不按 context 分组，也不切换 structured_primary。
+          </p>
+        </div>
+        <div className="flex flex-wrap justify-end gap-1.5">
+          <Badge variant="secondary" className="font-mono text-[10px]">
+            override {readiness.rollout.mode}
+          </Badge>
+          <Badge variant={readiness.rank_changed ? "warn" : "outline"} className="text-[10px]">
+            {readiness.rank_changed ? "模拟 reward 后 Top K 会变化" : "模拟 reward 后 Top K 不变"}
+          </Badge>
+        </div>
+      </div>
+      <div className="mt-2 grid gap-2 sm:grid-cols-3">
+        <QuestionUsageStatsMetric
+          label="active variants"
+          value={String(readiness.active_variant_count ?? readiness.candidate_count)}
+        />
+        <QuestionUsageStatsMetric
+          label="usage 样本"
+          value={String(readiness.usage_count)}
+        />
+        <QuestionUsageStatsMetric
+          label="reward 样本"
+          value={String(readiness.rewarded_usage_count)}
+        />
+      </div>
+      <div className="mt-2 grid gap-2 md:grid-cols-2">
+        <QuestionRewardTopKList
+          label="静态优先级 Top K"
+          description="按当前 Seed 内 active Variant 的 priority 排序。"
+          suffix=""
+          values={readiness.metadata_top_variant_ids}
+        />
+        <QuestionRewardTopKList
+          label="reward 模拟 Top K"
+          description="在静态优先级基础上叠加该 Seed 下 Variant 的历史 reward。"
+          suffix=""
+          values={readiness.reward_top_variant_ids}
+        />
+      </div>
+      <div className="mt-2 flex flex-wrap gap-1.5">
+        {readiness.reasons.map((reason) => (
+          <Badge key={reason} variant="outline" className="text-[10px]">
+            {formatQuestionRewardReason(reason)} · {reason}
+          </Badge>
+        ))}
+        <Button
+          type="button"
+          size="sm"
+          variant="outline"
+          className="h-7 text-[11px]"
+          onClick={() => onQuestionRewardRollout("seed", seedId, "reward")}
+        >
+          开启 reward
+        </Button>
+        <Button
+          type="button"
+          size="sm"
+          variant="ghost"
+          className="h-7 text-[11px]"
+          onClick={() => onQuestionRewardRollout("seed", seedId, "reward_shadow")}
+        >
+          回退 shadow
+        </Button>
       </div>
     </div>
   );
@@ -5172,11 +6020,482 @@ function QuestionBankFilters({
 
 type SkillPlaybookRow = SkillPlaybooks["skill_playbooks"][number];
 
+function SkillRewardRolloutPanel({
+  readiness,
+  busyKey,
+  onSkillRewardRollout,
+}: {
+  readiness: Loadable<SkillRewardReadiness>;
+  busyKey: string | null;
+  onSkillRewardRollout: (
+    contextKey: string,
+    mode: SkillRewardRolloutMode,
+  ) => void;
+}) {
+  const readinessData = readiness.phase === "ready" ? readiness.data : null;
+  const summary = readinessData?.summary ?? null;
+  const contexts = readinessData?.contexts ?? [];
+  return (
+    <section className="rounded-lg border bg-card/35 p-3">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h3 className="text-sm font-semibold text-foreground">
+            Skill Reward 排序灰度
+          </h3>
+          <p className="mt-1 text-xs text-muted-foreground">
+            Context 级开关只控制 retrieve_skills() 的 live reward 排序；默认 reward_shadow 只模拟，不改变真实返回顺序。
+          </p>
+        </div>
+        {readinessData && (
+          <Badge variant="outline" className="font-mono text-[10px]">
+            ranking: {readinessData.reward_ranking_mode ?? "reward_shadow"}
+          </Badge>
+        )}
+      </div>
+
+      {readiness.phase === "loading" && (
+        <div className="mt-3">
+          <LoadingList rows={2} />
+        </div>
+      )}
+      {readiness.phase === "error" && (
+        <ErrorBox message={`skill reward readiness: ${readiness.message}`} />
+      )}
+
+      {summary && (
+        <div className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+          <StrategyMemoryInlineMetric
+            label="Skill 总数"
+            value={String(summary.total_skills)}
+          />
+          <StrategyMemoryInlineMetric
+            label="候选 Skill"
+            value={String(readinessData?.candidate_count ?? 0)}
+          />
+          <StrategyMemoryInlineMetric
+            label="usage 样本"
+            value={String(readinessData?.usage_count ?? 0)}
+          />
+          <StrategyMemoryInlineMetric
+            label="reward 样本"
+            value={String(readinessData?.rewarded_usage_count ?? 0)}
+          />
+        </div>
+      )}
+
+      {readinessData && (
+        <SkillRewardContextReadinessList
+          contexts={contexts}
+          busyKey={busyKey}
+          onSkillRewardRollout={onSkillRewardRollout}
+        />
+      )}
+    </section>
+  );
+}
+
+function SkillRewardContextReadinessList({
+  contexts,
+  busyKey,
+  onSkillRewardRollout,
+}: {
+  contexts: SkillRewardReadiness["contexts"];
+  busyKey: string | null;
+  onSkillRewardRollout: (
+    contextKey: string,
+    mode: SkillRewardRolloutMode,
+  ) => void;
+}) {
+  const visibleContexts = [...contexts]
+    .sort(compareSkillRewardContextReadiness)
+    .slice(0, 8);
+  return (
+    <section className="mt-3 rounded-md border bg-background/40 px-3 py-2">
+      <div className="text-xs font-semibold text-foreground">
+        Context 级灰度候选
+      </div>
+      <p className="mt-0.5 text-[11px] text-muted-foreground">
+        按 role / level / dimension / probe_intent 聚合；同一 context 会累加样本，默认优先展示已开启、可灰度或排序变化的 context。单轮实际命中仍以 Trace Explorer 的 ask_question / SKILLS 命中为准。
+      </p>
+      <div className="mt-2 space-y-2">
+        {visibleContexts.length === 0 ? (
+          <p className="text-[11px] text-muted-foreground">
+            暂无带 skill_context_key 的 usage；新跑面试后会出现 context 级诊断。
+          </p>
+        ) : (
+          visibleContexts.map((context) => (
+            <SkillRewardReadinessRow
+              key={context.skill_context_key}
+              context={context}
+              busyKey={busyKey}
+              onSkillRewardRollout={onSkillRewardRollout}
+            />
+          ))
+        )}
+      </div>
+      {contexts.length > visibleContexts.length && (
+        <p className="mt-2 text-[11px] text-muted-foreground">
+          已按灰度价值展示前 {visibleContexts.length} / {contexts.length} 个 context；低样本上下文后续可接筛选或分页。
+        </p>
+      )}
+    </section>
+  );
+}
+
+function compareSkillRewardContextReadiness(
+  a: SkillRewardReadiness["contexts"][number],
+  b: SkillRewardReadiness["contexts"][number],
+): number {
+  return (
+    skillRewardContextPriority(b) - skillRewardContextPriority(a) ||
+    (b.rewarded_usage_count ?? 0) - (a.rewarded_usage_count ?? 0) ||
+    (b.usage_count ?? 0) - (a.usage_count ?? 0) ||
+    String(a.skill_context_key).localeCompare(String(b.skill_context_key))
+  );
+}
+
+function skillRewardContextPriority(
+  context: SkillRewardReadiness["contexts"][number],
+): number {
+  let score = 0;
+  if (context.rollout?.mode === "reward") score += 100;
+  if (context.readiness === "ready") score += 40;
+  if (context.rank_changed) score += 20;
+  if ((context.rewarded_usage_count ?? 0) > 0) score += 5;
+  return score;
+}
+
+function SkillRewardReadinessRow({
+  context,
+  busyKey,
+  onSkillRewardRollout,
+}: {
+  context: SkillRewardReadiness["contexts"][number];
+  busyKey: string | null;
+  onSkillRewardRollout: (
+    contextKey: string,
+    mode: SkillRewardRolloutMode,
+  ) => void;
+}) {
+  const rolloutMode = context.rollout?.mode ?? "reward_shadow";
+  const rolloutBusy =
+    busyKey === `skill-rollout:${context.skill_context_key}:reward` ||
+    busyKey === `skill-rollout:${context.skill_context_key}:reward_shadow`;
+  return (
+    <div className="rounded-md border bg-card/30 p-2 text-[11px]">
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+        <div className="min-w-0">
+          <div className="flex flex-wrap items-center gap-1.5">
+            <Badge
+              variant="outline"
+              className={cn("text-[10px]", skillRewardReadinessTone(context.readiness))}
+            >
+              {formatSkillRewardReadiness(context.readiness)}
+            </Badge>
+            <Badge
+              variant="outline"
+              className={cn("font-mono text-[10px]", skillRewardRolloutTone(rolloutMode))}
+            >
+              {formatSkillRewardRolloutMode(rolloutMode)}
+            </Badge>
+            <span className="min-w-0 break-all font-mono text-muted-foreground">
+              {context.skill_context_key}
+            </span>
+          </div>
+          {context.rollout?.reason && (
+            <p className="mt-1 text-[11px] text-muted-foreground">
+              灰度说明：{context.rollout.reason}
+            </p>
+          )}
+        </div>
+        {rolloutMode === "reward" ? (
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            disabled={rolloutBusy}
+            onClick={() =>
+              onSkillRewardRollout(context.skill_context_key, "reward_shadow")
+            }
+            className="h-7 shrink-0 text-[11px]"
+          >
+            {rolloutBusy ? "处理中" : "回退 shadow"}
+          </Button>
+        ) : (
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            disabled={rolloutBusy}
+            onClick={() => onSkillRewardRollout(context.skill_context_key, "reward")}
+            className="h-7 shrink-0 border-emerald-500/40 text-[11px] text-emerald-600 hover:bg-emerald-500/10"
+          >
+            {rolloutBusy ? "处理中" : "开启 reward"}
+          </Button>
+        )}
+      </div>
+      <div className="mt-1 flex flex-wrap gap-3 text-muted-foreground">
+        <span>候选 {context.candidate_count ?? 0}</span>
+        <span>usage {context.usage_count ?? 0}</span>
+        <span>reward {context.rewarded_usage_count ?? 0}</span>
+      </div>
+      <div className="mt-2 grid gap-2 md:grid-cols-2">
+        <QuestionRewardTopKList
+          label="匹配规则 Top K"
+          description="按 Skill 卡片的 priority、role/job_level/dimension/probe_intent 匹配分排序。"
+          suffix=""
+          values={context.metadata_top_skill_ids}
+        />
+        <QuestionRewardTopKList
+          label="reward 模拟 Top K"
+          description="在匹配规则基础上叠加历史 reward、样本置信度、使用次数和否决惩罚。"
+          suffix=""
+          values={context.reward_top_skill_ids}
+        />
+      </div>
+      {context.reasons.length > 0 && (
+        <div className="mt-2 flex flex-wrap gap-1.5">
+          {context.reasons.map((reason) => (
+            <Badge key={reason} variant="outline" className="text-[10px]">
+              {formatSkillRewardReason(reason)} · {reason}
+            </Badge>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function SkillRewardShadowDiagnosticsPanel({
+  stats,
+  statsPage,
+  onStatsPageChange,
+  readiness,
+  onRefresh,
+}: {
+  stats: Loadable<SkillUsageStatsResponse>;
+  statsPage: number;
+  onStatsPageChange: (page: number) => void;
+  readiness: Loadable<SkillRewardReadiness>;
+  onRefresh: () => void;
+}) {
+  const { toast } = useToast();
+  const [busy, setBusy] = useState(false);
+  const readinessData = readiness.phase === "ready" ? readiness.data : null;
+  const statRows = stats.phase === "ready" ? stats.data.stats : [];
+
+  async function handleRefreshSkillStats() {
+    if (busy) return;
+    setBusy(true);
+    try {
+      const result = await refreshSkillUsageStats();
+      toast({
+        title: "Skill reward shadow 已刷新",
+        description: `refreshed=${result.refreshed}, deleted=${result.deleted}`,
+      });
+      onStatsPageChange(0);
+      onRefresh();
+    } catch (err) {
+      toast({
+        title: "Skill reward shadow 刷新失败",
+        description: err instanceof Error ? err.message : String(err),
+        variant: "destructive",
+      });
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <section className="rounded-lg border bg-card/35 p-3">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <p className="text-[11px] font-medium text-muted-foreground">
+            Skill Shadow 模拟诊断
+          </p>
+          <h3 className="text-sm font-semibold text-foreground">
+            Skill Reward 排序模拟
+          </h3>
+          <p className="mt-1 text-xs text-muted-foreground">
+            基于历史 SkillUsage 中出现过、当前仍启用的 Skill 卡片做治理模拟；默认 reward_shadow 不改变 retrieve_skills() 的真实返回顺序。
+          </p>
+        </div>
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          onClick={handleRefreshSkillStats}
+          disabled={busy}
+        >
+          {busy && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
+          刷新 stats
+        </Button>
+      </div>
+
+      {(stats.phase === "loading" || readiness.phase === "loading") && (
+        <div className="mt-3">
+          <LoadingList rows={2} />
+        </div>
+      )}
+      {stats.phase === "error" && (
+        <ErrorBox message={`skill usage stats: ${stats.message}`} />
+      )}
+      {readiness.phase === "error" && (
+        <ErrorBox message={`skill reward readiness: ${readiness.message}`} />
+      )}
+
+      {readinessData && (
+        <div className="mt-3 rounded-md border bg-background/40 p-2 text-[11px]">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <Badge variant="outline" className="font-mono text-[10px]">
+              reward_ranking_mode: {readinessData.reward_ranking_mode ?? "reward_shadow"}
+            </Badge>
+            <Badge
+              variant={readinessData.summary.shadow_changed_contexts > 0 ? "warn" : "outline"}
+              className="text-[10px]"
+            >
+              {readinessData.summary.shadow_changed_contexts > 0
+                ? "模拟 reward 后 Top K 会变化"
+                : "模拟 reward 后 Top K 不变"}
+            </Badge>
+          </div>
+          <details className="mt-2 rounded-md border border-dashed bg-background/40 p-2">
+            <summary className="cursor-pointer text-muted-foreground">
+              展开 Skill Shadow 模拟诊断
+            </summary>
+            <div className="mt-2 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+              <StrategyMemoryInlineMetric
+                label="低样本 context"
+                value={String(readinessData.summary.low_sample_contexts)}
+              />
+              <StrategyMemoryInlineMetric
+                label="Shadow 改变 context"
+                value={String(readinessData.summary.shadow_changed_contexts)}
+              />
+              <StrategyMemoryInlineMetric
+                label="高 reward 低样本"
+                value={String(readinessData.summary.high_reward_low_sample_skills)}
+              />
+              <StrategyMemoryInlineMetric
+                label="已统计 Skill"
+                value={String(readinessData.summary.skills_with_stats)}
+              />
+            </div>
+          </details>
+        </div>
+      )}
+
+      {stats.phase === "ready" && statRows.length > 0 && (
+        <SkillUsageStatsList
+          rows={statRows}
+          count={stats.data.count}
+          limit={stats.data.limit ?? SKILL_USAGE_STATS_PAGE_SIZE}
+          offset={stats.data.offset ?? statsPage * SKILL_USAGE_STATS_PAGE_SIZE}
+          onPageChange={onStatsPageChange}
+        />
+      )}
+    </section>
+  );
+}
+
+type SkillUsageStatsRow = SkillUsageStatsResponse["stats"][number];
+
+function SkillUsageStatsList({
+  rows,
+  count,
+  limit,
+  offset,
+  onPageChange,
+}: {
+  rows: SkillUsageStatsRow[];
+  count: number;
+  limit: number;
+  offset: number;
+  onPageChange: (page: number) => void;
+}) {
+  const currentPageIndex = Math.floor(offset / Math.max(1, limit));
+  const currentPage = currentPageIndex + 1;
+  const totalPages = Math.max(1, Math.ceil(count / Math.max(1, limit)));
+  const hasPrevious = currentPageIndex > 0;
+  const hasNext = offset + rows.length < count;
+  return (
+    <details className="mt-3 rounded-md border border-dashed bg-muted/10 px-3 py-2">
+      <summary className="cursor-pointer text-xs font-medium text-muted-foreground">
+        skill_usage_stats
+      </summary>
+      <div className="mt-2 flex flex-wrap items-center justify-between gap-2">
+        <p className="text-[11px] font-medium text-foreground">
+          第 {currentPage} / {totalPages} 页 · 已加载 {rows.length} / 共 {count} 条
+        </p>
+        <div className="flex items-center gap-2">
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            disabled={!hasPrevious}
+            onClick={() => onPageChange(Math.max(0, currentPageIndex - 1))}
+            className="h-7 text-[11px]"
+          >
+            上一页
+          </Button>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            disabled={!hasNext}
+            onClick={() => onPageChange(currentPageIndex + 1)}
+            className="h-7 text-[11px]"
+          >
+            下一页
+          </Button>
+        </div>
+      </div>
+      <ul className="mt-2 space-y-2">
+        {rows.map((row) => (
+          <li key={row.id} className="rounded-md border bg-background/40 p-2 text-[11px]">
+            <div className="grid gap-1.5 sm:grid-cols-2">
+              <StrategyMemoryFact label="skill_context_key" value={row.skill_context_key} mono />
+              <StrategyMemoryFact label="skill_id" value={row.skill_id} mono />
+            </div>
+            <div className="mt-2 grid gap-1.5 sm:grid-cols-2 lg:grid-cols-4">
+              <QuestionUsageStatsMetric label="uses" value={String(row.uses)} />
+              <QuestionUsageStatsMetric
+                label="injected / rewarded"
+                value={`${row.injected_uses} / ${row.rewarded_uses}`}
+              />
+              <QuestionUsageStatsMetric
+                label="avg_score / pass_rate"
+                value={`${formatMaybeNumber(row.avg_score)} / ${
+                  row.pass_rate == null ? "—" : formatPercent(row.pass_rate)
+                }`}
+              />
+              <QuestionUsageStatsMetric
+                label="reward / last_used_at"
+                value={`${formatMaybeNumber(row.avg_blended_reward)} / ${
+                  row.last_used_at ? formatDateTime(row.last_used_at) : "—"
+                }`}
+              />
+            </div>
+          </li>
+        ))}
+      </ul>
+    </details>
+  );
+}
+
 function SkillsPlaybookCard({
   state,
+  usageStats,
+  usageStatsPage,
+  onUsageStatsPageChange,
+  rewardReadiness,
   onRefresh,
 }: {
   state: Loadable<SkillPlaybooks>;
+  usageStats: Loadable<SkillUsageStatsResponse>;
+  usageStatsPage: number;
+  onUsageStatsPageChange: (page: number) => void;
+  rewardReadiness: Loadable<SkillRewardReadiness>;
   onRefresh: () => void;
 }) {
   const { toast } = useToast();
@@ -5282,6 +6601,37 @@ function SkillsPlaybookCard({
     return () => ctrl.abort();
   }, [selectedCardId]);
 
+  async function handleSkillRewardRollout(
+    contextKey: string,
+    mode: SkillRewardRolloutMode,
+  ) {
+    if (busy) return;
+    const busyKey = `skill-rollout:${contextKey}:${mode}`;
+    setBusy(busyKey);
+    try {
+      await setSkillRewardRollout(contextKey, {
+        mode,
+        reason:
+          mode === "reward"
+            ? "admin skill reward ranking pilot"
+            : "admin fallback to reward shadow",
+      });
+      toast({
+        title: "Skill reward 排序灰度已更新",
+        description: `${contextKey} -> ${mode}`,
+      });
+      onRefresh();
+    } catch (err) {
+      toast({
+        title: "Skill reward 排序灰度更新失败",
+        description: err instanceof Error ? err.message : String(err),
+        variant: "destructive",
+      });
+    } finally {
+      setBusy(null);
+    }
+  }
+
   async function handleImport(archiveMissing: boolean) {
     if (busy) return;
     setBusy(archiveMissing ? "import-archive" : "import");
@@ -5365,6 +6715,20 @@ function SkillsPlaybookCard({
           </div>
         </div>
 
+        <SkillRewardRolloutPanel
+          readiness={rewardReadiness}
+          busyKey={busy}
+          onSkillRewardRollout={handleSkillRewardRollout}
+        />
+
+        <SkillRewardShadowDiagnosticsPanel
+          stats={usageStats}
+          statsPage={usageStatsPage}
+          onStatsPageChange={onUsageStatsPageChange}
+          readiness={rewardReadiness}
+          onRefresh={onRefresh}
+        />
+
         {state.phase === "loading" && <LoadingList rows={3} />}
         {state.phase === "error" && <ErrorBox message={state.message} />}
         {state.phase === "ready" && (
@@ -5438,7 +6802,7 @@ function SkillsPlaybookCard({
                           >
                             <div className="flex items-start justify-between gap-2">
                               <span className="min-w-0 truncate font-medium">
-                                {card.name || card.id}
+                                {skillPlaybookDisplayName(card)}
                               </span>
                               <Badge
                                 variant={skillPlaybookStatusBadgeVariant(card.status)}
@@ -5448,7 +6812,7 @@ function SkillsPlaybookCard({
                               </Badge>
                             </div>
                             <p className="mt-1 line-clamp-1 text-xs text-muted-foreground">
-                              {card.description || "暂无描述"}
+                              {skillPlaybookDisplayDescription(card) || "暂无描述"}
                             </p>
                             <div className="mt-2 flex min-w-0 flex-nowrap gap-1.5 overflow-hidden">
                               <Badge variant="secondary" className="shrink-0 font-mono text-[10px]">
@@ -5609,12 +6973,19 @@ function SkillPlaybookFilters({
 }
 
 function SkillPlaybookDetailView({ card }: { card: SkillPlaybookRow }) {
+  const displayName = skillPlaybookDisplayName(card);
+  const displayDescription = skillPlaybookDisplayDescription(card);
   return (
     <div className="space-y-4">
       <div className="space-y-2">
         <div className="flex flex-wrap items-start justify-between gap-2">
           <div className="min-w-0">
-            <p className="text-base font-semibold leading-tight">{card.name || card.id}</p>
+            <p className="text-base font-semibold leading-tight">{displayName}</p>
+            {card.name && (
+              <p className="mt-0.5 break-all font-mono text-[11px] text-muted-foreground">
+                name:{card.name}
+              </p>
+            )}
             <p className="mt-1 break-all font-mono text-[11px] text-muted-foreground">
               {card.id}
             </p>
@@ -5631,9 +7002,9 @@ function SkillPlaybookDetailView({ card }: { card: SkillPlaybookRow }) {
             </Badge>
           </div>
         </div>
-        {card.description && (
+        {displayDescription && (
           <p className="text-sm leading-relaxed text-muted-foreground">
-            {card.description}
+            {displayDescription}
           </p>
         )}
       </div>
@@ -5825,12 +7196,22 @@ function collectSkillPlaybookValues(
   ).sort();
 }
 
+function skillPlaybookDisplayName(card: SkillPlaybookRow): string {
+  return card.display_name_zh?.trim() || card.name || card.id;
+}
+
+function skillPlaybookDisplayDescription(card: SkillPlaybookRow): string {
+  return card.display_description_zh?.trim() || card.description || "";
+}
+
 function matchesSkillPlaybookSearch(card: SkillPlaybookRow, q: string): boolean {
   if (!q) return true;
   const haystack = [
     card.id,
     card.name,
     card.description ?? "",
+    card.display_name_zh ?? "",
+    card.display_description_zh ?? "",
     card.source ?? "",
     ...card.direction_tags,
     ...card.role_tags,
@@ -5886,17 +7267,65 @@ function formatSkillPlaybookBackend(value?: string | null): string {
   return value || "未知";
 }
 
+type StrategyMemoryRow = Strategies["strategies"][number];
+
+function strategyDisplayName(strategy: StrategyMemoryRow): string {
+  return strategy.display_name_zh?.trim() || strategy.name || strategy.path;
+}
+
+function strategyDisplayDescription(strategy: StrategyMemoryRow): string {
+  return strategy.display_description_zh?.trim() || strategy.description || "";
+}
+
+function shouldShowStrategyBackendName(strategy: StrategyMemoryRow): boolean {
+  const displayName = strategy.display_name_zh?.trim();
+  return Boolean(displayName && strategy.name && displayName !== strategy.name);
+}
+
+function isPromotedStrategyMemory(strategy: StrategyMemoryRow): boolean {
+  return strategy.source === "promoted_signal";
+}
+
+function strategyOriginBadgeVariant(
+  strategy: StrategyMemoryRow,
+): React.ComponentProps<typeof Badge>["variant"] {
+  return isPromotedStrategyMemory(strategy) ? "warn" : "secondary";
+}
+
+function strategyOriginLabel(strategy: StrategyMemoryRow): string {
+  if (isPromotedStrategyMemory(strategy)) return "来源：自动晋升";
+  return `来源：${formatStrategySource(strategy.source)}`;
+}
+
+function strategyPromotionStageTone(stage?: string | null): string {
+  if (stage === "stable" || stage === "stabilized") {
+    return "border-emerald-500/50 text-emerald-600";
+  }
+  if (stage === "low_confidence") {
+    return "border-amber-500/50 text-amber-600";
+  }
+  return "";
+}
+
+function strategyPromotionStageLabel(stage?: string | null): string {
+  if (stage === "low_confidence") return "阶段：低置信晋升";
+  if (stage === "stable" || stage === "stabilized") return "阶段：稳定策略";
+  return `阶段：${formatPromotionStage(stage)}`;
+}
+
 const StrategiesCard = React.memo(function StrategiesCard({
   state,
   signals,
   usages,
   stats,
+  rewardReadiness,
   onRefresh,
 }: {
   state: Loadable<Strategies>;
   signals: Loadable<StrategySignals>;
   usages: Loadable<StrategyUsages>;
   stats: Loadable<StrategyStats>;
+  rewardReadiness: Loadable<StrategyRewardReadiness>;
   onRefresh: () => void;
 }) {
   const { toast } = useToast();
@@ -5961,6 +7390,58 @@ const StrategiesCard = React.memo(function StrategiesCard({
     } catch (err) {
       toast({
         title: "策略统计刷新失败",
+        description: err instanceof Error ? err.message : String(err),
+        variant: "destructive",
+      });
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  async function handleSeedImport() {
+    if (busy) return;
+    setBusy("seed-import");
+    try {
+      const result = await importStrategySeeds();
+      toast({
+        title: "种子策略已导入",
+        description: `导入种子策略后会刷新策略资产和 Reward 排序就绪度。新增 ${result.imported}，更新 ${result.updated}，未变 ${result.unchanged}，跳过 ${result.skipped}。`,
+      });
+      onRefresh();
+    } catch (err) {
+      toast({
+        title: "种子策略导入失败",
+        description: err instanceof Error ? err.message : String(err),
+        variant: "destructive",
+      });
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  async function handleRewardRollout(
+    contextKey: string,
+    mode: StrategyRewardRolloutMode,
+  ) {
+    if (busy) return;
+    const actionLabel = mode === "reward" ? "reward 灰度" : "shadow 回退";
+    setBusy(`rollout:${contextKey}:${mode}`);
+    try {
+      await setStrategyRewardRollout(contextKey, {
+        mode,
+        reason:
+          mode === "reward"
+            ? "Admin readiness canary enabled"
+            : "Admin rollback to reward_shadow",
+      });
+      toast({
+        title: mode === "reward" ? "已开启 reward 灰度" : "已回退 shadow",
+        description: `${contextKey} 已切换到 ${actionLabel}。未通过 gate 时仍会自动 metadata_fallback。`,
+      });
+      onRefresh();
+    } catch (err) {
+      toast({
+        title: "Reward 灰度操作失败",
         description: err instanceof Error ? err.message : String(err),
         variant: "destructive",
       });
@@ -6092,6 +7573,12 @@ const StrategiesCard = React.memo(function StrategiesCard({
           />
         </div>
 
+        <StrategyRewardReadinessPanel
+          state={rewardReadiness}
+          busyKey={busy}
+          onRolloutChange={handleRewardRollout}
+        />
+
         {state.phase === "loading" && <LoadingList rows={3} />}
         {state.phase === "error" && <ErrorBox message={state.message} />}
         {state.phase === "ready" && strategies.length === 0 && (
@@ -6113,6 +7600,10 @@ const StrategiesCard = React.memo(function StrategiesCard({
               {strategies.map((s) => {
               const strategyStats = s.id ? globalStatsByStrategy.get(s.id) : undefined;
               const contextRows = s.id ? contextStatsByStrategy.get(s.id) ?? [] : [];
+              const displayName = strategyDisplayName(s);
+              const displayDescription = strategyDisplayDescription(s);
+              const showBackendName = shouldShowStrategyBackendName(s);
+              const promotedMemory = isPromotedStrategyMemory(s);
               return (
               <li
                 key={s.path}
@@ -6120,11 +7611,20 @@ const StrategiesCard = React.memo(function StrategiesCard({
               >
                 <div className="flex items-center justify-between gap-2">
                   <div className="min-w-0">
-                    <span className="font-medium">{s.name || s.path}</span>
+                    <span className="font-medium">{displayName}</span>
+                    {showBackendName && (
+                      <p className="mt-0.5 truncate text-[11px] text-muted-foreground">
+                        后端名称{" "}
+                        <span className="font-mono">{s.name}</span>
+                      </p>
+                    )}
                     <div className="mt-1 flex flex-wrap gap-1.5">
                       {s.source && (
-                        <Badge variant="secondary" className="text-[10px]">
-                          来源：{formatStrategySource(s.source)}
+                        <Badge
+                          variant={strategyOriginBadgeVariant(s)}
+                          className="text-[10px]"
+                        >
+                          {strategyOriginLabel(s)}
                         </Badge>
                       )}
                       {s.status && (
@@ -6133,8 +7633,14 @@ const StrategiesCard = React.memo(function StrategiesCard({
                         </Badge>
                       )}
                       {s.promotion_stage && (
-                        <Badge variant="outline" className="text-[10px]">
-                          阶段：{formatPromotionStage(s.promotion_stage)}
+                        <Badge
+                          variant="outline"
+                          className={cn(
+                            "text-[10px]",
+                            strategyPromotionStageTone(s.promotion_stage),
+                          )}
+                        >
+                          {strategyPromotionStageLabel(s.promotion_stage)}
                         </Badge>
                       )}
                       {typeof s.priority === "number" && (
@@ -6148,9 +7654,14 @@ const StrategiesCard = React.memo(function StrategiesCard({
                     {truncate(s.id ?? s.path)}
                   </span>
                 </div>
-                {s.description && (
+                {displayDescription && (
                   <p className="mt-1 text-xs text-muted-foreground">
-                    {s.description}
+                    {displayDescription}
+                  </p>
+                )}
+                {promotedMemory && (
+                  <p className="mt-1 rounded-md border border-amber-500/30 bg-amber-500/5 px-2 py-1.5 text-xs text-muted-foreground">
+                    由 StrategySignal 聚合晋升，仍需结合样本量、否决率和 reward 表现治理。
                   </p>
                 )}
                 {s.quality_reason && (
@@ -6164,7 +7675,7 @@ const StrategiesCard = React.memo(function StrategiesCard({
                     value={formatMaybeNumber(s.confidence)}
                   />
                   <StrategyMemoryInlineMetric
-                    label="支持样本"
+                    label="支撑样本"
                     value={String(s.support_count ?? 0)}
                   />
                   <StrategyMemoryInlineMetric
@@ -6422,6 +7933,18 @@ const StrategiesCard = React.memo(function StrategiesCard({
               type="button"
               variant="outline"
               size="sm"
+              onClick={handleSeedImport}
+              disabled={busy !== null}
+            >
+              {busy === "seed-import" && (
+                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              )}
+              导入种子策略
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
               onClick={handleStatsRefresh}
               disabled={busy !== null}
             >
@@ -6479,6 +8002,231 @@ const StrategiesCard = React.memo(function StrategiesCard({
     </Card>
   );
 });
+
+function StrategyRewardReadinessPanel({
+  state,
+  busyKey,
+  onRolloutChange,
+}: {
+  state: Loadable<StrategyRewardReadiness>;
+  busyKey?: string | null;
+  onRolloutChange?: (
+    contextKey: string,
+    mode: StrategyRewardRolloutMode,
+  ) => void;
+}) {
+  return (
+    <section className="space-y-3 border-t border-border/40 pt-4">
+      <div className="flex flex-wrap items-start justify-between gap-2">
+        <div>
+          <p className="text-xs font-medium text-muted-foreground">
+            Reward 排序就绪度
+          </p>
+          <p className="mt-0.5 text-[11px] text-muted-foreground">
+            reward_shadow 只诊断不改线上排序，用来判断哪些上下文适合灰度切到 reward。
+          </p>
+        </div>
+        {state.phase === "ready" && (
+          <Badge variant="outline" className="font-mono text-[10px]">
+            {state.data.summary.total_contexts} contexts
+          </Badge>
+        )}
+      </div>
+
+      {state.phase === "loading" && <LoadingList rows={2} />}
+      {state.phase === "error" && <ErrorBox message={state.message} />}
+      {state.phase === "ready" && (
+        <div className="space-y-3">
+          <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+            <StrategyMemoryInlineMetric
+              label="可灰度"
+              value={String(state.data.summary.ready_contexts)}
+            />
+            <StrategyMemoryInlineMetric
+              label="仅观测"
+              value={String(state.data.summary.shadow_only_contexts)}
+            />
+            <StrategyMemoryInlineMetric
+              label="缺候选"
+              value={String(state.data.summary.needs_candidate_contexts)}
+            />
+            <StrategyMemoryInlineMetric
+              label="缺样本"
+              value={String(state.data.summary.needs_sample_contexts)}
+            />
+            <StrategyMemoryInlineMetric
+              label="被否决阻塞"
+              value={String(state.data.summary.blocked_contexts)}
+            />
+            <StrategyMemoryInlineMetric
+              label="已灰度"
+              value={String(state.data.summary.reward_rollout_contexts ?? 0)}
+            />
+          </div>
+
+          {state.data.contexts.length === 0 && (
+            <p className="rounded-md border border-dashed bg-muted/10 px-3 py-2 text-xs text-muted-foreground">
+              暂无上下文 reward 诊断；策略被注入并完成评分后才会形成样本。
+            </p>
+          )}
+
+          {state.data.contexts.length > 0 && (
+            <ul className="space-y-1.5">
+              {state.data.contexts.slice(0, 8).map((context) => (
+                <StrategyRewardReadinessRow
+                  key={context.context_key}
+                  context={context}
+                  busyKey={busyKey}
+                  onRolloutChange={onRolloutChange}
+                />
+              ))}
+            </ul>
+          )}
+        </div>
+      )}
+    </section>
+  );
+}
+
+function StrategyRewardReadinessRow({
+  context,
+  busyKey,
+  onRolloutChange,
+}: {
+  context: StrategyRewardReadiness["contexts"][number];
+  busyKey?: string | null;
+  onRolloutChange?: (
+    contextKey: string,
+    mode: StrategyRewardRolloutMode,
+  ) => void;
+}) {
+  const parsed = parseStrategyContextKey(context.context_key);
+  const overrule =
+    context.overrule_rate === null || context.overrule_rate === undefined
+      ? "—"
+      : formatPercent(context.overrule_rate);
+  const rolloutMode = normalizeStrategyRewardRolloutMode(context.rollout_mode);
+  const rolloutBusy =
+    busyKey === `rollout:${context.context_key}:reward` ||
+    busyKey === `rollout:${context.context_key}:reward_shadow`;
+  const rolloutDisabled =
+    rolloutBusy ||
+    !onRolloutChange ||
+    (rolloutMode !== "reward" && context.readiness !== "ready");
+  return (
+    <li className="rounded-md border bg-card/30 p-2 text-[11px]">
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+        <div className="min-w-0">
+          <div className="flex flex-wrap items-center gap-1.5">
+            <Badge
+              variant="outline"
+              className={cn(
+                "text-[10px]",
+                strategyRewardReadinessTone(context.readiness),
+              )}
+            >
+              {formatStrategyRewardReadiness(context.readiness)}
+            </Badge>
+            <Badge
+              variant="outline"
+              className={cn(
+                "font-mono text-[10px]",
+                strategyRewardRolloutTone(rolloutMode),
+              )}
+            >
+              {formatStrategyRewardRolloutMode(rolloutMode)}
+            </Badge>
+            {parsed.direction && (
+              <Badge variant="secondary" className="font-mono text-[10px]">
+                {parsed.direction}
+              </Badge>
+            )}
+            <Badge variant="secondary" className="font-mono text-[10px]">
+              {parsed.jobLevel}
+            </Badge>
+            <Badge variant="outline" className="font-mono text-[10px]">
+              {parsed.dimension}
+            </Badge>
+            <span className="min-w-0 truncate font-mono text-muted-foreground">
+              {context.context_key}
+            </span>
+          </div>
+          {context.rollout_reason && (
+            <p className="mt-1 text-[11px] text-muted-foreground">
+              灰度说明：{context.rollout_reason}
+            </p>
+          )}
+        </div>
+        {rolloutMode === "reward" ? (
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            disabled={rolloutDisabled}
+            onClick={() => onRolloutChange?.(context.context_key, "reward_shadow")}
+            className="h-7 shrink-0 text-[11px]"
+          >
+            {rolloutBusy ? "处理中" : "回退 shadow"}
+          </Button>
+        ) : (
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            disabled={rolloutDisabled}
+            onClick={() => onRolloutChange?.(context.context_key, "reward")}
+            className="h-7 shrink-0 border-emerald-500/40 text-[11px] text-emerald-600 hover:bg-emerald-500/10"
+          >
+            {rolloutBusy ? "处理中" : "开启 reward 灰度"}
+          </Button>
+        )}
+      </div>
+      <div className="mt-1 flex flex-wrap gap-3 text-muted-foreground">
+        <span>候选 {context.candidate_count}</span>
+        <span>usage {context.usage_count}</span>
+        <span>reward 样本 {context.rewarded_usage_count}</span>
+        <span>session {context.distinct_sessions}</span>
+        <span>综合奖励 {formatMaybeNumber(context.avg_blended_reward)}</span>
+        <span>Verifier 否决率 {overrule}</span>
+        <span>{context.rank_changed ? "排序会变化" : "排序不变"}</span>
+      </div>
+      <details className="mt-2 rounded-md border border-dashed bg-background/40 p-2">
+        <summary className="cursor-pointer text-muted-foreground">
+          展开 reward readiness 诊断
+        </summary>
+        <div className="mt-2 grid gap-2 sm:grid-cols-2">
+          <StrategyMemoryFact
+            label="metadata_top_strategy_ids"
+            value={context.metadata_top_strategy_ids.join(", ") || "—"}
+            mono
+          />
+          <StrategyMemoryFact
+            label="reward_top_strategy_ids"
+            value={context.reward_top_strategy_ids.join(", ") || "—"}
+            mono
+          />
+          <StrategyMemoryFact
+            label="rollout_mode"
+            value={formatStrategyRewardRolloutMode(rolloutMode)}
+            mono
+          />
+          <StrategyMemoryFact
+            label="rollout_source"
+            value={context.rollout_source || "default"}
+            mono
+          />
+        </div>
+        <div className="mt-2 flex flex-wrap gap-1.5">
+          {context.reasons.map((reason) => (
+            <Badge key={reason} variant="outline" className="text-[10px]">
+              {formatStrategyRewardReason(reason)} · {reason}
+            </Badge>
+          ))}
+        </div>
+      </details>
+    </li>
+  );
+}
 
 function StrategyMemoryStatusTile({
   label,
@@ -6906,7 +8654,7 @@ function formatStrategySource(value?: string | null): string {
   if (!value) return "未知";
   if (value === "seed") return "种子";
   if (value === "promoted") return "晋升";
-  if (value === "promoted_signal") return "信号晋升";
+  if (value === "promoted_signal") return "自动晋升";
   return value;
 }
 
@@ -6923,9 +8671,9 @@ function formatPromotionStage(value?: string | null): string {
   if (value === "seed") return "种子";
   if (value === "starter") return "起步";
   if (value === "promotion_candidate") return "待晋升";
-  if (value === "low_confidence") return "低置信";
-  if (value === "stable") return "稳定";
-  if (value === "stabilized") return "稳定";
+  if (value === "low_confidence") return "低置信晋升";
+  if (value === "stable") return "稳定策略";
+  if (value === "stabilized") return "稳定策略";
   return value;
 }
 
@@ -6953,6 +8701,108 @@ function formatStrategyReadiness(value?: string | null): string {
   if (value === "ready_stable") return "可稳定晋升";
   if (value === "diagnostic_only") return "仅诊断";
   return value || "未知状态";
+}
+
+function formatStrategyRewardReadiness(value?: string | null): string {
+  if (value === "ready") return "可灰度";
+  if (value === "shadow_only") return "仅观测";
+  if (value === "needs_candidates") return "缺候选";
+  if (value === "needs_samples") return "缺样本";
+  if (value === "blocked_by_overrule") return "Verifier 阻塞";
+  return value || "未知状态";
+}
+
+function normalizeStrategyRewardRolloutMode(
+  value?: string | null,
+): StrategyRewardRolloutMode {
+  if (value === "metadata" || value === "reward") return value;
+  return "reward_shadow";
+}
+
+function formatStrategyRewardRolloutMode(
+  value?: string | null,
+): string {
+  if (value === "reward") return "reward 灰度";
+  if (value === "metadata") return "metadata 固定";
+  return "reward_shadow";
+}
+
+function strategyRewardRolloutTone(value?: string | null): string {
+  if (value === "reward") return "border-emerald-500/50 text-emerald-600";
+  if (value === "metadata") return "border-slate-500/50 text-slate-600";
+  return "border-sky-500/50 text-sky-600";
+}
+
+function strategyRewardReadinessTone(value?: string | null): string {
+  if (value === "ready") return "border-emerald-500/50 text-emerald-600";
+  if (value === "shadow_only") return "border-sky-500/50 text-sky-600";
+  if (value === "blocked_by_overrule") return "border-red-500/50 text-red-600";
+  if (value === "needs_candidates" || value === "needs_samples") {
+    return "border-amber-500/50 text-amber-600";
+  }
+  return "text-muted-foreground";
+}
+
+function formatStrategyRewardReason(value?: string | null): string {
+  if (value === "candidate_pool_below_min") return "候选池不足";
+  if (value === "reward_samples_below_min") return "reward 样本不足";
+  if (value === "session_coverage_below_min") return "session 覆盖不足";
+  if (value === "overrule_rate_high") return "Verifier 否决率偏高";
+  if (value === "reward_shadow_rank_changed") return "reward shadow 会改变排序";
+  if (value === "reward_shadow_rank_same") return "reward shadow 排序一致";
+  return value || "未知原因";
+}
+
+function formatSkillRewardRolloutMode(value?: string | null): string {
+  if (value === "reward") return "reward 灰度";
+  if (value === "metadata") return "metadata 固定";
+  return "reward_shadow";
+}
+
+function skillRewardRolloutTone(value?: string | null): string {
+  if (value === "reward") return "border-emerald-500/50 text-emerald-600";
+  if (value === "metadata") return "border-slate-500/50 text-slate-600";
+  return "border-sky-500/50 text-sky-600";
+}
+
+function formatSkillRewardReadiness(value?: string | null): string {
+  if (value === "ready") return "可灰度";
+  if (value === "needs_samples") return "样本不足";
+  if (value === "needs_candidates") return "候选不足";
+  if (value === "shadow_only") return "仅 shadow";
+  if (value === "blocked_by_overrule") return "否决偏高";
+  return value || "未知状态";
+}
+
+function skillRewardReadinessTone(value?: string | null): string {
+  if (value === "ready") return "border-emerald-500/50 text-emerald-600";
+  if (value === "shadow_only") return "border-sky-500/50 text-sky-600";
+  if (value === "blocked_by_overrule") return "border-red-500/50 text-red-600";
+  if (value === "needs_candidates" || value === "needs_samples") {
+    return "border-amber-500/50 text-amber-600";
+  }
+  return "text-muted-foreground";
+}
+
+function formatSkillRewardReason(value?: string | null): string {
+  if (value === "candidate_pool_below_min") return "候选池不足";
+  if (value === "single_skill_no_rank_effect") return "单 Skill 无排序效果";
+  if (value === "reward_samples_below_min") return "reward 样本不足";
+  if (value === "overrule_rate_high") return "否决率偏高";
+  if (value === "reward_shadow_rank_changed") return "模拟 reward 后排序会变化";
+  if (value === "reward_shadow_rank_same") return "模拟 reward 后排序不变";
+  if (value === "high_reward_low_sample") return "高 reward 但样本少";
+  if (value === "missing_reward_stats") return "缺少 reward stats";
+  return value || "未知原因";
+}
+
+function formatQuestionRewardReason(value?: string | null): string {
+  if (value === "candidate_pool_below_min") return "候选池不足";
+  if (value === "reward_samples_below_min") return "reward 样本不足";
+  if (value === "high_reward_low_sample") return "高 reward 但样本少";
+  if (value === "reward_shadow_rank_changed") return "模拟 reward 后 Top K 会变化";
+  if (value === "reward_shadow_rank_same") return "模拟 reward 后 Top K 不变";
+  return value || "未知原因";
 }
 
 // ---------------------------------------------------------------------------

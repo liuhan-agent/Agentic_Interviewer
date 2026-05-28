@@ -2,6 +2,8 @@
 id: business_executive_strategy_probe
 name: Business Executive Strategy Probe
 description: Probe staff / principal business leaders for irreversible bets, killed strategies, and organisational second-order effects.
+display_name_zh: 高层业务战略追问卡
+display_description_zh: 引导高阶业务负责人说明不可逆选择、被终止的策略，以及组织层面的二阶影响。
 status: active
 priority: 8
 direction_tags: [business]

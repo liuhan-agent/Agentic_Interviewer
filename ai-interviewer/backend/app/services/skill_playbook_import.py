@@ -174,6 +174,10 @@ def _parse_skill_file(
         "id": card_id,
         "name": _string(frontmatter.get("name")),
         "description": _string(frontmatter.get("description")),
+        "display_name_zh": _string(frontmatter.get("display_name_zh")),
+        "display_description_zh": _string(
+            frontmatter.get("display_description_zh")
+        ),
         "body_markdown": body,
         "status": status,
         "priority": priority,

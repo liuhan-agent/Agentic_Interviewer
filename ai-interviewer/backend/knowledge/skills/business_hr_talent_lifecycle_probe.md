@@ -2,6 +2,8 @@
 id: business_hr_talent_lifecycle_probe
 name: HR Talent Lifecycle Probe
 description: Probe HR answers for sourcing funnel evidence, retention loop, and one talent decision that changed because of a measurable signal.
+display_name_zh: HR 人才生命周期追问卡
+display_description_zh: 引导 HR 回答覆盖招聘漏斗证据、留存闭环，以及被可衡量信号改变的人才决策。
 status: active
 priority: 6
 direction_tags: [business]

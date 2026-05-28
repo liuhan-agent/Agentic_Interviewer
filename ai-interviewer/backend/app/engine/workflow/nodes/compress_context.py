@@ -32,7 +32,7 @@ from typing import Any, Literal
 from app.core.logging import get_logger
 from app.core.tracer import get_tracer
 from app.engine.agents.session_summarizer import summarise_session
-from app.engine.workflow.routers import route_after_eval
+from app.engine.workflow.routers import route_after_eval_diagnostics
 from app.engine.workflow.state import InterviewState, QATurn
 
 from .wait_answer import clear_raw_answer_for_state
@@ -198,7 +198,8 @@ def _trace_route_decision(state: InterviewState, update: dict[str, Any]) -> None
     route_state = {**state, **update}
     evaluation = route_state.get("evaluation") or {}
     question = route_state.get("current_question") or {}
-    decision = route_after_eval(route_state)
+    diagnostics = route_after_eval_diagnostics(route_state)
+    decision = diagnostics.get("decision")
     try:
         get_tracer().trace_node_event(
             route_state,
@@ -206,13 +207,20 @@ def _trace_route_decision(state: InterviewState, update: dict[str, Any]) -> None
             payload={
                 "router": "route_after_eval",
                 "decision": decision,
+                "next_node": diagnostics.get("next_node"),
+                "decision_reason": diagnostics.get("decision_reason"),
+                "decision_inputs": diagnostics.get("decision_inputs") or {},
                 "dimension": (
                     question.get("dimension")
                     or route_state.get("current_dimension")
                     or "unknown"
                 ),
                 "recommended_next": evaluation.get("recommended_next"),
+                "recommended_next_plan": evaluation.get("recommended_next_plan"),
+                "recommended_probe_intent": evaluation.get("recommended_probe_intent"),
                 "passed": bool(evaluation.get("passed")),
+                "evaluation_source": evaluation.get("source"),
+                "fallback_reason": evaluation.get("fallback_reason"),
                 "fallback": bool(
                     evaluation.get("source") == "fallback"
                     or evaluation.get("fallback_reason")

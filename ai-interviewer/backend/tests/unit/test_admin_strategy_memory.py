@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from contextlib import contextmanager
+from pathlib import Path
 from types import SimpleNamespace
 
 from fastapi import FastAPI
@@ -17,11 +18,12 @@ from app.models.strategy_memory import (
     StrategyMemory,
     StrategyMemoryStats,
     StrategyMemoryUsage,
+    StrategyRewardRollout,
     StrategySignal,
 )
 
 
-def _client(session_factory) -> TestClient:
+def _client(session_factory, *, knowledge_dir: Path | None = None) -> TestClient:
     from app.tasks.strategy_promotion_tasks import reset_strategy_promotion_state
 
     reset_strategy_promotion_state()
@@ -35,7 +37,11 @@ def _client(session_factory) -> TestClient:
             yield sess
             sess.commit()
 
-    admin_api.get_settings = lambda: SimpleNamespace(api_token=None, allow_open_admin=True)
+    admin_api.get_settings = lambda: SimpleNamespace(
+        api_token=None,
+        allow_open_admin=True,
+        knowledge_dir=knowledge_dir,
+    )
     admin_api.get_session = get_session
     strategy_store.get_settings = lambda: SimpleNamespace(strategy_memory_backend="db")
     strategy_store.get_session = get_session
@@ -58,6 +64,8 @@ def _session_factory():
                 slug="senior_system_design",
                 name="Senior System Design",
                 description="Deep probes.",
+                display_name_zh="高级系统设计策略",
+                display_description_zh="用于系统设计深挖的中文展示说明。",
                 source="seed",
                 memory_key="seed:system_design:senior",
                 dimensions=["system_design"],
@@ -122,6 +130,8 @@ def test_admin_strategies_include_db_metadata_and_status_actions() -> None:
     strategy = payload["strategies"][0]
     assert strategy["id"] == "seed:senior_system_design"
     assert strategy["source"] == "seed"
+    assert strategy["display_name_zh"] == "高级系统设计策略"
+    assert strategy["display_description_zh"] == "用于系统设计深挖的中文展示说明。"
     assert strategy["status"] == "active"
     assert strategy["promotion_stage"] == "seed"
     assert strategy["confidence"] == 0.8
@@ -171,6 +181,52 @@ def test_admin_strategies_include_db_metadata_and_status_actions() -> None:
     archived_strategy = listed_after_archive.json()["strategies"][0]
     assert archived_strategy["id"] == "seed:senior_system_design"
     assert archived_strategy["status"] == "archived"
+
+
+def test_admin_strategy_seed_import_upserts_markdown_pack(tmp_path: Path) -> None:
+    strategy_dir = tmp_path / "strategy"
+    strategy_dir.mkdir()
+    (strategy_dir / "MEMORY.md").write_text("# Index\n", encoding="utf-8")
+    (strategy_dir / "junior_technical_depth_calibration.md").write_text(
+        "\n".join(
+            [
+                "---",
+                "name: Junior Technical Depth Calibration",
+                "description: Calibrate junior depth with concrete implementation traces.",
+                "display_name_zh: 初级技术深度校准",
+                "display_description_zh: 用具体实现过程校准初级候选人的技术深度。",
+                "type: strategy",
+                "dimensions: [technical_depth]",
+                "job_levels: [junior, mid]",
+                "memory_key: seed:technical_depth:junior:calibration",
+                "---",
+                "",
+                "Prefer one concrete implementation path before asking for trade-offs.",
+                "",
+            ]
+        ),
+        encoding="utf-8",
+    )
+    Session = _session_factory()
+    client = _client(Session, knowledge_dir=tmp_path)
+
+    response = client.post("/admin/strategies/import-seeds")
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload == {
+        "imported": 1,
+        "updated": 0,
+        "unchanged": 0,
+        "skipped": 1,
+    }
+    with Session() as sess:
+        row = sess.get(StrategyMemory, "seed:junior_technical_depth_calibration")
+    assert row is not None
+    assert row.status == "active"
+    assert row.dimensions == ["technical_depth"]
+    assert row.job_levels == ["junior", "mid"]
+    assert row.display_name_zh == "初级技术深度校准"
 
 
 def test_admin_strategy_signals_and_usages_are_listed() -> None:
@@ -249,6 +305,140 @@ def test_admin_strategy_stats_auto_refreshes_stale_usage_stats() -> None:
     assert second.json()["auto_refresh"] is True
     assert second.json()["auto_refreshed"] is False
     assert second.json()["auto_refresh_reason"] == "fresh"
+
+
+def test_admin_strategy_reward_readiness_reports_context_decision() -> None:
+    Session = _session_factory()
+    with Session() as sess:
+        base = sess.get(StrategyMemory, "seed:senior_system_design")
+        assert base is not None
+        base.priority = 0
+        for idx in range(1, 5):
+            sess.add(
+                StrategyMemory(
+                    id=f"seed:system_design_candidate_{idx}",
+                    slug=f"system_design_candidate_{idx}",
+                    name=f"System Design Candidate {idx}",
+                    description="Alternative strategy.",
+                    source="seed",
+                    memory_key=f"seed:system_design:senior:{idx}",
+                    dimensions=["system_design"],
+                    job_levels=["senior"],
+                    body_markdown="Body",
+                    status="active",
+                    promotion_stage="seed",
+                    confidence=0.5,
+                    support_count=0,
+                    priority=0,
+                )
+            )
+        for idx in range(2, 12):
+            sess.add(
+                StrategyMemoryUsage(
+                    id=f"usage-low-{idx}",
+                    strategy_id="seed:senior_system_design",
+                    session_id=f"sess-low-{idx}",
+                    turn_idx=idx,
+                    trace_id=f"trace-low-{idx}",
+                    context_key="senior:system_design",
+                    action_id="plan_hint",
+                    immediate_reward=0.2,
+                    score=5.5,
+                    passed=False,
+                    verifier_overruled=False,
+                )
+            )
+        for idx in range(12, 22):
+            sess.add(
+                StrategyMemoryUsage(
+                    id=f"usage-high-{idx}",
+                    strategy_id="seed:system_design_candidate_1",
+                    session_id=f"sess-high-{idx}",
+                    turn_idx=idx,
+                    trace_id=f"trace-high-{idx}",
+                    context_key="senior:system_design",
+                    action_id="plan_hint",
+                    immediate_reward=0.95,
+                    score=8.5,
+                    passed=True,
+                    verifier_overruled=False,
+                )
+            )
+        sess.commit()
+
+    client = _client(Session)
+
+    response = client.get("/admin/strategy-reward-readiness?auto_refresh=true")
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["auto_refresh"] is True
+    assert payload["summary"]["ready_contexts"] == 1
+    assert payload["summary"]["needs_candidate_contexts"] == 0
+    context = payload["contexts"][0]
+    assert context["context_key"] == "senior:system_design"
+    assert context["candidate_count"] >= 5
+    assert context["rewarded_usage_count"] >= 20
+    assert context["distinct_sessions"] >= 20
+    assert context["readiness"] == "ready"
+    assert context["rank_changed"] is True
+    assert context["metadata_top_strategy_ids"][0] == "seed:senior_system_design"
+    assert context["reward_top_strategy_ids"][0] == "seed:system_design_candidate_1"
+    assert "reward_shadow_rank_changed" in context["reasons"]
+    assert context["rollout_mode"] == "reward_shadow"
+    assert context["rollout_source"] == "default"
+
+
+def test_admin_strategy_reward_readiness_flags_small_candidate_pool() -> None:
+    Session = _session_factory()
+    client = _client(Session)
+
+    response = client.get("/admin/strategy-reward-readiness?auto_refresh=true")
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["summary"]["needs_candidate_contexts"] == 1
+    context = payload["contexts"][0]
+    assert context["context_key"] == "senior:system_design"
+    assert context["candidate_count"] == 1
+    assert context["readiness"] == "needs_candidates"
+    assert "candidate_pool_below_min" in context["reasons"]
+
+
+def test_admin_strategy_reward_rollout_can_enable_and_revert_context() -> None:
+    Session = _session_factory()
+    client = _client(Session)
+
+    enabled = client.post(
+        "/admin/strategy-reward-rollouts/senior%3Asystem_design",
+        json={"mode": "reward", "reason": "ready context canary"},
+    )
+
+    assert enabled.status_code == 200
+    assert enabled.json()["context_key"] == "senior:system_design"
+    assert enabled.json()["mode"] == "reward"
+    assert enabled.json()["reason"] == "ready context canary"
+
+    readiness = client.get("/admin/strategy-reward-readiness?auto_refresh=true")
+    assert readiness.status_code == 200
+    context = readiness.json()["contexts"][0]
+    assert context["rollout_mode"] == "reward"
+    assert context["rollout_source"] == "context_override"
+    assert context["rollout_reason"] == "ready context canary"
+
+    with Session() as sess:
+        row = sess.get(StrategyRewardRollout, "senior:system_design")
+        assert row is not None
+        assert row.mode == "reward"
+
+    reverted = client.post(
+        "/admin/strategy-reward-rollouts/senior%3Asystem_design",
+        json={"mode": "reward_shadow", "reason": "rollback to shadow"},
+    )
+
+    assert reverted.status_code == 200
+    assert reverted.json()["mode"] == "reward_shadow"
+    assert reverted.json()["reason"] == "rollback to shadow"
 
 
 def test_admin_failure_category_overlap_endpoint_returns_counts() -> None:

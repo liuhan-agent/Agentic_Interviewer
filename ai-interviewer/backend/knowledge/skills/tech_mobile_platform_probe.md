@@ -2,6 +2,8 @@
 id: tech_mobile_platform_probe
 name: Mobile Platform Probe
 description: Force mobile answers toward OS / device constraint, APM-grounded measurement, and a reversible hotfix path.
+display_name_zh: 移动端平台追问卡
+display_description_zh: 引导移动端回答覆盖 OS 或设备约束、APM 支撑的度量，以及可回滚的热修路径。
 status: active
 priority: 7
 direction_tags: [internet_tech]

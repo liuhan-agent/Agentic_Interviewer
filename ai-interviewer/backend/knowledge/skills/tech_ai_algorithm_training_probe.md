@@ -2,6 +2,8 @@
 id: tech_ai_algorithm_training_probe
 name: AI Algorithm Training Probe
 description: Probe algorithm answers for training data lineage, label discipline, model selection rationale, and the data flywheel that improves the model over time.
+display_name_zh: AI 算法训练追问卡
+display_description_zh: 引导算法回答覆盖训练数据血缘、标注纪律、模型选择依据和持续改进模型的数据飞轮。
 status: active
 priority: 8
 direction_tags: [internet_tech]

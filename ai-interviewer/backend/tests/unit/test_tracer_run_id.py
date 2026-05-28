@@ -216,6 +216,114 @@ def test_trace_evaluator_embeds_llm_timing(
     assert snapshot["timing"]["llm_calls"][0]["elapsed_ms"] == 1234
 
 
+def test_trace_evaluator_records_current_contract_payload(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    adds = _patch_db(monkeypatch)
+    _patch_run_tree(monkeypatch, None)
+
+    state = _minimal_state()
+    state["current_contract"] = {
+        "must_cover": ["zero-downtime", "rollback plan"],
+        "acceptance_checks": [
+            "Answer explains zero-downtime migration.",
+            "Answer includes a rollback plan.",
+        ],
+        "minimum_bar": "Names a concrete rollout and rollback.",
+        "review_focus": ["rollback plan"],
+        "bar_level": "standard",
+        "signed_by": ["generator", "evaluator"],
+    }
+    state["current_question"] = {
+        "question": "Q?",
+        "rubric_points": ["legacy point"],
+        "contract": {"must_cover": ["stale question contract"]},
+    }
+    state["evaluation"] = {
+        "score": 8.0,
+        "passed": True,
+        "rubric_coverage": {"zero-downtime": "covered"},
+        "acceptance_check_results": {
+            "Answer explains zero-downtime migration.": {
+                "verdict": "yes",
+                "evidence": ["zero downtime"],
+            }
+        },
+        "recommended_next": "advance",
+        "recommended_next_plan": "adaptive",
+        "recommended_probe_intent": "evidence_probe",
+        "failure_reason": None,
+        "failure_categories": [],
+    }
+
+    tracer_mod.Tracer(enabled=True).trace_evaluator(state, immediate_reward=0.8)
+
+    payload = adds[0].state_snapshot["payload"]
+    assert payload["contract_source"] == "current_contract"
+    assert payload["contract"] == state["current_contract"]
+    assert payload["contract_must_cover_count"] == 2
+    assert payload["contract_acceptance_check_count"] == 2
+    assert payload["contract_bar_level"] == "standard"
+    assert payload["signed_by"] == ["generator", "evaluator"]
+    assert payload["rubric_points"] == ["legacy point"]
+    assert payload["rubric_coverage"] == {"zero-downtime": "covered"}
+    assert payload["acceptance_check_results"] == {
+        "Answer explains zero-downtime migration.": {
+            "verdict": "yes",
+            "evidence": ["zero downtime"],
+        }
+    }
+    assert payload["recommended_next_plan"] == "adaptive"
+
+
+def test_trace_evaluator_falls_back_to_question_contract_payload(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    adds = _patch_db(monkeypatch)
+    _patch_run_tree(monkeypatch, None)
+
+    state = _minimal_state()
+    state["current_question"] = {
+        "question": "Q?",
+        "rubric_points": ["capacity estimate"],
+        "contract": {
+            "must_cover": ["capacity estimate"],
+            "acceptance_checks": ["Answer estimates capacity."],
+            "bar_level": "intro",
+            "signed_by": ["generator"],
+        },
+    }
+
+    tracer_mod.Tracer(enabled=True).trace_evaluator(state, immediate_reward=0.5)
+
+    payload = adds[0].state_snapshot["payload"]
+    assert payload["contract_source"] == "current_question.contract"
+    assert payload["contract"] == state["current_question"]["contract"]
+    assert payload["rubric_points"] == ["capacity estimate"]
+
+
+def test_trace_evaluator_records_legacy_rubric_when_contract_missing(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    adds = _patch_db(monkeypatch)
+    _patch_run_tree(monkeypatch, None)
+
+    state = _minimal_state()
+    state["current_question"] = {
+        "question": "Q?",
+        "rubric_points": ["conflict resolution", "empathy"],
+    }
+
+    tracer_mod.Tracer(enabled=True).trace_evaluator(state, immediate_reward=0.5)
+
+    payload = adds[0].state_snapshot["payload"]
+    assert payload["contract_source"] == "legacy_rubric_points"
+    assert payload["contract"] == {}
+    assert payload["contract_must_cover_count"] == 0
+    assert payload["contract_acceptance_check_count"] == 0
+    assert payload["rubric_points"] == ["conflict resolution", "empathy"]
+
+
 def test_trace_director_sample_writes_run_id(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -251,6 +359,32 @@ def test_trace_node_event_writes_generic_row(
     assert row.node == "verification"
     assert row.langsmith_run_id == "run-node-9"
     assert row.state_snapshot["payload"] == {"verdict": "partial"}
+
+
+def test_ask_question_trace_node_event_drops_stale_answer_and_evaluation(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    adds = _patch_db(monkeypatch)
+    _patch_run_tree(monkeypatch, _RunTree("run-ask-1"))
+
+    tracer = tracer_mod.Tracer(enabled=True)
+    tracer.trace_node_event(
+        _minimal_state(),
+        node="ask_question",
+        payload={"plan_template": "adaptive", "selection_artifacts": {}},
+    )
+
+    assert len(adds) == 1
+    row = adds[0]
+    assert row.node == "ask_question"
+    assert row.question == "Q?"
+    assert row.answer is None
+    assert row.evaluation is None
+    assert row.state_snapshot["payload"] == {
+        "plan_template": "adaptive",
+        "selection_artifacts": {},
+    }
+    assert "current_answer" not in row.state_snapshot["state"]
 
 
 def test_trace_node_event_embeds_llm_timing_in_payload(

@@ -11,15 +11,17 @@ schema so the admin surface is not advertised to casual clients.
 """
 from __future__ import annotations
 
+from copy import deepcopy
 import hashlib
 import re
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
-from typing import Any
+from typing import Any, Mapping
 from urllib.parse import urlparse, urlunparse
 
 from fastapi import (
     APIRouter,
+    Body,
     Depends,
     Header,
     HTTPException,
@@ -915,7 +917,321 @@ def _answer_excerpt(value: Any, *, limit: int = 220) -> str | None:
     return text if len(text) <= limit else text[: limit - 3].rstrip() + "..."
 
 
-def _trace_node_payload(trace: Any) -> dict[str, Any]:
+def _trace_skill_display_lookup(sess: Any) -> dict[str, dict[str, str]]:
+    try:
+        from app.models.skill_playbook import SkillPlaybookCard
+
+        rows = (
+            sess.query(
+                SkillPlaybookCard.id,
+                SkillPlaybookCard.name,
+                SkillPlaybookCard.display_name_zh,
+                SkillPlaybookCard.display_description_zh,
+            )
+            .filter(SkillPlaybookCard.status != "archived")
+            .all()
+        )
+    except Exception as exc:  # pragma: no cover - admin remains best-effort
+        log.debug("trace skill display lookup unavailable: %s", exc)
+        return {}
+
+    lookup: dict[str, dict[str, str]] = {}
+    for row in rows:
+        if isinstance(row, (tuple, list)) and len(row) < 4:
+            continue
+        mapping = getattr(row, "_mapping", None)
+        card_id = (
+            mapping.get("id") if mapping is not None else getattr(row, "id", None)
+        )
+        name = (
+            mapping.get("name") if mapping is not None else getattr(row, "name", None)
+        )
+        display_name_zh = (
+            mapping.get("display_name_zh")
+            if mapping is not None
+            else getattr(row, "display_name_zh", "")
+        )
+        display_description_zh = (
+            mapping.get("display_description_zh")
+            if mapping is not None
+            else getattr(row, "display_description_zh", "")
+        )
+        display = {
+            "display_name_zh": str(display_name_zh or ""),
+            "display_description_zh": str(display_description_zh or ""),
+        }
+        keys = [card_id, name, f"{card_id}.md" if card_id else ""]
+        for key in keys:
+            normalized = str(key or "").strip()
+            if normalized:
+                lookup[normalized] = display
+    return lookup
+
+
+def _enrich_trace_skill_display_fields(
+    payload: dict[str, Any],
+    skill_display_lookup: Mapping[str, Mapping[str, str]] | None,
+) -> dict[str, Any]:
+    if not skill_display_lookup:
+        return payload
+
+    artifacts = payload.get("selection_artifacts")
+    if not isinstance(artifacts, dict):
+        return payload
+    skills = artifacts.get("skills")
+    if not isinstance(skills, dict):
+        return payload
+    refs = skills.get("refs")
+    if not isinstance(refs, list) or not refs:
+        return payload
+
+    enriched = deepcopy(payload)
+    enriched_refs = (
+        enriched.get("selection_artifacts", {})
+        .get("skills", {})
+        .get("refs", [])
+    )
+    for ref in enriched_refs:
+        if not isinstance(ref, dict):
+            continue
+        candidates = (
+            ref.get("id"),
+            ref.get("skill_id"),
+            ref.get("filename"),
+            ref.get("name"),
+        )
+        display = next(
+            (
+                skill_display_lookup[key]
+                for value in candidates
+                if (key := str(value or "").strip()) in skill_display_lookup
+            ),
+            None,
+        )
+        if not display:
+            continue
+        display_name = str(display.get("display_name_zh") or "")
+        display_description = str(display.get("display_description_zh") or "")
+        if display_name and not str(ref.get("display_name_zh") or "").strip():
+            ref["display_name_zh"] = display_name
+        if (
+            display_description
+            and not str(ref.get("display_description_zh") or "").strip()
+        ):
+            ref["display_description_zh"] = display_description
+    return enriched
+
+
+def _trace_strategy_display_lookup(sess: Any) -> dict[str, dict[str, str]]:
+    try:
+        from app.models.strategy_memory import StrategyMemory
+
+        rows = (
+            sess.query(
+                StrategyMemory.id,
+                StrategyMemory.slug,
+                StrategyMemory.memory_key,
+                StrategyMemory.name,
+                StrategyMemory.display_name_zh,
+                StrategyMemory.display_description_zh,
+            )
+            .filter(StrategyMemory.status != "archived")
+            .all()
+        )
+    except Exception as exc:  # pragma: no cover - admin remains best-effort
+        log.debug("trace strategy display lookup unavailable: %s", exc)
+        return {}
+
+    lookup: dict[str, dict[str, str]] = {}
+    for row in rows:
+        if isinstance(row, (tuple, list)) and len(row) < 6:
+            continue
+        mapping = getattr(row, "_mapping", None)
+        strategy_id = (
+            mapping.get("id") if mapping is not None else getattr(row, "id", None)
+        )
+        slug = (
+            mapping.get("slug") if mapping is not None else getattr(row, "slug", None)
+        )
+        memory_key = (
+            mapping.get("memory_key")
+            if mapping is not None
+            else getattr(row, "memory_key", None)
+        )
+        name = (
+            mapping.get("name") if mapping is not None else getattr(row, "name", None)
+        )
+        display_name_zh = (
+            mapping.get("display_name_zh")
+            if mapping is not None
+            else getattr(row, "display_name_zh", "")
+        )
+        display_description_zh = (
+            mapping.get("display_description_zh")
+            if mapping is not None
+            else getattr(row, "display_description_zh", "")
+        )
+        display = {
+            "display_name_zh": str(display_name_zh or ""),
+            "display_description_zh": str(display_description_zh or ""),
+        }
+        keys = [
+            strategy_id,
+            slug,
+            f"{slug}.md" if slug else "",
+            memory_key,
+            name,
+        ]
+        for key in keys:
+            normalized = str(key or "").strip()
+            if normalized:
+                lookup[normalized] = display
+    return lookup
+
+
+def _enrich_trace_strategy_display_fields(
+    payload: dict[str, Any],
+    strategy_display_lookup: Mapping[str, Mapping[str, str]] | None,
+) -> dict[str, Any]:
+    if not strategy_display_lookup:
+        return payload
+
+    refs: list[Any] = []
+    top_refs = payload.get("strategy_memory_refs")
+    if isinstance(top_refs, list):
+        refs.extend(top_refs)
+    artifacts = payload.get("selection_artifacts")
+    if isinstance(artifacts, dict):
+        artifact_refs = artifacts.get("strategies")
+        if isinstance(artifact_refs, list):
+            refs.extend(artifact_refs)
+    if not refs:
+        return payload
+
+    enriched = deepcopy(payload)
+    enriched_refs: list[Any] = []
+    top_enriched = enriched.get("strategy_memory_refs")
+    if isinstance(top_enriched, list):
+        enriched_refs.extend(top_enriched)
+    enriched_artifacts = enriched.get("selection_artifacts")
+    if isinstance(enriched_artifacts, dict):
+        artifact_refs = enriched_artifacts.get("strategies")
+        if isinstance(artifact_refs, list):
+            enriched_refs.extend(artifact_refs)
+
+    for ref in enriched_refs:
+        if not isinstance(ref, dict):
+            continue
+        candidates = (
+            ref.get("id"),
+            ref.get("slug"),
+            f"{ref.get('slug')}.md" if ref.get("slug") else "",
+            ref.get("memory_key"),
+            ref.get("name"),
+        )
+        display = next(
+            (
+                strategy_display_lookup[key]
+                for value in candidates
+                if (key := str(value or "").strip()) in strategy_display_lookup
+            ),
+            None,
+        )
+        if not display:
+            continue
+        display_name = str(display.get("display_name_zh") or "")
+        display_description = str(display.get("display_description_zh") or "")
+        if display_name and not str(ref.get("display_name_zh") or "").strip():
+            ref["display_name_zh"] = display_name
+        if (
+            display_description
+            and not str(ref.get("display_description_zh") or "").strip()
+        ):
+            ref["display_description_zh"] = display_description
+    return enriched
+
+
+def _list_from_unknown(value: Any) -> list[Any]:
+    return value if isinstance(value, list) else []
+
+
+def _contract_trace_payload(
+    contract: Mapping[str, Any],
+    *,
+    source: str,
+) -> dict[str, Any]:
+    must_cover = _list_from_unknown(contract.get("must_cover"))
+    acceptance_checks = _list_from_unknown(contract.get("acceptance_checks"))
+    signed_by = _list_from_unknown(contract.get("signed_by"))
+    return {
+        "contract_source": source,
+        "contract": deepcopy(dict(contract)),
+        "contract_must_cover_count": len(must_cover),
+        "contract_acceptance_check_count": len(acceptance_checks),
+        "contract_bar_level": contract.get("bar_level"),
+        "signed_by": deepcopy(signed_by),
+    }
+
+
+def _trace_ask_question_contract_lookup(
+    traces: list[Any],
+) -> dict[Any, dict[str, Any]]:
+    lookup: dict[Any, dict[str, Any]] = {}
+    for trace in traces:
+        if getattr(trace, "node", None) != "ask_question":
+            continue
+        snapshot = _trace_record_from_unknown(getattr(trace, "state_snapshot", None))
+        payload = _trace_record_from_unknown(snapshot.get("payload"))
+        contract = _trace_record_from_unknown(payload.get("contract"))
+        if not contract:
+            continue
+        turn_idx = getattr(trace, "turn_idx", None)
+        if turn_idx is None:
+            continue
+        lookup[turn_idx] = _contract_trace_payload(
+            contract,
+            source="ask_question.contract",
+        )
+    return lookup
+
+
+def _enrich_trace_evaluator_contract_payload(
+    payload: dict[str, Any],
+    trace: Any,
+    evaluator_contract_lookup: Mapping[Any, Mapping[str, Any]] | None,
+) -> dict[str, Any]:
+    if getattr(trace, "node", None) != "evaluator" or not evaluator_contract_lookup:
+        return payload
+    if "contract_source" in payload or "contract" in payload:
+        return payload
+    contract_payload = evaluator_contract_lookup.get(getattr(trace, "turn_idx", None))
+    if not contract_payload:
+        return payload
+    contract = _trace_record_from_unknown(contract_payload.get("contract"))
+    if contract and (
+        "contract_must_cover_count" not in contract_payload
+        or "contract_acceptance_check_count" not in contract_payload
+    ):
+        contract_payload = {
+            **_contract_trace_payload(
+                contract,
+                source=str(contract_payload.get("contract_source") or "ask_question.contract"),
+            ),
+            **dict(contract_payload),
+        }
+    enriched = dict(payload)
+    for key, value in contract_payload.items():
+        enriched.setdefault(key, deepcopy(value))
+    return enriched
+
+
+def _trace_node_payload(
+    trace: Any,
+    *,
+    skill_display_lookup: Mapping[str, Mapping[str, str]] | None = None,
+    strategy_display_lookup: Mapping[str, Mapping[str, str]] | None = None,
+    evaluator_contract_lookup: Mapping[Any, Mapping[str, Any]] | None = None,
+) -> dict[str, Any]:
     snapshot = trace.state_snapshot or {}
     payload = snapshot.get("payload") if isinstance(snapshot, dict) else None
     summary = payload if isinstance(payload, dict) else {}
@@ -931,6 +1247,23 @@ def _trace_node_payload(trace: Any) -> dict[str, Any]:
             )
             if snapshot.get(key) is not None
         }
+    if is_ask_question := trace.node == "ask_question":
+        summary = _enrich_trace_skill_display_fields(
+            summary,
+            skill_display_lookup,
+        )
+        summary = _enrich_trace_strategy_display_fields(
+            summary,
+            strategy_display_lookup,
+        )
+    if trace.node == "evaluator":
+        summary = _enrich_trace_evaluator_contract_payload(
+            summary,
+            trace,
+            evaluator_contract_lookup,
+        )
+    answer_excerpt = None if is_ask_question else _answer_excerpt(trace.answer)
+    evaluation = None if is_ask_question else trace.evaluation
     return {
         "id": trace.id,
         "turn_idx": trace.turn_idx,
@@ -945,8 +1278,8 @@ def _trace_node_payload(trace: Any) -> dict[str, Any]:
         "immediate_reward": trace.immediate_reward,
         "immediate_reward_applied": bool(trace.immediate_reward_applied),
         "question": trace.question,
-        "answer_excerpt": _answer_excerpt(trace.answer),
-        "evaluation": trace.evaluation,
+        "answer_excerpt": answer_excerpt,
+        "evaluation": evaluation,
         "payload": summary,
         "langsmith_run_id": trace.langsmith_run_id,
         "created_at": trace.created_at.isoformat() if trace.created_at else None,
@@ -1016,8 +1349,19 @@ def _interview_session_trace_payload(
             .limit(capped_limit)
             .all()
         )
+        skill_display_lookup = _trace_skill_display_lookup(sess)
+        strategy_display_lookup = _trace_strategy_display_lookup(sess)
+        evaluator_contract_lookup = _trace_ask_question_contract_lookup(all_traces)
 
-    nodes = [_trace_node_payload(trace) for trace in traces]
+    nodes = [
+        _trace_node_payload(
+            trace,
+            skill_display_lookup=skill_display_lookup,
+            strategy_display_lookup=strategy_display_lookup,
+            evaluator_contract_lookup=evaluator_contract_lookup,
+        )
+        for trace in traces
+    ]
     report = row.final_report or {}
     from app.services.trace_health import trace_diagnostics
 
@@ -1865,6 +2209,7 @@ _ANCHOR_SCRUB_KEYS = {
     "anchor_cards",
     "candidate_anchor_rag",
     "candidate_anchor_rag_artifact",
+    "prompt_slots",
     "resume_anchor",
     "resume_parsed",
     "resume_rag_block",
@@ -2655,6 +3000,11 @@ def _question_usage_payload(
         "match_reasons": list(row.match_reasons or []),
         "injected": row.injected,
         "question_selector_mode": row.question_selector_mode,
+        "question_context_key": getattr(row, "question_context_key", None),
+        "direction_tag": getattr(row, "direction_tag", None),
+        "role_tag": getattr(row, "role_tag", None),
+        "job_level": getattr(row, "job_level", None),
+        "dimension": getattr(row, "dimension", None),
         "direction_tags": list(getattr(seed, "direction_tags", []) or []),
         "role_tags": list(
             getattr(variant, "role_tags", []) or getattr(seed, "role_tags", []) or []
@@ -2663,6 +3013,22 @@ def _question_usage_payload(
         "passed": row.passed,
         "immediate_reward": row.immediate_reward,
         "created_at": row.created_at.isoformat() if row.created_at else None,
+        "updated_at": row.updated_at.isoformat() if row.updated_at else None,
+    }
+
+
+def _question_usage_stats_payload(row: Any) -> dict[str, Any]:
+    return {
+        "id": row.id,
+        "variant_id": row.variant_id,
+        "question_selector_mode": row.question_selector_mode,
+        "uses": row.uses,
+        "injected_uses": row.injected_uses,
+        "rewarded_uses": row.rewarded_uses,
+        "avg_score": row.avg_score,
+        "pass_rate": row.pass_rate,
+        "avg_immediate_reward": row.avg_immediate_reward,
+        "last_used_at": row.last_used_at.isoformat() if row.last_used_at else None,
         "updated_at": row.updated_at.isoformat() if row.updated_at else None,
     }
 
@@ -2721,6 +3087,8 @@ def _skill_playbook_payload(row: Any, *, include_body: bool = False) -> dict[str
         "id": row.id,
         "name": row.name,
         "description": row.description,
+        "display_name_zh": row.display_name_zh,
+        "display_description_zh": row.display_description_zh,
         "status": row.status,
         "priority": row.priority,
         "tags": {
@@ -2753,6 +3121,28 @@ def _skill_playbook_payload(row: Any, *, include_body: bool = False) -> dict[str
     if include_body:
         payload["body_markdown"] = body_markdown
     return payload
+
+
+def _skill_usage_stats_payload(row: Any) -> dict[str, Any]:
+    return {
+        "id": row.id,
+        "skill_id": row.skill_id,
+        "skill_context_key": row.skill_context_key,
+        "role": row.role,
+        "job_level": row.job_level,
+        "dimension": row.dimension,
+        "probe_intent": row.probe_intent,
+        "uses": row.uses,
+        "injected_uses": row.injected_uses,
+        "rewarded_uses": row.rewarded_uses,
+        "avg_score": row.avg_score,
+        "pass_rate": row.pass_rate,
+        "avg_immediate_reward": row.avg_immediate_reward,
+        "avg_blended_reward": row.avg_blended_reward,
+        "overrule_rate": row.overrule_rate,
+        "last_used_at": row.last_used_at.isoformat() if row.last_used_at else None,
+        "updated_at": row.updated_at.isoformat() if row.updated_at else None,
+    }
 
 
 @router.get("/skill-playbooks", dependencies=[Depends(require_admin_token)])
@@ -2847,6 +3237,118 @@ def get_skill_playbook(card_id: str) -> dict[str, Any]:
             raise HTTPException(status_code=404, detail="skill playbook not found")
         payload = _skill_playbook_payload(row, include_body=True)
     return {"skill_playbook": payload}
+
+
+@router.get("/skill-usage-stats", dependencies=[Depends(require_admin_token)])
+def list_skill_usage_stats(
+    auto_refresh: bool = False,
+    limit: int = 100,
+    offset: int = 0,
+) -> dict[str, Any]:
+    from app.models.skill_playbook import SkillUsageStats
+    from app.services.skill_usage_stats import refresh_skill_usage_stats
+
+    capped_limit = max(1, min(int(limit or 100), 500))
+    safe_offset = max(0, int(offset or 0))
+    with get_session() as sess:
+        refresh_payload = None
+        if bool(auto_refresh):
+            refreshed = refresh_skill_usage_stats(session=sess)
+            refresh_payload = {
+                "refreshed": refreshed.refreshed,
+                "deleted": refreshed.deleted,
+            }
+        query = sess.query(SkillUsageStats)
+        total_count = query.count()
+        rows = (
+            query
+            .order_by(
+                SkillUsageStats.skill_context_key.asc(),
+                SkillUsageStats.skill_id.asc(),
+            )
+            .offset(safe_offset)
+            .limit(capped_limit)
+            .all()
+        )
+    return {
+        "count": total_count,
+        "limit": capped_limit,
+        "offset": safe_offset,
+        "refreshed": refresh_payload,
+        "stats": [_skill_usage_stats_payload(row) for row in rows],
+    }
+
+
+@router.post("/skill-usage-stats/refresh", dependencies=[Depends(require_admin_token)])
+def refresh_skill_usage_stats_endpoint() -> dict[str, int]:
+    from app.services.skill_usage_stats import refresh_skill_usage_stats
+
+    with get_session() as sess:
+        result = refresh_skill_usage_stats(session=sess)
+    return {
+        "refreshed": result.refreshed,
+        "deleted": result.deleted,
+    }
+
+
+@router.get("/skill-reward-readiness", dependencies=[Depends(require_admin_token)])
+def get_skill_reward_readiness(auto_refresh: bool = False) -> dict[str, Any]:
+    from app.services.skill_usage_stats import (
+        build_skill_reward_readiness,
+        refresh_skill_usage_stats,
+    )
+
+    with get_session() as sess:
+        if bool(auto_refresh):
+            refresh_skill_usage_stats(session=sess)
+        return build_skill_reward_readiness(session=sess)
+
+
+@router.post(
+    "/skill-reward-rollouts/{context_key:path}",
+    dependencies=[Depends(require_admin_token)],
+)
+def set_skill_reward_rollout(
+    context_key: str,
+    payload: Mapping[str, Any] | None = Body(default=None),
+) -> dict[str, Any]:
+    from app.models.skill_playbook import SkillRewardRollout
+    from app.services.skill_usage_stats import SKILL_REWARD_ROLLOUT_MODES
+
+    clean_context_key = str(context_key or "").strip()
+    if not clean_context_key or clean_context_key == "__global__":
+        raise HTTPException(
+            status_code=400,
+            detail="context_key must be non-empty and non-global",
+        )
+    body = dict(payload or {})
+    mode = str(body.get("mode") or "").strip()
+    if mode not in SKILL_REWARD_ROLLOUT_MODES:
+        raise HTTPException(
+            status_code=400,
+            detail="mode must be one of metadata, reward_shadow, reward",
+        )
+    reason = str(body.get("reason") or "").strip()[:512]
+
+    with get_session() as sess:
+        row = sess.get(SkillRewardRollout, clean_context_key)
+        if row is None:
+            row = SkillRewardRollout(context_key=clean_context_key)
+            sess.add(row)
+        row.mode = mode
+        row.reason = reason
+        sess.flush()
+        return _skill_reward_rollout_payload(row)
+
+
+def _skill_reward_rollout_payload(row: Any) -> dict[str, Any]:
+    return {
+        "context_key": row.context_key,
+        "mode": row.mode,
+        "reason": row.reason,
+        "created_at": row.created_at.isoformat() if row.created_at else None,
+        "updated_at": row.updated_at.isoformat() if row.updated_at else None,
+    }
 
 
 @router.get("/question-seeds", dependencies=[Depends(require_admin_token)])
@@ -3000,6 +3502,140 @@ def list_question_usages(
     return {
         "count": len(payloads),
         "usages": payloads,
+    }
+
+
+@router.get("/question-usage-stats", dependencies=[Depends(require_admin_token)])
+def list_question_usage_stats(
+    auto_refresh: bool = False,
+    limit: int = 100,
+    offset: int = 0,
+) -> dict[str, Any]:
+    from app.models.question_bank import QuestionUsageStats
+    from app.services.question_usage_stats import refresh_question_usage_stats
+
+    capped_limit = max(1, min(int(limit or 100), 500))
+    safe_offset = max(0, int(offset or 0))
+    with get_session() as sess:
+        refresh_payload = None
+        if bool(auto_refresh):
+            refreshed = refresh_question_usage_stats(session=sess)
+            refresh_payload = {
+                "refreshed": refreshed.refreshed,
+                "deleted": refreshed.deleted,
+            }
+        query = sess.query(QuestionUsageStats)
+        total_count = query.count()
+        rows = (
+            query
+            .order_by(
+                QuestionUsageStats.question_selector_mode.asc(),
+                QuestionUsageStats.variant_id.asc(),
+            )
+            .offset(safe_offset)
+            .limit(capped_limit)
+            .all()
+        )
+    return {
+        "count": total_count,
+        "limit": capped_limit,
+        "offset": safe_offset,
+        "refreshed": refresh_payload,
+        "stats": [_question_usage_stats_payload(row) for row in rows],
+    }
+
+
+@router.post("/question-usage-stats/refresh", dependencies=[Depends(require_admin_token)])
+def refresh_question_usage_stats_endpoint() -> dict[str, int]:
+    from app.services.question_usage_stats import refresh_question_usage_stats
+
+    with get_session() as sess:
+        result = refresh_question_usage_stats(session=sess)
+    return {
+        "refreshed": result.refreshed,
+        "deleted": result.deleted,
+    }
+
+
+@router.get("/question-reward-readiness", dependencies=[Depends(require_admin_token)])
+def get_question_reward_readiness(auto_refresh: bool = False) -> dict[str, Any]:
+    from app.services.question_usage_stats import (
+        build_question_reward_readiness,
+        refresh_question_usage_stats,
+    )
+
+    with get_session() as sess:
+        if bool(auto_refresh):
+            refresh_question_usage_stats(session=sess)
+        return build_question_reward_readiness(session=sess)
+
+
+@router.post(
+    "/question-reward-rollouts/{scope}/{scope_key:path}",
+    dependencies=[Depends(require_admin_token)],
+)
+def set_question_reward_rollout(
+    scope: str,
+    scope_key: str,
+    payload: Mapping[str, Any] | None = Body(default=None),
+) -> dict[str, Any]:
+    from app.models.question_bank import QuestionRewardRollout
+    from app.services.question_usage_stats import (
+        CONTEXT_SCOPE,
+        QUESTION_REWARD_ROLLOUT_MODES,
+        SEED_SCOPE,
+        question_reward_rollout_id,
+    )
+
+    clean_scope = str(scope or "").strip().lower()
+    clean_scope_key = str(scope_key or "").strip()
+    if clean_scope not in {CONTEXT_SCOPE, SEED_SCOPE}:
+        raise HTTPException(
+            status_code=400,
+            detail="scope must be one of context, seed",
+        )
+    if not clean_scope_key or clean_scope_key == "__global__":
+        raise HTTPException(
+            status_code=400,
+            detail="scope_key must be non-empty and non-global",
+        )
+    body = dict(payload or {})
+    mode = str(body.get("mode") or "").strip()
+    if mode not in QUESTION_REWARD_ROLLOUT_MODES:
+        raise HTTPException(
+            status_code=400,
+            detail="mode must be one of metadata, reward_shadow, reward",
+        )
+    reason = str(body.get("reason") or "").strip()[:512]
+
+    with get_session() as sess:
+        rollout_id = question_reward_rollout_id(
+            scope=clean_scope,
+            scope_key=clean_scope_key,
+        )
+        row = sess.get(QuestionRewardRollout, rollout_id)
+        if row is None:
+            row = QuestionRewardRollout(
+                id=rollout_id,
+                scope=clean_scope,
+                scope_key=clean_scope_key,
+            )
+            sess.add(row)
+        row.mode = mode
+        row.reason = reason
+        sess.flush()
+        return _question_reward_rollout_payload(row)
+
+
+def _question_reward_rollout_payload(row: Any) -> dict[str, Any]:
+    return {
+        "id": row.id,
+        "scope": row.scope,
+        "scope_key": row.scope_key,
+        "mode": row.mode,
+        "reason": row.reason,
+        "created_at": row.created_at.isoformat() if row.created_at else None,
+        "updated_at": row.updated_at.isoformat() if row.updated_at else None,
     }
 
 
@@ -3263,6 +3899,8 @@ def list_strategies_route(request: Request) -> dict[str, Any]:
                 "memory_key": row.memory_key,
                 "path": f"{row.slug}.md",
                 "name": row.name,
+                "display_name_zh": row.display_name_zh,
+                "display_description_zh": row.display_description_zh,
                 "dimensions": list(row.dimensions or []),
                 "job_levels": list(row.job_levels or []),
                 "failure_categories": list(row.failure_categories or []),
@@ -3303,6 +3941,21 @@ def disable_strategy(strategy_id: str) -> dict[str, str]:
 @router.post("/strategies/{strategy_id}/archive", dependencies=[Depends(require_admin_token)])
 def archive_strategy(strategy_id: str) -> dict[str, str]:
     return _set_strategy_status(strategy_id, "archived")
+
+
+@router.post("/strategies/import-seeds", dependencies=[Depends(require_admin_token)])
+def import_strategy_seeds() -> dict[str, int]:
+    from app.services.strategy_memory_import import import_strategy_seed_dir
+
+    strategy_dir = Path(get_settings().knowledge_dir) / "strategy"
+    with get_session() as sess:
+        result = import_strategy_seed_dir(strategy_dir, session=sess)
+    return {
+        "imported": result.imported,
+        "updated": result.updated,
+        "unchanged": result.unchanged,
+        "skipped": result.skipped,
+    }
 
 
 def _avg_optional(values: list[float | None]) -> float | None:
@@ -3570,6 +4223,72 @@ def list_strategy_stats(
             }
             for row in rows
         ],
+    }
+
+
+@router.get("/strategy-reward-readiness", dependencies=[Depends(require_admin_token)])
+def list_strategy_reward_readiness(auto_refresh: bool = False) -> dict[str, Any]:
+    from app.services.strategy_reward_readiness import (
+        build_strategy_reward_readiness,
+    )
+
+    with get_session() as sess:
+        auto_refreshed, auto_refresh_reason, auto_refresh_result = (
+            _maybe_refresh_strategy_stats(sess, auto_refresh=auto_refresh)
+        )
+        payload = build_strategy_reward_readiness(session=sess)
+    return {
+        "auto_refresh": bool(auto_refresh),
+        "auto_refreshed": auto_refreshed,
+        "auto_refresh_reason": auto_refresh_reason,
+        "auto_refresh_result": auto_refresh_result,
+        **payload,
+    }
+
+
+@router.post(
+    "/strategy-reward-rollouts/{context_key:path}",
+    dependencies=[Depends(require_admin_token)],
+)
+def set_strategy_reward_rollout(
+    context_key: str,
+    payload: Mapping[str, Any] | None = Body(default=None),
+) -> dict[str, Any]:
+    from app.models.strategy_memory import StrategyRewardRollout
+
+    clean_context_key = str(context_key or "").strip()
+    if not clean_context_key or clean_context_key == "__global__":
+        raise HTTPException(
+            status_code=400,
+            detail="context_key must be a non-global strategy context",
+        )
+    body = dict(payload or {})
+    mode = str(body.get("mode") or "").strip()
+    if mode not in {"metadata", "reward_shadow", "reward"}:
+        raise HTTPException(
+            status_code=400,
+            detail="mode must be one of metadata, reward_shadow, reward",
+        )
+    reason = str(body.get("reason") or "").strip()[:512]
+
+    with get_session() as sess:
+        row = sess.get(StrategyRewardRollout, clean_context_key)
+        if row is None:
+            row = StrategyRewardRollout(context_key=clean_context_key)
+            sess.add(row)
+        row.mode = mode
+        row.reason = reason
+        sess.flush()
+        return _strategy_reward_rollout_payload(row)
+
+
+def _strategy_reward_rollout_payload(row: Any) -> dict[str, Any]:
+    return {
+        "context_key": row.context_key,
+        "mode": row.mode,
+        "reason": row.reason,
+        "created_at": row.created_at.isoformat() if row.created_at else None,
+        "updated_at": row.updated_at.isoformat() if row.updated_at else None,
     }
 
 

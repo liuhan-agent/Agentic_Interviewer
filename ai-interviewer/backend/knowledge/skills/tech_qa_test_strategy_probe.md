@@ -2,6 +2,8 @@
 id: tech_qa_test_strategy_probe
 name: QA Test Strategy Probe
 description: Probe QA / test engineering answers for test pyramid choice, environment / data realism, and defect-class coverage versus residual risk.
+display_name_zh: QA 测试策略追问卡
+display_description_zh: 引导 QA 或测试工程回答覆盖测试金字塔选择、环境和数据真实性，以及缺陷类型覆盖与残余风险。
 status: active
 priority: 7
 direction_tags: [internet_tech]

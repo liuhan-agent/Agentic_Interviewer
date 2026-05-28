@@ -2,6 +2,8 @@
 id: universal_tradeoff_constraint_probe
 name: Tradeoff Constraint Probe
 description: Make the candidate name constraints, rejected options, and the cost of the chosen path.
+display_name_zh: 取舍与约束追问卡
+display_description_zh: 引导候选人说明约束条件、被放弃的选项，以及选择当前路径的代价。
 status: active
 priority: 4
 probe_intents: [tradeoff_probe, prioritization_probe, stakeholder_pushback_probe]

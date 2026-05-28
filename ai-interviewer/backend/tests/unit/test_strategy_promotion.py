@@ -24,6 +24,7 @@ def _add_signal(
     *,
     idx: int,
     group_key: str = "qa:score_recovery:senior:system_design:plan_hint",
+    dimension: str = "system_design",
     reward: float | None = None,
     score_before: float | None = 5.0,
     score_after: float | None = 8.5,
@@ -39,7 +40,7 @@ def _add_signal(
             group_key=group_key,
             session_id=f"sess-{idx}",
             turn_idx=idx,
-            dimension="system_design",
+            dimension=dimension,
             job_level="senior",
             action_id=action_id,
             plan_template="simple",
@@ -88,6 +89,10 @@ def test_promote_strategy_signals_creates_low_confidence_active_strategy_from_qa
 
     memory = memories[0]
     assert memory.id.startswith("promoted:")
+    assert memory.name == "Auto: plan_hint for system_design"
+    assert memory.description.startswith("Promoted from 30 sessions;")
+    assert memory.display_name_zh == "系统设计：提示引导"
+    assert "30 场面试" in memory.display_description_zh
     assert memory.source == "promoted_signal"
     assert memory.status == "active"
     assert memory.promotion_stage == "low_confidence"
@@ -173,6 +178,8 @@ def test_qa_hint_effective_promotes_without_score_delta() -> None:
 
     assert result.promoted == 1
     assert memory is not None
+    assert memory.display_name_zh == "系统设计：提示有效"
+    assert "低置信" in memory.display_description_zh
     assert memory.recommended_action == "plan_hint"
     assert memory.recommended_plan_template == "plan_hint"
     assert "## 证据" in memory.body_markdown
@@ -181,6 +188,54 @@ def test_qa_hint_effective_promotes_without_score_delta() -> None:
     assert "- 平均 hint 后得分：7.20" in memory.body_markdown
     assert "平均 reward" not in memory.body_markdown
     assert "平均分数提升" not in memory.body_markdown
+
+
+def test_promoted_strategy_memory_generates_display_fields_for_common_patterns() -> None:
+    cases = [
+        (
+            "qa:score_recovery:junior:communication:plan_deep_probe",
+            "communication",
+            "plan_deep_probe",
+            "score_recovery",
+            "沟通恢复：深挖追问",
+        ),
+        (
+            "qa:score_recovery:junior:communication:plan_hint",
+            "communication",
+            "plan_hint",
+            "score_recovery",
+            "沟通恢复：提示引导",
+        ),
+        (
+            "qa:hint_effective:junior:system_design",
+            "system_design",
+            "give_hint",
+            "hint_effective",
+            "系统设计：提示有效",
+        ),
+    ]
+
+    for group_key, dimension, action_id, signal_type, expected_name in cases:
+        SessionLocal = _session_factory()
+        with SessionLocal() as sess:
+            for idx in range(1, 31):
+                _add_signal(
+                    sess,
+                    idx=idx,
+                    group_key=group_key,
+                    dimension=dimension,
+                    action_id=action_id,
+                    signal_type=signal_type,
+                )
+            result = promote_strategy_signals(session=sess)
+            sess.commit()
+            memory = sess.scalar(select(StrategyMemory))
+
+        assert result.promoted == 1
+        assert memory is not None
+        assert memory.display_name_zh == expected_name
+        assert memory.name.startswith("Auto:")
+        assert memory.description.startswith("Promoted from 30 sessions;")
 
 
 def test_promoted_strategy_memory_canonicalizes_legacy_signal_action() -> None:

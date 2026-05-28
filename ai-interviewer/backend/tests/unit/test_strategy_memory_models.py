@@ -27,6 +27,8 @@ def test_strategy_memory_round_trips_structured_metadata() -> None:
                 slug="system-design-deep-probe",
                 name="System design deep probe",
                 description="Probe scale and failure modes for senior candidates.",
+                display_name_zh="系统设计深挖策略",
+                display_description_zh="用于高级候选人的系统设计深挖追问。",
                 source="seed",
                 memory_key="seed:system_design:deep_probe",
                 dimensions=["system_design"],
@@ -54,6 +56,8 @@ def test_strategy_memory_round_trips_structured_metadata() -> None:
         )
 
     assert row is not None
+    assert row.display_name_zh == "系统设计深挖策略"
+    assert row.display_description_zh == "用于高级候选人的系统设计深挖追问。"
     assert row.dimensions == ["system_design"]
     assert row.job_levels == ["senior", "staff"]
     assert row.failure_categories == ["missing_metrics", "missing_tradeoff"]
