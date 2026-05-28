@@ -17,14 +17,21 @@ from sqlalchemy.orm import Session
 
 from app.models.base import get_session
 from app.models.question_bank import (
+    QuestionRewardRollout,
     QuestionSeed,
     QuestionUsage,
     QuestionUsageStats,
     QuestionVariant,
 )
 from app.services.question_usage_stats import (
+    CONTEXT_SCOPE,
+    DEFAULT_ROLLOUT_MODE,
+    MIN_CANDIDATES,
     MIN_REWARDED_USES,
     REWARD_SHADOW_BONUS_WEIGHT,
+    SEED_SCOPE,
+    build_question_reward_context_key,
+    question_reward_rollout_id,
 )
 
 
@@ -69,6 +76,7 @@ class QuestionCandidate:
     reward_shadow_rank_changed: bool = False
     usage_stats: dict[str, Any] | None = None
     reward_shadow_reason: dict[str, Any] | None = None
+    reward_rollout_reason: dict[str, Any] | None = None
 
     def with_injected(self, injected: bool) -> QuestionCandidate:
         return replace(self, injected=injected)
@@ -101,6 +109,7 @@ class QuestionCandidate:
             "reward_shadow_rank_changed": self.reward_shadow_rank_changed,
             "usage_stats": self.usage_stats,
             "reward_shadow_reason": self.reward_shadow_reason,
+            "reward_rollout_reason": self.reward_rollout_reason,
         }
 
 
@@ -114,6 +123,17 @@ class QuestionSelectionResult:
 
     def as_artifacts(self) -> list[dict[str, Any]]:
         return [candidate.as_artifact() for candidate in self.candidates]
+
+
+@dataclass(frozen=True)
+class _AggregatedQuestionStats:
+    variant_id: str
+    uses: int = 0
+    injected_uses: int = 0
+    rewarded_uses: int = 0
+    avg_score: float | None = None
+    pass_rate: float | None = None
+    avg_immediate_reward: float | None = None
 
 
 def select_question_candidates(
@@ -139,10 +159,14 @@ def select_question_candidates(
     normalized_job_level = _slugify(job_level)
     target_skill_set = _slug_set(target_skills)
     failure_set = _slug_set(failure_categories)
-    direction_tag_set = _slug_set(direction_tags) or set(
+    direction_context_tags = list(direction_tags or []) or list(
         getattr(fit_profile, "direction_tags", []) or []
     )
-    role_tag_set = _slug_set(role_tags) or set(getattr(fit_profile, "role_tags", []) or [])
+    role_context_tags = list(role_tags or []) or list(
+        getattr(fit_profile, "role_tags", []) or []
+    )
+    direction_tag_set = _slug_set(direction_context_tags)
+    role_tag_set = _slug_set(role_context_tags)
     normalized_intent = _slugify(probe_intent)
     normalized_difficulty = _slugify(difficulty)
     used_seed_ids, used_variant_ids = _extract_used_question_refs(qa_history or [])
@@ -224,16 +248,18 @@ def select_question_candidates(
         )
 
     candidates = _apply_role_pack_filter(candidates, role_tag_set)
-    ranked_candidates = sorted(
-        candidates,
-        key=lambda item: (
-            -item.match_score,
-            -(item.seed_priority + item.variant_priority),
-            item.seed_id,
-            item.variant_id,
-        ),
+    question_context_key = build_question_reward_context_key(
+        direction_tags=direction_context_tags,
+        role_tags=role_context_tags,
+        job_level=normalized_job_level,
+        dimension=normalized_dimension,
     )
-    ranked = _select_seed_diverse_top_k(ranked_candidates, max(0, int(top_k)))
+    ranked = _select_with_reward_rollouts(
+        session,
+        candidates,
+        top_k=max(0, int(top_k)),
+        question_context_key=question_context_key,
+    )
     ranked = [replace(candidate, rank=idx + 1) for idx, candidate in enumerate(ranked)]
     ranked = _apply_reward_shadow(
         session,
@@ -241,6 +267,251 @@ def select_question_candidates(
         question_selector_mode=question_selector_mode,
     )
     return QuestionSelectionResult(candidates=ranked)
+
+
+def _select_with_reward_rollouts(
+    session: Session,
+    candidates: Sequence[QuestionCandidate],
+    *,
+    top_k: int,
+    question_context_key: str,
+) -> list[QuestionCandidate]:
+    if top_k <= 0 or not candidates:
+        return []
+
+    stats_by_variant = _load_aggregated_question_stats(
+        session,
+        [candidate.variant_id for candidate in candidates],
+    )
+    seed_ids = sorted({candidate.seed_id for candidate in candidates})
+    seed_rollouts = {
+        row.scope_key: row
+        for row in session.scalars(
+            select(QuestionRewardRollout)
+            .where(QuestionRewardRollout.scope == SEED_SCOPE)
+            .where(QuestionRewardRollout.scope_key.in_(seed_ids))
+        )
+    } if seed_ids else {}
+    context_rollout = session.get(
+        QuestionRewardRollout,
+        question_reward_rollout_id(
+            scope=CONTEXT_SCOPE,
+            scope_key=question_context_key,
+        ),
+    )
+
+    candidates_by_seed: dict[str, list[QuestionCandidate]] = {}
+    for candidate in sorted(candidates, key=_metadata_sort_key):
+        candidates_by_seed.setdefault(candidate.seed_id, []).append(candidate)
+
+    representatives: list[QuestionCandidate] = []
+    duplicate_candidates: list[QuestionCandidate] = []
+    seed_reason_by_seed: dict[str, dict[str, Any]] = {}
+    for seed_id, seed_candidates in candidates_by_seed.items():
+        seed_rollout = seed_rollouts.get(seed_id)
+        seed_mode = _rollout_mode(seed_rollout)
+        seed_gate_reasons = _seed_reward_gate_reasons(
+            seed_candidates,
+            stats_by_variant,
+        ) if seed_mode == "reward" else []
+        seed_live_order = (
+            "reward"
+            if seed_mode == "reward" and not seed_gate_reasons
+            else "metadata_fallback"
+            if seed_mode == "reward"
+            else "metadata"
+        )
+        ordered_seed_candidates = sorted(
+            seed_candidates,
+            key=(
+                lambda item: _reward_sort_key(item, stats_by_variant)
+                if seed_live_order == "reward"
+                else _metadata_sort_key(item)
+            ),
+        )
+        representative = ordered_seed_candidates[0]
+        representatives.append(representative)
+        duplicate_candidates.extend(ordered_seed_candidates[1:])
+        seed_reason_by_seed[seed_id] = {
+            "seed_rollout_mode": seed_mode,
+            "seed_rollout_source": "override" if seed_rollout else "default",
+            "seed_live_order": seed_live_order,
+            "seed_gate_reasons": seed_gate_reasons,
+        }
+
+    context_mode = _rollout_mode(context_rollout)
+    context_gate_reasons = _context_reward_gate_reasons(
+        representatives,
+        stats_by_variant,
+    ) if context_mode == "reward" else []
+    context_live_order = (
+        "reward"
+        if context_mode == "reward" and not context_gate_reasons
+        else "metadata_fallback"
+        if context_mode == "reward"
+        else "metadata"
+    )
+    representative_order = sorted(
+        representatives,
+        key=(
+            lambda item: _reward_sort_key(item, stats_by_variant)
+            if context_live_order == "reward"
+            else _metadata_sort_key(item)
+        ),
+    )
+    selected = representative_order[:top_k]
+    if len(selected) < top_k:
+        selected_ids = {candidate.variant_id for candidate in selected}
+        for candidate in sorted(duplicate_candidates, key=_metadata_sort_key):
+            if candidate.variant_id in selected_ids:
+                continue
+            selected.append(candidate)
+            selected_ids.add(candidate.variant_id)
+            if len(selected) >= top_k:
+                break
+
+    context_reason = {
+        "question_context_key": question_context_key,
+        "context_rollout_mode": context_mode,
+        "context_rollout_source": "override" if context_rollout else "default",
+        "live_order": context_live_order,
+        "gate_reasons": context_gate_reasons,
+    }
+    return [
+        replace(
+            candidate,
+            reward_rollout_reason={
+                **context_reason,
+                **seed_reason_by_seed.get(candidate.seed_id, {}),
+            },
+        )
+        for candidate in selected
+    ]
+
+
+def _metadata_sort_key(candidate: QuestionCandidate) -> tuple[float, int, str, str]:
+    return (
+        -float(candidate.match_score),
+        -(int(candidate.seed_priority or 0) + int(candidate.variant_priority or 0)),
+        candidate.seed_id,
+        candidate.variant_id,
+    )
+
+
+def _reward_sort_key(
+    candidate: QuestionCandidate,
+    stats_by_variant: dict[str, _AggregatedQuestionStats],
+) -> tuple[float, float, int, str, str]:
+    stats = stats_by_variant.get(candidate.variant_id)
+    reward_score = (
+        _reward_shadow_score(candidate, stats)
+        if stats is not None
+        else float(candidate.match_score)
+    )
+    metadata_key = _metadata_sort_key(candidate)
+    return (-reward_score, *metadata_key[1:])
+
+
+def _load_aggregated_question_stats(
+    session: Session,
+    variant_ids: Sequence[str],
+) -> dict[str, _AggregatedQuestionStats]:
+    clean_variant_ids = sorted({str(value or "").strip() for value in variant_ids if value})
+    if not clean_variant_ids:
+        return {}
+    rows = list(
+        session.scalars(
+            select(QuestionUsageStats)
+            .where(QuestionUsageStats.variant_id.in_(clean_variant_ids))
+        )
+    )
+    grouped: dict[str, list[QuestionUsageStats]] = {}
+    for row in rows:
+        grouped.setdefault(row.variant_id, []).append(row)
+    return {
+        variant_id: _aggregate_stats_rows(variant_id, stats_rows)
+        for variant_id, stats_rows in grouped.items()
+    }
+
+
+def _aggregate_stats_rows(
+    variant_id: str,
+    rows: list[QuestionUsageStats],
+) -> _AggregatedQuestionStats:
+    uses = sum(int(row.uses or 0) for row in rows)
+    injected_uses = sum(int(row.injected_uses or 0) for row in rows)
+    rewarded_uses = sum(int(row.rewarded_uses or 0) for row in rows)
+    return _AggregatedQuestionStats(
+        variant_id=variant_id,
+        uses=uses,
+        injected_uses=injected_uses,
+        rewarded_uses=rewarded_uses,
+        avg_score=_weighted_avg(
+            [(row.avg_score, int(row.rewarded_uses or 0)) for row in rows]
+        ),
+        pass_rate=_weighted_avg(
+            [(row.pass_rate, int(row.rewarded_uses or 0)) for row in rows]
+        ),
+        avg_immediate_reward=_weighted_avg(
+            [
+                (row.avg_immediate_reward, int(row.rewarded_uses or 0))
+                for row in rows
+            ]
+        ),
+    )
+
+
+def _weighted_avg(values: Sequence[tuple[float | None, int]]) -> float | None:
+    weighted = [
+        (float(value), int(weight))
+        for value, weight in values
+        if value is not None and int(weight or 0) > 0
+    ]
+    total_weight = sum(weight for _value, weight in weighted)
+    if total_weight <= 0:
+        return None
+    return sum(value * weight for value, weight in weighted) / total_weight
+
+
+def _rollout_mode(row: QuestionRewardRollout | None) -> str:
+    mode = str(getattr(row, "mode", "") or "").strip()
+    if mode in {"metadata", "reward_shadow", "reward"}:
+        return mode
+    return DEFAULT_ROLLOUT_MODE
+
+
+def _seed_reward_gate_reasons(
+    candidates: Sequence[QuestionCandidate],
+    stats_by_variant: dict[str, _AggregatedQuestionStats],
+) -> list[str]:
+    reasons: list[str] = []
+    if len(candidates) < 2:
+        reasons.append("single_variant_no_rank_effect")
+    rewarded = sum(
+        int(stats_by_variant.get(candidate.variant_id).rewarded_uses or 0)
+        for candidate in candidates
+        if stats_by_variant.get(candidate.variant_id) is not None
+    )
+    if rewarded < MIN_REWARDED_USES:
+        reasons.append("reward_samples_below_min")
+    return reasons
+
+
+def _context_reward_gate_reasons(
+    candidates: Sequence[QuestionCandidate],
+    stats_by_variant: dict[str, _AggregatedQuestionStats],
+) -> list[str]:
+    reasons: list[str] = []
+    if len(candidates) < MIN_CANDIDATES:
+        reasons.append("candidate_pool_below_min")
+    rewarded = sum(
+        int(stats_by_variant.get(candidate.variant_id).rewarded_uses or 0)
+        for candidate in candidates
+        if stats_by_variant.get(candidate.variant_id) is not None
+    )
+    if rewarded < MIN_REWARDED_USES:
+        reasons.append("reward_samples_below_min")
+    return reasons
 
 
 def _select_seed_diverse_top_k(
@@ -278,16 +549,11 @@ def _apply_reward_shadow(
 ) -> list[QuestionCandidate]:
     if not candidates:
         return []
-    variant_ids = [candidate.variant_id for candidate in candidates]
-    stats_rows = list(
-        session.scalars(
-            select(QuestionUsageStats)
-            .where(QuestionUsageStats.variant_id.in_(variant_ids))
-            .where(QuestionUsageStats.question_selector_mode == question_selector_mode)
-        )
+    stats_by_variant = _load_aggregated_question_stats(
+        session,
+        [candidate.variant_id for candidate in candidates],
     )
-    stats_by_variant = {row.variant_id: row for row in stats_rows}
-    scored: list[tuple[float, str, QuestionCandidate, QuestionUsageStats]] = []
+    scored: list[tuple[float, str, QuestionCandidate, _AggregatedQuestionStats]] = []
     for candidate in candidates:
         stats = stats_by_variant.get(candidate.variant_id)
         if stats is None:
@@ -315,6 +581,7 @@ def _apply_reward_shadow(
                     reward_shadow_reason={
                         "status": "no_stats",
                         "metadata_rank": candidate.rank,
+                        **(candidate.reward_rollout_reason or {}),
                     },
                 )
             )
@@ -329,7 +596,10 @@ def _apply_reward_shadow(
                     shadow_rank is not None and shadow_rank != candidate.rank
                 ),
                 usage_stats=_usage_stats_payload(stats),
-                reward_shadow_reason=_reward_shadow_reason(candidate, stats),
+                reward_shadow_reason={
+                    **_reward_shadow_reason(candidate, stats),
+                    **(candidate.reward_rollout_reason or {}),
+                },
             )
         )
     return output
@@ -337,7 +607,7 @@ def _apply_reward_shadow(
 
 def _reward_shadow_score(
     candidate: QuestionCandidate,
-    stats: QuestionUsageStats,
+    stats: _AggregatedQuestionStats,
 ) -> float:
     sample_confidence = _sample_confidence(stats)
     reward_bonus = (
@@ -351,7 +621,7 @@ def _reward_shadow_score(
 
 def _reward_shadow_reason(
     candidate: QuestionCandidate,
-    stats: QuestionUsageStats,
+    stats: _AggregatedQuestionStats,
 ) -> dict[str, Any]:
     sample_confidence = _sample_confidence(stats)
     return {
@@ -367,7 +637,7 @@ def _reward_shadow_reason(
     }
 
 
-def _usage_stats_payload(stats: QuestionUsageStats) -> dict[str, Any]:
+def _usage_stats_payload(stats: _AggregatedQuestionStats) -> dict[str, Any]:
     return {
         "uses": int(stats.uses or 0),
         "injected_uses": int(stats.injected_uses or 0),
@@ -378,7 +648,7 @@ def _usage_stats_payload(stats: QuestionUsageStats) -> dict[str, Any]:
     }
 
 
-def _sample_confidence(stats: QuestionUsageStats) -> float:
+def _sample_confidence(stats: _AggregatedQuestionStats) -> float:
     return min(1.0, int(stats.rewarded_uses or 0) / MIN_REWARDED_USES)
 
 
@@ -477,6 +747,11 @@ def record_question_usages(
     turn_idx: int,
     trace_id: str | None,
     question_selector_mode: str,
+    question_context_key: str | None = None,
+    direction_tag: str | None = None,
+    role_tag: str | None = None,
+    job_level: str | None = None,
+    dimension: str | None = None,
     session: Session | None = None,
 ) -> None:
     """Write top-k selector candidates for later attribution.
@@ -495,6 +770,11 @@ def record_question_usages(
                 turn_idx=turn_idx,
                 trace_id=trace_id,
                 question_selector_mode=question_selector_mode,
+                question_context_key=question_context_key,
+                direction_tag=direction_tag,
+                role_tag=role_tag,
+                job_level=job_level,
+                dimension=dimension,
                 session=sess,
             )
         return
@@ -521,6 +801,11 @@ def record_question_usages(
             "match_reasons": list(candidate.match_reasons),
             "injected": bool(candidate.injected),
             "question_selector_mode": question_selector_mode,
+            "question_context_key": question_context_key,
+            "direction_tag": direction_tag,
+            "role_tag": role_tag,
+            "job_level": job_level,
+            "dimension": dimension,
         }
         row = session.get(QuestionUsage, usage_id)
         if row is None:

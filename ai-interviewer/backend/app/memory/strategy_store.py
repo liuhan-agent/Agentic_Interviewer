@@ -25,7 +25,11 @@ from sqlalchemy import select
 from app.core.logging import get_logger
 from app.core.settings import get_settings
 from app.models import get_session
-from app.models.strategy_memory import StrategyMemory, StrategyMemoryStats
+from app.models.strategy_memory import (
+    StrategyMemory,
+    StrategyMemoryStats,
+    StrategyRewardRollout,
+)
 
 log = get_logger(__name__)
 
@@ -61,6 +65,7 @@ REWARD_SCOPE_WEIGHTS = {
     "global": 0.15,
     "none": 0.0,
 }
+STRATEGY_RANKING_MODES = {"metadata", "reward_shadow", "reward"}
 
 
 @dataclass
@@ -109,6 +114,13 @@ class _RewardRankingDetails:
     gate_reasons: list[str]
 
 
+@dataclass(frozen=True)
+class _StrategyRankingModeSelection:
+    mode: str
+    source: str
+    context_key: str | None = None
+
+
 def _parse_frontmatter(text: str) -> dict[str, Any]:
     m = _FM_PATTERN.match(text)
     if not m:
@@ -139,10 +151,55 @@ def _strategy_backend() -> str:
 
 
 def _strategy_ranking_mode() -> str:
-    return str(
+    mode = str(
         getattr(get_settings(), "strategy_memory_ranking_mode", "metadata")
         or "metadata"
     )
+    return mode if mode in STRATEGY_RANKING_MODES else "metadata"
+
+
+def _strategy_ranking_mode_selection(
+    policy_context_keys: list[str] | None,
+) -> _StrategyRankingModeSelection:
+    override = _strategy_reward_rollout_override(policy_context_keys)
+    if override is not None:
+        return override
+    return _StrategyRankingModeSelection(
+        mode=_strategy_ranking_mode(),
+        source="global_setting",
+        context_key=None,
+    )
+
+
+def _strategy_reward_rollout_override(
+    policy_context_keys: list[str] | None,
+) -> _StrategyRankingModeSelection | None:
+    requested_context_keys = _normalize_context_keys(policy_context_keys)
+    if not requested_context_keys:
+        return None
+    try:
+        with get_session() as session:
+            rows = list(
+                session.scalars(
+                    select(StrategyRewardRollout).where(
+                        StrategyRewardRollout.context_key.in_(requested_context_keys)
+                    )
+                )
+            )
+    except Exception as exc:  # pragma: no cover - retrieval must stay best-effort
+        log.warning("strategy reward rollout lookup failed: %s", exc)
+        return None
+    rows_by_key = {row.context_key: row for row in rows}
+    for context_key in requested_context_keys:
+        row = rows_by_key.get(context_key)
+        mode = str(getattr(row, "mode", "") or "").strip() if row else ""
+        if mode in STRATEGY_RANKING_MODES:
+            return _StrategyRankingModeSelection(
+                mode=mode,
+                source="context_override",
+                context_key=context_key,
+            )
+    return None
 
 
 def _strategy_signature(root: Path) -> tuple[tuple[str, int, int], ...]:
@@ -334,7 +391,8 @@ def _rank_strategy_hits(
     if not metadata_hits:
         return []
 
-    mode = _strategy_ranking_mode()
+    mode_selection = _strategy_ranking_mode_selection(policy_context_keys)
+    mode = mode_selection.mode
     if mode not in {"reward_shadow", "reward"}:
         return metadata_hits[:limit]
 
@@ -389,6 +447,7 @@ def _rank_strategy_hits(
             stats_match=stats_match,
             details=details_by_entry.get(id(entry)),
             live_order=live_order,
+            mode_selection=mode_selection,
         )
 
     if mode == "reward" and live_reward_enabled:
@@ -567,6 +626,7 @@ def _ranking_reason(
     stats_match: _StrategyStatsMatch | None,
     details: _RewardRankingDetails | None = None,
     live_order: str | None = None,
+    mode_selection: _StrategyRankingModeSelection | None = None,
 ) -> dict[str, Any]:
     requested_context_keys = (
         list(stats_match.requested_context_keys)
@@ -574,8 +634,16 @@ def _ranking_reason(
         else []
     )
     stats = stats_match.stats if stats_match is not None else None
+    mode_payload = {
+        "ranking_mode": mode_selection.mode if mode_selection else None,
+        "ranking_mode_source": mode_selection.source if mode_selection else None,
+        "ranking_mode_context_key": mode_selection.context_key
+        if mode_selection
+        else None,
+    }
     if stats is None:
         return {
+            **mode_payload,
             "base_score": base_score,
             "priority": entry.priority,
             "uses": 0,
@@ -592,6 +660,7 @@ def _ranking_reason(
             "live_order": live_order,
         }
     return {
+        **mode_payload,
         "base_score": base_score,
         "priority": entry.priority,
         "uses": stats.uses,

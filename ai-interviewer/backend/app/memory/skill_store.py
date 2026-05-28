@@ -44,6 +44,7 @@ Frontmatter contract (tolerant, per-field optional):
 """
 from __future__ import annotations
 
+import math
 import re
 from dataclasses import dataclass, field, replace
 from pathlib import Path
@@ -56,6 +57,11 @@ from app.core.logging import get_logger
 from app.core.settings import get_settings
 from app.models import get_session
 from app.models.skill_playbook import SkillPlaybookCard
+from app.services.skill_usage_stats import (
+    MIN_REWARDED_USES,
+    REWARD_SHADOW_BONUS_WEIGHT,
+    skill_usage_context_key,
+)
 
 log = get_logger(__name__)
 
@@ -64,6 +70,10 @@ _VALID_BACKENDS = {"file", "db", "db_with_file_fallback"}
 _FM_PATTERN = re.compile(r"^---\s*\n(.*?)\n---\s*\n", re.DOTALL)
 _SkillCache = tuple[Path, tuple[tuple[str, int, int], ...], list["SkillEntry"]]
 _skill_cache: _SkillCache | None = None
+SKILL_REWARD_ROLLOUT_MODES = {"metadata", "reward_shadow", "reward"}
+DEFAULT_SKILL_REWARD_ROLLOUT_MODE = "reward_shadow"
+MIN_REWARD_CANDIDATE_COUNT = 5
+MAX_OVERRULE_RATE = 0.25
 
 
 @dataclass
@@ -99,6 +109,11 @@ class SkillEntry:
     body: str = ""
     match_score: float = 0.0
     match_reasons: list[str] = field(default_factory=list)
+    reward_shadow_rank: int | None = None
+    reward_shadow_score: float | None = None
+    reward_shadow_rank_changed: bool = False
+    usage_stats: dict[str, Any] | None = None
+    reward_shadow_reason: dict[str, Any] | None = None
 
 
 def _parse_frontmatter(text: str) -> dict[str, Any]:
@@ -378,9 +393,16 @@ def retrieve_skills(
     dimension_slug = _slugify(dimension)
     job_level_slug = _slugify(job_level)
     direction_tag_set = set(_slug_list(direction_tags))
-    role_tag_set = set(_slug_list(role_tags))
+    role_tag_values = _slug_list(role_tags)
+    role_tag_set = set(role_tag_values)
     probe_intent_slug = _slugify(probe_intent)
     failure_set = set(_slug_list(failure_categories))
+    context_key = skill_usage_context_key(
+        role=_context_role(role_tag_values),
+        job_level=job_level_slug,
+        dimension=dimension_slug,
+        probe_intent=probe_intent_slug,
+    )
 
     all_entries = list_skills(backend=backend)
     scored: list[SkillEntry] = []
@@ -403,7 +425,11 @@ def retrieve_skills(
             e.id or e.path.name,
         )
     )
-    keyword_hits = scored[:limit]
+    keyword_hits = _apply_reward_ranking(
+        scored,
+        context_key=context_key,
+        limit=limit,
+    )
 
     if not use_llm_selector or not keyword_hits:
         return keyword_hits
@@ -508,6 +534,279 @@ def _rank_skill_entry(
         reasons.append(f"failure_category:{category}")
 
     return replace(entry, match_score=score, match_reasons=reasons)
+
+
+def _apply_reward_ranking(
+    entries: list[SkillEntry],
+    *,
+    context_key: str,
+    limit: int,
+) -> list[SkillEntry]:
+    if not entries:
+        return []
+    metadata_rank_by_skill = {entry.id: idx for idx, entry in enumerate(entries, 1)}
+    mode = DEFAULT_SKILL_REWARD_ROLLOUT_MODE
+    rollout_reason = ""
+    try:
+        from app.models.skill_playbook import SkillRewardRollout, SkillUsageStats
+
+        skill_ids = [entry.id for entry in entries if entry.id]
+        if not skill_ids:
+            return [
+                replace(
+                    entry,
+                    reward_shadow_reason={
+                        "status": "no_skill_id",
+                        "metadata_rank": idx,
+                    },
+                )
+                for idx, entry in enumerate(entries[:limit], 1)
+            ]
+        with get_session() as session:
+            stats_rows = list(
+                session.scalars(
+                    select(SkillUsageStats)
+                    .where(SkillUsageStats.skill_id.in_(skill_ids))
+                    .where(SkillUsageStats.skill_context_key == context_key)
+                )
+            )
+            rollout = session.get(SkillRewardRollout, context_key)
+            if rollout is not None:
+                candidate_mode = str(getattr(rollout, "mode", "") or "").strip()
+                if candidate_mode in SKILL_REWARD_ROLLOUT_MODES:
+                    mode = candidate_mode
+                rollout_reason = str(getattr(rollout, "reason", "") or "")
+    except Exception as exc:  # pragma: no cover - diagnostic side channel
+        log.debug("skill reward-shadow lookup failed: %s", exc)
+        return [
+            replace(
+                entry,
+                reward_shadow_reason={
+                    "status": "stats_unavailable",
+                    "metadata_rank": idx,
+                },
+            )
+            for idx, entry in enumerate(entries[:limit], 1)
+        ]
+
+    stats_by_skill = {row.skill_id: row for row in stats_rows}
+    reward_score_by_skill: dict[str, float] = {}
+    for entry in entries:
+        stats = stats_by_skill.get(entry.id)
+        reward_score_by_skill[entry.id] = (
+            _reward_shadow_score(entry, stats)
+            if stats is not None
+            else float(entry.match_score or 0.0)
+        )
+    reward_ranked = sorted(
+        entries,
+        key=lambda entry: (
+            -reward_score_by_skill.get(entry.id, float(entry.match_score or 0.0)),
+            entry.id or entry.path.name,
+        ),
+    )
+    reward_rank_by_skill = {
+        entry.id: idx
+        for idx, entry in enumerate(reward_ranked, 1)
+    }
+    metadata_top = [entry.id for entry in entries[:limit]]
+    reward_top = [entry.id for entry in reward_ranked[:limit]]
+    rank_changed = metadata_top != reward_top
+    rewarded_sample_count = sum(
+        int(getattr(stats, "rewarded_uses", 0) or 0)
+        for stats in stats_by_skill.values()
+    )
+    gate_reasons = _skill_reward_gate_reasons(
+        candidate_count=len(entries),
+        rewarded_sample_count=rewarded_sample_count,
+        rank_changed=rank_changed,
+        stats_rows=list(stats_by_skill.values()),
+    )
+    live_enabled = not gate_reasons
+    live_order = (
+        "reward"
+        if mode == "reward" and live_enabled
+        else "metadata_fallback"
+        if mode == "reward"
+        else "metadata"
+        if mode == "metadata"
+        else "reward_shadow"
+    )
+    selected_entries = reward_ranked[:limit] if live_order == "reward" else entries[:limit]
+
+    output: list[SkillEntry] = []
+    for entry in selected_entries:
+        metadata_rank = metadata_rank_by_skill.get(entry.id)
+        stats = stats_by_skill.get(entry.id)
+        if stats is None:
+            output.append(
+                replace(
+                    entry,
+                    reward_shadow_rank=None,
+                    reward_shadow_score=None,
+                    reward_shadow_rank_changed=False,
+                    usage_stats=None,
+                    reward_shadow_reason={
+                        "status": "no_stats",
+                        "metadata_rank": metadata_rank,
+                        "skill_context_key": context_key,
+                        "candidate_count": len(entries),
+                        "rewarded_sample_count": rewarded_sample_count,
+                        "rollout_mode": mode,
+                        "rollout_reason": rollout_reason,
+                        "live_order": live_order,
+                        "gate_reasons": gate_reasons,
+                        "rank_changed": rank_changed,
+                    },
+                )
+            )
+            continue
+        shadow_rank = reward_rank_by_skill.get(entry.id)
+        output.append(
+            replace(
+                entry,
+                reward_shadow_rank=shadow_rank,
+                reward_shadow_score=_reward_shadow_score(entry, stats),
+                reward_shadow_rank_changed=(
+                    shadow_rank is not None and shadow_rank != metadata_rank
+                ),
+                usage_stats=_usage_stats_payload(stats),
+                reward_shadow_reason=_reward_shadow_reason(
+                    entry,
+                    stats,
+                    metadata_rank=metadata_rank,
+                    shadow_rank=shadow_rank,
+                    context_key=context_key,
+                    rollout_mode=mode,
+                    rollout_reason=rollout_reason,
+                    live_order=live_order,
+                    gate_reasons=gate_reasons,
+                    candidate_count=len(entries),
+                    rewarded_sample_count=rewarded_sample_count,
+                    rank_changed=rank_changed,
+                ),
+            )
+        )
+    return output
+
+
+def _apply_reward_shadow(
+    entries: list[SkillEntry],
+    *,
+    context_key: str,
+) -> list[SkillEntry]:
+    return _apply_reward_ranking(entries, context_key=context_key, limit=len(entries))
+
+
+def _skill_reward_gate_reasons(
+    *,
+    candidate_count: int,
+    rewarded_sample_count: int,
+    rank_changed: bool,
+    stats_rows: list[Any],
+) -> list[str]:
+    reasons: list[str] = []
+    if candidate_count < MIN_REWARD_CANDIDATE_COUNT:
+        reasons.append("candidate_pool_below_min")
+    if candidate_count < 2:
+        reasons.append("single_skill_no_rank_effect")
+    if rewarded_sample_count < MIN_REWARDED_USES:
+        reasons.append("reward_samples_below_min")
+    if any(
+        getattr(row, "overrule_rate", None) is not None
+        and float(getattr(row, "overrule_rate") or 0.0) > MAX_OVERRULE_RATE
+        for row in stats_rows
+    ):
+        reasons.append("overrule_rate_high")
+    if not rank_changed:
+        reasons.append("reward_shadow_rank_same")
+    return reasons
+
+
+def _reward_shadow_score(entry: SkillEntry, stats: Any) -> float:
+    sample_confidence = _sample_confidence(stats)
+    reward_bonus = (
+        float(getattr(stats, "avg_blended_reward", None) or 0.0)
+        * REWARD_SHADOW_BONUS_WEIGHT
+        * sample_confidence
+    )
+    usage_bonus = (
+        math.log(int(getattr(stats, "uses", 0) or 0) + 1)
+        * 0.1
+        * sample_confidence
+    )
+    return float(entry.match_score or 0.0) + reward_bonus + usage_bonus
+
+
+def _reward_shadow_reason(
+    entry: SkillEntry,
+    stats: Any,
+    *,
+    metadata_rank: int,
+    shadow_rank: int | None,
+    context_key: str,
+    rollout_mode: str,
+    rollout_reason: str,
+    live_order: str,
+    gate_reasons: list[str],
+    candidate_count: int,
+    rewarded_sample_count: int,
+    rank_changed: bool,
+) -> dict[str, Any]:
+    sample_confidence = _sample_confidence(stats)
+    return {
+        "status": "scored",
+        "skill_context_key": context_key,
+        "uses": int(getattr(stats, "uses", 0) or 0),
+        "injected_uses": int(getattr(stats, "injected_uses", 0) or 0),
+        "rewarded_uses": int(getattr(stats, "rewarded_uses", 0) or 0),
+        "avg_blended_reward": getattr(stats, "avg_blended_reward", None),
+        "avg_immediate_reward": getattr(stats, "avg_immediate_reward", None),
+        "pass_rate": getattr(stats, "pass_rate", None),
+        "overrule_rate": getattr(stats, "overrule_rate", None),
+        "sample_confidence": sample_confidence,
+        "sample_status": (
+            "ready"
+            if int(getattr(stats, "rewarded_uses", 0) or 0) >= MIN_REWARDED_USES
+            else "low_sample"
+        ),
+        "metadata_rank": metadata_rank,
+        "metadata_score": float(entry.match_score or 0.0),
+        "shadow_rank": shadow_rank,
+        "reward_shadow_score": _reward_shadow_score(entry, stats),
+        "candidate_count": candidate_count,
+        "rewarded_sample_count": rewarded_sample_count,
+        "rollout_mode": rollout_mode,
+        "rollout_reason": rollout_reason,
+        "live_order": live_order,
+        "gate_reasons": gate_reasons,
+        "rank_changed": rank_changed,
+    }
+
+
+def _usage_stats_payload(stats: Any) -> dict[str, Any]:
+    return {
+        "uses": int(getattr(stats, "uses", 0) or 0),
+        "injected_uses": int(getattr(stats, "injected_uses", 0) or 0),
+        "rewarded_uses": int(getattr(stats, "rewarded_uses", 0) or 0),
+        "avg_score": getattr(stats, "avg_score", None),
+        "pass_rate": getattr(stats, "pass_rate", None),
+        "avg_immediate_reward": getattr(stats, "avg_immediate_reward", None),
+        "avg_blended_reward": getattr(stats, "avg_blended_reward", None),
+        "overrule_rate": getattr(stats, "overrule_rate", None),
+    }
+
+
+def _sample_confidence(stats: Any) -> float:
+    return min(
+        1.0,
+        int(getattr(stats, "rewarded_uses", 0) or 0) / MIN_REWARDED_USES,
+    )
+
+
+def _context_role(role_tags: list[str]) -> str:
+    concrete = [role for role in role_tags if role and role != "general"]
+    return concrete[0] if concrete else "general"
 
 
 def build_skills_block(

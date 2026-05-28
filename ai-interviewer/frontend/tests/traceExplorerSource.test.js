@@ -370,6 +370,7 @@ test("trace explorer explains ask_question evidence as grouped user-facing secti
   assert.match(component, /命中 \$\{skillRefs\.length\} skill refs/);
   assert.match(component, /localizeSkillMatchReason/);
   assert.match(component, /SkillMatchReasonsDetails/);
+  assert.match(component, /SkillRewardShadowDetails/);
   assert.match(component, /display_name_zh/);
   assert.match(component, /display_description_zh/);
   assert.match(component, /stringValue\(ref_\.display_name_zh\) \|\| rawName/);
@@ -403,6 +404,9 @@ test("trace explorer explains ask_question evidence as grouped user-facing secti
   assert.match(component, /reward_shadow_rank/);
   assert.match(component, /reward_shadow_score/);
   assert.match(component, /reward_shadow_reason/);
+  assert.match(component, /avg_blended_reward/);
+  assert.match(component, /overrule_rate/);
+  assert.match(component, /Skills/);
   assert.match(component, /仅观测，不影响当前注入题/);
   assert.match(component, /历史使用次数/);
   assert.match(component, /有评分样本数/);

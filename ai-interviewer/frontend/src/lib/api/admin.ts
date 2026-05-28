@@ -216,6 +216,8 @@ export interface Strategy {
   memory_key?: string | null;
   path: string;
   name: string;
+  display_name_zh?: string | null;
+  display_description_zh?: string | null;
   dimensions: string[];
   job_levels: string[];
   failure_categories?: string[];
@@ -318,6 +320,105 @@ export interface SkillPlaybookImportResult {
   skipped: number;
 }
 
+export interface SkillUsageStatsItem {
+  id: string;
+  skill_id: string;
+  skill_context_key: string;
+  role: string;
+  job_level: string;
+  dimension: string;
+  probe_intent?: string | null;
+  uses: number;
+  injected_uses: number;
+  rewarded_uses: number;
+  avg_score?: number | null;
+  pass_rate?: number | null;
+  avg_immediate_reward?: number | null;
+  avg_blended_reward?: number | null;
+  overrule_rate?: number | null;
+  last_used_at?: string | null;
+  updated_at?: string | null;
+}
+
+export interface SkillUsageStatsResponse {
+  count: number;
+  limit?: number;
+  offset?: number;
+  refreshed?: { refreshed: number; deleted: number } | null;
+  stats: SkillUsageStatsItem[];
+}
+
+export type SkillRewardRolloutMode = "metadata" | "reward_shadow" | "reward";
+
+export interface SkillRewardRollout {
+  context_key: string;
+  mode: SkillRewardRolloutMode;
+  reason?: string | null;
+  source?: string | null;
+  created_at?: string | null;
+  updated_at?: string | null;
+}
+
+export interface SkillRewardReadinessSkill {
+  skill_id: string;
+  name?: string | null;
+  display_name_zh?: string | null;
+  skill_context_key: string;
+  role: string;
+  job_level: string;
+  dimension: string;
+  probe_intent?: string | null;
+  uses: number;
+  injected_uses: number;
+  rewarded_uses: number;
+  avg_score?: number | null;
+  pass_rate?: number | null;
+  avg_immediate_reward?: number | null;
+  avg_blended_reward?: number | null;
+  overrule_rate?: number | null;
+  metadata_score?: number | null;
+  reward_shadow_score?: number | null;
+  sample_confidence?: number | null;
+  readiness: string;
+  reasons: string[];
+}
+
+export interface SkillRewardReadinessContext {
+  skill_context_key: string;
+  candidate_count?: number;
+  usage_count?: number;
+  rewarded_usage_count?: number;
+  metadata_top_skill_ids: string[];
+  reward_top_skill_ids: string[];
+  rank_changed: boolean;
+  readiness?: string;
+  reasons: string[];
+  rollout?: SkillRewardRollout;
+}
+
+export interface SkillRewardReadiness {
+  thresholds: {
+    min_rewarded_uses: number;
+    high_reward_threshold: number;
+    top_k: number;
+    min_candidate_count?: number;
+    max_overrule_rate?: number;
+  };
+  reward_ranking_mode?: string;
+  candidate_count?: number;
+  usage_count?: number;
+  rewarded_usage_count?: number;
+  summary: {
+    total_skills: number;
+    skills_with_stats: number;
+    low_sample_contexts: number;
+    shadow_changed_contexts: number;
+    high_reward_low_sample_skills: number;
+  };
+  contexts: SkillRewardReadinessContext[];
+  skills: SkillRewardReadinessSkill[];
+}
+
 export interface QuestionSeed {
   id: string;
   version: number;
@@ -387,6 +488,11 @@ export interface QuestionUsageItem {
   match_reasons: string[];
   injected: boolean;
   question_selector_mode: string;
+  question_context_key?: string | null;
+  direction_tag?: string | null;
+  role_tag?: string | null;
+  job_level?: string | null;
+  dimension?: string | null;
   direction_tags?: string[];
   role_tags?: string[];
   score?: number | null;
@@ -417,6 +523,8 @@ export interface QuestionUsageStatsItem {
 
 export interface QuestionUsageStatsResponse {
   count: number;
+  limit?: number;
+  offset?: number;
   refreshed?: { refreshed: number; deleted: number } | null;
   stats: QuestionUsageStatsItem[];
 }
@@ -426,7 +534,8 @@ export interface QuestionRewardReadinessVariant {
   seed_id?: string | null;
   title?: string | null;
   dimension?: string | null;
-  question_selector_mode: string;
+  question_selector_mode?: string;
+  observed_selector_modes?: string[];
   uses: number;
   injected_uses: number;
   rewarded_uses: number;
@@ -448,20 +557,70 @@ export interface QuestionRewardReadinessMode {
   reasons: string[];
 }
 
+export type QuestionRewardRolloutMode = "metadata" | "reward_shadow" | "reward";
+export type QuestionRewardRolloutScope = "context" | "seed";
+
+export interface QuestionRewardRollout {
+  id?: string;
+  scope: QuestionRewardRolloutScope;
+  scope_key: string;
+  mode: QuestionRewardRolloutMode;
+  source?: "default" | "override" | string;
+  reason?: string;
+  created_at?: string | null;
+  updated_at?: string | null;
+}
+
+export interface QuestionRewardReadinessGroup {
+  scope: QuestionRewardRolloutScope;
+  scope_key: string;
+  context_key?: string;
+  seed_id?: string;
+  active_variant_count?: number;
+  rollout: QuestionRewardRollout;
+  candidate_count: number;
+  usage_count: number;
+  rewarded_usage_count: number;
+  metadata_top_variant_ids: string[];
+  reward_top_variant_ids: string[];
+  rank_changed: boolean;
+  readiness: string;
+  reasons: string[];
+  variants: QuestionRewardReadinessVariant[];
+}
+
 export interface QuestionRewardReadiness {
   thresholds: {
+    min_candidates?: number;
     min_rewarded_uses: number;
     high_reward_threshold: number;
     top_k: number;
   };
   summary: {
+    candidate_count?: number;
+    usage_count?: number;
+    rewarded_usage_count?: number;
+    rank_changed?: boolean;
+    readiness?: string;
     total_variants: number;
     ready_variants: number;
     low_sample_variants: number;
     high_reward_low_sample_variants: number;
     shadow_changed_modes: number;
   };
+  selector_rollout_mode: string;
+  reward_ranking_mode: string;
+  candidate_count: number;
+  usage_count: number;
+  rewarded_usage_count: number;
+  metadata_top_variant_ids: string[];
+  reward_top_variant_ids: string[];
+  rank_changed: boolean;
+  readiness: string;
+  reasons: string[];
   modes: QuestionRewardReadinessMode[];
+  contexts?: QuestionRewardReadinessGroup[];
+  seeds?: QuestionRewardReadinessGroup[];
   variants: QuestionRewardReadinessVariant[];
 }
 
@@ -980,6 +1139,54 @@ export function importSkillPlaybooks(
   );
 }
 
+export function getSkillUsageStats(
+  autoRefresh = false,
+  optionsOrSignal?: AdminPaginationOptions | AbortSignal,
+): Promise<SkillUsageStatsResponse> {
+  const options =
+    optionsOrSignal instanceof AbortSignal ? { signal: optionsOrSignal } : optionsOrSignal;
+  const params = new URLSearchParams({
+    limit: String(options?.limit ?? 100),
+    offset: String(options?.offset ?? 0),
+  });
+  if (autoRefresh) params.set("auto_refresh", "true");
+  return adminGet<SkillUsageStatsResponse>(
+    `/admin/skill-usage-stats?${params.toString()}`,
+    options?.signal,
+  );
+}
+
+export function refreshSkillUsageStats(): Promise<{
+  refreshed: number;
+  deleted: number;
+}> {
+  return adminPost<{ refreshed: number; deleted: number }>(
+    "/admin/skill-usage-stats/refresh",
+    {},
+  );
+}
+
+export function getSkillRewardReadiness(
+  autoRefresh = false,
+  signal?: AbortSignal,
+): Promise<SkillRewardReadiness> {
+  const suffix = autoRefresh ? "?auto_refresh=true" : "";
+  return adminGet<SkillRewardReadiness>(
+    `/admin/skill-reward-readiness${suffix}`,
+    signal,
+  );
+}
+
+export function setSkillRewardRollout(
+  contextKey: string,
+  payload: { mode: SkillRewardRolloutMode; reason?: string },
+): Promise<SkillRewardRollout> {
+  return adminPost<SkillRewardRollout>(
+    `/admin/skill-reward-rollouts/${encodeURIComponent(contextKey)}`,
+    payload,
+  );
+}
+
 export function getQuestionSeeds(
   signal?: AbortSignal,
   filters?: { directionTag?: string; roleTag?: string },
@@ -1011,15 +1218,26 @@ export function getQuestionUsages(
   return adminGet<QuestionUsages>(`/admin/question-usages?${params.toString()}`, signal);
 }
 
+export interface AdminPaginationOptions {
+  limit?: number;
+  offset?: number;
+  signal?: AbortSignal;
+}
+
 export function getQuestionUsageStats(
   autoRefresh = false,
-  signal?: AbortSignal,
+  optionsOrSignal?: AdminPaginationOptions | AbortSignal,
 ): Promise<QuestionUsageStatsResponse> {
-  const params = new URLSearchParams({ limit: "100" });
+  const options =
+    optionsOrSignal instanceof AbortSignal ? { signal: optionsOrSignal } : optionsOrSignal;
+  const params = new URLSearchParams({
+    limit: String(options?.limit ?? 100),
+    offset: String(options?.offset ?? 0),
+  });
   if (autoRefresh) params.set("auto_refresh", "true");
   return adminGet<QuestionUsageStatsResponse>(
     `/admin/question-usage-stats?${params.toString()}`,
-    signal,
+    options?.signal,
   );
 }
 
@@ -1041,6 +1259,17 @@ export function getQuestionRewardReadiness(
   return adminGet<QuestionRewardReadiness>(
     `/admin/question-reward-readiness${suffix}`,
     signal,
+  );
+}
+
+export function setQuestionRewardRollout(
+  scope: QuestionRewardRolloutScope,
+  scopeKey: string,
+  payload: { mode: QuestionRewardRolloutMode; reason?: string },
+): Promise<QuestionRewardRollout> {
+  return adminPost<QuestionRewardRollout>(
+    `/admin/question-reward-rollouts/${encodeURIComponent(scope)}/${encodeURIComponent(scopeKey)}`,
+    payload,
   );
 }
 
@@ -1226,6 +1455,20 @@ export interface StrategyRewardReadinessContext {
   rank_changed: boolean;
   readiness: string;
   reasons: string[];
+  rollout_mode?: StrategyRewardRolloutMode | string | null;
+  rollout_source?: string | null;
+  rollout_reason?: string | null;
+  rollout_updated_at?: string | null;
+}
+
+export type StrategyRewardRolloutMode = "metadata" | "reward_shadow" | "reward";
+
+export interface StrategyRewardRollout {
+  context_key: string;
+  mode: StrategyRewardRolloutMode;
+  reason?: string | null;
+  created_at?: string | null;
+  updated_at?: string | null;
 }
 
 export interface StrategyRewardReadiness {
@@ -1247,6 +1490,7 @@ export interface StrategyRewardReadiness {
     needs_candidate_contexts: number;
     needs_sample_contexts: number;
     blocked_contexts: number;
+    reward_rollout_contexts?: number;
   };
   contexts: StrategyRewardReadinessContext[];
 }
@@ -1279,6 +1523,16 @@ export function getStrategyRewardReadiness(
   return adminGet<StrategyRewardReadiness>(
     `/admin/strategy-reward-readiness${suffix}`,
     signal,
+  );
+}
+
+export function setStrategyRewardRollout(
+  contextKey: string,
+  input: { mode: StrategyRewardRolloutMode; reason?: string },
+): Promise<StrategyRewardRollout> {
+  return adminPost<StrategyRewardRollout>(
+    `/admin/strategy-reward-rollouts/${encodeURIComponent(contextKey)}`,
+    input,
   );
 }
 

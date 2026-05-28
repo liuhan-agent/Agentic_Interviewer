@@ -155,6 +155,13 @@ _SQLITE_UPGRADES: dict[str, dict[str, str]] = {
         "score_bias_rules": "JSON DEFAULT '[]'",
         "evaluator_visibility": "BOOLEAN DEFAULT 0",
     },
+    "question_usages": {
+        "question_context_key": "VARCHAR(160)",
+        "direction_tag": "VARCHAR(64)",
+        "role_tag": "VARCHAR(64)",
+        "job_level": "VARCHAR(64)",
+        "dimension": "VARCHAR(64)",
+    },
 }
 
 _POSTGRES_UPGRADES: dict[str, dict[str, str]] = {
@@ -211,6 +218,13 @@ _POSTGRES_UPGRADES: dict[str, dict[str, str]] = {
         "negative_signals": "JSONB DEFAULT '[]'::jsonb",
         "score_bias_rules": "JSONB DEFAULT '[]'::jsonb",
         "evaluator_visibility": "BOOLEAN DEFAULT FALSE",
+    },
+    "question_usages": {
+        "question_context_key": "VARCHAR(160)",
+        "direction_tag": "VARCHAR(64)",
+        "role_tag": "VARCHAR(64)",
+        "job_level": "VARCHAR(64)",
+        "dimension": "VARCHAR(64)",
     },
 }
 

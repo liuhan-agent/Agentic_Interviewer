@@ -21,6 +21,7 @@ from urllib.parse import urlparse, urlunparse
 
 from fastapi import (
     APIRouter,
+    Body,
     Depends,
     Header,
     HTTPException,
@@ -2999,6 +3000,11 @@ def _question_usage_payload(
         "match_reasons": list(row.match_reasons or []),
         "injected": row.injected,
         "question_selector_mode": row.question_selector_mode,
+        "question_context_key": getattr(row, "question_context_key", None),
+        "direction_tag": getattr(row, "direction_tag", None),
+        "role_tag": getattr(row, "role_tag", None),
+        "job_level": getattr(row, "job_level", None),
+        "dimension": getattr(row, "dimension", None),
         "direction_tags": list(getattr(seed, "direction_tags", []) or []),
         "role_tags": list(
             getattr(variant, "role_tags", []) or getattr(seed, "role_tags", []) or []
@@ -3117,6 +3123,28 @@ def _skill_playbook_payload(row: Any, *, include_body: bool = False) -> dict[str
     return payload
 
 
+def _skill_usage_stats_payload(row: Any) -> dict[str, Any]:
+    return {
+        "id": row.id,
+        "skill_id": row.skill_id,
+        "skill_context_key": row.skill_context_key,
+        "role": row.role,
+        "job_level": row.job_level,
+        "dimension": row.dimension,
+        "probe_intent": row.probe_intent,
+        "uses": row.uses,
+        "injected_uses": row.injected_uses,
+        "rewarded_uses": row.rewarded_uses,
+        "avg_score": row.avg_score,
+        "pass_rate": row.pass_rate,
+        "avg_immediate_reward": row.avg_immediate_reward,
+        "avg_blended_reward": row.avg_blended_reward,
+        "overrule_rate": row.overrule_rate,
+        "last_used_at": row.last_used_at.isoformat() if row.last_used_at else None,
+        "updated_at": row.updated_at.isoformat() if row.updated_at else None,
+    }
+
+
 @router.get("/skill-playbooks", dependencies=[Depends(require_admin_token)])
 def list_skill_playbooks(
     status: str | None = None,
@@ -3209,6 +3237,118 @@ def get_skill_playbook(card_id: str) -> dict[str, Any]:
             raise HTTPException(status_code=404, detail="skill playbook not found")
         payload = _skill_playbook_payload(row, include_body=True)
     return {"skill_playbook": payload}
+
+
+@router.get("/skill-usage-stats", dependencies=[Depends(require_admin_token)])
+def list_skill_usage_stats(
+    auto_refresh: bool = False,
+    limit: int = 100,
+    offset: int = 0,
+) -> dict[str, Any]:
+    from app.models.skill_playbook import SkillUsageStats
+    from app.services.skill_usage_stats import refresh_skill_usage_stats
+
+    capped_limit = max(1, min(int(limit or 100), 500))
+    safe_offset = max(0, int(offset or 0))
+    with get_session() as sess:
+        refresh_payload = None
+        if bool(auto_refresh):
+            refreshed = refresh_skill_usage_stats(session=sess)
+            refresh_payload = {
+                "refreshed": refreshed.refreshed,
+                "deleted": refreshed.deleted,
+            }
+        query = sess.query(SkillUsageStats)
+        total_count = query.count()
+        rows = (
+            query
+            .order_by(
+                SkillUsageStats.skill_context_key.asc(),
+                SkillUsageStats.skill_id.asc(),
+            )
+            .offset(safe_offset)
+            .limit(capped_limit)
+            .all()
+        )
+    return {
+        "count": total_count,
+        "limit": capped_limit,
+        "offset": safe_offset,
+        "refreshed": refresh_payload,
+        "stats": [_skill_usage_stats_payload(row) for row in rows],
+    }
+
+
+@router.post("/skill-usage-stats/refresh", dependencies=[Depends(require_admin_token)])
+def refresh_skill_usage_stats_endpoint() -> dict[str, int]:
+    from app.services.skill_usage_stats import refresh_skill_usage_stats
+
+    with get_session() as sess:
+        result = refresh_skill_usage_stats(session=sess)
+    return {
+        "refreshed": result.refreshed,
+        "deleted": result.deleted,
+    }
+
+
+@router.get("/skill-reward-readiness", dependencies=[Depends(require_admin_token)])
+def get_skill_reward_readiness(auto_refresh: bool = False) -> dict[str, Any]:
+    from app.services.skill_usage_stats import (
+        build_skill_reward_readiness,
+        refresh_skill_usage_stats,
+    )
+
+    with get_session() as sess:
+        if bool(auto_refresh):
+            refresh_skill_usage_stats(session=sess)
+        return build_skill_reward_readiness(session=sess)
+
+
+@router.post(
+    "/skill-reward-rollouts/{context_key:path}",
+    dependencies=[Depends(require_admin_token)],
+)
+def set_skill_reward_rollout(
+    context_key: str,
+    payload: Mapping[str, Any] | None = Body(default=None),
+) -> dict[str, Any]:
+    from app.models.skill_playbook import SkillRewardRollout
+    from app.services.skill_usage_stats import SKILL_REWARD_ROLLOUT_MODES
+
+    clean_context_key = str(context_key or "").strip()
+    if not clean_context_key or clean_context_key == "__global__":
+        raise HTTPException(
+            status_code=400,
+            detail="context_key must be non-empty and non-global",
+        )
+    body = dict(payload or {})
+    mode = str(body.get("mode") or "").strip()
+    if mode not in SKILL_REWARD_ROLLOUT_MODES:
+        raise HTTPException(
+            status_code=400,
+            detail="mode must be one of metadata, reward_shadow, reward",
+        )
+    reason = str(body.get("reason") or "").strip()[:512]
+
+    with get_session() as sess:
+        row = sess.get(SkillRewardRollout, clean_context_key)
+        if row is None:
+            row = SkillRewardRollout(context_key=clean_context_key)
+            sess.add(row)
+        row.mode = mode
+        row.reason = reason
+        sess.flush()
+        return _skill_reward_rollout_payload(row)
+
+
+def _skill_reward_rollout_payload(row: Any) -> dict[str, Any]:
+    return {
+        "context_key": row.context_key,
+        "mode": row.mode,
+        "reason": row.reason,
+        "created_at": row.created_at.isoformat() if row.created_at else None,
+        "updated_at": row.updated_at.isoformat() if row.updated_at else None,
+    }
 
 
 @router.get("/question-seeds", dependencies=[Depends(require_admin_token)])
@@ -3369,11 +3509,13 @@ def list_question_usages(
 def list_question_usage_stats(
     auto_refresh: bool = False,
     limit: int = 100,
+    offset: int = 0,
 ) -> dict[str, Any]:
     from app.models.question_bank import QuestionUsageStats
     from app.services.question_usage_stats import refresh_question_usage_stats
 
     capped_limit = max(1, min(int(limit or 100), 500))
+    safe_offset = max(0, int(offset or 0))
     with get_session() as sess:
         refresh_payload = None
         if bool(auto_refresh):
@@ -3382,17 +3524,22 @@ def list_question_usage_stats(
                 "refreshed": refreshed.refreshed,
                 "deleted": refreshed.deleted,
             }
+        query = sess.query(QuestionUsageStats)
+        total_count = query.count()
         rows = (
-            sess.query(QuestionUsageStats)
+            query
             .order_by(
                 QuestionUsageStats.question_selector_mode.asc(),
                 QuestionUsageStats.variant_id.asc(),
             )
+            .offset(safe_offset)
             .limit(capped_limit)
             .all()
         )
     return {
-        "count": len(rows),
+        "count": total_count,
+        "limit": capped_limit,
+        "offset": safe_offset,
         "refreshed": refresh_payload,
         "stats": [_question_usage_stats_payload(row) for row in rows],
     }
@@ -3421,6 +3568,75 @@ def get_question_reward_readiness(auto_refresh: bool = False) -> dict[str, Any]:
         if bool(auto_refresh):
             refresh_question_usage_stats(session=sess)
         return build_question_reward_readiness(session=sess)
+
+
+@router.post(
+    "/question-reward-rollouts/{scope}/{scope_key:path}",
+    dependencies=[Depends(require_admin_token)],
+)
+def set_question_reward_rollout(
+    scope: str,
+    scope_key: str,
+    payload: Mapping[str, Any] | None = Body(default=None),
+) -> dict[str, Any]:
+    from app.models.question_bank import QuestionRewardRollout
+    from app.services.question_usage_stats import (
+        CONTEXT_SCOPE,
+        QUESTION_REWARD_ROLLOUT_MODES,
+        SEED_SCOPE,
+        question_reward_rollout_id,
+    )
+
+    clean_scope = str(scope or "").strip().lower()
+    clean_scope_key = str(scope_key or "").strip()
+    if clean_scope not in {CONTEXT_SCOPE, SEED_SCOPE}:
+        raise HTTPException(
+            status_code=400,
+            detail="scope must be one of context, seed",
+        )
+    if not clean_scope_key or clean_scope_key == "__global__":
+        raise HTTPException(
+            status_code=400,
+            detail="scope_key must be non-empty and non-global",
+        )
+    body = dict(payload or {})
+    mode = str(body.get("mode") or "").strip()
+    if mode not in QUESTION_REWARD_ROLLOUT_MODES:
+        raise HTTPException(
+            status_code=400,
+            detail="mode must be one of metadata, reward_shadow, reward",
+        )
+    reason = str(body.get("reason") or "").strip()[:512]
+
+    with get_session() as sess:
+        rollout_id = question_reward_rollout_id(
+            scope=clean_scope,
+            scope_key=clean_scope_key,
+        )
+        row = sess.get(QuestionRewardRollout, rollout_id)
+        if row is None:
+            row = QuestionRewardRollout(
+                id=rollout_id,
+                scope=clean_scope,
+                scope_key=clean_scope_key,
+            )
+            sess.add(row)
+        row.mode = mode
+        row.reason = reason
+        sess.flush()
+        return _question_reward_rollout_payload(row)
+
+
+def _question_reward_rollout_payload(row: Any) -> dict[str, Any]:
+    return {
+        "id": row.id,
+        "scope": row.scope,
+        "scope_key": row.scope_key,
+        "mode": row.mode,
+        "reason": row.reason,
+        "created_at": row.created_at.isoformat() if row.created_at else None,
+        "updated_at": row.updated_at.isoformat() if row.updated_at else None,
+    }
 
 
 @router.get("/question-rerank-usages", dependencies=[Depends(require_admin_token)])
@@ -3683,6 +3899,8 @@ def list_strategies_route(request: Request) -> dict[str, Any]:
                 "memory_key": row.memory_key,
                 "path": f"{row.slug}.md",
                 "name": row.name,
+                "display_name_zh": row.display_name_zh,
+                "display_description_zh": row.display_description_zh,
                 "dimensions": list(row.dimensions or []),
                 "job_levels": list(row.job_levels or []),
                 "failure_categories": list(row.failure_categories or []),
@@ -4025,6 +4243,52 @@ def list_strategy_reward_readiness(auto_refresh: bool = False) -> dict[str, Any]
         "auto_refresh_reason": auto_refresh_reason,
         "auto_refresh_result": auto_refresh_result,
         **payload,
+    }
+
+
+@router.post(
+    "/strategy-reward-rollouts/{context_key:path}",
+    dependencies=[Depends(require_admin_token)],
+)
+def set_strategy_reward_rollout(
+    context_key: str,
+    payload: Mapping[str, Any] | None = Body(default=None),
+) -> dict[str, Any]:
+    from app.models.strategy_memory import StrategyRewardRollout
+
+    clean_context_key = str(context_key or "").strip()
+    if not clean_context_key or clean_context_key == "__global__":
+        raise HTTPException(
+            status_code=400,
+            detail="context_key must be a non-global strategy context",
+        )
+    body = dict(payload or {})
+    mode = str(body.get("mode") or "").strip()
+    if mode not in {"metadata", "reward_shadow", "reward"}:
+        raise HTTPException(
+            status_code=400,
+            detail="mode must be one of metadata, reward_shadow, reward",
+        )
+    reason = str(body.get("reason") or "").strip()[:512]
+
+    with get_session() as sess:
+        row = sess.get(StrategyRewardRollout, clean_context_key)
+        if row is None:
+            row = StrategyRewardRollout(context_key=clean_context_key)
+            sess.add(row)
+        row.mode = mode
+        row.reason = reason
+        sess.flush()
+        return _strategy_reward_rollout_payload(row)
+
+
+def _strategy_reward_rollout_payload(row: Any) -> dict[str, Any]:
+    return {
+        "context_key": row.context_key,
+        "mode": row.mode,
+        "reason": row.reason,
+        "created_at": row.created_at.isoformat() if row.created_at else None,
+        "updated_at": row.updated_at.isoformat() if row.updated_at else None,
     }
 
 

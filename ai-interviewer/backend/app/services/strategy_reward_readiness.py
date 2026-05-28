@@ -13,6 +13,7 @@ from app.models.strategy_memory import (
     StrategyMemory,
     StrategyMemoryStats,
     StrategyMemoryUsage,
+    StrategyRewardRollout,
 )
 
 MIN_CANDIDATES = 5
@@ -20,6 +21,7 @@ MIN_REWARDED_USAGES = 20
 MIN_DISTINCT_SESSIONS = 10
 MAX_OVERRULE_RATE = 0.25
 TOP_K = 3
+DEFAULT_ROLLOUT_MODE = "reward_shadow"
 
 
 @dataclass(frozen=True)
@@ -50,6 +52,10 @@ def build_strategy_reward_readiness(*, session: Session) -> dict[str, Any]:
         (row.context_key, row.strategy_id): row
         for row in stats_rows
     }
+    rollouts_by_context = {
+        row.context_key: row
+        for row in session.scalars(select(StrategyRewardRollout))
+    }
     usages_by_context: dict[str, list[StrategyMemoryUsage]] = defaultdict(list)
     for usage in usage_rows:
         context_key = str(usage.context_key or "").strip()
@@ -70,6 +76,7 @@ def build_strategy_reward_readiness(*, session: Session) -> dict[str, Any]:
             strategies=strategies,
             stats_by_context_strategy=stats_by_context_strategy,
             usages=usages_by_context.get(context_key, []),
+            rollout=rollouts_by_context.get(context_key),
         )
         for context_key in context_keys
     ]
@@ -93,6 +100,7 @@ def _context_payload(
     strategies: list[StrategyMemory],
     stats_by_context_strategy: dict[tuple[str, str], StrategyMemoryStats],
     usages: list[StrategyMemoryUsage],
+    rollout: StrategyRewardRollout | None = None,
 ) -> dict[str, Any]:
     parts = _parse_context_key(context_key)
     candidates = [
@@ -158,6 +166,12 @@ def _context_payload(
         "rank_changed": rank_changed,
         "readiness": readiness,
         "reasons": reasons,
+        "rollout_mode": rollout.mode if rollout is not None else DEFAULT_ROLLOUT_MODE,
+        "rollout_source": "context_override" if rollout is not None else "default",
+        "rollout_reason": rollout.reason if rollout is not None else None,
+        "rollout_updated_at": rollout.updated_at.isoformat()
+        if rollout is not None and rollout.updated_at
+        else None,
     }
 
 
@@ -197,6 +211,9 @@ def _summary_payload(contexts: list[dict[str, Any]]) -> dict[str, Any]:
         "needs_candidate_contexts": counts["needs_candidates"],
         "needs_sample_contexts": counts["needs_samples"],
         "blocked_contexts": counts["blocked_by_overrule"],
+        "reward_rollout_contexts": sum(
+            1 for context in contexts if context.get("rollout_mode") == "reward"
+        ),
     }
 
 

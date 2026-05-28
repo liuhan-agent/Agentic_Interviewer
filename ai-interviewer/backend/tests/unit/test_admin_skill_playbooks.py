@@ -12,7 +12,13 @@ from sqlalchemy.pool import StaticPool
 
 from app.api.v1 import admin as admin_api
 from app.models.base import Base
-from app.models.skill_playbook import SkillPlaybookCard
+from app.models.skill_playbook import (
+    SkillPlaybookCard,
+    SkillRewardRollout,
+    SkillUsage,
+    SkillUsageStats,
+)
+from app.services.skill_usage_stats import skill_usage_context_key
 
 
 def _session_factory():
@@ -205,6 +211,122 @@ def test_admin_skill_playbook_detail_returns_full_body_and_404() -> None:
 
     missing = client.get("/admin/skill-playbooks/missing_card")
     assert missing.status_code == 404
+
+
+def test_admin_skill_usage_stats_refresh_and_reward_readiness() -> None:
+    session_local = _session_factory()
+    context_key = skill_usage_context_key(
+        role="java_backend",
+        job_level="mid",
+        dimension="problem_solving",
+        probe_intent="debugging_probe",
+    )
+    with session_local() as sess:
+        for idx in range(2):
+            sess.add(
+                SkillUsage(
+                    id=f"skill-usage-low-{idx}",
+                    skill_id="tech_incident_probe",
+                    session_id=f"sess-low-{idx}",
+                    turn_idx=idx,
+                    trace_id=f"trace-low-{idx}",
+                    skill_context_key=context_key,
+                    role="java_backend",
+                    job_level="mid",
+                    dimension="problem_solving",
+                    probe_intent="debugging_probe",
+                    rank=1,
+                    match_score=90.0,
+                    match_reasons=["priority:8"],
+                    injected=True,
+                    evaluator_visibility=True,
+                    score=8.0,
+                    passed=True,
+                    immediate_reward=0.9,
+                    verifier_overruled=False,
+                )
+            )
+        for idx in range(25):
+            sess.add(
+                SkillUsage(
+                    id=f"skill-usage-ready-{idx}",
+                    skill_id="universal_evidence_probe",
+                    session_id=f"sess-ready-{idx}",
+                    turn_idx=idx,
+                    trace_id=f"trace-ready-{idx}",
+                    skill_context_key=context_key,
+                    role="java_backend",
+                    job_level="mid",
+                    dimension="problem_solving",
+                    probe_intent="debugging_probe",
+                    rank=2,
+                    match_score=40.0,
+                    match_reasons=["priority:5"],
+                    injected=True,
+                    evaluator_visibility=True,
+                    score=9.0,
+                    passed=True,
+                    immediate_reward=1.0,
+                    verifier_overruled=False,
+                )
+            )
+        sess.commit()
+
+    client = _client(session_local)
+
+    stats_response = client.get("/admin/skill-usage-stats?auto_refresh=true")
+    assert stats_response.status_code == 200
+    stats_body = stats_response.json()
+    assert stats_body["count"] == 2
+    assert stats_body["refreshed"] == {"refreshed": 2, "deleted": 0}
+    assert {
+        (row["skill_id"], row["skill_context_key"])
+        for row in stats_body["stats"]
+    } == {
+        ("tech_incident_probe", context_key),
+        ("universal_evidence_probe", context_key),
+    }
+
+    refresh_response = client.post("/admin/skill-usage-stats/refresh")
+    assert refresh_response.status_code == 200
+    assert refresh_response.json() == {"refreshed": 2, "deleted": 0}
+
+    readiness_response = client.get("/admin/skill-reward-readiness?auto_refresh=true")
+    assert readiness_response.status_code == 200
+    readiness = readiness_response.json()
+    assert readiness["summary"]["total_skills"] == 3
+    assert readiness["summary"]["skills_with_stats"] == 2
+    assert readiness["summary"]["low_sample_contexts"] == 1
+    assert readiness["summary"]["shadow_changed_contexts"] == 0
+    assert readiness["summary"]["high_reward_low_sample_skills"] == 1
+    assert readiness["contexts"][0]["skill_context_key"] == context_key
+    assert readiness["contexts"][0]["metadata_top_skill_ids"] == [
+        "tech_incident_probe",
+        "universal_evidence_probe",
+    ]
+    assert readiness["contexts"][0]["reward_top_skill_ids"] == [
+        "tech_incident_probe",
+        "universal_evidence_probe",
+    ]
+    assert readiness["contexts"][0]["rank_changed"] is False
+    assert readiness["contexts"][0]["rollout"]["mode"] == "reward_shadow"
+
+    rollout_response = client.post(
+        f"/admin/skill-reward-rollouts/{context_key}",
+        json={"mode": "reward", "reason": "pilot skill reward"},
+    )
+    assert rollout_response.status_code == 200
+    assert rollout_response.json()["context_key"] == context_key
+    assert rollout_response.json()["mode"] == "reward"
+    assert rollout_response.json()["reason"] == "pilot skill reward"
+
+    updated_readiness = client.get("/admin/skill-reward-readiness").json()
+    assert updated_readiness["contexts"][0]["rollout"]["mode"] == "reward"
+    assert updated_readiness["contexts"][0]["rollout"]["reason"] == "pilot skill reward"
+
+    with session_local() as sess:
+        assert sess.query(SkillUsageStats).count() == 2
+        assert sess.get(SkillRewardRollout, context_key).mode == "reward"
 
 
 def test_admin_skill_playbook_import_uses_markdown_source_of_truth(

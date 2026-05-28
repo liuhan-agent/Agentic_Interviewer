@@ -18,6 +18,7 @@ from app.models.strategy_memory import (
     StrategyMemory,
     StrategyMemoryStats,
     StrategyMemoryUsage,
+    StrategyRewardRollout,
     StrategySignal,
 )
 
@@ -63,6 +64,8 @@ def _session_factory():
                 slug="senior_system_design",
                 name="Senior System Design",
                 description="Deep probes.",
+                display_name_zh="高级系统设计策略",
+                display_description_zh="用于系统设计深挖的中文展示说明。",
                 source="seed",
                 memory_key="seed:system_design:senior",
                 dimensions=["system_design"],
@@ -127,6 +130,8 @@ def test_admin_strategies_include_db_metadata_and_status_actions() -> None:
     strategy = payload["strategies"][0]
     assert strategy["id"] == "seed:senior_system_design"
     assert strategy["source"] == "seed"
+    assert strategy["display_name_zh"] == "高级系统设计策略"
+    assert strategy["display_description_zh"] == "用于系统设计深挖的中文展示说明。"
     assert strategy["status"] == "active"
     assert strategy["promotion_stage"] == "seed"
     assert strategy["confidence"] == 0.8
@@ -380,6 +385,8 @@ def test_admin_strategy_reward_readiness_reports_context_decision() -> None:
     assert context["metadata_top_strategy_ids"][0] == "seed:senior_system_design"
     assert context["reward_top_strategy_ids"][0] == "seed:system_design_candidate_1"
     assert "reward_shadow_rank_changed" in context["reasons"]
+    assert context["rollout_mode"] == "reward_shadow"
+    assert context["rollout_source"] == "default"
 
 
 def test_admin_strategy_reward_readiness_flags_small_candidate_pool() -> None:
@@ -396,6 +403,42 @@ def test_admin_strategy_reward_readiness_flags_small_candidate_pool() -> None:
     assert context["candidate_count"] == 1
     assert context["readiness"] == "needs_candidates"
     assert "candidate_pool_below_min" in context["reasons"]
+
+
+def test_admin_strategy_reward_rollout_can_enable_and_revert_context() -> None:
+    Session = _session_factory()
+    client = _client(Session)
+
+    enabled = client.post(
+        "/admin/strategy-reward-rollouts/senior%3Asystem_design",
+        json={"mode": "reward", "reason": "ready context canary"},
+    )
+
+    assert enabled.status_code == 200
+    assert enabled.json()["context_key"] == "senior:system_design"
+    assert enabled.json()["mode"] == "reward"
+    assert enabled.json()["reason"] == "ready context canary"
+
+    readiness = client.get("/admin/strategy-reward-readiness?auto_refresh=true")
+    assert readiness.status_code == 200
+    context = readiness.json()["contexts"][0]
+    assert context["rollout_mode"] == "reward"
+    assert context["rollout_source"] == "context_override"
+    assert context["rollout_reason"] == "ready context canary"
+
+    with Session() as sess:
+        row = sess.get(StrategyRewardRollout, "senior:system_design")
+        assert row is not None
+        assert row.mode == "reward"
+
+    reverted = client.post(
+        "/admin/strategy-reward-rollouts/senior%3Asystem_design",
+        json={"mode": "reward_shadow", "reason": "rollback to shadow"},
+    )
+
+    assert reverted.status_code == 200
+    assert reverted.json()["mode"] == "reward_shadow"
+    assert reverted.json()["reason"] == "rollback to shadow"
 
 
 def test_admin_failure_category_overlap_endpoint_returns_counts() -> None:

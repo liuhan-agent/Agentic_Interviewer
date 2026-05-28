@@ -19,7 +19,10 @@ from app.ml.rl.reward_fn import immediate_reward
 from app.ml.rl.thompson import get_bandit
 from app.models import get_session
 from app.models.question_bank import QuestionUsage
+from app.models.skill_playbook import SkillUsage
 from app.models.strategy_memory import StrategyMemoryUsage
+from app.services.question_fit_profile import resolve_question_bank_tags
+from app.services.skill_usage_stats import skill_usage_context_key
 from app.services.strategy_learning_facts import (
     apply_bandit_posterior_update,
     upsert_interview_turn,
@@ -95,6 +98,13 @@ def reward_update_node(state: InterviewState) -> dict[str, Any]:
         context_keys=keys,
         reward=reward,
         turn_idx=answer_turn_idx,
+    )
+    _record_skill_usage(
+        state=state,
+        question=question,
+        evaluation=evaluation,
+        reward=reward,
+        turn_idx=_fact_turn_idx(state, answer_turn_idx),
     )
     _backfill_question_usage_result(
         state=state,
@@ -249,6 +259,73 @@ def _record_strategy_memory_usage(
         log.warning("strategy memory usage attribution failed: %s", e)
 
 
+def _record_skill_usage(
+    *,
+    state: InterviewState,
+    question: dict[str, Any],
+    evaluation: dict[str, Any],
+    reward: float,
+    turn_idx: int,
+) -> None:
+    refs = [
+        ref
+        for ref in _skill_refs(question)
+        if isinstance(ref, dict) and _skill_ref_id(ref)
+    ]
+    if not refs:
+        return
+
+    dimension = str(
+        question.get("dimension")
+        or state.get("current_dimension")
+        or "general"
+    )
+    job_level = _optional_str((state.get("job_spec") or {}).get("level")) or "mid"
+    role = _skill_context_role(state)
+    probe_intent = _optional_str(question.get("probe_intent")) or "none"
+    context_key = skill_usage_context_key(
+        role=role,
+        job_level=job_level,
+        dimension=dimension,
+        probe_intent=probe_intent,
+    )
+
+    try:
+        with get_session() as session:
+            for idx, ref in enumerate(refs, 1):
+                skill_id = _skill_ref_id(ref)
+                if not skill_id:
+                    continue
+                session.add(
+                    SkillUsage(
+                        id=f"skill-usage:{uuid.uuid4().hex}",
+                        skill_id=str(skill_id),
+                        session_id=str(state.get("session_id") or ""),
+                        turn_idx=turn_idx,
+                        trace_id=_optional_str(state.get("trace_id")),
+                        skill_context_key=context_key,
+                        role=role,
+                        job_level=job_level,
+                        dimension=dimension,
+                        probe_intent=probe_intent,
+                        rank=_optional_int(ref.get("rank")) or idx,
+                        match_score=_optional_float(ref.get("match_score")) or 0.0,
+                        match_reasons=_string_list(ref.get("match_reasons")),
+                        injected=True,
+                        evaluator_visibility=bool(ref.get("evaluator_visibility")),
+                        score=_optional_float(evaluation.get("score")),
+                        passed=_optional_bool(evaluation.get("passed")),
+                        immediate_reward=reward,
+                        verifier_overruled=bool(
+                            evaluation.get("verifier_forced_refine")
+                            or evaluation.get("verifier_overruled")
+                        ),
+                    )
+                )
+    except Exception as e:  # pragma: no cover - attribution is best-effort
+        log.warning("skill usage attribution failed: %s", e)
+
+
 def _backfill_question_usage_result(
     *,
     state: InterviewState,
@@ -304,6 +381,21 @@ def _injected_primary_variant_ids(question: dict[str, Any]) -> set[str]:
     return variant_ids
 
 
+def _skill_refs(question: dict[str, Any]) -> list[Any]:
+    artifacts = question.get("selection_artifacts") or {}
+    skills = artifacts.get("skills") if isinstance(artifacts, dict) else None
+    refs = skills.get("refs") if isinstance(skills, dict) else None
+    return list(refs) if isinstance(refs, list) else []
+
+
+def _skill_ref_id(ref: dict[str, Any]) -> str | None:
+    for key in ("id", "skill_id", "slug", "filename"):
+        value = _optional_str(ref.get(key))
+        if value:
+            return value
+    return None
+
+
 def _strategy_ref_id(ref: dict[str, Any]) -> str | None:
     for key in ("id", "memory_key", "slug"):
         value = _optional_str(ref.get(key))
@@ -318,6 +410,20 @@ def _question_text_hash(value: Any) -> str | None:
         return None
     digest = hashlib.sha1(text.encode("utf-8"), usedforsecurity=False).hexdigest()
     return f"sha1:{digest}"
+
+
+def _skill_context_role(state: InterviewState) -> str:
+    try:
+        _direction_tags, role_tags = resolve_question_bank_tags(
+            job_spec=state.get("job_spec") or {},
+            runtime_config=state.get("runtime_config") or {},
+        )
+    except Exception:
+        role_tags = []
+    for role in _string_list(role_tags):
+        if role and role != "general":
+            return role
+    return "general"
 
 
 def _fact_turn_idx(state: InterviewState, fallback: int) -> int:
@@ -351,7 +457,22 @@ def _optional_float(value: Any) -> float | None:
         return None
 
 
+def _optional_int(value: Any) -> int | None:
+    if value is None or isinstance(value, bool):
+        return None
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return None
+
+
 def _optional_bool(value: Any) -> bool | None:
     if value is None:
         return None
     return bool(value)
+
+
+def _string_list(value: Any) -> list[str]:
+    if not isinstance(value, list):
+        return []
+    return [str(item) for item in value if str(item or "").strip()]
