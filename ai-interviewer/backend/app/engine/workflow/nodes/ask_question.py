@@ -81,6 +81,7 @@ from app.services.question_selector import (
 from app.services.question_selector import (
     select_question_candidates as _select_question_candidates,
 )
+from app.services.question_usage_stats import build_question_reward_context_key
 from app.services.resume_vector_jobs import refresh_resume_vector_status
 from app.services.session_anchor_retriever import retrieve_candidate_anchors
 
@@ -299,10 +300,12 @@ def _step_retrieve_skills(state: InterviewState, ctx: dict[str, Any]) -> None:
                 ctx.get("contract_hints"),
             ),
         )
-        ctx["skill_artifact"]["refs"] = [
-            _skill_card_ref(skill)
-            for skill in skills
-        ]
+        skill_refs = []
+        for idx, skill in enumerate(skills, 1):
+            ref = _skill_card_ref(skill)
+            ref["rank"] = idx
+            skill_refs.append(ref)
+        ctx["skill_artifact"]["refs"] = skill_refs
         ctx["skill_block"] = build_skills_block(skills)
     except Exception as e:  # pragma: no cover - defensive degradation
         log.warning("skill retrieval failed; continuing without skills: %s", e)
@@ -409,6 +412,13 @@ def _skill_card_ref(entry: Any) -> dict[str, Any]:
         "evaluator_payload": evaluator_payload,
         "match_score": float(getattr(entry, "match_score", 0.0) or 0.0),
         "match_reasons": list(getattr(entry, "match_reasons", []) or []),
+        "reward_shadow_rank": getattr(entry, "reward_shadow_rank", None),
+        "reward_shadow_score": getattr(entry, "reward_shadow_score", None),
+        "reward_shadow_rank_changed": bool(
+            getattr(entry, "reward_shadow_rank_changed", False)
+        ),
+        "usage_stats": getattr(entry, "usage_stats", None),
+        "reward_shadow_reason": getattr(entry, "reward_shadow_reason", None),
     }
 
 
@@ -608,6 +618,14 @@ def _step_select_structured_question(
     )
     ctx["question_direction_tags"] = direction_tags
     ctx["question_role_tags"] = role_tags
+    job_level = str((state.get("job_spec") or {}).get("level", "mid") or "mid")
+    question_context_key = build_question_reward_context_key(
+        direction_tags=direction_tags,
+        role_tags=role_tags,
+        job_level=job_level,
+        dimension=ctx["dimension"],
+    )
+    ctx["question_context_key"] = question_context_key
     fit_profile = None
     if bool(getattr(settings, "enable_question_fit_profile", True)):
         try:
@@ -631,7 +649,7 @@ def _step_select_structured_question(
     try:
         selection = select_question_candidates(
             dimension=ctx["dimension"],
-            job_level=(state.get("job_spec") or {}).get("level", "mid"),
+            job_level=job_level,
             target_skills=ctx.get("target_skills") or [],
             failure_categories=_failure_categories_from_hints(ctx.get("contract_hints")),
             resume_anchor_text=_resume_anchor_text(ctx.get("resume_anchor")),
@@ -720,6 +738,11 @@ def _step_select_structured_question(
                 turn_idx=int(state.get("formal_turn_idx", state.get("turn_idx", 0)) or 0),
                 trace_id=state.get("trace_id"),
                 question_selector_mode=mode,
+                question_context_key=question_context_key,
+                direction_tag=direction_tags[0] if direction_tags else None,
+                role_tag=role_tags[0] if role_tags else None,
+                job_level=job_level,
+                dimension=ctx["dimension"],
             )
         except Exception as e:  # pragma: no cover - observability only
             log.debug("question usage write failed: %s", e)

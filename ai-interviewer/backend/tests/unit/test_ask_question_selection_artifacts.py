@@ -247,6 +247,12 @@ def test_ask_question_records_selection_artifacts(monkeypatch) -> None:
             },
             "match_score": 42.0,
             "match_reasons": ["dimension:system_design", "role_tag:java_backend"],
+            "rank": 1,
+            "reward_shadow_rank": None,
+            "reward_shadow_score": None,
+            "reward_shadow_rank_changed": False,
+            "usage_stats": None,
+            "reward_shadow_reason": None,
         }
     ]
     assert artifacts["avoid_patterns"] == {

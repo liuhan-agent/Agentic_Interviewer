@@ -407,7 +407,8 @@ test("admin panel surfaces structured question bank controls", () => {
   );
   assert.match(questionBankCard, /当前暂无选题调用、重排或评审样本/);
   assert.match(questionBankCard, /完成几轮面试后会出现选题诊断数据/);
-  assert.match(questionBankCard, /max-h-\[1280px\] space-y-2 overflow-y-auto/);
+  assert.match(questionBankCard, /max-h-\[1440px\] space-y-2 overflow-y-auto/);
+  assert.doesNotMatch(questionBankCard, /max-h-\[1680px\] space-y-2 overflow-y-auto/);
   assert.doesNotMatch(questionBankCard, /max-h-\[560px\] space-y-2 overflow-y-auto/);
   assert.doesNotMatch(questionBankCard, /\{variant\.status\}\s*<\/Badge>/);
   assert.doesNotMatch(panel, /最近 question usage/);
@@ -493,6 +494,58 @@ test("admin panel surfaces DB-backed skills playbook observability only", () => 
   assert.doesNotMatch(panel, /archiveSkillPlaybook/);
 });
 
+test("admin panel surfaces skill reward shadow readiness", () => {
+  const panel = read("src/components/admin/AdminPanel.tsx");
+  const api = read("src/lib/api/admin.ts");
+
+  assert.match(api, /SkillUsageStatsItem/);
+  assert.match(api, /SkillUsageStatsResponse/);
+  assert.match(api, /SkillRewardReadiness/);
+  assert.match(api, /getSkillUsageStats/);
+  assert.match(api, /refreshSkillUsageStats/);
+  assert.match(api, /getSkillRewardReadiness/);
+  assert.match(api, /setSkillRewardRollout/);
+  assert.ok(api.includes("/admin/skill-usage-stats"));
+  assert.ok(api.includes("/admin/skill-usage-stats/refresh"));
+  assert.ok(api.includes("/admin/skill-reward-readiness"));
+  assert.ok(api.includes("/admin/skill-reward-rollouts/"));
+
+  assert.match(panel, /SkillRewardRolloutPanel/);
+  assert.match(panel, /SkillRewardShadowDiagnosticsPanel/);
+  assert.doesNotMatch(panel, /function SkillRewardShadowPanel/);
+  assert.match(panel, /skillUsageStats/);
+  assert.match(panel, /skillRewardReadiness/);
+  assert.match(panel, /getSkillUsageStats\(true, \{/);
+  assert.match(panel, /offset: skillUsageStatsPage \* SKILL_USAGE_STATS_PAGE_SIZE/);
+  assert.match(panel, /getSkillRewardReadiness\(true, signal\)/);
+  assert.match(panel, /refreshSkillUsageStats/);
+  assert.match(panel, /Skill Reward 排序灰度/);
+  assert.match(panel, /Skill Shadow 模拟诊断/);
+  assert.match(panel, /Skill Reward 排序模拟/);
+  assert.match(panel, /历史 SkillUsage 中出现过、当前仍启用的 Skill 卡片/);
+  assert.match(panel, /不改变 retrieve_skills\(\) 的真实返回顺序/);
+  assert.match(panel, /匹配规则 Top K/);
+  assert.match(panel, /priority、role\/job_level\/dimension\/probe_intent 匹配分/);
+  assert.match(panel, /reward 模拟 Top K/);
+  assert.match(panel, /样本置信度、使用次数和否决惩罚/);
+  assert.match(panel, /Context 级灰度候选/);
+  assert.match(panel, /role \/ level \/ dimension \/ probe_intent/);
+  assert.match(panel, /默认优先展示已开启、可灰度或排序变化的 context/);
+  assert.match(panel, /compareSkillRewardContextReadiness/);
+  assert.match(panel, /skillRewardContextPriority/);
+  assert.match(panel, /已按灰度价值展示前/);
+  assert.match(panel, /单轮实际命中仍以 Trace Explorer 的 ask_question \/ SKILLS 命中为准/);
+  assert.match(panel, /开启 reward/);
+  assert.match(panel, /回退 shadow/);
+  assert.match(panel, /setSkillRewardRollout/);
+  assert.match(panel, /SKILL_USAGE_STATS_PAGE_SIZE/);
+  assert.match(panel, /SkillUsageStatsList/);
+  assert.match(panel, /metadata_top_skill_ids/);
+  assert.match(panel, /reward_top_skill_ids/);
+  assert.match(panel, /模拟 reward 后 Top K 会变化/);
+  assert.match(panel, /reward_shadow/);
+});
+
 test("admin strategy tab is a one-column governance console", () => {
   const panel = read("src/components/admin/AdminPanel.tsx");
   const api = read("src/lib/api/admin.ts");
@@ -534,15 +587,32 @@ test("admin strategy tab is a one-column governance console", () => {
   assert.match(panel, /getStrategyStats\(true, signal\)/);
   assert.match(api, /StrategyRewardReadiness/);
   assert.match(api, /getStrategyRewardReadiness/);
+  assert.match(api, /setStrategyRewardRollout/);
   assert.ok(api.includes("/admin/strategy-reward-readiness"));
+  assert.ok(api.includes("/admin/strategy-reward-rollouts"));
   assert.match(panel, /StrategyRewardReadinessPanel/);
   assert.match(panel, /Reward 排序就绪度/);
   assert.match(panel, /reward_shadow 只诊断不改线上排序/);
+  assert.match(panel, /开启 reward 灰度/);
+  assert.match(panel, /回退 shadow/);
+  assert.match(panel, /rollout_mode/);
+  assert.match(panel, /formatStrategyRewardRolloutMode/);
   assert.match(panel, /metadata_top_strategy_ids/);
   assert.match(panel, /reward_top_strategy_ids/);
   assert.match(panel, /formatStrategyRewardReadiness/);
   assert.match(api, /failure_categories\?: string\[\]/);
   assert.match(api, /body_markdown\?: string/);
+  assert.match(api, /display_name_zh\?: string \| null/);
+  assert.match(api, /display_description_zh\?: string \| null/);
+  assert.match(panel, /strategyDisplayName/);
+  assert.match(panel, /strategyDisplayDescription/);
+  assert.match(panel, /isPromotedStrategyMemory/);
+  assert.match(panel, /strategyOriginBadgeVariant/);
+  assert.match(panel, /strategyPromotionStageTone/);
+  assert.match(panel, /来源：自动晋升/);
+  assert.match(panel, /阶段：低置信晋升/);
+  assert.match(panel, /阶段：稳定策略/);
+  assert.match(panel, /由 StrategySignal 聚合晋升/);
   assert.match(panel, /启用策略/);
   assert.match(panel, /最近 24h 召回/);
   assert.match(panel, /待晋升信号组/);
@@ -806,24 +876,89 @@ test("admin panel surfaces question reward shadow readiness", () => {
   assert.match(api, /QuestionUsageStatsItem/);
   assert.match(api, /QuestionUsageStatsResponse/);
   assert.match(api, /QuestionRewardReadiness/);
+  assert.match(api, /QuestionRewardRollout/);
+  assert.match(api, /QuestionRewardReadinessGroup/);
   assert.match(api, /getQuestionUsageStats/);
   assert.match(api, /refreshQuestionUsageStats/);
   assert.match(api, /getQuestionRewardReadiness/);
+  assert.match(api, /setQuestionRewardRollout/);
   assert.ok(api.includes("/admin/question-usage-stats"));
   assert.ok(api.includes("/admin/question-usage-stats/refresh"));
   assert.ok(api.includes("/admin/question-reward-readiness"));
+  assert.ok(api.includes("/admin/question-reward-rollouts/"));
 
-  assert.match(panel, /QuestionRewardShadowPanel/);
+  assert.match(panel, /QuestionRewardRolloutPanel/);
+  assert.match(panel, /QuestionRewardShadowDiagnosticsPanel/);
   assert.match(panel, /questionUsageStats/);
   assert.match(panel, /questionRewardReadiness/);
-  assert.match(panel, /getQuestionUsageStats\(true, signal\)/);
+  assert.match(panel, /QUESTION_USAGE_STATS_PAGE_SIZE/);
+  assert.match(panel, /questionUsageStatsPage/);
+  assert.match(panel, /setQuestionUsageStatsPage/);
+  assert.match(panel, /getQuestionUsageStats\(true, \{/);
+  assert.match(panel, /offset: questionUsageStatsPage \* QUESTION_USAGE_STATS_PAGE_SIZE/);
   assert.match(panel, /getQuestionRewardReadiness\(true, signal\)/);
   assert.match(panel, /refreshQuestionUsageStats/);
-  assert.match(panel, /题库 Reward Shadow/);
-  assert.match(panel, /仅观测，不改变题库真实排序/);
+  assert.match(panel, /题库 Reward 排序灰度/);
+  assert.match(panel, /全局总览/);
+  assert.match(panel, /全局题库排序模拟/);
+  assert.match(panel, /范围：全局/);
+  assert.match(panel, /不直接开启 live 排序/);
+  assert.match(panel, /backendKey="scope"/);
+  assert.match(panel, /不切换 structured_primary/);
+  assert.match(panel, /历史 QuestionUsage 中出现过、当前仍启用的题目变体/);
+  assert.match(panel, /Context 级灰度候选/);
+  assert.match(panel, /范围：direction \/ role \/ level \/ dimension/);
+  assert.match(panel, /这里才是 context 级 reward 灰度开关/);
+  assert.match(panel, /静态优先级 Top K/);
+  assert.match(panel, /按 seed\.priority \+ variant\.priority 排序/);
+  assert.match(panel, /reward 模拟 Top K/);
+  assert.match(panel, /叠加历史 reward、样本置信度和使用次数/);
   assert.match(panel, /metadata_top_variant_ids/);
   assert.match(panel, /reward_top_variant_ids/);
-  assert.match(panel, /reward_shadow 会改变 Top K/);
+  assert.match(panel, /selector_rollout_mode/);
+  assert.match(panel, /reward_ranking_mode/);
+  assert.match(panel, /QuestionRewardTopKList/);
+  assert.doesNotMatch(panel, /modes\.map/);
+  assert.doesNotMatch(panel, /mode\.metadata_top_variant_ids/);
+  assert.doesNotMatch(panel, /mode\.reward_top_variant_ids/);
+  assert.match(panel, /readinessData\.metadata_top_variant_ids/);
+  assert.match(panel, /readinessData\.reward_top_variant_ids/);
+  assert.match(panel, /QuestionUsageStatsList/);
+  assert.match(
+    panel,
+    /<summary className="cursor-pointer text-xs font-medium text-muted-foreground">\s*question_usage_stats\s*<\/summary>/,
+  );
+  assert.match(panel, /第 \{currentPage\} \/ \{totalPages\} 页 · 已加载/);
+  assert.match(panel, /上一页/);
+  assert.match(panel, /下一页/);
+  assert.match(api, /limit\?: number/);
+  assert.match(api, /offset\?: number/);
+  assert.match(panel, /row\.variant_id/);
+  assert.match(panel, /row\.injected_uses/);
+  assert.match(panel, /row\.avg_score/);
+  assert.match(panel, /row\.last_used_at/);
+  assert.match(panel, /context 只按历史 usage 分组/);
+  assert.match(panel, /不重放单轮 resume anchor \/ skills \/ qa_history 等动态匹配条件/);
+  assert.match(panel, /row\.question_selector_mode/);
+  assert.match(panel, /QuestionRewardContextReadinessList/);
+  assert.match(panel, /Context 级灰度候选/);
+  assert.match(panel, /reward 排序灰度/);
+  assert.match(panel, /开启 reward/);
+  assert.match(panel, /回退 shadow/);
+  assert.match(panel, /seedReadinessById/);
+  assert.match(panel, /QuestionSeedRewardReadinessPanel/);
+  assert.match(panel, /Seed 内 Variant 灰度/);
+  assert.match(panel, /范围：当前 Seed/);
+  assert.match(panel, /不按 context 分组/);
+  assert.match(panel, /active variants/);
+  assert.match(panel, /onQuestionRewardRollout/);
+  assert.match(panel, /setQuestionRewardRollout/);
+  assert.match(panel, /scope === "context"/);
+  assert.match(panel, /scope === "seed"/);
+  assert.match(
+    panel,
+    /<QuestionRewardRolloutPanel[\s\S]*<QuestionRewardShadowDiagnosticsPanel/,
+  );
 });
 
 test("admin tabs own every module below the tab switcher", () => {

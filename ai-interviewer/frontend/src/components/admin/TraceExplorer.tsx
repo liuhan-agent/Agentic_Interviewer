@@ -4209,6 +4209,7 @@ function SkillSelectionRef({ ref_ }: { ref_: Record<string, unknown> }) {
       {matchReasons.length > 0 && (
         <SkillMatchReasonsDetails reasons={matchReasons} />
       )}
+      <SkillRewardShadowDetails item={ref_} />
 
       {evaluatorPayload && (
         <details className="mt-2 rounded border bg-background/40 p-2 text-[11px]">
@@ -4237,6 +4238,98 @@ function SkillSelectionRef({ ref_ }: { ref_: Record<string, unknown> }) {
       )}
     </li>
   );
+}
+
+function SkillRewardShadowDetails({ item }: { item: Record<string, unknown> }) {
+  const usageStats = recordFromUnknown(item.usage_stats);
+  const rewardShadowReason = recordFromUnknown(item.reward_shadow_reason);
+  const hasShadow =
+    item.reward_shadow_rank !== undefined ||
+    item.reward_shadow_score !== undefined ||
+    Object.keys(usageStats).length > 0 ||
+    Object.keys(rewardShadowReason).length > 0;
+  if (!hasShadow) return null;
+
+  return (
+    <details className="mt-2 rounded border border-dashed bg-background/40 p-2 text-[11px]">
+      <summary className="cursor-pointer select-none text-muted-foreground">
+        展开 <span className="font-mono">reward_shadow_reason</span>
+      </summary>
+      <p className="mt-2 text-muted-foreground">
+        仅观测，不影响当前 Skills 注入顺序。
+      </p>
+      <div className="mt-2 grid gap-2 md:grid-cols-2">
+        <NodeFact label="当前 rank" value={formatCountValue(item.rank)} />
+        <NodeFact
+          label="Shadow 排名 reward_shadow_rank"
+          value={formatCountValue(item.reward_shadow_rank)}
+        />
+        <NodeFact
+          label="Shadow 分数 reward_shadow_score"
+          value={formatScore(item.reward_shadow_score)}
+        />
+        <NodeFact
+          label="历史使用次数"
+          value={formatCountValue(usageStats.uses)}
+        />
+        <NodeFact
+          label="有评分样本数"
+          value={formatCountValue(usageStats.rewarded_uses)}
+        />
+        <NodeFact
+          label="平均 reward avg_blended_reward"
+          value={formatScore(
+            usageStats.avg_blended_reward ?? usageStats.avg_immediate_reward,
+          )}
+        />
+        <NodeFact
+          label="通过率"
+          value={formatRatioValue(usageStats.pass_rate)}
+        />
+        <NodeFact
+          label="复核否决率 overrule_rate"
+          value={formatRatioValue(usageStats.overrule_rate)}
+        />
+      </div>
+      {Object.keys(rewardShadowReason).length > 0 && (
+        <ul className="mt-2 space-y-1">
+          {Object.entries(rewardShadowReason).map(([key, value]) => (
+            <li key={key} className="break-words">
+              <span className="text-muted-foreground">
+                {localizeSkillRewardShadowReasonKey(key)}{" "}
+              </span>
+              <span className="font-mono text-muted-foreground">{key}</span>
+              <span className="text-muted-foreground">: </span>
+              <span className="font-mono">
+                {formatQuestionRewardShadowValue(value)}
+              </span>
+            </li>
+          ))}
+        </ul>
+      )}
+    </details>
+  );
+}
+
+function localizeSkillRewardShadowReasonKey(key: string): string {
+  const labels: Record<string, string> = {
+    status: "状态",
+    skill_context_key: "上下文 key",
+    uses: "历史使用次数",
+    injected_uses: "实际注入次数",
+    rewarded_uses: "有评分样本数",
+    avg_blended_reward: "平均 reward",
+    avg_immediate_reward: "即时 reward",
+    pass_rate: "通过率",
+    overrule_rate: "复核否决率",
+    sample_confidence: "样本置信度",
+    sample_status: "样本状态",
+    metadata_rank: "metadata rank",
+    metadata_score: "metadata score",
+    shadow_rank: "shadow rank",
+    reward_shadow_score: "shadow 分数",
+  };
+  return labels[key] || key;
 }
 
 function SkillMatchReasonsDetails({ reasons }: { reasons: string[] }) {
@@ -4627,6 +4720,21 @@ function askQuestionSearchFields(
     addList(skill.match_reasons);
     addList(skill.dimensions);
     addList(skill.role_tags);
+    add(skill.reward_shadow_rank);
+    add(skill.reward_shadow_score);
+    add(skill.reward_shadow_rank_changed);
+    const skillUsageStats = recordFromUnknown(skill.usage_stats);
+    add(skillUsageStats.uses);
+    add(skillUsageStats.rewarded_uses);
+    add(skillUsageStats.avg_blended_reward);
+    add(skillUsageStats.avg_immediate_reward);
+    add(skillUsageStats.pass_rate);
+    add(skillUsageStats.overrule_rate);
+    const skillRewardShadowReason = recordFromUnknown(skill.reward_shadow_reason);
+    for (const [key, value] of Object.entries(skillRewardShadowReason)) {
+      add(key);
+      add(value);
+    }
   }
 
   const candidateAnchor = recordFromUnknown(artifacts.candidate_anchor);

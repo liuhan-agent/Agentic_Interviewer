@@ -150,3 +150,22 @@ class StrategyMemoryStats(Base):
         default=lambda: datetime.now(UTC),
         onupdate=lambda: datetime.now(UTC),
     )
+
+
+class StrategyRewardRollout(Base):
+    """Per-context rollout override for live strategy reward ranking."""
+
+    __tablename__ = "strategy_reward_rollouts"
+
+    context_key: Mapped[str] = mapped_column(String(128), primary_key=True)
+    mode: Mapped[str] = mapped_column(String(32), default="reward_shadow", index=True)
+    reason: Mapped[str] = mapped_column(String(512), default="")
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=lambda: datetime.now(UTC),
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=lambda: datetime.now(UTC),
+        onupdate=lambda: datetime.now(UTC),
+    )

@@ -7,6 +7,7 @@ from .generation_trace import GenerationTrace
 from .interview_session import InterviewSession
 from .outcome_record import OutcomeRecord
 from .question_bank import (
+    QuestionRewardRollout,
     QuestionRerankUsage,
     QuestionReview,
     QuestionSeed,
@@ -17,12 +18,18 @@ from .question_bank import (
 from .resume_anchor_cache import ResumeAnchorCacheChunk
 from .resume_parse_artifact import ResumeParseArtifact
 from .session_anchor import SessionAnchorChunk
-from .skill_playbook import SkillPlaybookCard
+from .skill_playbook import (
+    SkillPlaybookCard,
+    SkillRewardRollout,
+    SkillUsage,
+    SkillUsageStats,
+)
 from .strategy_learning import BanditPosterior, InterviewTurn
 from .strategy_memory import (
     StrategyMemory,
     StrategyMemoryStats,
     StrategyMemoryUsage,
+    StrategyRewardRollout,
     StrategySignal,
 )
 from .trace_annotation import TraceAnnotation
@@ -44,6 +51,7 @@ __all__ = [
     "InterviewSession",
     "OutcomeRecord",
     "QuestionSeed",
+    "QuestionRewardRollout",
     "QuestionRerankUsage",
     "QuestionReview",
     "QuestionUsage",
@@ -53,11 +61,15 @@ __all__ = [
     "ResumeParseArtifact",
     "SessionAnchorChunk",
     "SkillPlaybookCard",
+    "SkillRewardRollout",
+    "SkillUsage",
+    "SkillUsageStats",
     "BanditPosterior",
     "InterviewTurn",
     "StrategyMemory",
     "StrategyMemoryStats",
     "StrategyMemoryUsage",
+    "StrategyRewardRollout",
     "StrategySignal",
     "TraceAnnotation",
     "VerifierDriftEvent",

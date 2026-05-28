@@ -8,7 +8,11 @@ from sqlalchemy.orm import sessionmaker
 
 from app.memory import strategy_store as ss
 from app.models.base import Base
-from app.models.strategy_memory import StrategyMemory, StrategyMemoryStats
+from app.models.strategy_memory import (
+    StrategyMemory,
+    StrategyMemoryStats,
+    StrategyRewardRollout,
+)
 
 
 def _strategy(strategy_id: str, slug: str) -> StrategyMemory:
@@ -205,6 +209,20 @@ def _db_session_context_many_candidates(
         with Session() as sess:
             yield sess
 
+    return get_session
+
+
+def _db_session_context_many_candidates_with_rollout():
+    get_session = _db_session_context_many_candidates()
+    with get_session() as sess:
+        sess.add(
+            StrategyRewardRollout(
+                context_key="java_backend:senior:system_design",
+                mode="reward",
+                reason="灰度验证 ready context",
+            )
+        )
+        sess.commit()
     return get_session
 
 
@@ -444,3 +462,42 @@ def test_reward_shadow_uses_weaker_weight_for_fallback_context_stats(monkeypatch
     assert zzz.ranking_reason["stats_scope"] == "fallback"
     assert zzz.ranking_reason["scope_weight"] == 0.5
     assert zzz.ranking_reason["reward_bonus"] < 0.5
+
+
+def test_context_rollout_override_enables_reward_order_from_shadow_default(
+    monkeypatch,
+) -> None:
+    monkeypatch.setattr(
+        ss,
+        "get_settings",
+        lambda: SimpleNamespace(
+            strategy_memory_backend="db",
+            strategy_memory_ranking_mode="reward_shadow",
+        ),
+    )
+    monkeypatch.setattr(
+        ss,
+        "get_session",
+        _db_session_context_many_candidates_with_rollout(),
+    )
+
+    entries = ss.retrieve_strategies(
+        dimension="system_design",
+        job_level="senior",
+        policy_context_keys=[
+            "java_backend:senior:system_design",
+            "senior:system_design",
+        ],
+        limit=2,
+    )
+
+    assert [entry.id for entry in entries] == [
+        "seed:zzz_high_reward",
+        "seed:ddd_other_reward",
+    ]
+    assert entries[0].ranking_reason["live_order"] == "reward"
+    assert entries[0].ranking_reason["ranking_mode"] == "reward"
+    assert entries[0].ranking_reason["ranking_mode_source"] == "context_override"
+    assert entries[0].ranking_reason["ranking_mode_context_key"] == (
+        "java_backend:senior:system_design"
+    )
