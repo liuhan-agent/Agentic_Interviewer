@@ -20,6 +20,7 @@ test("admin api exposes trace explorer client", () => {
   assert.match(api, /generation_trace_id/);
   assert.match(api, /node_count_total/);
   assert.match(api, /node_type_counts/);
+  assert.match(api, /node_type_aliases/);
   assert.match(api, /fallback_trace_count/);
   assert.match(api, /turn_count/);
   assert.match(api, /nodes_has_more/);
@@ -260,6 +261,23 @@ test("trace explorer explains director strategy decisions as user-facing evidenc
   assert.doesNotMatch(component, /StrategyDecisionSummary\(\{ node \}: \{ node: never/);
 });
 
+test("trace explorer surfaces director action guardrail diagnostics", () => {
+  const component = read("src/components/admin/TraceExplorer.tsx");
+
+  assert.match(component, /ActionGuardrailSummary/);
+  assert.match(component, /动作候选过滤/);
+  assert.match(component, /原始候选/);
+  assert.match(component, /最终候选/);
+  assert.match(component, /禁用动作/);
+  assert.match(component, /禁用原因/);
+  assert.match(component, /action_guardrail/);
+  assert.match(component, /actionGuardrailReasonLabel/);
+  assert.match(component, /actionGuardrailSearchFields/);
+  assert.match(component, /\.\.\.actionGuardrailSearchFields\(node\.payload\)/);
+  assert.match(component, /contract_unsigned/);
+  assert.match(component, /verification_soft_warning/);
+});
+
 test("trace explorer explains route decisions without generic evaluation evidence", () => {
   const component = read("src/components/admin/TraceExplorer.tsx");
 
@@ -284,6 +302,64 @@ test("trace explorer explains route decisions without generic evaluation evidenc
   assert.match(component, /\.\.\.routeDecisionSearchFields\(node\.payload\)/);
 });
 
+test("trace explorer explains turn finalize housekeeping nodes", () => {
+  const component = read("src/components/admin/TraceExplorer.tsx");
+
+  assert.match(component, /TurnFinalizePanel/);
+  assert.match(component, /node\.node === "compress_context"/);
+  assert.match(component, /traceNodeDisplayName/);
+  assert.match(component, /traceNodeRawAlias/);
+  assert.match(component, /traceNodeCanonicalName/);
+  assert.match(component, /normalizeTraceNodeFilter/);
+  assert.match(component, /payload\.display_name_zh/);
+  assert.match(component, /payload\.semantic_node/);
+  assert.match(component, /轮次收尾/);
+  assert.match(component, /workflow node/);
+  assert.match(component, /node: compress_context/);
+  assert.doesNotMatch(component, /turn_finalize · compress_context/);
+  assert.match(component, /状态清理/);
+  assert.match(component, /记录状态/);
+  assert.match(component, /整理完成/);
+  assert.match(component, /历史上下文归属/);
+  assert.match(component, /路由前整理/);
+  assert.match(component, /reward_update 后、route_decision 前/);
+  assert.match(component, /不生成问题、不评分、不决定下一步/);
+  assert.doesNotMatch(component, /上下文压缩/);
+  assert.match(component, /raw_answer_cleared/);
+  assert.match(component, /summary_updated/);
+  assert.match(component, /summary_mode/);
+  assert.match(component, /history_projection_owner/);
+  assert.match(component, /HistoryContextBuilder/);
+  assert.match(component, /turnFinalizeSearchFields/);
+  assert.match(component, /\.\.\.turnFinalizeSearchFields\(node\.payload\)/);
+
+  const evidenceStart = component.indexOf("function EvaluationEvidence");
+  const evidenceEnd = component.indexOf("function StrategyDecisionSummary");
+  const evidenceBody = component.slice(evidenceStart, evidenceEnd);
+  assert.match(evidenceBody, /node\.node === "compress_context"/);
+
+  const detailStart = component.indexOf("function TraceNodeDetail");
+  const detailEnd = component.indexOf("function RouteDecisionPanel");
+  const detailBody = component.slice(detailStart, detailEnd);
+  assert.match(detailBody, /node\.node !== "compress_context"/);
+});
+
+test("trace explorer treats turn_finalize as a compress_context filter alias", () => {
+  const component = read("src/components/admin/TraceExplorer.tsx");
+
+  assert.match(component, /TRACE_NODE_ALIASES/);
+  assert.match(component, /turn_finalize:\s*"compress_context"/);
+  assert.match(component, /traceNodeCanonicalName\(nodeFilter\)/);
+  assert.match(component, /traceNodeCanonicalName\(node\.node\)/);
+  assert.match(component, /nodeTypeCounts\[traceNodeCanonicalName\(t\)\]/);
+  assert.match(component, /traceNodeCanonicalName\(focusNode\)/);
+  assert.doesNotMatch(component, /node\.node !== nodeFilter/);
+  assert.doesNotMatch(
+    component,
+    /String\(n\.node \?\? ""\)\.toLowerCase\(\) === wantedNode/,
+  );
+});
+
 test("trace explorer explains successor workflow nodes with dedicated panels", () => {
   const component = read("src/components/admin/TraceExplorer.tsx");
 
@@ -303,10 +379,33 @@ test("trace explorer explains successor workflow nodes with dedicated panels", (
   assert.match(component, /node\.node === "final_report"/);
   assert.match(component, /报告收尾/);
   assert.match(component, /本节点承接 route_decision=end/);
-  assert.match(component, /report_status/);
+  assert.match(component, /报告总览/);
+  assert.match(component, /评分可信度/);
+  assert.match(component, /维度结果/);
+  assert.match(component, /维度证据摘要/);
+  assert.match(component, /收尾链路状态/);
+  assert.match(component, /workflow artifacts/);
+  assert.match(component, /report_summary/);
+  assert.match(component, /scoring_credibility/);
+  assert.match(component, /dimension_results/);
+  assert.match(component, /dimension_evidence/);
   assert.match(component, /training_plan_queued/);
   assert.match(component, /experience_extractor_queued/);
   assert.match(component, /missing_sections/);
+
+  assert.match(component, /TrainingPlanPanel/);
+  assert.match(component, /node\.node === "training_plan"/);
+  assert.match(component, /训练计划/);
+  assert.match(component, /训练计划总览/);
+  assert.match(component, /能力诊断/);
+  assert.match(component, /优先改进项/);
+  assert.match(component, /练习任务/);
+  assert.match(component, /30 \/ 60 \/ 90 天目标/);
+  assert.match(component, /生成诊断/);
+  assert.match(component, /plan_summary/);
+  assert.match(component, /priority_weaknesses/);
+  assert.match(component, /practice_plan/);
+  assert.match(component, /goals_30_60_90/);
 
   assert.match(component, /承接 route_decision=next_question/);
   assert.match(component, /真实 workflow node/);
@@ -314,6 +413,69 @@ test("trace explorer explains successor workflow nodes with dedicated panels", (
   const routePanelEnd = component.indexOf("function RefineFollowupPanel");
   const routePanelBody = component.slice(routePanelStart, routePanelEnd);
   assert.doesNotMatch(routePanelBody, /RefineFollowupPanel|FinalReportPanel/);
+});
+
+test("trace explorer explains reward and experience learning nodes", () => {
+  const component = read("src/components/admin/TraceExplorer.tsx");
+
+  assert.match(component, /RewardUpdatePanel/);
+  assert.match(component, /RewardQuestionContext/);
+  assert.match(component, /node\.node === "reward_update"/);
+  assert.match(component, /node\.node !== "reward_update"/);
+  assert.match(component, /奖励回填/);
+  assert.match(component, /奖励总览/);
+  assert.match(component, /即时奖励 reward/);
+  assert.match(component, /verification 改写/);
+  assert.match(component, /逻辑轮次/);
+  assert.match(component, /正式题次/);
+  assert.match(component, /Bandit 动作更新/);
+  assert.match(component, /动作层/);
+  assert.match(component, /更新上下文数/);
+  assert.match(component, /StrategyMemory 归因/);
+  assert.match(component, /经验内容层/);
+  assert.match(component, /本轮没有命中可回填的策略记忆/);
+  assert.match(component, /题库归因/);
+  assert.match(component, /题库 Variant 层/);
+  assert.match(component, /使用上方即时奖励回填/);
+  assert.match(component, /Skill 归因/);
+  assert.match(component, /Skill card 层/);
+  assert.match(component, /本轮没有可回填的 Skill card/);
+  assert.match(component, /RewardAttributionList/);
+  assert.match(component, /reward_summary/);
+  assert.match(component, /bandit_update/);
+  assert.match(component, /strategy_memory_attribution/);
+  assert.match(component, /question_attribution/);
+  assert.match(component, /skill_attribution/);
+
+  assert.match(component, /ExperienceExtractorPanel/);
+  assert.match(component, /node\.node === "experience_extractor"/);
+  assert.match(component, /node\.node !== "experience_extractor"/);
+  assert.match(component, /经验抽取/);
+  assert.match(component, /QA 模式/);
+  assert.match(component, /Bandit 洞察/);
+  assert.match(component, /saved_keys/);
+  assert.match(component, /qa_candidates/);
+  assert.match(component, /bandit_candidates/);
+  assert.match(component, /ExperienceSignalKeyLists/);
+  assert.match(component, /ExperienceSignalKeyList/);
+  assert.match(component, /来源 session/);
+  assert.match(component, /已保存经验 key/);
+  assert.match(component, /StrategySignal 标识/);
+  assert.match(component, /overflow-x-auto/);
+  assert.match(component, /whitespace-nowrap/);
+  assert.match(component, /commonSessionKeyPrefix/);
+  assert.match(component, /stripCommonPrefix/);
+
+  const evidenceStart = component.indexOf("function EvaluationEvidence");
+  const evidenceEnd = component.indexOf("function StrategyDecisionSummary");
+  const evidenceBody = component.slice(evidenceStart, evidenceEnd);
+  assert.match(evidenceBody, /node\.node === "reward_update"/);
+  assert.match(evidenceBody, /node\.node === "experience_extractor"/);
+
+  assert.match(component, /rewardUpdateSearchFields/);
+  assert.match(component, /\.\.\.rewardUpdateSearchFields\(node\.payload\)/);
+  assert.match(component, /experienceExtractorSearchFields/);
+  assert.match(component, /\.\.\.experienceExtractorSearchFields\(node\.payload\)/);
 });
 
 test("trace explorer explains ask_question evidence as grouped user-facing sections", () => {
@@ -431,6 +593,14 @@ test("trace explorer explains ask_question evidence as grouped user-facing secti
   assert.match(component, /prompt_slots/);
   assert.match(component, /PROMPT_SLOT_DEFINITIONS/);
   assert.match(component, /PromptSlotCard/);
+  assert.match(component, /\$\{orderedPromptSlots\.length\} prompt slots/);
+  assert.doesNotMatch(component, /7 prompt slots/);
+  assert.match(component, /INTERVIEW_HISTORY_SUMMARY/);
+  assert.match(component, /history_summary_projection/);
+  assert.match(component, /RECENT_QA/);
+  assert.match(component, /recent_qa_prompt_view/);
+  assert.match(component, /CURRENT_GAPS/);
+  assert.match(component, /current_gaps/);
   assert.match(component, /题库问法骨架/);
   assert.match(component, /候选人适配提示/);
   assert.match(component, /简历命中片段/);
@@ -636,13 +806,23 @@ test("trace explorer groupByTurn defends against non-monotonic ordering", () => 
   // Sentinel: numeric-aware key + explicit session-level token must
   // both be present so the bucket index can be sorted numerically and
   // the catch-all bucket can be pinned to the bottom.
-  assert.match(component, /buckets\s*=\s*new\s+Map<number\s*\|\s*"session"/);
+  assert.match(component, /buckets\s*=\s*new\s+Map<TraceTurnGroupKey/);
   assert.match(component, /Number\.POSITIVE_INFINITY/);
 
   // Sentinel: there is an explicit numeric sort over the produced
   // groups (without this we would silently rely on Map insertion
   // order, which is what the original bug was about).
   assert.match(component, /groups\.sort\(\s*\(a,\s*b\)\s*=>\s*a\.sortKey\s*-\s*b\.sortKey\s*\)/);
+  assert.match(component, /effectiveTraceTurnKey/);
+  assert.match(component, /SESSION_CLOSING_NODES/);
+  assert.match(component, /收尾阶段/);
+  assert.match(component, /node\.node === "compress_context"/);
+  assert.match(component, /payload\.phase !== "turn_finalize"/);
+  assert.match(component, /Math\.max\(0,\s*node\.turn_idx - 1\)/);
+  assert.match(component, /traceNodeWorkflowOrder/);
+  assert.match(component, /reward_update/);
+  assert.match(component, /compress_context/);
+  assert.match(component, /route_decision/);
 });
 
 test("trace explorer can filter and mark evaluator fallback traces", () => {

@@ -660,6 +660,74 @@ def _final_report_missing_sections(report: dict[str, Any]) -> list[str]:
     return missing
 
 
+def _final_report_dimension_results(report: dict[str, Any]) -> list[dict[str, Any]]:
+    dimension_scores = report.get("dimension_scores") or {}
+    dimension_summaries = report.get("dimension_summaries") or {}
+    if not isinstance(dimension_scores, dict):
+        return []
+
+    results: list[dict[str, Any]] = []
+    for dim, item in sorted(dimension_scores.items()):
+        if not isinstance(item, dict):
+            continue
+        summary = (
+            dimension_summaries.get(dim)
+            if isinstance(dimension_summaries, dict)
+            else {}
+        )
+        if not isinstance(summary, dict):
+            summary = {}
+        results.append(
+            {
+                "dimension": dim,
+                "score": item.get("score"),
+                "score_status": item.get("score_status"),
+                "passed": item.get("passed"),
+                "coverage_status": item.get("coverage_status")
+                or item.get("exclusion_reason"),
+                "turn_count": int(summary.get("turns") or 0),
+            }
+        )
+    return results
+
+
+def _final_report_dimension_evidence(report: dict[str, Any]) -> list[dict[str, Any]]:
+    dimension_summaries = report.get("dimension_summaries") or {}
+    if not isinstance(dimension_summaries, dict):
+        return []
+
+    evidence: list[dict[str, Any]] = []
+    for dim, summary in sorted(dimension_summaries.items()):
+        if not isinstance(summary, dict):
+            continue
+        strengths = summary.get("strengths") or []
+        weaknesses = summary.get("weaknesses") or []
+        turn_evidence = summary.get("evidence") or []
+        followup_reasons = summary.get("followup_reasons") or []
+        evidence.append(
+            {
+                "dimension": dim,
+                "turns": int(summary.get("turns") or 0),
+                "avg_score": summary.get("avg_score"),
+                "passed_turns": int(summary.get("passed_turns") or 0),
+                "strength_count": len(strengths) if isinstance(strengths, list) else 0,
+                "weakness_count": len(weaknesses) if isinstance(weaknesses, list) else 0,
+                "strengths": list(strengths[:5]) if isinstance(strengths, list) else [],
+                "weaknesses": list(weaknesses[:5]) if isinstance(weaknesses, list) else [],
+                "contract_checks": summary.get("contract_checks") or {},
+                "followup_reasons": (
+                    list(followup_reasons[:5])
+                    if isinstance(followup_reasons, list)
+                    else []
+                ),
+                "evidence_count": (
+                    len(turn_evidence) if isinstance(turn_evidence, list) else 0
+                ),
+            }
+        )
+    return evidence
+
+
 def _final_report_trace_payload(
     report: dict[str, Any],
     *,
@@ -671,21 +739,45 @@ def _final_report_trace_payload(
     dimension_count = len(dimension_scores) if isinstance(dimension_scores, dict) else 0
     evaluator_turn_count = int(report.get("total_turns") or 0)
     queued = final_status == "completed"
+    missing_sections = _final_report_missing_sections(report)
+    conclusion = report.get("growth_signal") or report.get("overall_verdict") or verdict
     return {
         "verdict": verdict,
         "overall_score": overall,
         "final_status": final_status,
         "report_status": final_status,
-        "conclusion": report.get("growth_signal")
-        or report.get("overall_verdict")
-        or verdict,
+        "conclusion": conclusion,
         "dimension_count": dimension_count,
         "training_plan_queued": queued,
         "experience_extractor_queued": queued,
         "fallback_count": int(report.get("evaluator_fallback_count") or 0),
         "evaluator_turn_count": evaluator_turn_count,
-        "missing_sections": _final_report_missing_sections(report),
+        "missing_sections": missing_sections,
         "summary": report.get("summary"),
+        "report_summary": {
+            "report_status": final_status,
+            "overall_score": overall,
+            "verdict": verdict,
+            "growth_signal": conclusion,
+            "dimension_count": dimension_count,
+            "evaluator_turn_count": evaluator_turn_count,
+            "fallback_count": int(report.get("evaluator_fallback_count") or 0),
+            "missing_sections": missing_sections,
+        },
+        "scoring_credibility": {
+            "credibility_summary": report.get("credibility_summary"),
+            "risk_flags": report.get("risk_flags") or [],
+            "evidence_summary": report.get("evidence_summary") or {},
+            "contract_summary": report.get("contract_summary") or {},
+            "coverage_warnings": report.get("coverage_warnings") or [],
+        },
+        "dimension_results": _final_report_dimension_results(report),
+        "dimension_evidence": _final_report_dimension_evidence(report),
+        "closing_chain": {
+            "training_plan_queued": queued,
+            "experience_extractor_queued": queued,
+        },
+        "workflow_artifacts": report.get("workflow_artifacts") or {},
     }
 
 

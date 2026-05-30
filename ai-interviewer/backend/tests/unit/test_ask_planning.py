@@ -164,8 +164,96 @@ def test_ask_question_trace_payload_records_plan_and_prompt_slots(monkeypatch):
     assert slots["RETRIEVED_KNOWLEDGE"]["source_key"] == "retrieval_block"
     assert slots["RETRIEVED_KNOWLEDGE"]["text"] == "(stub)"
     assert slots["RETRIEVED_KNOWLEDGE"]["injected"] is True
+    assert slots["INTERVIEW_HISTORY_SUMMARY"]["source_key"] == (
+        "history_summary_projection"
+    )
+    assert slots["RECENT_QA"]["source_key"] == "recent_qa_prompt_view"
+    assert slots["CURRENT_GAPS"]["source_key"] == "current_gaps"
     assert slots["STRATEGY_MEMORY"]["empty_reason"] == "no_relevant_strategy_memories"
     assert slots["INTERVIEW_SKILLS"]["empty_reason"] == "no_relevant_interview_skills"
+    assert payload["history_context"]["projection"]["source_qa_count"] == 0
+    assert payload["qa_summary_projection"]["source_qa_count"] == 0
+
+
+def test_ask_question_builds_history_context_before_retrieval_and_generator(
+    monkeypatch,
+):
+    captured_generate: dict[str, Any] = {}
+    captured_strategy: dict[str, Any] = {}
+
+    def fake_retrieve(*, job_spec, dimension, previous_qa, top_k, mode):
+        class _Ctx:
+            as_prompt_block = "(stub)"
+
+        return _Ctx()
+
+    def fake_retrieve_strategies(**kwargs):
+        captured_strategy.update(kwargs)
+        return []
+
+    def fake_generate_question(**kwargs):
+        captured_generate.update(kwargs)
+        return {
+            "question": "stub question",
+            "dimension": kwargs["dimension"],
+            "rubric_points": ["depth"],
+            "proposed_contract": {
+                "must_cover": ["depth"],
+                "acceptance_checks": ["Names a concrete example."],
+                "minimum_bar": "One concrete example.",
+                "bar_level": "standard",
+            },
+        }
+
+    monkeypatch.setattr(ask_mod, "retrieve_for_question", fake_retrieve)
+    monkeypatch.setattr(ask_mod, "retrieve_strategies", fake_retrieve_strategies)
+    monkeypatch.setattr(
+        ask_mod,
+        "format_strategies_for_prompt",
+        lambda _entries: "(no relevant strategy memories)",
+    )
+    monkeypatch.setattr(ask_mod, "generate_question", fake_generate_question)
+    monkeypatch.setattr(ask_mod, "retrieve_skills", lambda **_kwargs: [])
+    monkeypatch.setattr(
+        ask_mod,
+        "negotiate_contract_via_evaluator",
+        lambda **kwargs: {
+            **kwargs["proposed_contract"],
+            "signed_by": ["generator", "evaluator"],
+        },
+    )
+
+    state = _base_state()
+    state["selected_action"] = {
+        "id": "plan_adaptive",
+        "label": "Plan: Adaptive",
+        "plan_template": "adaptive",
+    }
+    state["qa_history"] = [
+        {
+            "turn_idx": 0,
+            "dimension": "technical_depth",
+            "question": "How did you debug the outage?",
+            "answer": "I checked logs and found missing metrics.",
+            "selected_action": "plan_simple",
+            "evaluation": {
+                "score": 6.0,
+                "passed": False,
+                "weaknesses": ["missing root cause evidence"],
+                "recommended_next": "refine",
+            },
+        }
+    ]
+
+    out = ask_mod.ask_question_node(state)  # type: ignore[arg-type]
+
+    assert out["qa_summary_projection"]["source_qa_count"] == 1
+    assert out["qa_summary_projection_through_turn"] == 0
+    history_section = captured_generate["history_section_override"]
+    assert "INTERVIEW_HISTORY_SUMMARY" in history_section
+    assert "RECENT_QA" in history_section
+    assert "CURRENT_GAPS" in history_section
+    assert "missing root cause evidence" in captured_strategy["recent_qa_summary"]
 
 
 def test_ask_question_trace_payload_records_strategy_display_fields(monkeypatch):

@@ -189,12 +189,11 @@ def test_session_manager_clears_raw_side_channel_on_segment_error(
     assert handle.error
 
 
-def test_compress_context_clears_raw_on_deterministic_summary_branch(
+def test_compress_context_clears_raw_without_updating_qa_summary(
     monkeypatch,
 ) -> None:
-    """Long enough history triggers a real summary pass AND the clear."""
-    # Build three QA turns so ``len(qa_history) >= COMPRESS_AFTER`` but
-    # boundary>0 so ``old_turns`` contains at least one entry.
+    """Long histories still clear raw text, but summary projection now
+    belongs to ask_question rather than compress_context."""
     qa_history = [
         {
             "turn_idx": i,
@@ -215,8 +214,8 @@ def test_compress_context_clears_raw_on_deterministic_summary_branch(
     out = compress_mod.compress_context_node(state)  # type: ignore[arg-type]
 
     assert out.get("current_answer_raw") == ""
-    # Summary still produced on the happy path.
-    assert "qa_summary" in out
+    assert "qa_summary" not in out
+    assert "qa_summary_through_turn" not in out
 
 
 # --------------------------------------------------------------------

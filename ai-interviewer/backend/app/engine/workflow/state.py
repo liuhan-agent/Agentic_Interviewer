@@ -240,13 +240,13 @@ class InterviewState(TypedDict, total=False):
     current_answer_raw_ref: str
     qa_history: Annotated[list[QATurn], operator.add]
 
-    # Compressed summary of older QA turns, grouped by dimension.
-    # Written by ``compress_context_node`` after evaluation; the
-    # generator reads this instead of the full ``qa_history`` tail.
+    # Legacy compressed summary fields. Kept for older checkpoints and
+    # callers, but new generator context is projected from full
+    # ``qa_history`` by ask_question's HistoryContextBuilder.
     qa_summary: str
-    # Tracks which turn_idx was last compressed so we only summarise
-    # the delta on each pass.
     qa_summary_through_turn: int
+    qa_summary_projection: dict[str, Any]
+    qa_summary_projection_through_turn: int
 
     evaluation: dict[str, Any]
     scores_per_dim: dict[str, float | None]
@@ -368,6 +368,8 @@ def build_initial_state(
         "qa_history": [],
         "qa_summary": "",
         "qa_summary_through_turn": -1,
+        "qa_summary_projection": {},
+        "qa_summary_projection_through_turn": -1,
         "evaluation": {},
         "scores_per_dim": {d: None for d in dimensions},
         "score_breakdowns": {},

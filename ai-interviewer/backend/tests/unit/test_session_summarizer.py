@@ -143,8 +143,9 @@ def test_summarise_session_llm_raises_preserves_existing(monkeypatch) -> None:
     assert out == "OLD"
 
 
-def test_compress_context_deterministic_default() -> None:
-    """Default mode must behave exactly like the pre-rollout version."""
+def test_compress_context_no_longer_updates_qa_summary() -> None:
+    """compress_context is now turn-finalize only; ask_question owns the
+    prompt-facing history projection."""
     state = {
         "qa_history": [
             _turn(0, "dim_a", 7.0),
@@ -156,28 +157,16 @@ def test_compress_context_deterministic_default() -> None:
         "qa_summary_through_turn": -1,
     }
     out = cc.compress_context_node(state)  # type: ignore[arg-type]
-    assert "qa_summary" in out
-    summary = out["qa_summary"]
-    # Deterministic summary is plain text grouped by dimension.
-    assert "[dim_a]" in summary
-    assert "Turns:" in summary
+    assert "qa_summary" not in out
+    assert "qa_summary_through_turn" not in out
 
 
-def test_compress_context_llm_mode_invokes_summariser(monkeypatch) -> None:
-    payload = {
-        "by_dimension": {
-            "dim_a": {
-                "progression": "p",
-                "key_evidence": ["e"],
-                "gaps": ["g"],
-            }
-        },
-        "overall_trajectory": "t",
-        "summary_version": 2,
-    }
+def test_compress_context_llm_mode_does_not_invoke_summariser(monkeypatch) -> None:
+    calls: list[int] = []
+
     monkeypatch.setattr(
         "app.engine.agents.session_summarizer.call_chat",
-        lambda *a, **kw: json.dumps(payload),
+        lambda *a, **kw: calls.append(1) or "{}",
     )
 
     state = {
@@ -192,13 +181,11 @@ def test_compress_context_llm_mode_invokes_summariser(monkeypatch) -> None:
         "job_spec": {"title": "SWE", "level": "mid"},
     }
     out = cc.compress_context_node(state)  # type: ignore[arg-type]
-    assert "qa_summary" in out
-    stored = json.loads(out["qa_summary"])
-    assert stored["by_dimension"]["dim_a"]["key_evidence"] == ["e"]
+    assert calls == []
+    assert "qa_summary" not in out
 
 
-def test_compress_context_auto_upgrades_above_threshold(monkeypatch) -> None:
-    """``auto`` stays deterministic below threshold, LLM above."""
+def test_compress_context_auto_mode_does_not_invoke_summariser(monkeypatch) -> None:
     calls: list[int] = []
 
     def fake_call(*_a, **_kw):
@@ -217,7 +204,7 @@ def test_compress_context_auto_upgrades_above_threshold(monkeypatch) -> None:
         "app.engine.agents.session_summarizer.call_chat", fake_call
     )
 
-    short_history = [_turn(i, "d", 7.0) for i in range(cc.AUTO_LLM_THRESHOLD - 1)]
+    short_history = [_turn(i, "d", 7.0) for i in range(5)]
     state_short = {
         "runtime_config": {"summary_mode": "auto"},
         "qa_history": short_history,
@@ -226,9 +213,9 @@ def test_compress_context_auto_upgrades_above_threshold(monkeypatch) -> None:
         "job_spec": {},
     }
     cc.compress_context_node(state_short)  # type: ignore[arg-type]
-    assert calls == []  # deterministic path
+    assert calls == []
 
-    long_history = [_turn(i, "d", 7.0) for i in range(cc.AUTO_LLM_THRESHOLD)]
+    long_history = [_turn(i, "d", 7.0) for i in range(6)]
     state_long = {
         "runtime_config": {"summary_mode": "auto"},
         "qa_history": long_history,
@@ -237,14 +224,14 @@ def test_compress_context_auto_upgrades_above_threshold(monkeypatch) -> None:
         "job_spec": {},
     }
     cc.compress_context_node(state_long)  # type: ignore[arg-type]
-    assert calls == [1]  # LLM path triggered once
+    assert calls == []
 
 
-def test_compress_context_llm_failure_degrades_to_deterministic(
+def test_compress_context_ignores_llm_failure_because_no_hot_path_summary(
     monkeypatch,
 ) -> None:
-    """If the LLM summariser raises, compress_context must keep the
-    interview alive by persisting the prior summary rather than raising."""
+    """The summarizer can still exist as a standalone helper, but it is
+    no longer called from the interview hot path."""
 
     def boom(*_a, **_kw):
         raise RuntimeError("provider down")
@@ -261,23 +248,5 @@ def test_compress_context_llm_failure_degrades_to_deterministic(
         "job_spec": {},
     }
     out = cc.compress_context_node(state)  # type: ignore[arg-type]
-    # The node should still advance the cursor (so we don't retry the
-    # same turns forever) but keep the prior summary unchanged.
-    assert out["qa_summary"] == "PRIOR"
-    assert out["qa_summary_through_turn"] >= 0
-
-
-@pytest.mark.parametrize(
-    "mode,expected",
-    [
-        ("deterministic", "deterministic"),
-        ("llm", "llm"),
-        ("auto", "auto"),
-        ("garbage", "deterministic"),
-        (None, "deterministic"),
-    ],
-)
-def test_resolve_summary_mode(mode: Any, expected: str) -> None:
-    rc = {} if mode is None else {"summary_mode": mode}
-    state = {"runtime_config": rc}
-    assert cc._resolve_summary_mode(state) == expected  # type: ignore[arg-type]
+    assert "qa_summary" not in out
+    assert "qa_summary_through_turn" not in out
