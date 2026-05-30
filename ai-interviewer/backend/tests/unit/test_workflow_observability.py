@@ -7,6 +7,19 @@ from app.engine.workflow.nodes import compress_context as cnode
 from app.engine.workflow.nodes import verification as vnode
 
 
+def test_trace_node_aliases_normalize_turn_finalize() -> None:
+    from app.services.trace_nodes import (
+        normalize_trace_node,
+        trace_node_aliases,
+        trace_node_display_name,
+    )
+
+    assert normalize_trace_node("turn_finalize") == "compress_context"
+    assert normalize_trace_node("compress_context") == "compress_context"
+    assert "turn_finalize" in trace_node_aliases("compress_context")
+    assert trace_node_display_name("compress_context") == "轮次收尾"
+
+
 def test_verification_changes_empty_for_verifier_pass() -> None:
     evaluation = {
         "passed": True,
@@ -208,6 +221,24 @@ def test_compress_context_traces_route_decision_after_eval(monkeypatch) -> None:
 
     cnode.compress_context_node(state)  # type: ignore[arg-type]
 
+    compress_events = [item for item in traced if item[0] == "compress_context"]
+    assert compress_events
+    _node, compress_payload, compress_logical_turn_idx = compress_events[-1]
+    assert compress_payload["phase"] == "turn_finalize"
+    assert compress_payload["reason"] == "turn_finalize"
+    assert compress_payload["workflow_node"] == "compress_context"
+    assert compress_payload["semantic_node"] == "turn_finalize"
+    assert compress_payload["node_aliases"] == ["turn_finalize"]
+    assert compress_payload["display_name_zh"] == "轮次收尾"
+    assert compress_payload["raw_answer_cleared"] is False
+    assert compress_payload["summary_updated"] is False
+    assert compress_payload["summary_mode"] == "none"
+    assert compress_payload["history_projection_owner"] == "ask_question"
+    assert compress_payload["compressed_turns"] == 0
+    assert compress_payload["qa_history_count"] == 1
+    assert compress_payload["next_step"] == "route_decision"
+    assert compress_logical_turn_idx == 1
+
     route_events = [item for item in traced if item[0] == "route_decision"]
     assert route_events
     _node, payload, logical_turn_idx = route_events[-1]
@@ -228,3 +259,63 @@ def test_compress_context_traces_route_decision_after_eval(monkeypatch) -> None:
     assert payload["decision_inputs"]["max_refines_per_dimension"] == 2
     assert payload["decision_inputs"]["has_pending_other_dimension"] is True
     assert logical_turn_idx == 1
+
+
+def test_compress_context_trace_payload_never_updates_history_projection(
+    monkeypatch,
+) -> None:
+    traced: list[tuple[str, dict[str, Any], int | None]] = []
+
+    class _Tracer:
+        def trace_node_event(
+            self,
+            _state,
+            *,
+            node,
+            payload,
+            logical_turn_idx=None,
+            **_kwargs,
+        ) -> None:
+            traced.append((node, payload, logical_turn_idx))
+
+    monkeypatch.setattr(cnode, "get_tracer", lambda: _Tracer())
+
+    base_state: dict[str, Any] = {
+        "turn_idx": 4,
+        "formal_turn_idx": 4,
+        "max_turns": 6,
+        "turn_budget_remaining": 2,
+        "current_dimension": "system_design",
+        "dimensions": ["system_design"],
+        "dimension_status": {"system_design": "active"},
+        "evaluation": {"passed": False, "recommended_next": "refine"},
+        "qa_summary": "",
+        "qa_summary_through_turn": -1,
+        "qa_history": [
+            {"turn_idx": 0, "dimension": "system_design", "evaluation": {"score": 6}},
+            {"turn_idx": 1, "dimension": "system_design", "evaluation": {"score": 7}},
+            {"turn_idx": 2, "dimension": "system_design", "evaluation": {"score": 8}},
+            {"turn_idx": 3, "dimension": "system_design", "evaluation": {"score": 9}},
+        ],
+    }
+
+    out = cnode.compress_context_node(base_state)  # type: ignore[arg-type]
+    assert "qa_summary" not in out
+    assert "qa_summary_through_turn" not in out
+    compress_events = [item for item in traced if item[0] == "compress_context"]
+    assert compress_events[-1][1]["reason"] == "turn_finalize"
+    assert compress_events[-1][1]["summary_updated"] is False
+    assert compress_events[-1][1]["summary_mode"] == "none"
+    assert compress_events[-1][1]["history_projection_owner"] == "ask_question"
+    assert compress_events[-1][1]["compressed_turns"] == 0
+    assert compress_events[-1][2] == 3
+
+    traced.clear()
+    no_new_state = {**base_state, "qa_summary": "already", "qa_summary_through_turn": 1}
+    out = cnode.compress_context_node(no_new_state)  # type: ignore[arg-type]
+    assert "qa_summary" not in out
+    assert "qa_summary_through_turn" not in out
+    compress_events = [item for item in traced if item[0] == "compress_context"]
+    assert compress_events[-1][1]["reason"] == "turn_finalize"
+    assert compress_events[-1][1]["summary_updated"] is False
+    assert compress_events[-1][1]["history_projection_owner"] == "ask_question"

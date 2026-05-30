@@ -22,6 +22,18 @@ test("session APIs send token header and answer turn index", () => {
   assert.match(source, /getSessionToken\(sessionId\)/);
 });
 
+test("answer submission uses browser recovery and an idempotency key", () => {
+  const source = fs.readFileSync(
+    path.join(__dirname, "..", "src", "lib", "api", "interview.ts"),
+    "utf8",
+  );
+  const block = extractFunctionBlock(source, "submitAnswer");
+
+  assert.match(block, /return withSessionRecovery\(sessionId/);
+  assert.match(block, /"Idempotency-Key": idempotencyKey/);
+  assert.match(source, /function answerIdempotencyKey/);
+});
+
 test("interview API exposes voice ticket creation", () => {
   const source = fs.readFileSync(
     path.join(__dirname, "..", "src", "lib", "api", "interview.ts"),
@@ -271,6 +283,19 @@ test("interview API and poller carry video capability to the room", () => {
   assert.match(poller, /enableVideoAnalysis: Boolean\(r\.enable_video_analysis\)/);
 }
 );
+
+test("poller keeps resume history while waiting for the next question", () => {
+  const poller = fs.readFileSync(
+    path.join(__dirname, "..", "src", "lib", "hooks", "useQuestionPoller.ts"),
+    "utf8",
+  );
+
+  assert.match(
+    poller,
+    /dispatch\(\{\s*type: "RESUMED",[\s\S]*question: r\.question \?\? null[\s\S]*history: r\.history \?\? \[\]/,
+  );
+  assert.match(poller, /if \(r\.question\) \{\s*return;\s*\}/);
+});
 
 test("api client preserves structured error code and action", () => {
   const source = fs.readFileSync(

@@ -40,6 +40,7 @@ from .builder import (
     build_context_frame_for_verifier,
 )
 from .frame import AgentRole, ContextFrame
+from .history_context import build_history_context
 from .renderer import (
     frame_to_coach_messages,
     frame_to_contract_negotiator_messages,
@@ -60,6 +61,7 @@ __all__ = [
     "build_context_frame_for_contract_negotiator",
     "build_context_frame_for_session_summarizer",
     "build_context_frame_for_coach",
+    "build_history_context",
     "frame_to_generator_messages",
     "frame_to_evaluator_messages",
     "frame_to_verifier_messages",

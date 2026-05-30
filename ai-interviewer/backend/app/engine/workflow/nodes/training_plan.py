@@ -17,6 +17,66 @@ from app.engine.workflow.state import InterviewState
 log = get_logger(__name__)
 
 
+def _list_of_dicts(value: Any, *, limit: int = 5) -> list[dict[str, Any]]:
+    if not isinstance(value, list):
+        return []
+    return [dict(item) for item in value[:limit] if isinstance(item, dict)]
+
+
+def _goals_complete(goals: Any) -> bool:
+    if not isinstance(goals, dict):
+        return False
+    return all(
+        isinstance(goals.get(key), list)
+        for key in ("30_days", "60_days", "90_days")
+    )
+
+
+def _goals_bucket_count(goals: Any) -> int:
+    if not isinstance(goals, dict):
+        return 0
+    return sum(
+        1
+        for key in ("30_days", "60_days", "90_days")
+        if isinstance(goals.get(key), list)
+    )
+
+
+def _training_plan_trace_payload(
+    training_plan: dict[str, Any],
+    *,
+    reason: str,
+    source: str = "",
+    fallback_reason: str = "",
+) -> dict[str, Any]:
+    priority_weaknesses = training_plan.get("priority_weaknesses") or []
+    practice_plan = training_plan.get("practice_plan") or []
+    goals = training_plan.get("goals_30_60_90") or {}
+    diagnosis = training_plan.get("diagnosis") or {}
+    return {
+        "reason": reason,
+        "source": source,
+        "fallback_reason": fallback_reason,
+        "plan_summary": {
+            "priority_weakness_count": (
+                len(priority_weaknesses)
+                if isinstance(priority_weaknesses, list)
+                else 0
+            ),
+            "practice_task_count": (
+                len(practice_plan) if isinstance(practice_plan, list) else 0
+            ),
+            "goals_count": _goals_bucket_count(goals),
+            "goals_complete": _goals_complete(goals),
+            "diagnosis_recorded": isinstance(diagnosis, dict) and bool(diagnosis),
+        },
+        "diagnosis": dict(diagnosis) if isinstance(diagnosis, dict) else {},
+        "priority_weaknesses": _list_of_dicts(priority_weaknesses),
+        "practice_plan": _list_of_dicts(practice_plan),
+        "goals_30_60_90": dict(goals) if isinstance(goals, dict) else {},
+    }
+
+
 def training_plan_node(state: InterviewState) -> dict[str, Any]:
     # Skip when the session did not complete normally; cancelled or
     # errored runs have no coherent signal for the coach.
@@ -85,14 +145,21 @@ def _trace_training_plan(
     fallback_reason: str = "",
 ) -> None:
     try:
+        training_plan = {}
+        final_report = update.get("final_report") if isinstance(update, dict) else None
+        if isinstance(final_report, dict):
+            training_plan = final_report.get("training_plan") or {}
+        if not isinstance(training_plan, dict):
+            training_plan = {}
         get_tracer().trace_node_event(
             {**state, **update},
             node="training_plan",
-            payload={
-                "reason": reason,
-                "source": source,
-                "fallback_reason": fallback_reason,
-            },
+            payload=_training_plan_trace_payload(
+                training_plan,
+                reason=reason,
+                source=source,
+                fallback_reason=fallback_reason,
+            ),
         )
     except Exception as e:  # pragma: no cover - side channel
         log.warning("training_plan tracer side-channel failed: %s", e)

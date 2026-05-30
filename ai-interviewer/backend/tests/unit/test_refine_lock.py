@@ -29,6 +29,7 @@ from app.ml.rl.action_space import (
     PLAN_ADAPTIVE,
     PLAN_DEEP_PROBE,
     PLAN_HINT,
+    PLAN_QUICK_REVIEW,
     PLAN_SIMPLE,
     PLAN_SWITCH,
     SKIP_TO_NEXT,
@@ -210,3 +211,186 @@ def test_director_uses_global_policy_when_direction_context_is_cold(monkeypatch)
     assert out["selected_action"]["id"] == PLAN_DEEP_PROBE.id
     assert out["selected_action"]["diagnostics"]["context_key"] == global_ctx
     assert out["policy_context_keys"] == [direction_ctx, global_ctx]
+
+
+def test_template_guardrail_filters_lightweight_actions_during_refine(monkeypatch):
+    from app.engine.workflow.nodes import director_sample as director_mod
+
+    captured_masks: list[set[str]] = []
+
+    class _Bandit:
+        def observation_count(self, *_args, **_kwargs) -> int:
+            return 10
+
+        def select(self, _context_key: str, *, mask: set[str]):
+            captured_masks.append(set(mask))
+            return PLAN_ADAPTIVE, {"mode": "test_guardrail"}
+
+    monkeypatch.setattr(director_mod, "get_bandit", lambda: _Bandit())
+
+    state = _make_state(policy_mode="template")
+    state["refine_mode"] = True
+
+    out = director_sample_node(state)  # type: ignore[arg-type]
+    guardrail = out["selected_action"]["diagnostics"]["action_guardrail"]
+
+    assert captured_masks == [{PLAN_ADAPTIVE.id, PLAN_DEEP_PROBE.id}]
+    assert guardrail["enabled"] is True
+    assert guardrail["reason_codes"] == ["refine_mode"]
+    assert guardrail["original_allowed_actions"] == [
+        PLAN_ADAPTIVE.id,
+        PLAN_DEEP_PROBE.id,
+        PLAN_HINT.id,
+    ]
+    assert guardrail["final_allowed_actions"] == [
+        PLAN_ADAPTIVE.id,
+        PLAN_DEEP_PROBE.id,
+    ]
+    disabled = {
+        item["action_id"]: item["reason_codes"]
+        for item in guardrail["disabled_actions"]
+    }
+    assert disabled == {PLAN_HINT.id: ["refine_mode"]}
+
+
+def test_legacy_guardrail_filters_lightweight_actions_during_refine(monkeypatch):
+    from app.engine.workflow.nodes import director_sample as director_mod
+
+    captured_masks: list[set[str]] = []
+
+    class _Bandit:
+        def observation_count(self, *_args, **_kwargs) -> int:
+            return 10
+
+        def select(self, _context_key: str, *, mask: set[str]):
+            captured_masks.append(set(mask))
+            return DEEPEN_TECHNICAL, {"mode": "test_guardrail"}
+
+    monkeypatch.setattr(director_mod, "get_bandit", lambda: _Bandit())
+
+    state = _make_state(policy_mode="legacy")
+    state["refine_mode"] = True
+
+    out = director_sample_node(state)  # type: ignore[arg-type]
+    guardrail = out["selected_action"]["diagnostics"]["action_guardrail"]
+
+    assert captured_masks == [{DEEPEN_TECHNICAL.id}]
+    assert guardrail["reason_codes"] == ["refine_mode"]
+    assert guardrail["disabled_actions"] == [
+        {"action_id": GIVE_HINT.id, "reason_codes": ["refine_mode"]}
+    ]
+
+
+def test_guardrail_filters_lightweight_actions_for_hard_difficulty(monkeypatch):
+    from app.engine.workflow.nodes import director_sample as director_mod
+
+    captured_masks: list[set[str]] = []
+
+    class _Bandit:
+        def observation_count(self, *_args, **_kwargs) -> int:
+            return 10
+
+        def select(self, _context_key: str, *, mask: set[str]):
+            captured_masks.append(set(mask))
+            return PLAN_ADAPTIVE, {"mode": "test_guardrail"}
+
+    monkeypatch.setattr(director_mod, "get_bandit", lambda: _Bandit())
+
+    state = _make_state(policy_mode="template")
+    state["qa_history"] = [
+        {"dimension": "technical_depth", "evaluation": {"score": 8.0}},
+        {"dimension": "technical_depth", "evaluation": {"score": 9.0}},
+    ]
+    state["dimensions"] = ["technical_depth"]
+    state["dimension_status"] = {"technical_depth": "active"}
+    state["refine_mode"] = False
+
+    out = director_sample_node(state)  # type: ignore[arg-type]
+    guardrail = out["selected_action"]["diagnostics"]["action_guardrail"]
+
+    assert captured_masks == [{PLAN_ADAPTIVE.id, PLAN_DEEP_PROBE.id}]
+    assert guardrail["reason_codes"] == ["target_difficulty_hard"]
+    disabled_ids = {item["action_id"] for item in guardrail["disabled_actions"]}
+    assert disabled_ids == {PLAN_SIMPLE.id, PLAN_HINT.id}
+    assert out["selected_action"]["id"] == PLAN_ADAPTIVE.id
+
+
+def test_guardrail_filters_lightweight_actions_for_unsigned_contract(monkeypatch):
+    from app.engine.workflow.nodes import director_sample as director_mod
+
+    captured_masks: list[set[str]] = []
+
+    class _Bandit:
+        def observation_count(self, *_args, **_kwargs) -> int:
+            return 10
+
+        def select(self, _context_key: str, *, mask: set[str]):
+            captured_masks.append(set(mask))
+            return PLAN_DEEP_PROBE, {"mode": "test_guardrail"}
+
+    monkeypatch.setattr(director_mod, "get_bandit", lambda: _Bandit())
+
+    state = _make_state(policy_mode="template")
+    state["current_contract"] = {
+        "signed_by": ["generator"],
+        "must_cover": ["tradeoff"],
+        "acceptance_checks": [],
+    }
+
+    out = director_sample_node(state)  # type: ignore[arg-type]
+    guardrail = out["selected_action"]["diagnostics"]["action_guardrail"]
+
+    assert captured_masks == [
+        {PLAN_ADAPTIVE.id, PLAN_DEEP_PROBE.id, PLAN_SWITCH.id}
+    ]
+    assert guardrail["reason_codes"] == [
+        "contract_unsigned",
+        "contract_missing_acceptance_checks",
+    ]
+    assert out["selected_action"]["id"] == PLAN_DEEP_PROBE.id
+
+
+def test_guardrail_falls_back_when_filter_would_empty_mask():
+    from app.engine.workflow.nodes.director_sample import _apply_action_guardrail
+
+    guardrail = _apply_action_guardrail(
+        allowed={PLAN_HINT.id},
+        mode="template",
+        state={"refine_mode": True},
+        target_difficulty="medium",
+    )
+
+    assert guardrail.allowed == {PLAN_HINT.id}
+    assert guardrail.diagnostics["reason_codes"] == [
+        "refine_mode",
+        "guardrail_fallback_empty_mask",
+    ]
+    assert guardrail.diagnostics["final_allowed_actions"] == [PLAN_HINT.id]
+
+
+def test_guardrail_keeps_quick_review_when_no_quality_risk(monkeypatch):
+    from app.engine.workflow.nodes import director_sample as director_mod
+
+    captured_masks: list[set[str]] = []
+
+    class _Bandit:
+        def observation_count(self, *_args, **_kwargs) -> int:
+            return 10
+
+        def select(self, _context_key: str, *, mask: set[str]):
+            captured_masks.append(set(mask))
+            return PLAN_QUICK_REVIEW, {"mode": "test_guardrail"}
+
+    monkeypatch.setattr(director_mod, "get_bandit", lambda: _Bandit())
+
+    state = _make_state(policy_mode="template")
+    state["runtime_config"]["enable_quick_review_plan"] = True
+    state["refine_mode"] = False
+
+    out = director_sample_node(state)  # type: ignore[arg-type]
+    guardrail = out["selected_action"]["diagnostics"]["action_guardrail"]
+
+    assert PLAN_QUICK_REVIEW.id in captured_masks[0]
+    assert guardrail["enabled"] is False
+    assert guardrail["disabled_actions"] == []
+    assert out["selected_action"]["id"] == PLAN_QUICK_REVIEW.id

@@ -22,6 +22,7 @@ In both modes:
 """
 from __future__ import annotations
 
+from dataclasses import dataclass
 from typing import Any
 
 from app.core.logging import get_logger
@@ -52,6 +53,23 @@ from app.ml.rl.action_space import (
 from app.ml.rl.thompson import get_bandit
 
 log = get_logger(__name__)
+
+
+@dataclass(frozen=True)
+class ActionGuardrailResult:
+    allowed: set[str]
+    diagnostics: dict[str, Any]
+
+
+_TEMPLATE_LIGHTWEIGHT_ACTIONS = {
+    PLAN_SIMPLE.id,
+    PLAN_HINT.id,
+    PLAN_QUICK_REVIEW.id,
+}
+_LEGACY_LIGHTWEIGHT_ACTIONS = {
+    GIVE_HINT.id,
+    SKIP_TO_NEXT.id,
+}
 
 
 def _all_dims_done(state: InterviewState) -> bool:
@@ -160,6 +178,129 @@ def _quick_review_enabled(state: InterviewState) -> bool:
         return bool(getattr(get_settings(), "enable_quick_review_plan", False))
     except Exception:  # pragma: no cover - settings may be stubbed in tests
         return False
+
+
+def _sorted_actions(actions: set[str]) -> list[str]:
+    return sorted(actions)
+
+
+def _current_contract(state: InterviewState) -> dict[str, Any] | None:
+    contract = state.get("current_contract")
+    if isinstance(contract, dict) and contract:
+        return contract
+    question = state.get("current_question") or {}
+    if isinstance(question, dict):
+        nested = question.get("contract")
+        if isinstance(nested, dict) and nested:
+            return nested
+    return None
+
+
+def _recent_low_signal_count(state: InterviewState, current_dim: str) -> int:
+    try:
+        threshold = float(getattr(get_settings(), "default_quality_threshold", 7.5))
+    except Exception:  # pragma: no cover - settings may be stubbed in tests
+        threshold = 7.5
+
+    count = 0
+    for turn in reversed(list(state.get("qa_history") or [])):
+        if not isinstance(turn, dict) or turn.get("dimension") != current_dim:
+            continue
+        evaluation = turn.get("evaluation") or {}
+        if not isinstance(evaluation, dict):
+            break
+        try:
+            score = float(evaluation.get("score", 0.0))
+        except (TypeError, ValueError):
+            score = 0.0
+        passed = evaluation.get("passed")
+        if passed is False or score < threshold:
+            count += 1
+            if count >= 2:
+                return count
+            continue
+        break
+    return count
+
+
+def _action_guardrail_reason_codes(
+    *,
+    state: InterviewState,
+    current_dim: str,
+    target_difficulty: str,
+) -> list[str]:
+    reasons: list[str] = []
+
+    if state.get("refine_mode"):
+        reasons.append("refine_mode")
+    if state.get("pending_contract_hints"):
+        reasons.append("pending_contract_hints")
+    if state.get("pending_plan_template"):
+        reasons.append("pending_plan_template")
+    if target_difficulty == "hard":
+        reasons.append("target_difficulty_hard")
+
+    evaluation = state.get("evaluation") or {}
+    if isinstance(evaluation, dict):
+        if evaluation.get("verifier_forced_refine"):
+            reasons.append("verifier_forced_refine")
+        if evaluation.get("soft_warnings"):
+            reasons.append("verification_soft_warning")
+
+    contract = _current_contract(state)
+    if contract is not None:
+        signed_by = {str(item) for item in (contract.get("signed_by") or [])}
+        if "evaluator" not in signed_by:
+            reasons.append("contract_unsigned")
+        if not contract.get("must_cover"):
+            reasons.append("contract_missing_must_cover")
+        if not contract.get("acceptance_checks"):
+            reasons.append("contract_missing_acceptance_checks")
+
+    if _recent_low_signal_count(state, current_dim) >= 2:
+        reasons.append("consecutive_low_score")
+
+    return reasons
+
+
+def _apply_action_guardrail(
+    *,
+    allowed: set[str],
+    mode: str,
+    state: InterviewState,
+    target_difficulty: str,
+) -> ActionGuardrailResult:
+    original_allowed = set(allowed)
+    current_dim = state.get("current_dimension") or ""
+    reason_codes = _action_guardrail_reason_codes(
+        state=state,
+        current_dim=str(current_dim),
+        target_difficulty=target_difficulty,
+    )
+    if mode == "legacy":
+        lightweight = _LEGACY_LIGHTWEIGHT_ACTIONS
+    else:
+        lightweight = _TEMPLATE_LIGHTWEIGHT_ACTIONS
+    disabled_ids = original_allowed & lightweight if reason_codes else set()
+    filtered_allowed = original_allowed - disabled_ids
+    fallback_empty_mask = bool(disabled_ids and not filtered_allowed)
+    final_allowed = original_allowed if fallback_empty_mask else filtered_allowed
+    final_reason_codes = list(reason_codes)
+    if fallback_empty_mask:
+        final_reason_codes.append("guardrail_fallback_empty_mask")
+
+    diagnostics = {
+        "enabled": bool(disabled_ids and not fallback_empty_mask),
+        "mode": "quality_floor",
+        "original_allowed_actions": _sorted_actions(original_allowed),
+        "final_allowed_actions": _sorted_actions(final_allowed),
+        "disabled_actions": [
+            {"action_id": action_id, "reason_codes": list(reason_codes)}
+            for action_id in _sorted_actions(disabled_ids)
+        ],
+        "reason_codes": final_reason_codes,
+    }
+    return ActionGuardrailResult(allowed=final_allowed, diagnostics=diagnostics)
 
 
 def _resolve_mode_and_actions(
@@ -312,6 +453,14 @@ def director_sample_node(state: InterviewState) -> dict[str, Any]:
     mode, allowed = _resolve_mode_and_actions(
         state, current_dim, refine_locked=refine_locked
     )
+    guardrail_target_diff = compute_target_difficulty(state, current_dim)
+    guardrail = _apply_action_guardrail(
+        allowed=allowed,
+        mode=mode,
+        state={**state, "current_dimension": current_dim},  # type: ignore[arg-type]
+        target_difficulty=guardrail_target_diff,
+    )
+    allowed = guardrail.allowed
 
     bandit = get_bandit()
     policy_keys = policy_context_keys(job_spec, current_dim)
@@ -337,6 +486,7 @@ def director_sample_node(state: InterviewState) -> dict[str, Any]:
             "chosen": action.id,
             "target_dimension": coverage_target,
             "unscored_dimensions": unscored_dimensions,
+            "action_guardrail": guardrail.diagnostics,
         }
     elif should_advance_for_coverage(state):
         action = PLAN_SWITCH if mode == "template" else SWITCH_DIMENSION
@@ -344,9 +494,14 @@ def director_sample_node(state: InterviewState) -> dict[str, Any]:
             "mode": "coverage_force_switch",
             "context_key": context_key,
             "chosen": action.id,
+            "action_guardrail": guardrail.diagnostics,
         }
     else:
         action, diagnostics = bandit.select(context_key, mask=allowed)
+        diagnostics = {
+            **diagnostics,
+            "action_guardrail": guardrail.diagnostics,
+        }
         if anchor_target and anchor_selection:
             anchor = anchor_selection.get("resume_anchor") or {}
             scheduler = anchor_selection.get("scheduler") or {}
