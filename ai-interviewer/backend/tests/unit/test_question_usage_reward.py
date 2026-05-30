@@ -11,6 +11,162 @@ from app.models.question_bank import QuestionUsage
 from app.models.skill_playbook import SkillUsage
 
 
+def test_reward_update_trace_payload_summarizes_attribution(monkeypatch) -> None:
+    from app.engine.workflow.nodes import reward_update as reward_update_mod
+
+    engine = create_engine("sqlite:///:memory:", future=True)
+    Base.metadata.create_all(engine)
+    session_local = sessionmaker(bind=engine, expire_on_commit=False, autoflush=False)
+
+    with session_local() as sess:
+        sess.add_all(
+            [
+                QuestionUsage(
+                    id="usage-primary-injected",
+                    session_id="sess-attribution",
+                    turn_idx=2,
+                    trace_id="trace-attribution",
+                    seed_id="system_design.cache_consistency",
+                    variant_id="system_design.cache_consistency.flash_sale_inventory",
+                    seed_version=1,
+                    variant_version=1,
+                    rank=1,
+                    match_score=42.0,
+                    match_reasons=["priority:30"],
+                    injected=True,
+                    question_selector_mode="structured_primary",
+                ),
+                QuestionUsage(
+                    id="usage-primary-rank2",
+                    session_id="sess-attribution",
+                    turn_idx=2,
+                    trace_id="trace-attribution",
+                    seed_id="system_design.capacity_planning",
+                    variant_id="system_design.capacity_planning.live_event_ticketing",
+                    seed_version=1,
+                    variant_version=1,
+                    rank=2,
+                    match_score=20.0,
+                    match_reasons=["priority:20"],
+                    injected=False,
+                    question_selector_mode="structured_primary",
+                ),
+            ]
+        )
+        sess.commit()
+
+    @contextmanager
+    def get_session():
+        with session_local() as sess:
+            yield sess
+            sess.commit()
+
+    class _Bandit:
+        def update(self, *_args: Any, **_kwargs: Any) -> None:
+            return None
+
+    payloads: list[dict[str, Any]] = []
+
+    class _Tracer:
+        def trace_node_event(self, _state, *, node, payload, **_kwargs):
+            if node == "reward_update":
+                payloads.append(payload)
+
+    monkeypatch.setattr(reward_update_mod, "immediate_reward", lambda **_kwargs: 0.42)
+    monkeypatch.setattr(reward_update_mod, "get_bandit", lambda: _Bandit())
+    monkeypatch.setattr(reward_update_mod, "get_tracer", lambda: _Tracer())
+    monkeypatch.setattr(reward_update_mod, "get_session", get_session)
+
+    state = {
+        "session_id": "sess-attribution",
+        "trace_id": "trace-attribution",
+        "turn_idx": 3,
+        "formal_turn_idx": 3,
+        "current_dimension": "system_design",
+        "runtime_config": {"question_role_tags": ["java_backend"]},
+        "current_question": {
+            "question": "请设计库存缓存一致性方案。",
+            "dimension": "system_design",
+            "probe_intent": "evidence_probe",
+            "strategy_memory_refs": [
+                {"id": "strategy-cache-consistency", "name": "Cache Consistency"}
+            ],
+            "selection_artifacts": {
+                "question_items": [
+                    {
+                        "seed_id": "system_design.cache_consistency",
+                        "variant_id": "system_design.cache_consistency.flash_sale_inventory",
+                        "rank": 1,
+                        "injected": True,
+                        "question_selector_mode": "structured_primary",
+                    },
+                    {
+                        "seed_id": "system_design.capacity_planning",
+                        "variant_id": "system_design.capacity_planning.live_event_ticketing",
+                        "rank": 2,
+                        "injected": False,
+                        "question_selector_mode": "structured_primary",
+                    },
+                ],
+                "skills": {
+                    "enabled": True,
+                    "refs": [
+                        {
+                            "id": "tech_debug_root_cause_probe",
+                            "rank": 1,
+                            "match_score": 77.0,
+                            "match_reasons": ["priority:9"],
+                        }
+                    ],
+                },
+            },
+        },
+        "evaluation": {
+            "score": 8.0,
+            "passed": True,
+            "verifier_forced_refine": True,
+        },
+        "selected_action": {
+            "id": "plan_adaptive",
+            "plan_template": "adaptive",
+            "policy_context_keys": ["internet_tech:junior:system_design"],
+        },
+        "job_spec": {"level": "junior", "role_tags": ["java_backend"]},
+    }
+
+    reward_update_mod.reward_update_node(state)  # type: ignore[arg-type]
+
+    payload = payloads[0]
+    assert payload["reward_summary"] == {
+        "immediate_reward": 0.42,
+        "score": 8.0,
+        "passed": True,
+        "verifier_overruled": True,
+        "logical_turn_idx": 2,
+        "formal_turn_idx": 2,
+    }
+    assert payload["bandit_update"]["action_id"] == "plan_adaptive"
+    assert payload["bandit_update"]["context_keys"] == [
+        "internet_tech:junior:system_design"
+    ]
+    assert payload["strategy_memory_attribution"]["usage_count"] == 1
+    assert payload["strategy_memory_attribution"]["strategy_ids"] == [
+        "strategy-cache-consistency"
+    ]
+    assert payload["question_attribution"]["rewarded_variant_ids"] == [
+        "system_design.cache_consistency.flash_sale_inventory"
+    ]
+    assert payload["question_attribution"]["skipped"][0]["reason"] == "not_injected"
+    assert payload["skill_attribution"]["usage_count"] == 1
+    assert payload["skill_attribution"]["skill_context_key"] == (
+        "java_backend:junior:system_design:evidence_probe"
+    )
+    assert payload["skill_attribution"]["skill_ids"] == [
+        "tech_debug_root_cause_probe"
+    ]
+    assert payload["persistence"]["failed"] == []
+
+
 def test_reward_update_backfills_only_structured_primary_injected_rank_one(
     monkeypatch,
 ) -> None:

@@ -578,6 +578,30 @@ def test_resume_returns_prior_turn_history_for_running_session(
     assert turn["next_step"]
 
 
+def test_resume_does_not_show_stale_question_while_answer_is_processing(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    with _isolated_db(monkeypatch) as testing_session_local:
+        _seed_session(testing_session_local, status="interrupted")
+        manager = _ResumeManager()
+        manager.handle.question_event = threading.Event()
+        manager.handle.current_question = {
+            "question": "Already-submitted question should not be shown again.",
+            "dimension": "technical_depth",
+            "formal_turn_idx": 0,
+        }
+        client = _client_with_manager(monkeypatch, manager)
+
+        resp = client.get("/api/v1/interview/sessions/sess-replay/resume")
+
+    assert resp.status_code == 200
+    payload = resp.json()
+    assert payload["status"] == "running"
+    assert payload["question"] is None
+    assert len(payload["history"]) == 1
+    assert "Redis" in payload["history"][0]["answer"]
+
+
 def test_resume_history_includes_self_intro_without_counting_it_as_a_question(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

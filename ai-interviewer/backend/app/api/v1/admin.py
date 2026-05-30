@@ -34,6 +34,11 @@ from fastapi import (
 from app.core.logging import get_logger
 from app.core.settings import get_settings
 from app.models import get_session
+from app.services.trace_nodes import (
+    normalize_trace_node,
+    trace_node_aliases,
+    trace_node_metadata,
+)
 
 log = get_logger(__name__)
 
@@ -1247,6 +1252,15 @@ def _trace_node_payload(
             )
             if snapshot.get(key) is not None
         }
+    if trace_node_aliases(trace.node):
+        summary = {
+            **dict(summary),
+            **{
+                key: deepcopy(value)
+                for key, value in trace_node_metadata(trace.node).items()
+                if key not in summary
+            },
+        }
     if is_ask_question := trace.node == "ask_question":
         summary = _enrich_trace_skill_display_fields(
             summary,
@@ -1366,6 +1380,11 @@ def _interview_session_trace_payload(
     from app.services.trace_health import trace_diagnostics
 
     node_counts = {str(node or ""): int(count) for node, count in summary_rows}
+    node_type_aliases = {
+        node: trace_node_aliases(node)
+        for node in node_counts
+        if trace_node_aliases(node)
+    }
     total_trace_count = sum(node_counts.values())
     summary_nodes = [{"node": node} for node in node_counts]
     diagnostics = trace_diagnostics(summary_nodes, session_status=row.status)
@@ -1388,6 +1407,7 @@ def _interview_session_trace_payload(
         "langsmith": _langsmith_admin_meta(),
         "node_count_total": total_trace_count,
         "node_type_counts": node_counts,
+        "node_type_aliases": node_type_aliases,
         "fallback_trace_count": sum(
             1 for trace in all_traces if _trace_has_evaluator_fallback(trace)
         ),
@@ -2833,6 +2853,7 @@ _RECENT_TRACES_NODES = {
     "training_plan",
     "experience_extractor",
     "resume_parse",
+    "turn_finalize",
 }
 
 
@@ -2847,7 +2868,10 @@ def recent_traces(node: str = "evaluator", limit: int = 50) -> dict[str, Any]:
     ``node`` (whitelisted to known workflow steps) and orders by
     ``created_at`` descending so the freshest events lead.
     """
-    if node not in _RECENT_TRACES_NODES:
+    requested_node = str(node or "").strip()
+    canonical_node = normalize_trace_node(requested_node)
+    allowed_nodes = {normalize_trace_node(item) for item in _RECENT_TRACES_NODES}
+    if canonical_node not in allowed_nodes:
         raise HTTPException(
             status_code=400,
             detail=f"unsupported node={node!r}; allowed: {sorted(_RECENT_TRACES_NODES)}",
@@ -2859,14 +2883,20 @@ def recent_traces(node: str = "evaluator", limit: int = 50) -> dict[str, Any]:
         with get_session() as sess:
             rows = (
                 sess.query(GenerationTrace)
-                .filter(GenerationTrace.node == node)
+                .filter(GenerationTrace.node == canonical_node)
                 .order_by(GenerationTrace.created_at.desc())
                 .limit(capped_limit)
                 .all()
             )
     except Exception as e:  # pragma: no cover
         log.warning("recent_traces query failed: %s", e)
-        return {"node": node, "limit": capped_limit, "items": []}
+        return {
+            "node": requested_node,
+            "canonical_node": canonical_node,
+            "node_aliases": trace_node_aliases(canonical_node),
+            "limit": capped_limit,
+            "items": [],
+        }
 
     items: list[dict[str, Any]] = []
     for trace in rows:
@@ -2886,7 +2916,13 @@ def recent_traces(node: str = "evaluator", limit: int = 50) -> dict[str, Any]:
                 "created_at": trace.created_at.isoformat() if trace.created_at else None,
             }
         )
-    return {"node": node, "limit": capped_limit, "items": items}
+    return {
+        "node": requested_node,
+        "canonical_node": canonical_node,
+        "node_aliases": trace_node_aliases(canonical_node),
+        "limit": capped_limit,
+        "items": items,
+    }
 
 
 @router.get("/metrics", dependencies=[Depends(require_admin_token)])

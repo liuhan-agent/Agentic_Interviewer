@@ -270,6 +270,7 @@ def generate_question(
     target_skills: list[str] | None = None,
     probe_intent: str | None = None,
     context_flags: dict[str, Any] | None = None,
+    history_section_override: str | None = None,
 ) -> dict[str, Any]:
     """Produce the next structured question payload.
 
@@ -309,6 +310,7 @@ def generate_question(
         target_skills=target_skills or [],
         probe_intent=probe_intent,
         context_flags=context_flags,
+        history_section_override=history_section_override,
     )
     messages = frame_to_generator_messages(frame)
     raw = call_chat(messages, json_mode=True, agent_role="generator")

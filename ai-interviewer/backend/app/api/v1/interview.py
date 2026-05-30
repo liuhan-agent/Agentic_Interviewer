@@ -1851,7 +1851,11 @@ def resume_session(
         cancelled = handle.cancelled
         final_report = (handle.final_state or {}).get("final_report")
         final_status = (handle.final_state or {}).get("status")
-        current_question = handle.current_question
+        question_event = getattr(handle, "question_event", None)
+        question_ready = (
+            question_event.is_set() if hasattr(question_event, "is_set") else True
+        )
+        current_question = handle.current_question if question_ready else None
         turn_idx = handle.turn_idx
         max_turns = handle.max_turns
         previous_turn_evaluation = getattr(handle, "last_turn_evaluation", None)

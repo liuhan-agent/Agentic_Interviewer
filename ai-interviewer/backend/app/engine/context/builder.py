@@ -134,6 +134,7 @@ def build_context_frame_for_generator(
     turn_idx: int | None = None,
     probe_intent: str | None = None,
     context_flags: dict[str, Any] | None = None,
+    history_section_override: str | None = None,
 ) -> ContextFrame:
     """Assemble a :class:`ContextFrame` for the Generator role.
 
@@ -160,7 +161,11 @@ def build_context_frame_for_generator(
     node) can still pass their own value.
     """
     highlights = candidate.get("resume_parsed", {}).get("highlights", [])
-    history_section = build_history_section(recent_qa, qa_summary)
+    history_section = (
+        history_section_override
+        if history_section_override is not None
+        else build_history_section(recent_qa, qa_summary)
+    )
 
     static_system = load_prompt("system_skeleton.md")
     try:

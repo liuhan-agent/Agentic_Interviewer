@@ -8,7 +8,7 @@ does not directly mutate global strategy behaviour.
 Two extraction paths run in sequence:
 
 1. **QA-pattern extraction** — scans ``qa_history`` for notable patterns
-   (e.g. a dimension where ``give_hint`` rescued a failing candidate,
+   (e.g. a dimension where a hint action rescued a failing candidate,
    or where ``deepen_technical`` consistently produced high scores).
 
 2. **Bandit-posterior extraction** — reads the current Thompson Sampling
@@ -37,6 +37,7 @@ from app.tasks.dream_tasks import increment_session_count
 log = get_logger(__name__)
 
 _VALID_FAILURE_CATEGORIES: set[str] = set(FailureCategory.__args__)  # type: ignore[attr-defined]
+_HINT_ACTION_ID = "plan_hint"
 
 
 def _last_turn_failure_categories(
@@ -130,6 +131,11 @@ def _safe_key_part(value: Any) -> str:
     return str(value or "unknown").strip().replace(" ", "_") or "unknown"
 
 
+def _canonical_turn_action(turn: dict[str, Any]) -> str:
+    raw = str(turn.get("selected_action") or "").strip()
+    return canonical_action_id(raw) or raw
+
+
 def _extract_qa_patterns(
     state: InterviewState,
     *,
@@ -158,7 +164,7 @@ def _extract_qa_patterns(
             float((t.get("evaluation") or {}).get("score", 0))
             for t in turns
         ]
-        actions = [t.get("selected_action", "") for t in turns]
+        actions = [_canonical_turn_action(t) for t in turns]
 
         if len(scores) >= 2 and scores[-1] - scores[0] >= spread_threshold:
             recovery_action = actions[-1] if actions else "unknown"
@@ -193,7 +199,7 @@ def _extract_qa_patterns(
             })
 
         hint_turns = [
-            t for t in turns if t.get("selected_action") == "give_hint"
+            t for t in turns if _canonical_turn_action(t) == _HINT_ACTION_ID
         ]
         if hint_turns:
             hint_scores = [
@@ -206,9 +212,10 @@ def _extract_qa_patterns(
                     "type": "hint_effective",
                     "dimension": dim,
                     "job_level": job_level,
+                    "hint_action": _HINT_ACTION_ID,
                     "avg_hint_score": round(avg_hint, 2),
                     "detail": (
-                        f"'give_hint' was effective in {dim} "
+                        f"'{_HINT_ACTION_ID}' was effective in {dim} "
                         f"(avg score {avg_hint:.1f} across {len(hint_turns)} uses)."
                     ),
                 })
@@ -424,6 +431,7 @@ def _signal_payload_from_qa_pattern(
     original_action_id = (
         pattern.get("recovery_action")
         or pattern.get("failing_action")
+        or pattern.get("hint_action")
         or ("give_hint" if ptype == "hint_effective" else None)
     )
     action_id = canonical_action_id(original_action_id)
@@ -568,6 +576,12 @@ def experience_extractor_node(state: InterviewState) -> dict[str, Any]:
     saved = 0
     skipped_existing = 0
     failed = 0
+    qa_saved = 0
+    qa_skipped_existing = 0
+    qa_failed = 0
+    bandit_saved = 0
+    bandit_skipped_existing = 0
+    bandit_failed = 0
     saved_keys: list[str] = []
     skipped_keys: list[str] = []
     failed_keys: list[str] = []
@@ -582,6 +596,7 @@ def experience_extractor_node(state: InterviewState) -> dict[str, Any]:
             )
             if status == "saved":
                 saved += 1
+                qa_saved += 1
                 saved_keys.append(memory_key)
                 log.info(
                     "experience_extractor: saved QA signal %s key=%s",
@@ -590,6 +605,7 @@ def experience_extractor_node(state: InterviewState) -> dict[str, Any]:
                 )
             elif status == "skipped_existing":
                 skipped_existing += 1
+                qa_skipped_existing += 1
                 skipped_keys.append(memory_key)
                 log.info(
                     "experience_extractor: skipped existing QA pattern key=%s",
@@ -597,6 +613,7 @@ def experience_extractor_node(state: InterviewState) -> dict[str, Any]:
                 )
         except Exception as e:
             failed += 1
+            qa_failed += 1
             memory_key = strategy_memory_key_for_pattern(pattern)
             failed_keys.append(memory_key)
             log.warning("experience_extractor: failed to save QA signal: %s", e)
@@ -612,6 +629,7 @@ def experience_extractor_node(state: InterviewState) -> dict[str, Any]:
             )
             if status == "saved":
                 saved += 1
+                bandit_saved += 1
                 saved_keys.append(memory_key)
                 log.info(
                     "experience_extractor: saved bandit signal %s key=%s",
@@ -620,6 +638,7 @@ def experience_extractor_node(state: InterviewState) -> dict[str, Any]:
                 )
             elif status == "skipped_existing":
                 skipped_existing += 1
+                bandit_skipped_existing += 1
                 skipped_keys.append(memory_key)
                 log.info(
                     "experience_extractor: skipped existing bandit insight key=%s",
@@ -627,6 +646,7 @@ def experience_extractor_node(state: InterviewState) -> dict[str, Any]:
                 )
         except Exception as e:
             failed += 1
+            bandit_failed += 1
             memory_key = strategy_memory_key_for_insight(insight)
             failed_keys.append(memory_key)
             log.warning("experience_extractor: failed to save bandit insight: %s", e)
@@ -647,6 +667,14 @@ def experience_extractor_node(state: InterviewState) -> dict[str, Any]:
         skipped_existing=skipped_existing,
         failed=failed,
         candidates=candidates,
+        qa_candidates=len(qa_patterns),
+        qa_saved=qa_saved,
+        qa_skipped_existing=qa_skipped_existing,
+        qa_failed=qa_failed,
+        bandit_candidates=len(bandit_insights),
+        bandit_saved=bandit_saved,
+        bandit_skipped_existing=bandit_skipped_existing,
+        bandit_failed=bandit_failed,
         saved_keys=saved_keys[:5],
         skipped_keys=skipped_keys[:5],
         failed_keys=failed_keys[:5],
@@ -683,6 +711,14 @@ def _trace_experience_extractor(
     skipped_existing: int = 0,
     failed: int = 0,
     candidates: int = 0,
+    qa_candidates: int = 0,
+    qa_saved: int = 0,
+    qa_skipped_existing: int = 0,
+    qa_failed: int = 0,
+    bandit_candidates: int = 0,
+    bandit_saved: int = 0,
+    bandit_skipped_existing: int = 0,
+    bandit_failed: int = 0,
     saved_keys: list[str] | None = None,
     skipped_keys: list[str] | None = None,
     failed_keys: list[str] | None = None,
@@ -700,6 +736,14 @@ def _trace_experience_extractor(
                 "skipped_existing": skipped_existing,
                 "failed": failed,
                 "candidates": candidates,
+                "qa_candidates": qa_candidates,
+                "qa_saved": qa_saved,
+                "qa_skipped_existing": qa_skipped_existing,
+                "qa_failed": qa_failed,
+                "bandit_candidates": bandit_candidates,
+                "bandit_saved": bandit_saved,
+                "bandit_skipped_existing": bandit_skipped_existing,
+                "bandit_failed": bandit_failed,
                 "saved_keys": saved_keys or [],
                 "skipped_keys": skipped_keys or [],
                 "failed_keys": failed_keys or [],

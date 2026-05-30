@@ -34,6 +34,7 @@ from app.core.tracer import get_tracer
 from app.engine.agents.contract import negotiate_contract_via_evaluator
 from app.engine.agents.generator import generate_question
 from app.engine.agents.security import check_question
+from app.engine.context.history_context import build_history_context
 from app.engine.rag.retriever import retrieve_for_question
 from app.engine.resume_plan import select_resume_anchor_with_schedule
 from app.engine.workflow.difficulty_adapter import difficulty_to_bar_level
@@ -198,7 +199,9 @@ def _step_retrieve_strategy(state: InterviewState, ctx: dict[str, Any]) -> None:
     use_llm_selector = bool(
         getattr(settings, "enable_llm_memory_selector", False)
     )
-    recent_qa_summary = str(state.get("qa_summary") or "")
+    recent_qa_summary = str(
+        ctx.get("history_selector_summary") or state.get("qa_summary") or ""
+    )
 
     strategies = retrieve_strategies(
         dimension=ctx["dimension"],
@@ -268,7 +271,9 @@ def _step_retrieve_skills(state: InterviewState, ctx: dict[str, Any]) -> None:
     use_llm_selector = bool(
         getattr(settings, "enable_llm_memory_selector", False)
     )
-    recent_qa_summary = str(state.get("qa_summary") or "")
+    recent_qa_summary = str(
+        ctx.get("history_selector_summary") or state.get("qa_summary") or ""
+    )
     direction_tags = ctx.get("question_direction_tags")
     role_tags = ctx.get("question_role_tags")
     if direction_tags is None or role_tags is None:
@@ -879,7 +884,7 @@ def _prompt_slots_for_trace(
             None,
         ),
     ]
-    return [
+    rendered_slots = [
         _prompt_slot_for_trace(
             prompt_label=prompt_label,
             source_key=source_key,
@@ -890,6 +895,12 @@ def _prompt_slots_for_trace(
         )
         for prompt_label, source_key, text, legacy, empty_reason in slots
     ]
+    history_slots = [
+        slot
+        for slot in (ctx.get("history_prompt_slots") or [])
+        if isinstance(slot, dict)
+    ]
+    return [*history_slots, *rendered_slots]
 
 
 def _step_retrieve_candidate_anchors(
@@ -1071,6 +1082,7 @@ def _step_draft_question(state: InterviewState, ctx: dict[str, Any]) -> None:
         target_skills=ctx.get("target_skills") or [],
         probe_intent=ctx.get("probe_intent"),
         context_flags=state.get("context_flags") or {},
+        history_section_override=ctx.get("history_section"),
     )
     # ``runtime_config.iterative_contract`` is the legacy on/off switch.
     # The plan executor supersedes it, but we note it on the payload
@@ -1855,6 +1867,14 @@ def ask_question_node(state: InterviewState) -> dict[str, Any]:
         "contract": None,
         "contract_hints": contract_hints,
     }
+    history_context = build_history_context(
+        qa_history=state.get("qa_history", []),
+        current_dimension=dimension,
+    )
+    ctx["history_context"] = history_context
+    ctx["history_section"] = history_context.get("history_section", "")
+    ctx["history_selector_summary"] = history_context.get("selector_summary", "")
+    ctx["history_prompt_slots"] = history_context.get("prompt_slots", [])
     skill_focus = select_target_skills(
         job_spec=state.get("job_spec", {}),
         resume_anchor=ctx.get("resume_anchor"),
@@ -1963,6 +1983,15 @@ def ask_question_node(state: InterviewState) -> dict[str, Any]:
         "current_ask_plan": plan,
         "current_contract": contract,
         "current_skill_focus": ctx.get("skill_focus") or {},
+        "qa_summary_projection": (ctx.get("history_context") or {}).get(
+            "projection",
+            {},
+        ),
+        "qa_summary_projection_through_turn": (
+            (ctx.get("history_context") or {})
+            .get("projection", {})
+            .get("source_last_turn_idx", -1)
+        ),
         # Consume both forward-carried hints now that the plan has
         # used them. Clearing here (rather than in director_sample)
         # guarantees ``ask_question_node`` observes them for exactly
@@ -2004,6 +2033,9 @@ def ask_question_node(state: InterviewState) -> dict[str, Any]:
                     state=state,
                     runtime_config=runtime_config,
                 ),
+                "history_context": ctx.get("history_context") or {},
+                "qa_summary_projection": update.get("qa_summary_projection") or {},
+                "history_prompt_slots": ctx.get("history_prompt_slots") or [],
                 "prompt_slots": _prompt_slots_for_trace(ctx),
                 "elapsed_ms": int((time.perf_counter() - node_started_at) * 1000),
             },
