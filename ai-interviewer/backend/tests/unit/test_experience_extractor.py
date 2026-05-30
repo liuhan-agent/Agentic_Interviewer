@@ -171,3 +171,140 @@ def test_experience_extractor_counts_failed_candidates(monkeypatch) -> None:
     assert payloads[0]["saved"] == 0
     assert payloads[0]["failed"] == 1
     assert payloads[0]["candidates"] == 1
+
+
+def test_experience_extractor_trace_groups_qa_and_bandit_counts(monkeypatch) -> None:
+    monkeypatch.setattr(
+        ex,
+        "_extract_qa_patterns",
+        lambda _state, qa_history=None: [
+            {
+                "type": "score_recovery",
+                "dimension": "communication",
+                "job_level": "junior",
+                "recovery_action": "plan_hint",
+            },
+            {
+                "type": "score_decline",
+                "dimension": "communication",
+                "job_level": "junior",
+                "decline_action": "plan_simple",
+            },
+        ],
+    )
+    monkeypatch.setattr(
+        ex,
+        "_extract_bandit_insights",
+        lambda: (
+            [
+                {
+                    "type": "high_reward_arm",
+                    "context_key": "java_backend:junior:communication",
+                    "action_id": "plan_hint",
+                    "mean_reward": 0.88,
+                    "observations": 12,
+                }
+            ],
+            "posterior",
+        ),
+    )
+
+    def persist(payload):
+        signal_type = payload.get("signal_type")
+        if signal_type == "score_recovery":
+            return "saved", "qa-saved"
+        if signal_type == "score_decline":
+            return "skipped_existing", "qa-skipped"
+        return "saved", "bandit-saved"
+
+    monkeypatch.setattr(ex, "_persist_strategy_signal", persist)
+    monkeypatch.setattr(ex, "increment_session_count", lambda: None)
+
+    payloads: list[dict[str, Any]] = []
+
+    class _Tracer:
+        def trace_node_event(self, _state, *, node, payload, **_kwargs):
+            payloads.append(payload)
+
+    monkeypatch.setattr(ex, "get_tracer", lambda: _Tracer())
+
+    ex.experience_extractor_node({"session_id": "sess", "qa_history": []})  # type: ignore[arg-type]
+
+    payload = payloads[0]
+    assert payload["candidates"] == 3
+    assert payload["saved"] == 2
+    assert payload["skipped_existing"] == 1
+    assert payload["qa_candidates"] == 2
+    assert payload["qa_saved"] == 1
+    assert payload["qa_skipped_existing"] == 1
+    assert payload["qa_failed"] == 0
+    assert payload["bandit_candidates"] == 1
+    assert payload["bandit_saved"] == 1
+    assert payload["bandit_skipped_existing"] == 0
+    assert payload["bandit_failed"] == 0
+    assert payload["saved_keys"] == ["qa-saved", "bandit-saved"]
+    assert payload["skipped_keys"] == ["qa-skipped"]
+    assert payload["bandit_source"] == "posterior"
+
+
+def test_qa_pattern_hint_effective_accepts_plan_hint(monkeypatch) -> None:
+    class _Settings:
+        experience_score_spread_threshold = 3.0
+        experience_min_observations = 99
+        experience_high_reward_mean = 0.8
+        experience_low_reward_mean = 0.2
+
+    monkeypatch.setattr(ex, "get_settings", lambda: _Settings())
+
+    patterns = ex._extract_qa_patterns(  # noqa: SLF001
+        {
+            "job_spec": {"level": "junior"},
+            "qa_history": [
+                {
+                    "dimension": "communication",
+                    "selected_action": "plan_hint",
+                    "evaluation": {"score": 7.2},
+                },
+                {
+                    "dimension": "communication",
+                    "selected_action": "plan_hint",
+                    "evaluation": {"score": 7.4},
+                },
+            ],
+        }
+    )
+
+    assert patterns == [
+        {
+            "type": "hint_effective",
+            "dimension": "communication",
+            "job_level": "junior",
+            "hint_action": "plan_hint",
+            "avg_hint_score": 7.3,
+            "detail": (
+                "'plan_hint' was effective in communication "
+                "(avg score 7.3 across 2 uses)."
+            ),
+        }
+    ]
+
+
+def test_qa_hint_effective_payload_uses_plan_hint_action() -> None:
+    payload = ex._signal_payload_from_qa_pattern(  # noqa: SLF001
+        {
+            "session_id": "sess",
+            "turn_idx": 2,
+            "qa_history": [],
+        },
+        {
+            "type": "hint_effective",
+            "dimension": "communication",
+            "job_level": "junior",
+            "hint_action": "plan_hint",
+            "avg_hint_score": 7.3,
+        },
+    )
+
+    assert payload["action_id"] == "plan_hint"
+    assert payload["plan_template"] == "plan_hint"
+    assert payload["original_action_id"] == "plan_hint"

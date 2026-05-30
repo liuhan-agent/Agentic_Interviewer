@@ -40,12 +40,12 @@ This mirrors the ACO business-loop pattern with the names mapped to
 the interview domain. Every cycle goes back through ``director_sample``
 so Thompson Sampling gets a fresh draw per turn.
 
-``compress_context`` runs after ``evaluator`` on every cycle and
-compacts old QA turns into a structured per-dimension summary.  The
-generator reads the summary instead of the full history, keeping
-prompts lean for long interviews. Inspired by Claude Code's
-session-memory compaction but using deterministic aggregation rather
-than an LLM summariser.
+``compress_context`` is kept as the compatibility node name in the
+graph, but its current role is turn-finalize housekeeping: clear
+ephemeral raw-answer state and let the following conditional edge
+choose refine / next_question / end. Prompt-facing history is built
+inside ``ask_question`` by HistoryContextBuilder from the complete
+``qa_history`` source.
 """
 from __future__ import annotations
 
@@ -90,8 +90,8 @@ def _register_nodes(graph: Any) -> None:
     graph.add_node("wait_answer", wait_answer_node)
     graph.add_node("skip_question", skip_question_node)
     graph.add_node("evaluator", evaluator_node)
-    # verification runs between evaluator and compress_context so the
-    # compressed transcript reflects the post-verification evaluation.
+    # verification runs before reward/update/finalize so reward signals
+    # and route diagnostics see the post-verification evaluation.
     graph.add_node("verification", verification_node)
     graph.add_node("reward_update", reward_update_node)
     graph.add_node("compress_context", compress_context_node)

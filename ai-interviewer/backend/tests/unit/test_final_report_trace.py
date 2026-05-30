@@ -132,6 +132,30 @@ def test_completed_session_emits_final_report_node_event(
     assert payload["fallback_count"] == 0
     assert payload["evaluator_turn_count"] == 1
     assert payload["missing_sections"] == []
+    assert payload["report_summary"]["overall_score"] == payload["overall_score"]
+    assert payload["report_summary"]["growth_signal"] == payload["conclusion"]
+    assert payload["scoring_credibility"]["credibility_summary"]
+    assert payload["scoring_credibility"]["contract_summary"]
+    assert payload["scoring_credibility"]["evidence_summary"]
+    assert payload["dimension_results"] == [
+        {
+            "dimension": "system_design",
+            "score": 7.4,
+            "score_status": "scored",
+            "passed": True,
+            "coverage_status": "passed",
+            "turn_count": 1,
+        }
+    ]
+    assert payload["dimension_evidence"][0]["dimension"] == "system_design"
+    assert payload["dimension_evidence"][0]["strength_count"] == 1
+    assert payload["dimension_evidence"][0]["weakness_count"] == 0
+    assert payload["closing_chain"] == {
+        "training_plan_queued": True,
+        "experience_extractor_queued": True,
+    }
+    assert payload["workflow_artifacts"]["latest_ask_plan"] is None
+    assert payload["workflow_artifacts"]["target_skill_coverage"] == {}
 
 
 def test_cancelled_session_marks_final_status_in_payload(

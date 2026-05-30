@@ -60,6 +60,43 @@ function isRecoverableSessionAuthError(err: unknown): boolean {
   return err.message.includes("invalid session token");
 }
 
+function stableJson(value: unknown): string {
+  if (value === null || typeof value !== "object") {
+    return JSON.stringify(value) ?? "";
+  }
+  if (Array.isArray(value)) {
+    return `[${value.map(stableJson).join(",")}]`;
+  }
+  const entries = Object.entries(value as Record<string, unknown>).sort(([a], [b]) =>
+    a.localeCompare(b),
+  );
+  return `{${entries
+    .map(([key, item]) => `${JSON.stringify(key)}:${stableJson(item)}`)
+    .join(",")}}`;
+}
+
+function hashIdempotencyInput(input: string): string {
+  let left = 0x811c9dc5;
+  let right = 0x01000193 ^ input.length;
+  for (let i = 0; i < input.length; i += 1) {
+    const code = input.charCodeAt(i);
+    left = Math.imul(left ^ code, 0x01000193);
+    right = Math.imul(right ^ code, 0x85ebca6b);
+  }
+  return `${(left >>> 0).toString(36)}${(right >>> 0).toString(36)}`;
+}
+
+function answerIdempotencyKey(
+  sessionId: string,
+  turnIdx: number,
+  answer: string,
+  videoSignals?: object,
+): string {
+  return `answer:${turnIdx}:${hashIdempotencyInput(
+    `${sessionId}\n${turnIdx}\n${answer}\n${stableJson(videoSignals ?? null)}`,
+  )}`;
+}
+
 async function withSessionRecovery<T>(
   sessionId: string,
   requestFactory: () => Promise<T>,
@@ -233,11 +270,22 @@ export function submitAnswer(
   const body: AnswerRequest = { answer, turn_idx: turnIdx };
   if (videoSignals) body.video_signals = videoSignals as Record<string, unknown>;
   if (llmConfig) body.llm_config = llmConfig;
-  return request(`${BASE}/sessions/${encodeURIComponent(sessionId)}/answer`, {
-    method: "POST",
-    headers: sessionHeaders(sessionId),
-    body,
-  });
+  const idempotencyKey = answerIdempotencyKey(
+    sessionId,
+    turnIdx,
+    answer,
+    videoSignals,
+  );
+  return withSessionRecovery(sessionId, () =>
+    request(`${BASE}/sessions/${encodeURIComponent(sessionId)}/answer`, {
+      method: "POST",
+      headers: {
+        ...(sessionHeaders(sessionId) ?? {}),
+        "Idempotency-Key": idempotencyKey,
+      },
+      body,
+    }),
+  );
 }
 
 export function skipQuestion(

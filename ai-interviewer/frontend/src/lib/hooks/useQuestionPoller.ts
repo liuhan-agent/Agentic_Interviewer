@@ -298,16 +298,16 @@ export function useQuestionPoller(sessionId: string) {
           dispatch({ type: "CANCELLED" });
           return;
         }
+        dispatch({
+          type: "RESUMED",
+          question: r.question ?? null,
+          turnIdx: r.turn_idx ?? null,
+          maxTurns: r.max_turns ?? null,
+          enableVideoAnalysis: Boolean(r.enable_video_analysis),
+          previousEvaluation: r.previous_turn_evaluation ?? null,
+          history: r.history ?? [],
+        });
         if (r.question) {
-          dispatch({
-            type: "RESUMED",
-            question: r.question,
-            turnIdx: r.turn_idx ?? null,
-            maxTurns: r.max_turns ?? null,
-            enableVideoAnalysis: Boolean(r.enable_video_analysis),
-            previousEvaluation: r.previous_turn_evaluation ?? null,
-            history: r.history ?? [],
-          });
           return;
         }
         // No question ready yet; fall through into the long-poll loop.

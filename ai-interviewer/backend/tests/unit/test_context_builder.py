@@ -152,6 +152,36 @@ def test_builder_turn_idx_override() -> None:
     assert frame.turn_idx == 42
 
 
+def test_builder_uses_history_section_override() -> None:
+    """ask_question can pre-build a budgeted history block and pass it
+    through without the generator builder re-reading legacy qa_summary."""
+    with (
+        patch(
+            "app.engine.context.builder.load_prompt",
+            side_effect=_fake_load_prompt,
+        ),
+        patch(
+            "app.engine.context.builder.build_strategy_index",
+            return_value="",
+        ),
+    ):
+        frame = build_context_frame_for_generator(
+            dimension="coding",
+            action={},
+            job_spec={},
+            candidate={},
+            recent_qa=[{"q": "legacy", "a": "legacy"}],
+            retrieval_block="",
+            strategy_block="",
+            qa_summary="SHOULD_NOT_RENDER",
+            history_section_override="INTERVIEW_HISTORY_SUMMARY = custom\nRECENT_QA = []",
+        )
+
+    assert frame.payload["history_section"] == (
+        "INTERVIEW_HISTORY_SUMMARY = custom\nRECENT_QA = []"
+    )
+
+
 def test_builder_defaults_for_missing_job_spec_fields() -> None:
     """Legacy code fell back to ``"(unspecified)"`` / ``"mid"``. Keep
     that exact contract so downstream prompts don't change."""

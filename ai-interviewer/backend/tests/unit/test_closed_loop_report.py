@@ -172,15 +172,53 @@ def test_demo_summary_projects_closed_loop_fields():
 
 
 def test_training_plan_marks_report_artifact_when_attached(monkeypatch):
+    trace_events: list[dict[str, Any]] = []
+
+    class _RecordingTracer:
+        def trace_node_event(
+            self,
+            _state: dict[str, Any],
+            *,
+            node: str,
+            payload: dict[str, Any] | None = None,
+            **_kwargs: Any,
+        ) -> None:
+            trace_events.append({"node": node, "payload": dict(payload or {})})
+
     def fake_training_plan(**_kwargs):
         return {
             "source": "fallback",
             "fallback_reason": "json_parse_failed",
-            "priority_weaknesses": [{"dimension": "system_design"}],
-            "practice_plan": [],
+            "diagnosis": {
+                "overall_readiness": "有一定基础但存在明显短板",
+                "target_level_gap": "系统设计偏弱",
+                "top_patterns": ["缺少容量估算"],
+            },
+            "priority_weaknesses": [
+                {
+                    "dimension": "system_design",
+                    "focus": "容量估算",
+                    "why_it_matters": "影响方案可落地性。",
+                }
+            ],
+            "practice_plan": [
+                {
+                    "task": "完成一次限流系统设计复盘",
+                    "rationale": "补足容量估算和降级策略。",
+                    "estimated_hours": 2.0,
+                    "steps": ["列出流量假设", "设计降级策略"],
+                    "success_criteria": ["能解释容量来源"],
+                }
+            ],
+            "goals_30_60_90": {
+                "30_days": ["补齐容量估算模板"],
+                "60_days": ["完成一次模拟复盘"],
+                "90_days": ["在项目中应用"],
+            },
         }
 
     monkeypatch.setattr(tp, "build_training_plan", fake_training_plan)
+    monkeypatch.setattr(tp, "get_tracer", lambda: _RecordingTracer())
     state = {
         "status": "completed",
         "job_spec": {"title": "Senior Backend Engineer"},
@@ -210,6 +248,49 @@ def test_training_plan_marks_report_artifact_when_attached(monkeypatch):
     assert report["workflow_artifacts"]["training_plan_attached"] is True
     assert report["workflow_artifacts"]["training_plan_source"] == "fallback"
     assert report["workflow_artifacts"]["training_plan_fallback_reason"] == "json_parse_failed"
+    assert trace_events == [
+        {
+            "node": "training_plan",
+            "payload": {
+                "reason": "attached",
+                "source": "fallback",
+                "fallback_reason": "json_parse_failed",
+                "plan_summary": {
+                    "priority_weakness_count": 1,
+                    "practice_task_count": 1,
+                    "goals_count": 3,
+                    "goals_complete": True,
+                    "diagnosis_recorded": True,
+                },
+                "diagnosis": {
+                    "overall_readiness": "有一定基础但存在明显短板",
+                    "target_level_gap": "系统设计偏弱",
+                    "top_patterns": ["缺少容量估算"],
+                },
+                "priority_weaknesses": [
+                    {
+                        "dimension": "system_design",
+                        "focus": "容量估算",
+                        "why_it_matters": "影响方案可落地性。",
+                    }
+                ],
+                "practice_plan": [
+                    {
+                        "task": "完成一次限流系统设计复盘",
+                        "rationale": "补足容量估算和降级策略。",
+                        "estimated_hours": 2.0,
+                        "steps": ["列出流量假设", "设计降级策略"],
+                        "success_criteria": ["能解释容量来源"],
+                    }
+                ],
+                "goals_30_60_90": {
+                    "30_days": ["补齐容量估算模板"],
+                    "60_days": ["完成一次模拟复盘"],
+                    "90_days": ["在项目中应用"],
+                },
+            },
+        }
+    ]
 
 
 def test_training_plan_fallback_is_chinese(monkeypatch):
