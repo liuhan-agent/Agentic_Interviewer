@@ -118,7 +118,7 @@ const NODE_TYPE_FILTERS = [
   "evaluator",
   "verification",
   "reward_update",
-  "compress_context",
+  "turn_finalize",
   "route_decision",
   "final_report",
   "refine_followup",
@@ -142,7 +142,7 @@ const TRACE_NODE_WORKFLOW_ORDER = [
   "evaluator",
   "verification",
   "reward_update",
-  "compress_context",
+  "turn_finalize",
   "route_decision",
   "refine_followup",
   "skip_question",
@@ -152,7 +152,7 @@ const TRACE_NODE_WORKFLOW_ORDER = [
 ];
 
 const TRACE_NODE_ALIASES: Record<string, string> = {
-  turn_finalize: "compress_context",
+  compress_context: "turn_finalize",
 };
 
 function traceNodeCanonicalName(node: string | null | undefined): string {
@@ -169,14 +169,34 @@ function traceNodeDisplayName(
   node: string | null | undefined,
   payload?: Record<string, unknown> | null,
 ): string {
+  const semanticNode =
+    typeof payload?.semantic_node === "string" ? payload.semantic_node : null;
+  const canonical = traceNodeCanonicalName(semanticNode || node);
+  return canonical || node || "—";
+}
+
+function traceNodeDescription(
+  node: string | null | undefined,
+  payload?: Record<string, unknown> | null,
+): string {
   if (typeof payload?.display_name_zh === "string" && payload.display_name_zh.trim()) {
     return payload.display_name_zh;
   }
   const semanticNode =
     typeof payload?.semantic_node === "string" ? payload.semantic_node : null;
   const canonical = traceNodeCanonicalName(semanticNode || node);
-  if (canonical === "compress_context") return "轮次收尾";
-  return node || "—";
+  if (canonical === "turn_finalize") return "轮次收尾";
+  if (canonical === "route_decision") return "路由决策";
+  if (canonical === "refine_followup") return "下一轮准备";
+  return "";
+}
+
+function isTurnFinalizeNode(node: string | null | undefined): boolean {
+  return traceNodeCanonicalName(node) === "turn_finalize";
+}
+
+function isVirtualTraceNode(node: string | null | undefined): boolean {
+  return node === "route_decision";
 }
 
 function traceNodeRawAlias(
@@ -343,7 +363,10 @@ function TraceExplorerBody({
     });
   }, [allNodes, fallbackFilter, nodeFilter, searchText]);
 
-  const grouped = useMemo(() => groupByTurn(filteredNodes), [filteredNodes]);
+  const grouped = useMemo(
+    () => groupByTurn(filteredNodes, allNodes),
+    [allNodes, filteredNodes],
+  );
   const focusedNodeId = useMemo(
     () => pickFocusedNodeId(allNodes, focusNode, focusDimension),
     [allNodes, focusNode, focusDimension],
@@ -847,6 +870,7 @@ function TraceCommandCenter({
             <div className="flex flex-wrap gap-1.5 text-xs text-muted-foreground">
               {visibleNodeDistribution.map(([node, count]) => {
                 const alias = traceNodeRawAlias(node);
+                const description = traceNodeDescription(node);
                 return (
                   <Badge
                     key={node}
@@ -854,7 +878,14 @@ function TraceCommandCenter({
                     translate="no"
                     className="max-w-full gap-1 text-[10px]"
                   >
-                    <span className="min-w-0 truncate">{traceNodeDisplayName(node)}</span>
+                    <span className="min-w-0 truncate font-mono">
+                      {traceNodeDisplayName(node)}
+                    </span>
+                    {description && (
+                      <span className="min-w-0 truncate text-[9px] text-muted-foreground">
+                        {description}
+                      </span>
+                    )}
                     {alias && (
                       <span className="min-w-0 truncate font-mono text-[9px] text-muted-foreground">
                         {alias}
@@ -971,6 +1002,7 @@ function TraceTurnRail({
               const selected = selectedNodeId === node.id;
               const focused = focusedNodeId === node.id;
               const nodeAlias = traceNodeRawAlias(node.node, node.payload);
+              const nodeDescription = traceNodeDescription(node.node, node.payload);
               return (
                 <button
                   key={node.id}
@@ -985,13 +1017,8 @@ function TraceTurnRail({
                     focused ? "ring-1 ring-amber-400/70" : "",
                   ].join(" ")}
                 >
-                  {isSessionClosingNode(node.node) && (
-                    <Badge variant="secondary" className="mb-1 text-[9px]">
-                      收尾阶段
-                    </Badge>
-                  )}
                   <div className="flex items-center justify-between gap-2">
-                    <span className="min-w-0 truncate text-[11px] font-medium">
+                    <span className="min-w-0 truncate font-mono text-[11px] font-medium">
                       {traceNodeDisplayName(node.node, node.payload)}
                     </span>
                     {typeof node.score === "number" && (
@@ -1000,10 +1027,26 @@ function TraceTurnRail({
                       </span>
                     )}
                   </div>
-                  {nodeAlias && (
-                    <p className="mt-0.5 truncate font-mono text-[9px] text-muted-foreground">
-                      {nodeAlias}
-                    </p>
+                  {(nodeDescription ||
+                    nodeAlias ||
+                    isVirtualTraceNode(node.node) ||
+                    isSessionClosingNode(node.node)) && (
+                    <div className="mt-0.5 flex min-w-0 flex-wrap items-center gap-1 text-[9px] text-muted-foreground">
+                      {isSessionClosingNode(node.node) && (
+                        <span className="truncate">收尾阶段</span>
+                      )}
+                      {nodeDescription && (
+                        <span className="truncate">{nodeDescription}</span>
+                      )}
+                      {isVirtualTraceNode(node.node) && (
+                        <span className="rounded border border-sky-500/25 px-1 font-mono text-[8px] uppercase tracking-wide text-sky-200">
+                          route_after_eval
+                        </span>
+                      )}
+                      {nodeAlias && (
+                        <span className="truncate font-mono">{nodeAlias}</span>
+                      )}
+                    </div>
                   )}
                   <div className="mt-1 flex flex-wrap gap-1">
                     {node.dimension && !isSessionClosingNode(node.node) && (
@@ -1074,6 +1117,7 @@ function TraceNodeDetail({
   };
   const isClosingNode = isSessionClosingNode(node.node);
   const nodeAlias = traceNodeRawAlias(node.node, node.payload);
+  const nodeDescription = traceNodeDescription(node.node, node.payload);
 
   return (
     <div
@@ -1085,9 +1129,19 @@ function TraceNodeDetail({
       <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-2">
-            <Badge variant="outline" className="text-[10px]">
+            <Badge variant="outline" className="font-mono text-[10px]">
               {traceNodeDisplayName(node.node, node.payload)}
             </Badge>
+            {nodeDescription && (
+              <span className="text-[11px] text-muted-foreground">
+                {nodeDescription}
+              </span>
+            )}
+            {isVirtualTraceNode(node.node) && (
+              <Badge variant="secondary" className="font-mono text-[9px]">
+                route_after_eval
+              </Badge>
+            )}
             {nodeAlias && (
               <span className="font-mono text-[11px] text-muted-foreground">
                 {nodeAlias}
@@ -1136,7 +1190,7 @@ function TraceNodeDetail({
 
       {node.node === "reward_update" ? (
         <RewardQuestionContext value={node.question} />
-      ) : !isClosingNode && node.node !== "compress_context" ? (
+      ) : !isClosingNode && !isTurnFinalizeNode(node.node) ? (
         <TraceTextExcerpt label="问题" value={node.question} />
       ) : null}
 
@@ -1159,7 +1213,7 @@ function TraceNodeDetail({
         node.node !== "refine_followup" &&
         node.node !== "final_report" &&
         node.node !== "training_plan" &&
-        node.node !== "compress_context" &&
+        !isTurnFinalizeNode(node.node) &&
         node.node !== "reward_update" &&
         node.node !== "experience_extractor" &&
         node.answer_excerpt && (
@@ -1203,7 +1257,7 @@ function TraceNodeDetail({
 }
 
 function TurnFinalizePanel({ node }: { node: TraceExplorerNode }) {
-  if (node.node !== "compress_context") return null;
+  if (!isTurnFinalizeNode(node.node)) return null;
 
   const payload = recordFromUnknown(node.payload);
   const rawAnswerCleared =
@@ -1221,13 +1275,11 @@ function TurnFinalizePanel({ node }: { node: TraceExplorerNode }) {
         <div>
           <div className="flex flex-wrap items-center gap-2">
             <GitBranch className="h-4 w-4 text-cyan-300" />
-            <p className="font-medium text-cyan-100">轮次收尾</p>
+            <p className="font-mono font-medium text-cyan-100">turn_finalize</p>
+            <span className="text-xs text-muted-foreground">轮次收尾</span>
             <Badge variant="outline" className="font-mono text-[10px]">
-              workflow node
+              real workflow node
             </Badge>
-            <span className="font-mono text-[11px] text-muted-foreground">
-              node: compress_context
-            </span>
           </div>
           <p className="mt-2 max-w-3xl text-xs leading-relaxed text-muted-foreground">
             本节点发生在 reward_update 后、route_decision 前；负责清理本轮临时状态，不再维护历史摘要。
@@ -1284,9 +1336,9 @@ function TurnFinalizePanel({ node }: { node: TraceExplorerNode }) {
             <NodeFact label="下一步 next_step" value={nextStep} />
             <NodeFact
               label="节点位置"
-              value="reward_update -> compress_context -> route_decision"
+              value="reward_update -> turn_finalize -> route_decision"
             />
-            <NodeFact label="决策责任" value="由 route_decision 执行" />
+            <NodeFact label="决策责任" value="由 route_after_eval 条件边执行" />
           </div>
         </div>
       </div>
@@ -1318,10 +1370,15 @@ function RouteDecisionPanel({ node }: { node: TraceExplorerNode }) {
         <div>
           <div className="flex items-center gap-2">
             <GitBranch className="h-3.5 w-3.5 text-sky-300" />
-            <p className="font-medium text-sky-100">路由决策</p>
+            <p className="font-mono font-medium text-sky-100">route_decision</p>
+            <span className="text-[11px] text-muted-foreground">路由决策</span>
+            <Badge variant="outline" className="font-mono text-[9px]">
+              route_after_eval
+            </Badge>
+            <span className="text-[11px] text-muted-foreground">条件边诊断</span>
           </div>
           <p className="mt-1 max-w-3xl text-[11px] text-muted-foreground">
-            这条记录说明条件边如何决定本轮之后继续追问、进入下一题或结束面试；评分细节请看同一 Turn 的 evaluator / verification。
+            这条记录不是真实 workflow node，而是 turn_finalize 后的 route_after_eval 条件边诊断；它诊断出 refine / next_question / end，并把 workflow 路由到对应的真实节点。评分细节请看同一 Turn 的 evaluator / verification。
           </p>
         </div>
         <Badge variant={routeDecisionBadgeVariant(decision)} className="text-[10px]">
@@ -2700,7 +2757,7 @@ function EvaluationEvidence({ node }: { node: TraceExplorerNode }) {
     node.node === "refine_followup" ||
     node.node === "final_report" ||
     node.node === "training_plan" ||
-    node.node === "compress_context" ||
+    isTurnFinalizeNode(node.node) ||
     node.node === "reward_update" ||
     node.node === "experience_extractor"
   ) {
@@ -2987,6 +3044,7 @@ function AskQuestionEvidencePanelV2({ node }: { node: TraceExplorerNode }) {
   const askPlan = recordFromUnknown(payload.ask_plan);
   const planSteps = recordArray(askPlan.steps);
   const resolutionInputs = recordFromUnknown(askPlan.resolution_inputs);
+  const promptBudgetDiagnostics = recordFromUnknown(payload.prompt_budget_diagnostics);
   const promptSlots = recordArray(payload.prompt_slots);
   const promptSlotByLabel = (label: string) =>
     promptSlots.find((slot) => stringValue(slot.prompt_label) === label) ?? null;
@@ -3429,7 +3487,29 @@ function AskQuestionEvidencePanelV2({ node }: { node: TraceExplorerNode }) {
             帮助 Generator 将结构化问法贴合候选人的项目、技能和 JD 要求。
           </p>
           <div className="grid gap-2 md:grid-cols-2">
+            <NodeFact
+              label="适配层"
+              value={stringValue(candidateAnchor.prompt_role) || "candidate_adaptation"}
+            />
+            <NodeFact
+              label="目标维度"
+              value={
+                stringValue(candidateAnchor.target_dimension) ||
+                stringValue(questionFitProfile.dimension) ||
+                node.dimension ||
+                stringValue(payload.dimension) ||
+                "—"
+              }
+            />
+            <NodeFact
+              label="题库绑定"
+              value={stringValue(candidateAnchor.seed_binding) || "rank 1"}
+            />
             <NodeFact label="项目锚点" value={anchorLabel} />
+            <NodeFact
+              label="项目来源"
+              value={stringValue(candidateAnchor.project_anchor_source) || "—"}
+            />
             <NodeFact label="命中项目" value={hitProjectLabel} />
             <NodeFact
               label="锚点选择原因"
@@ -3495,11 +3575,11 @@ function AskQuestionEvidencePanelV2({ node }: { node: TraceExplorerNode }) {
             />
             <NodeFact
               label="兜底原因 fallback_reason"
-              value={stringValue(candidateAnchorRag.fallback_reason) || "—"}
+              value={formatCandidateAnchorFallbackReason(candidateAnchorRag.fallback_reason)}
             />
             <NodeFact
               label="Boost 兜底 boost_fallback_reason"
-              value={stringValue(candidateAnchorRag.boost_fallback_reason) || "—"}
+              value={formatCandidateAnchorFallbackReason(candidateAnchorRag.boost_fallback_reason)}
             />
           </div>
           <div className="mt-2 grid gap-2 md:grid-cols-2">
@@ -3568,6 +3648,7 @@ function AskQuestionEvidencePanelV2({ node }: { node: TraceExplorerNode }) {
           summary={`${orderedPromptSlots.length} prompt slots · ${promptSlots.length} recorded`}
           emptyText="这条旧 trace 没有记录 prompt_slots。"
         >
+          <PromptBudgetDiagnosticsPanel diagnostics={promptBudgetDiagnostics} />
           <p className="mb-2 text-[11px] leading-relaxed text-muted-foreground">
             按 Generator 最终接收的槽位展示；前面的版块解释“怎么选出来”，这里说明
             每个槽位是否注入以及注入了什么文本。
@@ -4083,6 +4164,7 @@ function CandidateAnchorRagDiagnostics({
   candidateAnchorRag: Record<string, unknown>;
   anchorScheduler: Record<string, unknown>;
 }) {
+  const bindValidation = recordFromUnknown(candidateAnchorRag.bind_validation);
   return (
     <details className="mt-3 rounded-md border bg-background/45 p-2 text-[11px]">
       <summary className="cursor-pointer select-none font-medium text-muted-foreground">
@@ -4117,6 +4199,58 @@ function CandidateAnchorRagDiagnostics({
           label="注入来源计数"
           value={formatKeyValueRecord(candidateAnchorRag.prompt_source_counts)}
         />
+        <NodeFact
+          label="fetched_rows_by_source"
+          value={formatKeyValueRecord(candidateAnchorRag.fetched_rows_by_source)}
+        />
+        <NodeFact
+          label="scored_rows_by_source"
+          value={formatKeyValueRecord(candidateAnchorRag.scored_rows_by_source)}
+        />
+        <NodeFact
+          label="kept_hits_by_source"
+          value={formatKeyValueRecord(candidateAnchorRag.kept_hits_by_source)}
+        />
+        <NodeFact
+          label="bind_validation.fallback_reason"
+          value={formatCandidateAnchorFallbackReason(bindValidation.fallback_reason)}
+        />
+        <NodeFact
+          label="bind_validation.bound_count"
+          value={formatCountValue(bindValidation.bound_count)}
+        />
+        <NodeFact
+          label="bind_validation.resume_bound_count"
+          value={formatCountValue(bindValidation.resume_bound_count)}
+        />
+        <NodeFact
+          label="bind_validation.self_intro_bound_count"
+          value={formatCountValue(bindValidation.self_intro_bound_count)}
+        />
+        <NodeFact
+          label="bind_validation.rebind_attempted"
+          value={formatBooleanValue(bindValidation.rebind_attempted)}
+        />
+        <NodeFact
+          label="bind_validation.rebind_success"
+          value={formatBooleanValue(bindValidation.rebind_success)}
+        />
+        <NodeFact
+          label="bind_validation.resume_revision_id"
+          value={stringValue(bindValidation.resume_revision_id) || "—"}
+        />
+        <NodeFact
+          label="bind_validation.self_intro_revision_id"
+          value={stringValue(bindValidation.self_intro_revision_id) || "—"}
+        />
+        <NodeFact
+          label="bind_validation.embedding_model_version"
+          value={stringValue(bindValidation.embedding_model_version) || "—"}
+        />
+        <NodeFact
+          label="bind_validation.source_cache_key"
+          value={stringValue(bindValidation.source_cache_key) || "—"}
+        />
         <NodeFact label="完整检索文本" value={stringValue(candidateAnchorRag.query_text) || "—"} />
         <NodeFact
           label="锚点检索文本"
@@ -4132,6 +4266,81 @@ function CandidateAnchorRagDiagnostics({
         />
       </div>
     </details>
+  );
+}
+
+function PromptBudgetDiagnosticsPanel({
+  diagnostics,
+}: {
+  diagnostics: Record<string, unknown>;
+}) {
+  if (Object.keys(diagnostics).length === 0) return null;
+  const protectedSlots = recordArray(diagnostics.protected_slots);
+  const fallbackUsed = diagnostics.fallback_used === true;
+  const budgetLevel = stringValue(diagnostics.budget_level) || "-";
+  const provider = stringValue(diagnostics.provider) || "-";
+  const model = stringValue(diagnostics.model) || "-";
+  return (
+    <div className="mb-3 rounded-md bg-background/45 p-3">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div>
+          <p className="font-medium">Prompt 预算诊断</p>
+          <p className="mt-0.5 font-mono text-[10px] text-muted-foreground">
+            prompt_budget_diagnostics · {budgetLevel}
+          </p>
+        </div>
+        <Badge variant={fallbackUsed ? "warn" : "outline"} className="text-[10px]">
+          {fallbackUsed ? "fallback" : "estimated"}
+        </Badge>
+      </div>
+      <p className="mt-2 text-[11px] leading-relaxed text-muted-foreground">
+        只为弹性辅助材料分配运行时预算：StrategyMemory 与 Skills 会根据模型窗口和非弹性槽位占用选择裁剪档位。
+      </p>
+      <div className="mt-2 grid gap-2 md:grid-cols-2 lg:grid-cols-4">
+        <NodeFact label="模型路由" value={`${provider} / ${model}`} />
+        <NodeFact label="预算档位 budget_level" value={budgetLevel} />
+        <NodeFact
+          label="上下文窗口"
+          value={formatCountValue(diagnostics.context_window_tokens)}
+        />
+        <NodeFact
+          label="非弹性槽位字符"
+          value={formatCountValue(diagnostics.protected_slot_chars)}
+        />
+        <NodeFact
+          label="弹性剩余字符"
+          value={formatCountValue(diagnostics.elastic_available_chars)}
+        />
+        <NodeFact
+          label="Strategy 预算"
+          value={formatCountValue(diagnostics.strategy_budget_chars)}
+        />
+        <NodeFact
+          label="Skill 预算"
+          value={formatCountValue(diagnostics.skill_budget_chars)}
+        />
+        <NodeFact
+          label="回退原因 fallback_reason"
+          value={stringValue(diagnostics.fallback_reason) || "-"}
+        />
+      </div>
+      {protectedSlots.length > 0 && (
+        <details className="mt-2 text-[11px]">
+          <summary className="cursor-pointer select-none font-medium text-muted-foreground">
+            展开 protected_slots
+          </summary>
+          <div className="mt-2 grid gap-2 md:grid-cols-2 lg:grid-cols-4">
+            {protectedSlots.map((slot, index) => (
+              <NodeFact
+                key={`${stringValue(slot.prompt_label) || index}`}
+                label={stringValue(slot.prompt_label) || `slot ${index + 1}`}
+                value={`${formatCountValue(slot.chars)} chars`}
+              />
+            ))}
+          </div>
+        </details>
+      )}
+    </div>
   );
 }
 
@@ -4151,6 +4360,13 @@ function PromptSlotCard({
   const status = !recorded ? "未记录" : slot?.injected === true ? "已注入" : "未注入";
   const sourceKey = stringValue(slot?.source_key) || definition.sourceKey;
   const emptyReason = stringValue(slot?.empty_reason);
+  const hasExplicitPromptTruncation = typeof slot?.prompt_truncated === "boolean";
+  const promptTruncated = hasExplicitPromptTruncation
+    ? slot?.prompt_truncated === true
+    : slot?.truncated === true;
+  const traceTextTruncated = slot?.trace_text_truncated === true;
+  const runtimeTruncated = slot?.runtime_truncated === true;
+  const runtimeItems = recordArray(slot?.runtime_items);
   return (
     <div className="rounded-md border bg-background/45 p-3">
       <div className="flex flex-wrap items-start justify-between gap-2">
@@ -4167,9 +4383,19 @@ function PromptSlotCard({
           >
             {status}
           </Badge>
-          {slot?.truncated === true && (
+          {promptTruncated && (
             <Badge variant="warn" className="text-[10px]">
-              截断
+              Prompt 截断
+            </Badge>
+          )}
+          {runtimeTruncated && (
+            <Badge variant="warn" className="text-[10px]">
+              运行时裁剪
+            </Badge>
+          )}
+          {traceTextTruncated && (
+            <Badge variant="outline" className="text-[10px]">
+              Trace 文本截断
             </Badge>
           )}
         </div>
@@ -4177,10 +4403,49 @@ function PromptSlotCard({
       <p className="mt-2 text-[11px] leading-relaxed text-muted-foreground">
         {definition.description}
       </p>
-      <div className="mt-2 grid gap-2 md:grid-cols-4">
+      <div className="mt-2 grid gap-2 md:grid-cols-2 lg:grid-cols-4">
         <NodeFact label="来源字段" value={sourceKey} />
         <NodeFact label="字符数" value={recorded ? formatCountValue(slot?.chars) : "—"} />
-        <NodeFact label="已截断" value={recorded ? formatBooleanValue(slot?.truncated) : "—"} />
+        <NodeFact
+          label="Prompt 预算截断"
+          value={recorded ? formatBooleanValue(promptTruncated) : "—"}
+        />
+        <NodeFact
+          label="Trace 文本截断"
+          value={recorded ? formatBooleanValue(traceTextTruncated) : "—"}
+        />
+        <NodeFact
+          label="运行时裁剪"
+          value={recorded ? formatBooleanValue(runtimeTruncated) : "—"}
+        />
+        <NodeFact
+          label="运行时预算"
+          value={recorded ? formatCountValue(slot?.runtime_budget_chars) : "—"}
+        />
+        <NodeFact
+          label="预算档位 budget_level"
+          value={recorded ? stringValue(slot?.runtime_budget_level) || "—" : "—"}
+        />
+        <NodeFact
+          label="预算来源 budget_source"
+          value={recorded ? stringValue(slot?.runtime_budget_source) || "—" : "—"}
+        />
+        <NodeFact
+          label="预算压力 global_budget_pressure"
+          value={
+            recorded
+              ? stringValue(slot?.runtime_global_budget_pressure) || "—"
+              : "—"
+          }
+        />
+        <NodeFact
+          label="运行时原始字符"
+          value={recorded ? formatCountValue(slot?.runtime_original_chars) : "—"}
+        />
+        <NodeFact
+          label="运行时注入字符"
+          value={recorded ? formatCountValue(slot?.runtime_injected_chars) : "—"}
+        />
         <NodeFact label="空原因" value={emptyReason || "—"} />
       </div>
       {text ? (
@@ -4204,7 +4469,104 @@ function PromptSlotCard({
           {recorded ? "本槽位未注入文本。" : "旧 trace 未记录这个 prompt slot。"}
         </p>
       )}
+      {runtimeItems.length > 0 && <PromptRuntimeItemsDetails items={runtimeItems} />}
     </div>
+  );
+}
+
+const PROMPT_RUNTIME_TRUNCATION_REASON_LABELS: Record<string, string> = {
+  field_char_limit: "字段字符限制",
+  field_item_limit: "字段数量限制",
+  body_budget_exceeded: "正文预算不足",
+  slot_budget_omitted_body: "槽位预算省略正文",
+};
+
+function promptRuntimeTruncationReasonLabel(value: unknown): string {
+  const code = stringValue(value);
+  if (!code) return "—";
+  const label = PROMPT_RUNTIME_TRUNCATION_REASON_LABELS[code];
+  return label ? `${label} · ${code}` : code;
+}
+
+function PromptRuntimeItemsDetails({
+  items,
+}: {
+  items: Record<string, unknown>[];
+}) {
+  return (
+    <details className="mt-2 rounded-md border bg-background/50 p-2 text-[11px]">
+      <summary className="cursor-pointer select-none font-medium text-muted-foreground">
+        展开运行时裁剪明细
+      </summary>
+      <div className="mt-2 space-y-2">
+        {items.map((item, idx) => {
+          const name =
+            stringValue(item.name) ||
+            stringValue(item.project_name) ||
+            stringValue(item.heading) ||
+            stringValue(item.source_type);
+          const id =
+            stringValue(item.id) ||
+            stringValue(item.skill_id) ||
+            stringValue(item.chunk_index);
+          return (
+            <div key={`${id || idx}`} className="rounded-md border bg-background/60 p-2">
+              <div className="mb-2 flex flex-wrap items-center gap-1.5">
+                <Badge variant="outline" className="text-[10px]">
+                  rank {formatCountValue(item.rank)}
+                </Badge>
+                {item.runtime_truncated === true && (
+                  <Badge variant="warn" className="text-[10px]">
+                    运行时裁剪
+                  </Badge>
+                )}
+              </div>
+              <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+                <NodeFact label="名称" value={name || "—"} />
+                <NodeFact label="ID" value={id || "—"} />
+                <NodeFact label="字段" value={stringValue(item.field) || "—"} />
+                <NodeFact
+                  label="限制类型"
+                  value={stringValue(item.limit_type) || "—"}
+                />
+                <NodeFact
+                  label="限制值"
+                  value={formatCountValue(item.limit)}
+                />
+                <NodeFact label="来源类型" value={stringValue(item.source_type) || "—"} />
+                <NodeFact label="项目" value={stringValue(item.project_name) || "—"} />
+                <NodeFact label="标题" value={stringValue(item.heading) || "—"} />
+                <NodeFact
+                  label="Chunk"
+                  value={formatCountValue(item.chunk_index)}
+                />
+                <NodeFact label="匹配分" value={formatScore(item.score)} />
+                <NodeFact
+                  label="Body 预算"
+                  value={formatCountValue(item.body_budget_chars)}
+                />
+                <NodeFact
+                  label="原始 Body 字符"
+                  value={formatCountValue(item.original_body_chars)}
+                />
+                <NodeFact
+                  label="注入 Body 字符"
+                  value={formatCountValue(item.injected_body_chars)}
+                />
+                <NodeFact
+                  label="是否裁剪"
+                  value={formatBooleanValue(item.runtime_truncated)}
+                />
+                <NodeFact
+                  label="原因码"
+                  value={promptRuntimeTruncationReasonLabel(item.truncation_reason)}
+                />
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </details>
   );
 }
 
@@ -4947,6 +5309,26 @@ function localizeAnchorExpansionReason(value: unknown): string {
   return labels[reason] || reason || "—";
 }
 
+function formatCandidateAnchorFallbackReason(value: unknown): string {
+  const reason = stringValue(value);
+  if (!reason) return "—";
+  const labels: Record<string, string> = {
+    timeout: "embedding or retrieval timeout",
+    query_embedding_timeout: "query embedding timeout",
+    no_bound_chunks: "no session anchor chunks",
+    session_anchor_bind_missing: "cache hit but session chunks missing",
+    embedding_model_version_missing: "embedding model version missing",
+    not_ready: "anchor material not ready",
+    low_score: "below score threshold",
+    empty: "empty retrieval result",
+    skipped: "retrieval skipped",
+    sampled_out: "sampled out",
+    error: "retrieval error",
+  };
+  const label = labels[reason];
+  return label ? `${reason} (${label})` : reason;
+}
+
 function strategyMemoryTraceKey(strategy: Record<string, unknown>): string {
   return (
     stringValue(strategy.memory_key) ||
@@ -5687,6 +6069,9 @@ function verificationChangeSearchFields(
   const fields: string[] = [];
   const add = (value: unknown) => {
     if (typeof value === "string" && value.trim()) fields.push(value);
+    else if (typeof value === "number" || typeof value === "boolean") {
+      fields.push(formatDiagnosticScalar(value));
+    }
   };
 
   add(record.verification_effect);
@@ -5707,6 +6092,9 @@ function evaluatorScoringSearchFields(
   const fields: string[] = [];
   const add = (value: unknown) => {
     if (typeof value === "string" && value.trim()) fields.push(value);
+    else if (typeof value === "number" || typeof value === "boolean") {
+      fields.push(formatDiagnosticScalar(value));
+    }
   };
   const addList = (value: unknown) => {
     for (const item of stringList(value)) fields.push(item);
@@ -6002,6 +6390,9 @@ function askQuestionSearchFields(
   const fields: string[] = [];
   const add = (value: unknown) => {
     if (typeof value === "string" && value.trim()) fields.push(value);
+    else if (typeof value === "number" || typeof value === "boolean") {
+      fields.push(formatDiagnosticScalar(value));
+    }
   };
   const addList = (value: unknown) => {
     for (const item of stringList(value)) fields.push(item);
@@ -6027,11 +6418,38 @@ function askQuestionSearchFields(
   addList(record.signed_by);
   addRecord(record.history_context);
   addRecord(record.qa_summary_projection);
+  addRecord(record.prompt_budget_diagnostics);
+  const promptBudgetDiagnostics = recordFromUnknown(record.prompt_budget_diagnostics);
+  for (const slot of recordArray(promptBudgetDiagnostics.protected_slots)) {
+    add(slot.prompt_label);
+    add(slot.chars);
+    add(slot.injected);
+  }
   for (const slot of recordArray(record.history_prompt_slots)) {
     add(slot.prompt_label);
     add(slot.source_key);
     add(slot.empty_reason);
+    add(slot.runtime_budget_level);
+    add(slot.runtime_budget_source);
+    add(slot.runtime_global_budget_pressure);
     add(slot.text);
+    for (const item of recordArray(slot.runtime_items)) {
+      // prompt slot runtime item
+      add(item.id);
+      add(item.skill_id);
+      add(item.name);
+      add(item.source_type);
+      add(item.project_name);
+      add(item.heading);
+      add(item.chunk_index);
+      add(item.score);
+      add(item.field);
+      add(item.limit_type);
+      add(item.limit);
+      add(item.original_count);
+      add(item.injected_count);
+      add(item.truncation_reason);
+    }
   }
 
   const contract = recordFromUnknown(record.contract);
@@ -6078,7 +6496,27 @@ function askQuestionSearchFields(
     add(slot.prompt_label);
     add(slot.source_key);
     add(slot.empty_reason);
+    add(slot.runtime_budget_level);
+    add(slot.runtime_budget_source);
+    add(slot.runtime_global_budget_pressure);
     add(slot.text);
+    for (const item of recordArray(slot.runtime_items)) {
+      // prompt slot runtime item
+      add(item.id);
+      add(item.skill_id);
+      add(item.name);
+      add(item.source_type);
+      add(item.project_name);
+      add(item.heading);
+      add(item.chunk_index);
+      add(item.score);
+      add(item.field);
+      add(item.limit_type);
+      add(item.limit);
+      add(item.original_count);
+      add(item.injected_count);
+      add(item.truncation_reason);
+    }
   }
 
   for (const ref of recordArray(recordFromUnknown(artifacts.rag).doc_refs)) {
@@ -6160,6 +6598,11 @@ function askQuestionSearchFields(
   const candidateAnchor = recordFromUnknown(artifacts.candidate_anchor);
   add(candidateAnchor.matched_project);
   add(candidateAnchor.project_name);
+  add(candidateAnchor.prompt_role);
+  add(candidateAnchor.target_dimension);
+  add(candidateAnchor.turn_intent);
+  add(candidateAnchor.seed_binding);
+  add(candidateAnchor.project_anchor_source);
   add(candidateAnchor.variant_id);
 
   const candidateAnchorRag = recordFromUnknown(artifacts.candidate_anchor_rag);
@@ -6167,10 +6610,25 @@ function askQuestionSearchFields(
   add(candidateAnchorRag.status);
   add(candidateAnchorRag.fallback_reason);
   add(candidateAnchorRag.boost_fallback_reason);
+  const bindValidation = recordFromUnknown(candidateAnchorRag.bind_validation);
+  add("bind_validation");
+  add(bindValidation.fallback_reason);
+  add(bindValidation.resume_revision_id);
+  add(bindValidation.self_intro_revision_id);
+  add(bindValidation.embedding_model_version);
+  add(bindValidation.source_cache_key);
+  add(bindValidation.bound_count);
+  add(bindValidation.resume_bound_count);
+  add(bindValidation.self_intro_bound_count);
+  add(bindValidation.rebind_attempted);
+  add(bindValidation.rebind_success);
   addList(candidateAnchorRag.prompt_block_sources);
   addList(candidateAnchorRag.anchor_terms);
   addList(candidateAnchorRag.boost_terms);
   addList(candidateAnchorRag.constraint_terms);
+  addRecord(candidateAnchorRag.fetched_rows_by_source);
+  addRecord(candidateAnchorRag.scored_rows_by_source);
+  addRecord(candidateAnchorRag.kept_hits_by_source);
   add(candidateAnchorRag.query_text);
   add(candidateAnchorRag.anchor_query_text);
   add(candidateAnchorRag.boost_query_text);
@@ -6219,17 +6677,70 @@ function isSessionClosingNode(nodeName: string): boolean {
   return SESSION_CLOSING_NODES.has(nodeName);
 }
 
-function effectiveTraceTurnKey(node: TraceExplorerNode): TraceTurnGroupKey {
+function isAskRoundStartNode(node: TraceExplorerNode): boolean {
+  const canonical = traceNodeCanonicalName(node.node);
+  return canonical === "director_sample" || canonical === "ask_question";
+}
+
+function shouldGroupRefineFollowupWithNextTurn(
+  node: TraceExplorerNode,
+  contextNodes: TraceExplorerNode[],
+): boolean {
+  if (traceNodeCanonicalName(node.node) !== "refine_followup") return false;
+  if (typeof node.turn_idx !== "number") return false;
+  const turnIdx = node.turn_idx;
+
+  const sameTurnHasQuestionStart = contextNodes.some(
+    (candidate) =>
+      candidate.id !== node.id &&
+      candidate.turn_idx === turnIdx &&
+      isAskRoundStartNode(candidate),
+  );
+  if (sameTurnHasQuestionStart) return false;
+
+  // Old traces can stamp refine_followup with the completed answer turn.
+  // Visually group it with the next ask round because it prepares the
+  // pending hints consumed by director_sample / ask_question.
+  const nextTurnHasQuestionStart = contextNodes.some(
+    (candidate) =>
+      candidate.turn_idx === turnIdx + 1 &&
+      isAskRoundStartNode(candidate),
+  );
+  return nextTurnHasQuestionStart;
+}
+
+function effectiveTraceTurnKey(
+  node: TraceExplorerNode,
+  contextNodes: TraceExplorerNode[] = [],
+): TraceTurnGroupKey {
   if (isSessionClosingNode(node.node)) return "closing";
-  if (node.node === "compress_context" && typeof node.turn_idx === "number") {
+  if (shouldGroupRefineFollowupWithNextTurn(node, contextNodes)) {
+    return typeof node.turn_idx === "number" ? node.turn_idx + 1 : "session";
+  }
+  if (isTurnFinalizeNode(node.node) && typeof node.turn_idx === "number") {
     const payload = recordFromUnknown(node.payload);
     if (payload.phase !== "turn_finalize") return Math.max(0, node.turn_idx - 1);
   }
   return typeof node.turn_idx === "number" ? node.turn_idx : "session";
 }
 
-function traceNodeWorkflowOrder(node: TraceExplorerNode): number {
-  const index = TRACE_NODE_WORKFLOW_ORDER.indexOf(node.node);
+function traceNodeWorkflowOrder(
+  node: TraceExplorerNode,
+  groupNodes: TraceExplorerNode[] = [],
+): number {
+  const canonical = traceNodeCanonicalName(node.node);
+  if (
+    canonical === "refine_followup" &&
+    groupNodes.some(
+      (candidate) =>
+        candidate.id !== node.id &&
+        (traceNodeCanonicalName(candidate.node) === "director_sample" ||
+          traceNodeCanonicalName(candidate.node) === "ask_question"),
+    )
+  ) {
+    return TRACE_NODE_WORKFLOW_ORDER.indexOf("director_sample") - 0.5;
+  }
+  const index = TRACE_NODE_WORKFLOW_ORDER.indexOf(canonical);
   return index >= 0 ? index : TRACE_NODE_WORKFLOW_ORDER.length;
 }
 
@@ -6247,10 +6758,13 @@ function traceTurnGroupSortKey(key: TraceTurnGroupKey): number {
 
 // Defensive ordering: normalize nodes whose stored turn does not match
 // workflow meaning, then sort by numeric turn and workflow node order.
-function groupByTurn(nodes: TraceExplorerNode[]) {
+function groupByTurn(
+  nodes: TraceExplorerNode[],
+  turnContextNodes: TraceExplorerNode[] = nodes,
+) {
   const buckets = new Map<TraceTurnGroupKey, TraceExplorerNode[]>();
   for (const node of nodes) {
-    const key = effectiveTraceTurnKey(node);
+    const key = effectiveTraceTurnKey(node, turnContextNodes);
     const bucket = buckets.get(key);
     if (bucket) {
       bucket.push(node);
@@ -6262,7 +6776,8 @@ function groupByTurn(nodes: TraceExplorerNode[]) {
     label: traceTurnGroupLabel(key),
     sortKey: traceTurnGroupSortKey(key),
     nodes: [...items].sort((a, b) => {
-      const orderDelta = traceNodeWorkflowOrder(a) - traceNodeWorkflowOrder(b);
+      const orderDelta =
+        traceNodeWorkflowOrder(a, items) - traceNodeWorkflowOrder(b, items);
       if (orderDelta !== 0) return orderDelta;
       return a.id - b.id;
     }),

@@ -80,9 +80,84 @@ def test_history_context_projects_older_turns_and_keeps_recent_prompt_view() -> 
     assert "gap 3" in result["selector_summary"]
 
 
+def test_history_context_uses_thin_index_for_short_history() -> None:
+    qa_history = [
+        _turn(0, "system_design", score=6.0),
+        _turn(1, "technical_depth", score=7.0),
+    ]
+
+    result = build_history_context(
+        qa_history=qa_history,
+        current_dimension="technical_depth",
+    )
+
+    summary_slot = result["prompt_slots"][0]
+    summary = summary_slot["value"]
+    recent_turns = result["prompt_slots"][1]["value"]
+
+    assert summary["mode"] == "coverage_index"
+    assert [turn["turn_idx"] for turn in recent_turns] == [0, 1]
+    by_dim = {item["dimension"]: item for item in summary["dimensions"]}
+    technical = by_dim["technical_depth"]
+    assert technical["turns"] == 1
+    assert technical["latest_score"] == 7.0
+    assert technical["open_gap_count"] == 1
+    assert "open_gaps" not in technical
+    assert "last_question" not in technical
+    assert "resume_anchor" not in technical
+    assert "target_skills" not in technical
+    assert "Question 1 for technical_depth?" in result["history_section"]
+    assert "gap 1" in result["selector_summary"]
+
+
+def test_history_context_current_gaps_live_in_dedicated_slot_only() -> None:
+    qa_history = [
+        _turn(0, "system_design", score=6.0),
+        _turn(1, "system_design", score=7.0),
+        _turn(2, "communication", score=8.0),
+        _turn(3, "technical_depth", score=7.8),
+    ]
+
+    result = build_history_context(
+        qa_history=qa_history,
+        current_dimension="system_design",
+    )
+
+    summary_slot = result["prompt_slots"][0]
+    gaps_slot = result["prompt_slots"][2]
+    summary = summary_slot["value"]
+
+    assert "current_gaps" not in summary
+    assert summary["current_gap_count"] == len(gaps_slot["value"])
+    assert "system_design" in summary["current_gap_dimensions"]
+    assert gaps_slot["prompt_label"] == "CURRENT_GAPS"
+    assert gaps_slot["value"] == ["gap 1", "gap 0"]
+    for dimension in summary["dimensions"]:
+        assert "open_gaps" not in dimension
+
+
+def test_history_context_keeps_recent_questions_full_before_budget_pressure() -> None:
+    long_question = "请详细说明这个复杂链路中的缓存一致性、消息重试和降级恢复。" * 30
+    qa_history = [_turn(i, "technical_depth", answer=f"answer {i}") for i in range(4)]
+    qa_history[-1]["question"] = long_question
+
+    result = build_history_context(
+        qa_history=qa_history,
+        current_dimension="technical_depth",
+        history_budget_chars=8000,
+        recent_question_limit_chars=80,
+    )
+
+    recent_turn = result["prompt_slots"][1]["value"][-1]
+    assert recent_turn["question"] == long_question
+    assert recent_turn["question_truncated"] is False
+    assert result["prompt_slots"][1]["prompt_truncated"] is False
+
+
 def test_history_context_truncates_prompt_view_without_mutating_source() -> None:
     long_answer = "answer-" * 600
     qa_history = [_turn(i, "technical_depth", answer=long_answer) for i in range(4)]
+    qa_history[-1]["question"] = "Question requiring careful cache recovery reasoning. " * 20
     original = deepcopy(qa_history)
 
     result = build_history_context(
@@ -96,7 +171,10 @@ def test_history_context_truncates_prompt_view_without_mutating_source() -> None
     assert qa_history == original
     recent_slot = result["prompt_slots"][1]
     assert recent_slot["truncated"] is True
+    assert recent_slot["prompt_truncated"] is True
+    assert recent_slot["trace_text_truncated"] is False
     assert any(turn["answer_truncated"] for turn in recent_slot["value"])
+    assert any(turn["question_truncated"] for turn in recent_slot["value"])
     assert len(result["history_section"]) <= 900
 
 
@@ -136,10 +214,12 @@ def test_history_context_compacts_projection_when_summary_exceeds_budget() -> No
     assert len(result["history_section"]) <= 1600
     assert result["stats"]["projection_compacted"] is True
     assert result["prompt_slots"][0]["truncated"] is True
+    assert result["prompt_slots"][0]["prompt_truncated"] is True
+    assert result["prompt_slots"][0]["trace_text_truncated"] is False
     assert "description" not in result["history_section"]
 
 
-def test_history_context_preserves_three_recent_turns_when_compacting_projection_is_enough() -> None:
+def test_history_context_preserves_three_recent_turns_when_projection_index_is_enough() -> None:
     qa_history = []
     for idx in range(10):
         turn = _turn(
@@ -167,7 +247,7 @@ def test_history_context_preserves_three_recent_turns_when_compacting_projection
     )
 
     assert len(result["history_section"]) <= 3600
-    assert result["stats"]["projection_compacted"] is True
+    assert result["stats"]["projection_compacted"] is False
     assert result["stats"]["recent_turn_count"] == 3
     assert [turn["turn_idx"] for turn in result["recent_qa_prompt_view"]] == [7, 8, 9]
 

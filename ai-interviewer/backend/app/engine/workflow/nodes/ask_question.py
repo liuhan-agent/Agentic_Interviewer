@@ -23,9 +23,12 @@ so both old and new readers can find it.
 from __future__ import annotations
 
 import hashlib
+import json
 import re
 import time
 from typing import Any
+
+from sqlalchemy import func, or_, select
 
 from app.core.logging import get_logger
 from app.core.metrics import record_question_fallback
@@ -35,6 +38,11 @@ from app.engine.agents.contract import negotiate_contract_via_evaluator
 from app.engine.agents.generator import generate_question
 from app.engine.agents.security import check_question
 from app.engine.context.history_context import build_history_context
+from app.engine.context.prompt_budget import (
+    estimate_auxiliary_prompt_budget,
+    rank_body_budgets,
+    resolve_generator_model_route,
+)
 from app.engine.rag.retriever import retrieve_for_question
 from app.engine.resume_plan import select_resume_anchor_with_schedule
 from app.engine.workflow.difficulty_adapter import difficulty_to_bar_level
@@ -49,16 +57,21 @@ from app.engine.workflow.state import (
     PlanContract,
     PlanTemplate,
 )
-from app.memory.skill_store import build_skills_block, retrieve_skills
-from app.memory.strategy_store import format_strategies_for_prompt, retrieve_strategies
+from app.memory.skill_store import build_skills_block, render_skills_block, retrieve_skills
+from app.memory.strategy_store import (
+    format_strategies_for_prompt,
+    render_strategies_for_prompt,
+    retrieve_strategies,
+)
 from app.ml.drift.prompt_feedback import build_generator_avoid_patterns
 from app.models.base import get_session
+from app.models.session_anchor import SessionAnchorChunk
 from app.services.question_fit_profile import (
     build_question_fit_profile as _build_question_fit_profile,
 )
 from app.services.question_fit_profile import (
     candidate_anchor_artifact,
-    format_candidate_anchor_block,
+    render_candidate_anchor_block,
     resolve_question_bank_tags,
 )
 from app.services.question_reranker import (
@@ -83,10 +96,42 @@ from app.services.question_selector import (
     select_question_candidates as _select_question_candidates,
 )
 from app.services.question_usage_stats import build_question_reward_context_key
+from app.services.resume_anchor_cache import try_bind_cached_resume_anchors
+from app.services.resume_embedding import current_embedding_model_version
 from app.services.resume_vector_jobs import refresh_resume_vector_status
 from app.services.session_anchor_retriever import retrieve_candidate_anchors
 
 log = get_logger(__name__)
+
+_ORIGINAL_FORMAT_STRATEGIES_FOR_PROMPT = format_strategies_for_prompt
+_ORIGINAL_BUILD_SKILLS_BLOCK = build_skills_block
+
+
+class _CompatPromptMaterialRender:
+    def __init__(self, text: str) -> None:
+        self.text = text
+
+    def as_diagnostics(self) -> dict[str, Any]:
+        return {
+            "budget_chars": len(self.text),
+            "original_chars": len(self.text),
+            "injected_chars": len(self.text),
+            "runtime_truncated": False,
+            "items": [],
+            "compat_renderer": True,
+        }
+
+
+def _render_strategy_material(entries: list[Any], **kwargs: Any) -> Any:
+    if format_strategies_for_prompt is not _ORIGINAL_FORMAT_STRATEGIES_FOR_PROMPT:
+        return _CompatPromptMaterialRender(format_strategies_for_prompt(entries))
+    return render_strategies_for_prompt(entries, **kwargs)
+
+
+def _render_skill_material(entries: list[Any], **kwargs: Any) -> Any:
+    if build_skills_block is not _ORIGINAL_BUILD_SKILLS_BLOCK:
+        return _CompatPromptMaterialRender(build_skills_block(entries))
+    return render_skills_block(entries, **kwargs)
 
 _QUESTION_SELECTOR_MODES = {"vector", "structured_shadow", "structured_primary"}
 _PROMPT_SLOT_TEXT_LIMIT = 2000
@@ -212,7 +257,10 @@ def _step_retrieve_strategy(state: InterviewState, ctx: dict[str, Any]) -> None:
     )
     refs = [_strategy_memory_ref(entry) for entry in strategies]
     ctx["strategy_memory_refs"] = [ref for ref in refs if ref]
-    ctx["strategy_block"] = format_strategies_for_prompt(strategies)
+    ctx["strategy_entries"] = strategies
+    strategy_render = _render_strategy_material(strategies)
+    ctx["strategy_block"] = strategy_render.text
+    ctx["strategy_prompt_diagnostics"] = strategy_render.as_diagnostics()
 
     # PLAN_DRIFT_RAG_FEEDBACK: same ``overruled_patterns`` snapshot
     # that feeds the Evaluator negatives (``PLAN_DRIFT_FEEDBACK``),
@@ -311,7 +359,10 @@ def _step_retrieve_skills(state: InterviewState, ctx: dict[str, Any]) -> None:
             ref["rank"] = idx
             skill_refs.append(ref)
         ctx["skill_artifact"]["refs"] = skill_refs
-        ctx["skill_block"] = build_skills_block(skills)
+        ctx["skill_entries"] = skills
+        skill_render = _render_skill_material(skills)
+        ctx["skill_block"] = skill_render.text
+        ctx["skill_prompt_diagnostics"] = skill_render.as_diagnostics()
     except Exception as e:  # pragma: no cover - defensive degradation
         log.warning("skill retrieval failed; continuing without skills: %s", e)
         ctx.setdefault("skill_block", "(no relevant interview skills)")
@@ -608,6 +659,7 @@ def _step_select_structured_question(
     ctx["question_items"] = []
     ctx["question_seed_block"] = ""
     ctx["candidate_anchor_block"] = ""
+    ctx["candidate_anchor_prompt_diagnostics"] = {}
     ctx["question_fit_profile_artifact"] = None
     ctx["question_reranker_artifact"] = None
     ctx["candidate_anchor_artifact"] = None
@@ -687,9 +739,13 @@ def _step_select_structured_question(
         ctx["structured_primary_seed_hit"] = True
         ctx["question_seed_block"] = format_question_seed_block(top)
         if fit_profile is not None:
-            ctx["candidate_anchor_block"] = format_candidate_anchor_block(
+            anchor_render = render_candidate_anchor_block(
                 fit_profile,
                 top,
+            )
+            ctx["candidate_anchor_block"] = anchor_render.text
+            ctx["candidate_anchor_prompt_diagnostics"] = (
+                anchor_render.as_diagnostics()
             )
             ctx["candidate_anchor_artifact"] = candidate_anchor_artifact(
                 fit_profile,
@@ -801,6 +857,7 @@ def _prompt_slot_for_trace(
     text_limit: int,
     legacy: bool = False,
     empty_reason: str | None = None,
+    runtime_diagnostics: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     raw = text if isinstance(text, str) else ""
     stripped = raw.strip()
@@ -810,16 +867,40 @@ def _prompt_slot_for_trace(
     if reason is None and not stripped:
         reason = "empty"
     limit = max(0, int(text_limit))
-    return {
+    trace_text_truncated = len(raw) > limit
+    runtime = runtime_diagnostics if isinstance(runtime_diagnostics, dict) else {}
+    runtime_truncated = bool(runtime.get("runtime_truncated"))
+    slot = {
         "prompt_label": prompt_label,
         "source_key": source_key,
         "injected": bool(stripped) and reason is None,
         "chars": len(raw),
-        "truncated": len(raw) > limit,
+        # ``truncated`` is the prompt-facing budget signal. Non-history
+        # slots are not clipped before the Generator call here; only the
+        # trace payload's ``text`` preview is capped for observability.
+        "truncated": runtime_truncated,
+        "prompt_truncated": runtime_truncated,
+        "trace_text_truncated": trace_text_truncated,
         "text": raw[:limit],
         "empty_reason": reason if reason is not None else None,
         "legacy": bool(legacy),
     }
+    if runtime:
+        slot.update(
+            {
+                "runtime_truncated": runtime_truncated,
+                "runtime_budget_chars": runtime.get("budget_chars"),
+                "runtime_budget_level": runtime.get("budget_level"),
+                "runtime_budget_source": runtime.get("budget_source"),
+                "runtime_global_budget_pressure": runtime.get(
+                    "global_budget_pressure"
+                ),
+                "runtime_original_chars": runtime.get("original_chars"),
+                "runtime_injected_chars": runtime.get("injected_chars"),
+                "runtime_items": list(runtime.get("items") or []),
+            }
+        )
+    return slot
 
 
 def _prompt_slots_for_trace(
@@ -840,12 +921,14 @@ def _prompt_slots_for_trace(
             retrieval_text,
             True,
             retrieval_empty_reason,
+            None,
         ),
         (
             "STRUCTURED_QUESTION_SEED",
             "question_seed_block",
             ctx.get("question_seed_block", ""),
             False,
+            None,
             None,
         ),
         (
@@ -854,6 +937,7 @@ def _prompt_slots_for_trace(
             ctx.get("candidate_anchor_block", ""),
             False,
             None,
+            ctx.get("candidate_anchor_prompt_diagnostics"),
         ),
         (
             "CANDIDATE_RESUME_RAG",
@@ -861,6 +945,7 @@ def _prompt_slots_for_trace(
             ctx.get("resume_rag_block", ""),
             False,
             None,
+            ctx.get("resume_rag_prompt_diagnostics"),
         ),
         (
             "SELF_INTRO_RAG",
@@ -868,6 +953,7 @@ def _prompt_slots_for_trace(
             ctx.get("self_intro_rag_block", ""),
             False,
             None,
+            ctx.get("self_intro_rag_prompt_diagnostics"),
         ),
         (
             "STRATEGY_MEMORY",
@@ -875,6 +961,7 @@ def _prompt_slots_for_trace(
             ctx.get("strategy_block", ""),
             False,
             None,
+            ctx.get("strategy_prompt_diagnostics"),
         ),
         (
             "INTERVIEW_SKILLS",
@@ -882,6 +969,7 @@ def _prompt_slots_for_trace(
             ctx.get("skill_block", ""),
             False,
             None,
+            ctx.get("skill_prompt_diagnostics"),
         ),
     ]
     rendered_slots = [
@@ -892,8 +980,9 @@ def _prompt_slots_for_trace(
             text_limit=text_limit,
             legacy=legacy,
             empty_reason=empty_reason,
+            runtime_diagnostics=runtime_diagnostics,
         )
-        for prompt_label, source_key, text, legacy, empty_reason in slots
+        for prompt_label, source_key, text, legacy, empty_reason, runtime_diagnostics in slots
     ]
     history_slots = [
         slot
@@ -911,6 +1000,8 @@ def _step_retrieve_candidate_anchors(
     mode = str(getattr(settings, "resume_rag_mode", "off") or "off")
     ctx["resume_rag_block"] = ""
     ctx["self_intro_rag_block"] = ""
+    ctx["resume_rag_prompt_diagnostics"] = {}
+    ctx["self_intro_rag_prompt_diagnostics"] = {}
     if mode == "off":
         ctx["candidate_anchor_rag_artifact"] = {"status": "off"}
         return
@@ -926,24 +1017,50 @@ def _step_retrieve_candidate_anchors(
 
     resume_status = ((state.get("candidate") or {}).get("resume_vector_status") or {})
     self_intro_status = state.get("self_intro_vector_status") or {}
+    embedding_override = _runtime_embedding_override()
+    resume_revision_id = _ready_revision(resume_status, "resume_revision_id")
+    self_intro_revision_id = _ready_revision(
+        self_intro_status,
+        "self_intro_revision_id",
+    )
+    bind_validation = _validate_candidate_anchor_bindings(
+        session_id=str(state.get("session_id") or ""),
+        resume_status=resume_status,
+        self_intro_status=self_intro_status,
+        resume_revision_id=resume_revision_id,
+        self_intro_revision_id=self_intro_revision_id,
+        embedding_override=embedding_override,
+    )
+    if bind_validation.get("fallback_reason"):
+        ctx["candidate_anchor_rag_artifact"] = _empty_candidate_anchor_rag_artifact(
+            mode=mode,
+            fallback_reason=str(bind_validation.get("fallback_reason") or ""),
+            bind_validation=bind_validation,
+        )
+        return
+
     result = retrieve_candidate_anchors(
         session_id=str(state.get("session_id") or ""),
-        resume_revision_id=_ready_revision(resume_status, "resume_revision_id"),
-        self_intro_revision_id=_ready_revision(
-            self_intro_status,
-            "self_intro_revision_id",
-        ),
+        resume_revision_id=resume_revision_id,
+        self_intro_revision_id=self_intro_revision_id,
         dimension=ctx["dimension"],
         seed=(ctx.get("question_items") or [None])[0],
         target_skills=ctx.get("target_skills") or [],
         rule_anchor=ctx.get("resume_anchor"),
         self_intro_profile=state.get("self_intro_profile") or {},
         used_project_names=_used_project_names(state),
+        embedding_override=embedding_override,
     )
     if mode == "primary":
         ctx["resume_rag_block"] = result.resume_block
         ctx["self_intro_rag_block"] = result.self_intro_block
-    ctx["candidate_anchor_rag_artifact"] = result.as_artifact(mode=mode)
+        ctx["resume_rag_prompt_diagnostics"] = result.resume_prompt_diagnostics
+        ctx["self_intro_rag_prompt_diagnostics"] = (
+            result.self_intro_prompt_diagnostics
+        )
+    artifact = result.as_artifact(mode=mode)
+    artifact["bind_validation"] = bind_validation
+    ctx["candidate_anchor_rag_artifact"] = artifact
 
 
 def _session_anchor_sampled_in(session_id: str, sample_rate: float) -> bool:
@@ -966,6 +1083,228 @@ def _ready_revision(status: dict[str, Any], key: str) -> str | None:
         return None
     revision = str(status.get(key) or "").strip()
     return revision or None
+
+
+def _validate_candidate_anchor_bindings(
+    *,
+    session_id: str,
+    resume_status: dict[str, Any],
+    self_intro_status: dict[str, Any],
+    resume_revision_id: str | None,
+    self_intro_revision_id: str | None,
+    embedding_override: dict[str, Any] | None,
+) -> dict[str, Any]:
+    """Confirm ready/cache-hit statuses point at bound session chunks.
+
+    The session-scoped chunks are the real retrieval source. A cached resume
+    status can drift from those rows after restarts or partial failures, so the
+    ask path validates the binding before spending time on query embeddings.
+    """
+
+    source_cache_key = _status_text(resume_status, "source_cache_key")
+    embedding_model_version = _binding_embedding_model_version(
+        resume_status=resume_status,
+        self_intro_status=self_intro_status,
+        embedding_override=embedding_override,
+    )
+    validation: dict[str, Any] = {
+        "checked": False,
+        "resume_revision_id": resume_revision_id,
+        "self_intro_revision_id": self_intro_revision_id,
+        "embedding_model_version": embedding_model_version,
+        "source_cache_key": source_cache_key or None,
+        "bound_count": None,
+        "resume_bound_count": None,
+        "self_intro_bound_count": None,
+        "rebind_attempted": False,
+        "rebind_success": False,
+        "fallback_reason": None,
+    }
+    if not session_id or not (resume_revision_id or self_intro_revision_id):
+        validation["fallback_reason"] = "not_ready"
+        return validation
+    if not _should_validate_candidate_anchor_binding(
+        resume_status=resume_status,
+        self_intro_status=self_intro_status,
+    ):
+        return validation
+    if not embedding_model_version:
+        validation["checked"] = True
+        validation["bound_count"] = 0
+        validation["resume_bound_count"] = 0
+        validation["self_intro_bound_count"] = 0
+        validation["fallback_reason"] = "embedding_model_version_missing"
+        return validation
+
+    counts = _count_session_anchor_chunks(
+        session_id=session_id,
+        resume_revision_id=resume_revision_id,
+        self_intro_revision_id=self_intro_revision_id,
+        embedding_model_version=embedding_model_version,
+    )
+    _apply_bind_counts(validation, counts)
+    validation["checked"] = True
+    if int(validation.get("bound_count") or 0) > 0:
+        return validation
+
+    if resume_revision_id and source_cache_key:
+        validation["rebind_attempted"] = True
+        rebound = try_bind_cached_resume_anchors(
+            session_id=session_id,
+            resume_revision_id=resume_revision_id,
+            source_artifact_id=_status_text(
+                resume_status,
+                "source_artifact_id",
+                "resume_source_id",
+                "source_id",
+            )
+            or None,
+            cache_key=source_cache_key,
+            embedding_model_version=embedding_model_version,
+        )
+        counts = _count_session_anchor_chunks(
+            session_id=session_id,
+            resume_revision_id=resume_revision_id,
+            self_intro_revision_id=self_intro_revision_id,
+            embedding_model_version=embedding_model_version,
+        )
+        _apply_bind_counts(validation, counts)
+        validation["rebind_success"] = bool(
+            rebound and int(validation.get("bound_count") or 0) > 0
+        )
+        if validation["rebind_success"]:
+            return validation
+        validation["fallback_reason"] = "session_anchor_bind_missing"
+        return validation
+
+    validation["fallback_reason"] = "no_bound_chunks"
+    return validation
+
+
+def _should_validate_candidate_anchor_binding(
+    *,
+    resume_status: dict[str, Any],
+    self_intro_status: dict[str, Any],
+) -> bool:
+    ready_statuses = [
+        status
+        for status in (resume_status, self_intro_status)
+        if isinstance(status, dict) and status.get("status") == "ready"
+    ]
+    return any(
+        status.get("embedding_model_version") is not None
+        or status.get("source_cache_key") is not None
+        or status.get("cache_hit") is not None
+        for status in ready_statuses
+    )
+
+
+def _binding_embedding_model_version(
+    *,
+    resume_status: dict[str, Any],
+    self_intro_status: dict[str, Any],
+    embedding_override: dict[str, Any] | None,
+) -> str | None:
+    for status in (resume_status, self_intro_status):
+        version = _status_text(status, "embedding_model_version")
+        if version:
+            return version
+    try:
+        return current_embedding_model_version(embedding_override)
+    except Exception:
+        return None
+
+
+def _status_text(status: dict[str, Any], *keys: str) -> str:
+    if not isinstance(status, dict):
+        return ""
+    for key in keys:
+        value = str(status.get(key) or "").strip()
+        if value:
+            return value
+    return ""
+
+
+def _apply_bind_counts(
+    validation: dict[str, Any],
+    counts: dict[str, int],
+) -> None:
+    validation["resume_bound_count"] = int(counts.get("resume") or 0)
+    validation["self_intro_bound_count"] = int(counts.get("self_intro") or 0)
+    validation["bound_count"] = int(counts.get("total") or 0)
+
+
+def _count_session_anchor_chunks(
+    *,
+    session_id: str,
+    resume_revision_id: str | None,
+    self_intro_revision_id: str | None,
+    embedding_model_version: str,
+) -> dict[str, int]:
+    filters = []
+    if resume_revision_id:
+        filters.append(
+            (SessionAnchorChunk.source_type == "resume")
+            & (SessionAnchorChunk.source_revision_id == resume_revision_id)
+        )
+    if self_intro_revision_id:
+        filters.append(
+            (SessionAnchorChunk.source_type == "self_intro")
+            & (SessionAnchorChunk.source_revision_id == self_intro_revision_id)
+        )
+    if not session_id or not embedding_model_version or not filters:
+        return {"resume": 0, "self_intro": 0, "total": 0}
+
+    with get_session() as session:
+        rows = session.execute(
+            select(SessionAnchorChunk.source_type, func.count(SessionAnchorChunk.id))
+            .where(
+                SessionAnchorChunk.session_id == session_id,
+                SessionAnchorChunk.embedding_model_version == embedding_model_version,
+                or_(*filters),
+            )
+            .group_by(SessionAnchorChunk.source_type)
+        ).all()
+    counts = {"resume": 0, "self_intro": 0, "total": 0}
+    for source_type, count in rows:
+        key = str(source_type or "")
+        if key in {"resume", "self_intro"}:
+            counts[key] = int(count or 0)
+            counts["total"] += int(count or 0)
+    return counts
+
+
+def _empty_candidate_anchor_rag_artifact(
+    *,
+    mode: str,
+    fallback_reason: str,
+    bind_validation: dict[str, Any],
+) -> dict[str, Any]:
+    return {
+        "status": mode,
+        "skipped": False,
+        "fallback_reason": fallback_reason,
+        "latency_ms": 0,
+        "query_terms": [],
+        "anchor_terms": [],
+        "boost_terms": [],
+        "constraint_terms": [],
+        "query_text": "",
+        "anchor_query_text": "",
+        "boost_query_text": "",
+        "constraint_query_text": "",
+        "anchor_key": "",
+        "boost_fallback_reason": None,
+        "ranking_weights": {},
+        "hits": [],
+        "resume_hit_count": 0,
+        "self_intro_hit_count": 0,
+        "prompt_injected": False,
+        "prompt_block_sources": [],
+        "prompt_source_counts": {},
+        "prompt_block_chars": 0,
+        "bind_validation": bind_validation,
+    }
 
 
 def _state_with_refreshed_resume_vector_status(
@@ -1015,6 +1354,101 @@ def _runtime_embedding_override() -> dict[str, Any] | None:
     return override if isinstance(override, dict) else None
 
 
+def _runtime_llm_override() -> dict[str, Any] | None:
+    try:
+        from app.services.session_manager import get_llm_override
+
+        llm_config = get_llm_override()
+    except Exception:
+        return None
+    return llm_config if isinstance(llm_config, dict) else None
+
+
+def _json_prompt_chars(value: Any) -> str:
+    if value in (None, "", [], {}):
+        return ""
+    try:
+        return json.dumps(value, ensure_ascii=False, sort_keys=True)
+    except Exception:
+        return str(value)
+
+
+def _protected_prompt_slots(ctx: dict[str, Any]) -> list[dict[str, Any]]:
+    avoid_patterns = ctx.get(
+        "avoid_patterns",
+        "(no historical shallow patterns on this dimension)",
+    )
+    values = [
+        ("INTERVIEW_HISTORY", ctx.get("history_section", "")),
+        ("RETRIEVED_KNOWLEDGE", _retrieval_block_for_prompt(ctx)),
+        ("STRUCTURED_QUESTION_SEED", ctx.get("question_seed_block", "")),
+        ("CANDIDATE_ANCHOR", ctx.get("candidate_anchor_block", "")),
+        ("CANDIDATE_RESUME_RAG", ctx.get("resume_rag_block", "")),
+        ("SELF_INTRO_RAG", ctx.get("self_intro_rag_block", "")),
+        ("AVOID_PATTERNS", avoid_patterns),
+        ("CONTRACT_HINTS", _json_prompt_chars(ctx.get("contract_hints"))),
+    ]
+    slots: list[dict[str, Any]] = []
+    for label, value in values:
+        text = value if isinstance(value, str) else str(value or "")
+        slots.append(
+            {
+                "prompt_label": label,
+                "chars": len(text),
+                "injected": bool(text.strip()),
+            }
+        )
+    return slots
+
+
+def _apply_auxiliary_prompt_budget(ctx: dict[str, Any]) -> None:
+    """Re-render elastic Strategy/Skill materials after protected slots settle."""
+
+    protected_slots = _protected_prompt_slots(ctx)
+    protected_slot_chars = sum(int(slot.get("chars") or 0) for slot in protected_slots)
+    settings = get_settings()
+    route = resolve_generator_model_route(
+        settings=settings,
+        llm_override=_runtime_llm_override(),
+    )
+    diagnostics = estimate_auxiliary_prompt_budget(
+        provider=route.provider,
+        model=route.model,
+        protected_slot_chars=protected_slot_chars,
+        output_reserve_tokens=getattr(settings, "llm_max_tokens", None),
+    )
+    diagnostics["protected_slots"] = protected_slots
+    ctx["prompt_budget_diagnostics"] = diagnostics
+
+    budget_level = str(diagnostics.get("budget_level") or "fallback")
+    budget_source = "prompt_budget_diagnostics"
+    strategies = ctx.get("strategy_entries")
+    if isinstance(strategies, list):
+        strategy_render = _render_strategy_material(
+            strategies,
+            slot_budget_chars=int(diagnostics.get("strategy_budget_chars") or 3200),
+            rank_body_budgets=rank_body_budgets("strategy", budget_level),
+            budget_level=budget_level,
+            budget_source=budget_source,
+            global_budget_pressure=budget_level,
+        )
+        ctx["strategy_block"] = strategy_render.text
+        ctx["strategy_prompt_diagnostics"] = strategy_render.as_diagnostics()
+
+    skills = ctx.get("skill_entries")
+    if isinstance(skills, list):
+        skill_render = _render_skill_material(
+            skills,
+            slot_budget_chars=int(diagnostics.get("skill_budget_chars") or 3600),
+            rank_body_budgets=rank_body_budgets("skill", budget_level),
+            budget_level=budget_level,
+            budget_source=budget_source,
+            global_budget_pressure=budget_level,
+        )
+        ctx["skill_block"] = skill_render.text
+        ctx["skill_prompt_diagnostics"] = skill_render.as_diagnostics()
+
+
 def _used_project_names(state: InterviewState) -> list[str]:
     candidate = state.get("candidate") or {}
     parsed = candidate.get("resume_parsed") if isinstance(candidate, dict) else {}
@@ -1056,6 +1490,7 @@ def _step_draft_question(state: InterviewState, ctx: dict[str, Any]) -> None:
     refine_mode = bool(state.get("refine_mode")) or bool(
         (ctx.get("contract_hints") or {}).get("refine_mode")
     )
+    _apply_auxiliary_prompt_budget(ctx)
     question_payload = generate_question(
         dimension=ctx["dimension"],
         action=state.get("selected_action") or {},
@@ -2036,6 +2471,9 @@ def ask_question_node(state: InterviewState) -> dict[str, Any]:
                 "history_context": ctx.get("history_context") or {},
                 "qa_summary_projection": update.get("qa_summary_projection") or {},
                 "history_prompt_slots": ctx.get("history_prompt_slots") or [],
+                "prompt_budget_diagnostics": ctx.get(
+                    "prompt_budget_diagnostics"
+                ) or {},
                 "prompt_slots": _prompt_slots_for_trace(ctx),
                 "elapsed_ms": int((time.perf_counter() - node_started_at) * 1000),
             },

@@ -54,6 +54,7 @@ class Settings(BaseSettings):
         "dashscope",
         "zhipu",
         "mistral",
+        "xiaomimimo",
         "openai_compatible",
         "stub",
     ] = "openai"
@@ -314,7 +315,9 @@ class Settings(BaseSettings):
     pii_extra_patterns: bool = True
 
     # ------------------------------------------------------------------
-    # QA summary strategy used by ``compress_context_node``.
+    # Legacy QA summary strategy. The hot path now uses deterministic
+    # HistoryContextBuilder inside ``ask_question``; ``turn_finalize``
+    # no longer calls the session summarizer.
     # - ``deterministic`` (default): zero-cost aggregation, no LLM call.
     # - ``llm``: always delegate to ``session_summarizer`` for a
     #   structured per-dimension digest (progression/evidence/gaps).
@@ -346,7 +349,7 @@ class Settings(BaseSettings):
 
     # Lifetime of an entry in ``_RAW_ANSWER_STORE`` (audit F2). The
     # default 300 seconds comfortably exceeds the
-    # ``wait_answer -> evaluator -> verification -> compress_context``
+    # ``wait_answer -> evaluator -> verification -> turn_finalize``
     # span; raise it for very long voice answers, lower it for tighter
     # privacy windows. Eviction is lazy on read + write, so changing
     # this number does not require a process restart for new sessions.

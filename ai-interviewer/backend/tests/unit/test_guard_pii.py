@@ -313,7 +313,7 @@ def test_evaluator_scores_raw_and_persists_sanitised(monkeypatch) -> None:
     assert qa_turn["answer"] == "My phone is [phone redacted]"
     # Evaluator does NOT clear the raw-answer channel — the verifier
     # node that runs immediately after depends on the same unredacted
-    # text, so the clear is owned by ``compress_context_node`` which
+    # text, so the clear is owned by ``turn_finalize_node`` which
     # runs after verification. Asserting the absence of a raw clear here
     # is how we pin the PII-hand-off contract.
     assert "current_answer_raw" not in out

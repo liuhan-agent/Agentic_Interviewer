@@ -143,6 +143,61 @@ def test_openai_client_constructor_kwargs_forwarded(
     }
 
 
+def test_openai_compatible_transient_failure_evicts_cached_client(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A poisoned OpenAI-compatible connection pool must not be reused.
+
+    DashScope/Qwen can fail fast with connection-reset style errors
+    after earlier successful calls. When that happens, the next request
+    should rebuild the SDK client instead of reusing the same cached
+    transport.
+    """
+    state: dict[str, Any] = {"count": 0, "closed": 0}
+
+    class _FailingCompletions:
+        def create(self, **_kwargs: Any) -> Any:
+            raise RuntimeError("connection reset by peer")
+
+    class _FakeClient:
+        def __init__(self, **_kwargs: Any) -> None:
+            state["count"] += 1
+            self.chat = type(
+                "_Chat",
+                (),
+                {"completions": _FailingCompletions()},
+            )()
+
+        def close(self) -> None:
+            state["closed"] += 1
+
+    fake_module = ModuleType("openai")
+    fake_module.OpenAI = _FakeClient
+    monkeypatch.setitem(sys.modules, "openai", fake_module)
+
+    with pytest.raises(RuntimeError, match="connection reset"):
+        llm_client._call_openai_compatible(
+            [llm_client.ChatMessage("user", "ping")],
+            "qwen3.6-flash",
+            0.1,
+            8,
+            False,
+            base_url="https://dashscope.aliyuncs.com/compatible-mode/v1",
+            override={"api_key": "key-1"},
+            request_timeout=45.0,
+            provider_max_retries=0,
+        )
+
+    llm_client._get_openai_client(
+        api_key="key-1",
+        base_url="https://dashscope.aliyuncs.com/compatible-mode/v1",
+        timeout=45.0,
+        max_retries=0,
+    )
+    assert state["count"] == 2
+    assert state["closed"] == 1
+
+
 # ---------------------------------------------------------------------------
 # Anthropic client cache
 # ---------------------------------------------------------------------------

@@ -13,6 +13,7 @@ LLMProvider = Literal[
     "dashscope",
     "zhipu",
     "mistral",
+    "xiaomimimo",
     "openai_compatible",
 ]
 

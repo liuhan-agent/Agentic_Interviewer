@@ -10,7 +10,7 @@ from collections import Counter
 from dataclasses import dataclass, field
 from typing import Any
 
-from sqlalchemy import or_, select
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.core.settings import get_settings
@@ -124,6 +124,25 @@ class ConstraintMatch:
 
 
 @dataclass
+class CandidateRagPromptRenderResult:
+    text: str
+    budget_chars: int
+    original_chars: int
+    injected_chars: int
+    runtime_truncated: bool
+    items: list[dict[str, Any]] = field(default_factory=list)
+
+    def as_diagnostics(self) -> dict[str, Any]:
+        return {
+            "runtime_truncated": self.runtime_truncated,
+            "budget_chars": self.budget_chars,
+            "original_chars": self.original_chars,
+            "injected_chars": self.injected_chars,
+            "items": list(self.items),
+        }
+
+
+@dataclass
 class CandidateAnchorRagResult:
     resume_block: str
     self_intro_block: str
@@ -142,6 +161,11 @@ class CandidateAnchorRagResult:
     anchor_key: str = ""
     boost_fallback_reason: str | None = None
     ranking_weights: dict[str, float] = field(default_factory=dict)
+    resume_prompt_diagnostics: dict[str, Any] = field(default_factory=dict)
+    self_intro_prompt_diagnostics: dict[str, Any] = field(default_factory=dict)
+    fetched_rows_by_source: dict[str, int] = field(default_factory=dict)
+    scored_rows_by_source: dict[str, int] = field(default_factory=dict)
+    kept_hits_by_source: dict[str, int] = field(default_factory=dict)
 
     def as_artifact(self, *, mode: str) -> dict[str, Any]:
         resume_block = (self.resume_block or "").strip()
@@ -169,6 +193,9 @@ class CandidateAnchorRagResult:
             "anchor_key": self.anchor_key,
             "boost_fallback_reason": self.boost_fallback_reason,
             "ranking_weights": dict(self.ranking_weights),
+            "fetched_rows_by_source": dict(self.fetched_rows_by_source),
+            "scored_rows_by_source": dict(self.scored_rows_by_source),
+            "kept_hits_by_source": dict(self.kept_hits_by_source),
             "hits": [hit.as_artifact() for hit in self.hits],
             "resume_hit_count": sum(1 for hit in self.hits if hit.source_type == "resume"),
             "self_intro_hit_count": sum(
@@ -226,6 +253,25 @@ def retrieve_candidate_anchors(
             fallback_reason="misconfig",
             query_profile=query_profile,
         )
+    rows = _with_session(
+        db_session,
+        lambda session: _fetch_rows(
+            session=session,
+            session_id=session_id,
+            resume_revision_id=resume_revision_id,
+            self_intro_revision_id=self_intro_revision_id,
+            embedding_model_version=model_version,
+        ),
+    )
+    fetched_rows_by_source = _source_counts(rows)
+    if not rows:
+        return _result(
+            started,
+            fallback_reason="no_bound_chunks",
+            query_profile=query_profile,
+            fetched_rows_by_source=fetched_rows_by_source,
+        )
+
     anchor_query_text = query_profile.anchor_query_text or query_profile.query_text
     anchor_vector = embed_query(
         anchor_query_text,
@@ -246,8 +292,9 @@ def retrieve_candidate_anchors(
     if anchor_vector is None:
         return _result(
             started,
-            fallback_reason="timeout",
+            fallback_reason="query_embedding_timeout",
             query_profile=query_profile,
+            fetched_rows_by_source=fetched_rows_by_source,
         )
     boost_vector: list[float] | None = None
     boost_fallback_reason: str | None = None
@@ -272,18 +319,8 @@ def retrieve_candidate_anchors(
             ),
         )
         if boost_vector is None:
-            boost_fallback_reason = "timeout"
+            boost_fallback_reason = "query_embedding_timeout"
 
-    rows = _with_session(
-        db_session,
-        lambda session: _fetch_rows(
-            session=session,
-            session_id=session_id,
-            resume_revision_id=resume_revision_id,
-            self_intro_revision_id=self_intro_revision_id,
-            embedding_model_version=model_version,
-        ),
-    )
     threshold = float(settings.resume_rag_distance_threshold or 0.45)
     scored = [
         hit
@@ -300,12 +337,15 @@ def retrieve_candidate_anchors(
         )
         is not None
     ]
+    scored_rows_by_source = _source_counts(scored)
     if not scored:
         return _result(
             started,
             fallback_reason="low_score" if rows else "empty",
             query_profile=query_profile,
             boost_fallback_reason=boost_fallback_reason,
+            fetched_rows_by_source=fetched_rows_by_source,
+            scored_rows_by_source=scored_rows_by_source,
         )
 
     resume_hits = _dedupe_resume_hits(
@@ -326,25 +366,39 @@ def retrieve_candidate_anchors(
         reverse=True,
     )[: int(settings.session_anchor_top_k_self_intro or 1)]
     kept = [*resume_hits, *self_intro_hits]
+    kept_hits_by_source = _source_counts(kept)
     if not kept:
         return _result(
             started,
             fallback_reason="empty",
             query_profile=query_profile,
             boost_fallback_reason=boost_fallback_reason,
+            fetched_rows_by_source=fetched_rows_by_source,
+            scored_rows_by_source=scored_rows_by_source,
+            kept_hits_by_source=kept_hits_by_source,
         )
 
     block_max = int(settings.resume_rag_block_max_chars or 800)
+    resume_render = _render_block_with_diagnostics(
+        resume_hits,
+        max_chars=block_max,
+    )
+    self_intro_render = _render_block_with_diagnostics(
+        self_intro_hits,
+        max_chars=min(500, block_max),
+    )
     return _result(
         started,
-        resume_block=_render_block(resume_hits, max_chars=block_max),
-        self_intro_block=_render_block(
-            self_intro_hits,
-            max_chars=min(500, block_max),
-        ),
+        resume_block=resume_render.text,
+        self_intro_block=self_intro_render.text,
+        resume_prompt_diagnostics=resume_render.as_diagnostics(),
+        self_intro_prompt_diagnostics=self_intro_render.as_diagnostics(),
         hits=kept,
         query_profile=query_profile,
         boost_fallback_reason=boost_fallback_reason,
+        fetched_rows_by_source=fetched_rows_by_source,
+        scored_rows_by_source=scored_rows_by_source,
+        kept_hits_by_source=kept_hits_by_source,
     )
 
 
@@ -356,36 +410,65 @@ def _fetch_rows(
     self_intro_revision_id: str | None,
     embedding_model_version: str,
 ) -> list[SessionAnchorChunk]:
-    filters = []
+    rows: list[SessionAnchorChunk] = []
+    settings = get_settings()
     if resume_revision_id:
-        filters.append(
-            (SessionAnchorChunk.source_type == "resume")
-            & (SessionAnchorChunk.source_revision_id == resume_revision_id)
+        rows.extend(
+            _fetch_source_rows(
+                session=session,
+                session_id=session_id,
+                source_type="resume",
+                source_revision_id=resume_revision_id,
+                embedding_model_version=embedding_model_version,
+                limit=_fetch_limit(
+                    top_k=int(settings.session_anchor_top_k_resume or 2),
+                    buffer=8,
+                ),
+            )
         )
     if self_intro_revision_id:
-        filters.append(
-            (SessionAnchorChunk.source_type == "self_intro")
-            & (SessionAnchorChunk.source_revision_id == self_intro_revision_id)
+        rows.extend(
+            _fetch_source_rows(
+                session=session,
+                session_id=session_id,
+                source_type="self_intro",
+                source_revision_id=self_intro_revision_id,
+                embedding_model_version=embedding_model_version,
+                limit=_fetch_limit(
+                    top_k=int(settings.session_anchor_top_k_self_intro or 1),
+                    buffer=4,
+                ),
+            )
         )
-    if not filters:
-        return []
+    return rows
+
+
+def _fetch_source_rows(
+    *,
+    session: Session,
+    session_id: str,
+    source_type: str,
+    source_revision_id: str,
+    embedding_model_version: str,
+    limit: int,
+) -> list[SessionAnchorChunk]:
     stmt = (
         select(SessionAnchorChunk)
         .where(
             SessionAnchorChunk.session_id == session_id,
             SessionAnchorChunk.embedding_model_version == embedding_model_version,
-            or_(*filters),
+            SessionAnchorChunk.source_type == source_type,
+            SessionAnchorChunk.source_revision_id == source_revision_id,
         )
-        .limit(
-            max(
-                10,
-                int(get_settings().session_anchor_top_k_resume or 2)
-                + int(get_settings().session_anchor_top_k_self_intro or 1)
-                + 8,
-            )
-        )
+        .order_by(SessionAnchorChunk.chunk_index.asc(), SessionAnchorChunk.id.asc())
+        .limit(max(1, int(limit or 1)))
     )
     return list(session.scalars(stmt).all())
+
+
+def _fetch_limit(*, top_k: int, buffer: int) -> int:
+    top_k = max(1, int(top_k or 1))
+    return max(top_k + int(buffer or 0), top_k * 4)
 
 
 def _hit_from_row(
@@ -474,20 +557,162 @@ def _dedupe_resume_hits(
 
 
 def _render_block(hits: list[CandidateAnchorHit], *, max_chars: int) -> str:
+    return _render_block_with_diagnostics(hits, max_chars=max_chars).text
+
+
+def _render_block_with_diagnostics(
+    hits: list[CandidateAnchorHit],
+    *,
+    max_chars: int,
+) -> CandidateRagPromptRenderResult:
+    budget_chars = max(0, int(max_chars or 0))
+    original_lines = [_hit_prompt_prefix(hit) + hit.text for hit in hits]
+    original_text = "\n".join(original_lines)
+    if not hits:
+        return CandidateRagPromptRenderResult(
+            text="",
+            budget_chars=budget_chars,
+            original_chars=0,
+            injected_chars=0,
+            runtime_truncated=False,
+            items=[],
+        )
+
+    if len(original_text) <= budget_chars:
+        items = [
+            _runtime_item_for_hit(
+                hit,
+                rank=idx + 1,
+                body_budget_chars=len(hit.text),
+                injected_body_chars=len(hit.text),
+                runtime_truncated=False,
+                truncation_reason=None,
+            )
+            for idx, hit in enumerate(hits)
+        ]
+        return CandidateRagPromptRenderResult(
+            text=original_text,
+            budget_chars=budget_chars,
+            original_chars=len(original_text),
+            injected_chars=len(original_text),
+            runtime_truncated=False,
+            items=items,
+        )
+
+    prefixes = [_hit_prompt_prefix(hit) for hit in hits]
+    separator_chars = max(0, len(hits) - 1)
+    body_budget_total = max(
+        0,
+        budget_chars - sum(len(prefix) for prefix in prefixes) - separator_chars,
+    )
+    body_budgets = _ranked_body_budgets(
+        body_budget_total,
+        hit_count=len(hits),
+    )
     lines: list[str] = []
-    for hit in hits:
-        if hit.source_type == "resume":
-            header_bits = [bit for bit in (hit.project_name, hit.heading) if bit]
-            header = " / ".join(header_bits)
-            if hit.deduped:
-                lines.append(f"[resume] {hit.text}")
-            else:
-                lines.append(f"[resume] {header}: {hit.text}" if header else f"[resume] {hit.text}")
-        else:
-            heading = f"{hit.heading}: " if hit.heading else ""
-            lines.append(f"[self_intro] {heading}{hit.text}")
+    items: list[dict[str, Any]] = []
+    for idx, hit in enumerate(hits):
+        body_budget = body_budgets[idx] if idx < len(body_budgets) else 0
+        injected_body = hit.text[:body_budget].rstrip() if body_budget > 0 else ""
+        body_truncated = len(injected_body) < len(hit.text)
+        reason = "body_budget_exceeded" if body_truncated else None
+        if not injected_body and hit.text:
+            reason = "slot_budget_omitted_body"
+        line = f"{prefixes[idx]}{injected_body}" if injected_body else _hit_compact_line(hit)
+        lines.append(line)
+        items.append(
+            _runtime_item_for_hit(
+                hit,
+                rank=idx + 1,
+                body_budget_chars=body_budget,
+                injected_body_chars=len(injected_body),
+                runtime_truncated=body_truncated,
+                truncation_reason=reason,
+            )
+        )
+
     rendered = "\n".join(lines)
-    return rendered[:max_chars]
+    if len(rendered) > budget_chars:
+        rendered = rendered[:budget_chars].rstrip()
+        if items:
+            items[-1]["runtime_truncated"] = True
+            items[-1]["truncation_reason"] = (
+                items[-1].get("truncation_reason")
+                or "slot_budget_exceeded"
+            )
+
+    runtime_truncated = len(rendered) < len(original_text) or any(
+        item.get("runtime_truncated") is True for item in items
+    )
+    return CandidateRagPromptRenderResult(
+        text=rendered,
+        budget_chars=budget_chars,
+        original_chars=len(original_text),
+        injected_chars=len(rendered),
+        runtime_truncated=runtime_truncated,
+        items=items,
+    )
+
+
+def _ranked_body_budgets(total: int, *, hit_count: int) -> list[int]:
+    total = max(0, int(total or 0))
+    if hit_count <= 0:
+        return []
+    if hit_count == 1:
+        return [total]
+    weights = [0.7, 0.3]
+    if hit_count > 2:
+        weights.extend([0.0] * (hit_count - 2))
+    budgets = [int(total * weight) for weight in weights[:hit_count]]
+    remainder = max(0, total - sum(budgets))
+    for idx in range(min(remainder, hit_count)):
+        budgets[idx] += 1
+    return budgets
+
+
+def _hit_prompt_prefix(hit: CandidateAnchorHit) -> str:
+    if hit.source_type == "resume":
+        header_bits = [bit for bit in (hit.project_name, hit.heading) if bit]
+        header = " / ".join(header_bits)
+        if hit.deduped:
+            return "[resume] "
+        return f"[resume] {header}: " if header else "[resume] "
+    heading = f"{hit.heading}: " if hit.heading else ""
+    return f"[self_intro] {heading}"
+
+
+def _hit_compact_line(hit: CandidateAnchorHit) -> str:
+    if hit.source_type == "resume":
+        header_bits = [bit for bit in (hit.project_name, hit.heading) if bit]
+        header = " / ".join(header_bits)
+        return f"[resume] {header}".rstrip() if header else "[resume]"
+    heading = str(hit.heading or "").strip()
+    return f"[self_intro] {heading}".rstrip() if heading else "[self_intro]"
+
+
+def _runtime_item_for_hit(
+    hit: CandidateAnchorHit,
+    *,
+    rank: int,
+    body_budget_chars: int,
+    injected_body_chars: int,
+    runtime_truncated: bool,
+    truncation_reason: str | None,
+) -> dict[str, Any]:
+    return {
+        "rank": rank,
+        "id": hit.id,
+        "source_type": hit.source_type,
+        "project_name": hit.project_name,
+        "heading": hit.heading,
+        "chunk_index": hit.chunk_index,
+        "score": round(hit.adjusted_score, 6),
+        "body_budget_chars": max(0, int(body_budget_chars or 0)),
+        "original_body_chars": len(hit.text),
+        "injected_body_chars": max(0, int(injected_body_chars or 0)),
+        "runtime_truncated": runtime_truncated,
+        "truncation_reason": truncation_reason,
+    }
 
 
 def _query_profile(
@@ -755,11 +980,16 @@ def _result(
     *,
     resume_block: str = "",
     self_intro_block: str = "",
+    resume_prompt_diagnostics: dict[str, Any] | None = None,
+    self_intro_prompt_diagnostics: dict[str, Any] | None = None,
     hits: list[CandidateAnchorHit] | None = None,
     fallback_reason: str | None = None,
     skipped: bool = False,
     query_profile: CandidateAnchorQueryProfile | None = None,
     boost_fallback_reason: str | None = None,
+    fetched_rows_by_source: dict[str, int] | None = None,
+    scored_rows_by_source: dict[str, int] | None = None,
+    kept_hits_by_source: dict[str, int] | None = None,
 ) -> CandidateAnchorRagResult:
     query_profile = query_profile or CandidateAnchorQueryProfile()
     return CandidateAnchorRagResult(
@@ -784,7 +1014,21 @@ def _result(
             "boost": _BOOST_WEIGHT,
             "constraint": _CONSTRAINT_WEIGHT,
         },
+        resume_prompt_diagnostics=resume_prompt_diagnostics or {},
+        self_intro_prompt_diagnostics=self_intro_prompt_diagnostics or {},
+        fetched_rows_by_source=fetched_rows_by_source or {},
+        scored_rows_by_source=scored_rows_by_source or {},
+        kept_hits_by_source=kept_hits_by_source or {},
     )
+
+
+def _source_counts(items: list[Any]) -> dict[str, int]:
+    counts: Counter[str] = Counter()
+    for item in items:
+        source = str(getattr(item, "source_type", "") or "").strip()
+        if source:
+            counts[source] += 1
+    return dict(counts)
 
 
 def _with_session(db_session: Session | None, fn):

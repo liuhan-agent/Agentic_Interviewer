@@ -1,6 +1,8 @@
 """LLM-backed session summariser for long interviews.
 
-Invoked by ``compress_context_node`` when ``summary_mode`` is
+Legacy helper retained for standalone tests and old summaries. The hot
+path now uses HistoryContextBuilder inside ``ask_question``; the
+``turn_finalize`` node no longer invokes this summarizer when ``summary_mode`` is
 ``"llm"`` or when ``"auto"`` decides the interview is long enough
 to justify the extra call. Produces a structured per-dimension digest
 the Generator agent consumes on subsequent turns instead of the full
@@ -163,7 +165,7 @@ def format_summary_for_prompt(qa_summary: str) -> str:
     If ``qa_summary`` is a JSON string produced by this module, we
     expand it into a compact per-dimension bullet list. Otherwise we
     return the string unchanged so deterministic summaries (plain
-    text produced by ``compress_context_node``) still render.
+    legacy summary text still renders.
     """
     if not qa_summary:
         return ""

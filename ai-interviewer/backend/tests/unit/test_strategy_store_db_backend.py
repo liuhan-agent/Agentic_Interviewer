@@ -15,9 +15,13 @@ from app.models.strategy_memory import StrategyMemory
 def _db_session_context():
     engine = create_engine("sqlite:///:memory:", future=True)
     Base.metadata.create_all(engine)
-    Session = sessionmaker(bind=engine, expire_on_commit=False, autoflush=False)
+    session_factory = sessionmaker(
+        bind=engine,
+        expire_on_commit=False,
+        autoflush=False,
+    )
 
-    with Session() as sess:
+    with session_factory() as sess:
         sess.add_all(
             [
                 StrategyMemory(
@@ -65,7 +69,7 @@ def _db_session_context():
 
     @contextmanager
     def get_session():
-        with Session() as sess:
+        with session_factory() as sess:
             yield sess
 
     return get_session
@@ -111,6 +115,91 @@ def test_retrieve_strategies_uses_db_metadata_and_formats_prompt(monkeypatch) ->
     assert entries[0].promotion_stage == "seed"
     assert "Senior System Design" in block
     assert "concrete trade-offs" in block
+
+
+def test_render_strategies_for_prompt_uses_rank_aware_budgets() -> None:
+    entries = [
+        ss.StrategyEntry(
+            path=Path(f"strategy-{idx}.md"),
+            id=f"strategy-{idx}",
+            name=f"Strategy {idx}",
+            dimensions=["technical_depth"],
+            job_levels=["junior"],
+            body=chr(96 + idx) * 2000,
+        )
+        for idx in range(1, 4)
+    ]
+
+    result = ss.render_strategies_for_prompt(entries)
+
+    assert result.budget_chars == 3200
+    assert len(result.text) <= 3200
+    assert result.runtime_truncated is True
+    assert result.items[0]["body_budget_chars"] == 1200
+    assert result.items[1]["body_budget_chars"] == 800
+    assert result.items[2]["body_budget_chars"] == 500
+    assert result.items[0]["injected_body_chars"] > result.items[2]["injected_body_chars"]
+    assert result.items[0]["runtime_truncated"] is True
+    assert result.items[0]["truncation_reason"] == "body_budget_exceeded"
+
+
+def test_render_strategies_for_prompt_respects_total_slot_budget() -> None:
+    entries = [
+        ss.StrategyEntry(
+            path=Path(f"strategy-{idx}.md"),
+            id=f"strategy-{idx}",
+            name="Verbose Strategy " + ("x" * 160),
+            dimensions=["technical_depth", "system_design", "problem_solving"],
+            job_levels=["junior", "mid", "senior"],
+            body=str(idx) * 2000,
+        )
+        for idx in range(1, 8)
+    ]
+
+    result = ss.render_strategies_for_prompt(entries)
+
+    assert len(result.text) <= result.budget_chars
+    assert result.runtime_truncated is True
+    assert len(result.items) == len(entries)
+    assert any(
+        item["truncation_reason"] in {"slot_budget_reduced", "slot_budget_omitted_body"}
+        for item in result.items
+    )
+    assert "[Strategy 1]" in result.text
+    assert "Verbose Strategy" in result.text
+
+
+def test_render_strategies_for_prompt_accepts_dynamic_budget_diagnostics() -> None:
+    entries = [
+        ss.StrategyEntry(
+            path=Path(f"strategy-{idx}.md"),
+            id=f"strategy-{idx}",
+            name=f"Dynamic Strategy {idx}",
+            dimensions=["technical_depth"],
+            job_levels=["junior"],
+            body=chr(96 + idx) * 3000,
+        )
+        for idx in range(1, 4)
+    ]
+
+    result = ss.render_strategies_for_prompt(
+        entries,
+        slot_budget_chars=4800,
+        rank_body_budgets=(1800, 1200, 800, 400),
+        budget_level="expanded",
+        budget_source="prompt_budget_diagnostics",
+        global_budget_pressure="expanded",
+    )
+    diagnostics = result.as_diagnostics()
+
+    assert result.budget_chars == 4800
+    assert len(result.text) <= 4800
+    assert result.items[0]["body_budget_chars"] == 1800
+    assert result.items[1]["body_budget_chars"] == 1200
+    assert result.items[2]["body_budget_chars"] == 800
+    assert diagnostics["budget_level"] == "expanded"
+    assert diagnostics["budget_source"] == "prompt_budget_diagnostics"
+    assert diagnostics["global_budget_pressure"] == "expanded"
 
 
 def test_file_backend_still_reads_markdown_strategies(

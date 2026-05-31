@@ -2,16 +2,15 @@
 
 The raw, un-redacted candidate answer lives in a process-local
 side-channel for exactly the span ``wait_answer → evaluator →
-verification`` and is cleared by ``compress_context_node`` or the
+verification`` and is cleared by ``turn_finalize_node`` or the
 SessionManager error cleanup. This file pins the invariants that keep
 PII out of the LangGraph checkpoint:
 
 1. Evaluator sees the raw text for scoring.
 2. Verifier sees the same raw text (not the sanitised copy).
-3. ``compress_context_node`` erases it regardless of whether a
-   compression pass actually ran.
+3. ``turn_finalize_node`` erases it at the end of the answered turn.
 4. ``SessionManager`` erases it if a graph segment fails before
-   ``compress_context`` can run.
+   ``turn_finalize`` can run.
 """
 from __future__ import annotations
 
@@ -19,7 +18,7 @@ from typing import Any
 
 import pytest
 
-from app.engine.workflow.nodes import compress_context as compress_mod
+from app.engine.workflow.nodes import turn_finalize as finalize_mod
 from app.engine.workflow.nodes import verification as verification_node_mod
 from app.engine.workflow.nodes import wait_answer as wait_answer_mod
 
@@ -88,12 +87,12 @@ def test_verifier_receives_raw_answer_not_sanitised(monkeypatch) -> None:
 
 
 # --------------------------------------------------------------------
-# Compress-context side of the contract
+# Turn-finalize side of the contract
 # --------------------------------------------------------------------
 
 
 def _base_compress_state(**overrides: Any) -> dict[str, Any]:
-    """Minimal state for driving ``compress_context_node`` in isolation."""
+    """Minimal state for driving ``turn_finalize_node`` in isolation."""
     state = {
         "qa_history": [],
         "qa_summary": "",
@@ -105,17 +104,17 @@ def _base_compress_state(**overrides: Any) -> dict[str, Any]:
     return state
 
 
-def test_compress_context_clears_raw_even_when_nothing_to_summarise() -> None:
-    """Short sessions still pass through compress_context; it must clear.
+def test_turn_finalize_clears_raw_even_when_nothing_to_summarise() -> None:
+    """Short sessions still pass through turn_finalize; it must clear.
 
     ``COMPRESS_AFTER=3`` means the deterministic path short-circuits
     for turns 0-2, but the raw-answer clear contract is owned by this
     node regardless of the summarisation branch.
     """
-    out = compress_mod.compress_context_node(_base_compress_state())  # type: ignore[arg-type]
+    out = finalize_mod.turn_finalize_node(_base_compress_state())  # type: ignore[arg-type]
 
     assert out.get("current_answer_raw") == "", (
-        "compress_context must clear current_answer_raw even on the "
+        "turn_finalize must clear current_answer_raw even on the "
         "no-summary short-circuit"
     )
     assert "qa_summary" not in out, (
@@ -123,7 +122,7 @@ def test_compress_context_clears_raw_even_when_nothing_to_summarise() -> None:
     )
 
 
-def test_compress_context_noop_when_raw_already_empty() -> None:
+def test_turn_finalize_noop_when_raw_already_empty() -> None:
     """When raw is already empty we must NOT inject a redundant clear.
 
     Downstream reducer contracts treat "key absent from update" as
@@ -131,12 +130,11 @@ def test_compress_context_noop_when_raw_already_empty() -> None:
     needlessly re-writes the checkpoint byte.
     """
     state = _base_compress_state(current_answer_raw="")
-    out = compress_mod.compress_context_node(state)  # type: ignore[arg-type]
+    out = finalize_mod.turn_finalize_node(state)  # type: ignore[arg-type]
 
     assert "current_answer_raw" not in out
 
-
-def test_compress_context_clears_raw_on_no_new_turns_branch() -> None:
+def test_turn_finalize_clears_raw_on_no_new_turns_branch() -> None:
     qa_history = [
         {
             "turn_idx": i,
@@ -153,7 +151,7 @@ def test_compress_context_clears_raw_on_no_new_turns_branch() -> None:
         qa_summary_through_turn=3,
     )
 
-    out = compress_mod.compress_context_node(state)  # type: ignore[arg-type]
+    out = finalize_mod.turn_finalize_node(state)  # type: ignore[arg-type]
 
     assert out.get("current_answer_raw") == ""
 
@@ -189,11 +187,11 @@ def test_session_manager_clears_raw_side_channel_on_segment_error(
     assert handle.error
 
 
-def test_compress_context_clears_raw_without_updating_qa_summary(
+def test_turn_finalize_clears_raw_without_updating_qa_summary(
     monkeypatch,
 ) -> None:
     """Long histories still clear raw text, but summary projection now
-    belongs to ask_question rather than compress_context."""
+    belongs to ask_question rather than turn_finalize."""
     qa_history = [
         {
             "turn_idx": i,
@@ -211,7 +209,7 @@ def test_compress_context_clears_raw_without_updating_qa_summary(
         for i in range(3)
     ]
     state = _base_compress_state(qa_history=qa_history)
-    out = compress_mod.compress_context_node(state)  # type: ignore[arg-type]
+    out = finalize_mod.turn_finalize_node(state)  # type: ignore[arg-type]
 
     assert out.get("current_answer_raw") == ""
     assert "qa_summary" not in out
@@ -228,7 +226,7 @@ def test_evaluator_never_clears_raw_answer(had_raw, monkeypatch) -> None:
     """Evaluator's update must not touch ``current_answer_raw``.
 
     Clearing there would starve the verifier node that runs right
-    after; the contract is "compress_context owns the clear". Two
+    after; the contract is "turn_finalize owns the clear". Two
     input shapes are exercised to show the invariant holds even when
     there was no PII redaction in the first place.
     """
