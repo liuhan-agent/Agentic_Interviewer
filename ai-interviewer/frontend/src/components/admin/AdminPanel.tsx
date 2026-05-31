@@ -1495,7 +1495,7 @@ const RECENT_TRACE_NODES = [
   "route_decision",
   "final_report",
   "ask_question",
-  "compress_context",
+  "turn_finalize",
   "refine_followup",
   "training_plan",
   "experience_extractor",
@@ -1510,7 +1510,7 @@ const RECENT_TRACE_NODE_LABELS: Record<string, string> = {
   route_decision: "路由决策",
   final_report: "最终报告",
   ask_question: "出题",
-  compress_context: "上下文压缩",
+  turn_finalize: "轮次收尾",
   refine_followup: "追问优化",
   training_plan: "训练计划",
   experience_extractor: "经验提取",
@@ -1651,6 +1651,7 @@ function formatLlmProvider(provider?: string): string {
     openai_compatible: "OpenAI 兼容",
     qwen: "通义千问",
     stub: "本地模拟",
+    xiaomimimo: "Xiaomi MiMo",
     zhipu: "智谱",
   };
   return labels[provider ?? ""] ?? provider ?? "未知";

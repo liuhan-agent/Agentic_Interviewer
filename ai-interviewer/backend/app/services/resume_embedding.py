@@ -15,8 +15,8 @@ from app.core.settings import get_settings
 from app.services.embedding_providers import (
     UnsupportedEmbeddingProviderError,
     browser_embedding_provider_spec,
-    embedding_provider_spec,
     embedding_provider_from_endpoint,
+    embedding_provider_spec,
 )
 
 log = logging.getLogger(__name__)
@@ -131,6 +131,7 @@ def embed_query(
             [str(text or "")],
             config=config,
             timeout_ms=_query_embedding_timeout_ms(timeout_ms),
+            max_retries=0,
         )
     except ResumeEmbeddingError as e:
         if raise_errors:
@@ -258,9 +259,14 @@ def _embed_batch_with_retries(
     *,
     config: EmbeddingConfig,
     timeout_ms: int | None,
+    max_retries: int | None = None,
 ) -> list[list[float]]:
     settings = get_settings()
-    max_retries = int(settings.resume_rag_embedding_max_retries or 0)
+    retry_limit = (
+        int(settings.resume_rag_embedding_max_retries or 0)
+        if max_retries is None
+        else int(max_retries)
+    )
     backoff = float(settings.resume_rag_embedding_retry_backoff_seconds or 0.0)
     attempt = 0
     while True:
@@ -268,7 +274,7 @@ def _embed_batch_with_retries(
             return _embed_batch_once(texts, config=config, timeout_ms=timeout_ms)
         except Exception as e:
             retryable = _is_retryable_embedding_error(e)
-            if not retryable or attempt >= max_retries:
+            if not retryable or attempt >= retry_limit:
                 raise _to_embedding_error(e) from e
             time.sleep(backoff * (2**attempt))
             attempt += 1

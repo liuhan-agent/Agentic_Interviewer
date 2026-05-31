@@ -1,7 +1,7 @@
 """TTL-based eviction for the raw answer side-channel.
 
 Defends against the leak path identified in the 2026-05-04 audit:
-when ``evaluator`` or ``verification`` raises and ``compress_context``
+when ``evaluator`` or ``verification`` raises and ``turn_finalize``
 (the normal owner of ``clear_raw_answer_for_state``) does not get to
 run, the raw text would otherwise stay in ``_RAW_ANSWER_STORE`` for
 the lifetime of the process. With TTL the entry self-evicts within

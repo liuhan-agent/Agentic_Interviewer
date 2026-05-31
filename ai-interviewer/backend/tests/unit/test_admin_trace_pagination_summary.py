@@ -49,20 +49,20 @@ class _FakeQuery:
         self._offset = 0
         self._limit: int | None = None
 
-    def filter(self, *_args: Any, **_kwargs: Any) -> "_FakeQuery":
+    def filter(self, *_args: Any, **_kwargs: Any) -> _FakeQuery:
         return self
 
-    def group_by(self, *_args: Any) -> "_FakeQuery":
+    def group_by(self, *_args: Any) -> _FakeQuery:
         return self
 
-    def order_by(self, *_args: Any) -> "_FakeQuery":
+    def order_by(self, *_args: Any) -> _FakeQuery:
         return self
 
-    def offset(self, n: int) -> "_FakeQuery":
+    def offset(self, n: int) -> _FakeQuery:
         self._offset = n
         return self
 
-    def limit(self, n: int) -> "_FakeQuery":
+    def limit(self, n: int) -> _FakeQuery:
         self._limit = n
         return self
 
@@ -117,10 +117,10 @@ def test_trace_summary_uses_all_nodes_even_when_response_is_paginated(
     assert payload["trace_health"] == "complete"
 
 
-def test_trace_summary_preserves_compress_context_raw_count() -> None:
+def test_trace_summary_preserves_turn_finalize_raw_count() -> None:
     from app.api.v1 import admin as admin_mod
 
-    traces = [_TraceRow(0, "compress_context")]
+    traces = [_TraceRow(0, "turn_finalize")]
 
     @contextmanager
     def _fake_get_session():
@@ -138,8 +138,8 @@ def test_trace_summary_preserves_compress_context_raw_count() -> None:
     finally:
         models_mod.get_session = original_get_session
 
-    assert payload["node_type_counts"]["compress_context"] == 1
-    assert payload["node_type_aliases"]["compress_context"] == ["turn_finalize"]
+    assert payload["node_type_counts"]["turn_finalize"] == 1
+    assert payload["node_type_aliases"]["turn_finalize"] == ["compress_context"]
     assert payload["trace_count"] == 1
 
 
@@ -158,25 +158,25 @@ def test_trace_node_payload_hides_legacy_ask_question_answer_and_evaluation() ->
     assert payload["evaluation"] is None
 
 
-def test_trace_node_payload_enriches_legacy_compress_context_alias_metadata() -> None:
+def test_trace_node_payload_enriches_turn_finalize_alias_metadata() -> None:
     from app.api.v1 import admin as admin_mod
 
-    trace = _TraceRow(0, "compress_context")
+    trace = _TraceRow(0, "turn_finalize")
     trace.state_snapshot = {"payload": {"phase": "turn_finalize"}}
 
     payload = admin_mod._trace_node_payload(trace)
 
-    assert payload["node"] == "compress_context"
-    assert payload["payload"]["workflow_node"] == "compress_context"
+    assert payload["node"] == "turn_finalize"
+    assert payload["payload"]["workflow_node"] == "turn_finalize"
     assert payload["payload"]["semantic_node"] == "turn_finalize"
-    assert payload["payload"]["node_aliases"] == ["turn_finalize"]
+    assert payload["payload"]["node_aliases"] == ["compress_context"]
     assert payload["payload"]["display_name_zh"] == "轮次收尾"
 
 
-def test_recent_traces_accepts_turn_finalize_alias(monkeypatch) -> None:
+def test_recent_traces_accepts_compress_context_alias(monkeypatch) -> None:
     from app.api.v1 import admin as admin_mod
 
-    traces = [_TraceRow(0, "compress_context")]
+    traces = [_TraceRow(0, "turn_finalize")]
 
     @contextmanager
     def _fake_get_session():
@@ -187,14 +187,14 @@ def test_recent_traces_accepts_turn_finalize_alias(monkeypatch) -> None:
     original_get_session = models_mod.get_session
     models_mod.get_session = _fake_get_session
     try:
-        payload = admin_mod.recent_traces(node="turn_finalize", limit=10)
+        payload = admin_mod.recent_traces(node="compress_context", limit=10)
     finally:
         models_mod.get_session = original_get_session
 
-    assert payload["node"] == "turn_finalize"
-    assert payload["canonical_node"] == "compress_context"
-    assert payload["node_aliases"] == ["turn_finalize"]
-    assert payload["items"][0]["node"] == "compress_context"
+    assert payload["node"] == "compress_context"
+    assert payload["canonical_node"] == "turn_finalize"
+    assert payload["node_aliases"] == ["compress_context"]
+    assert payload["items"][0]["node"] == "turn_finalize"
 
 
 def test_trace_node_payload_enriches_legacy_skill_refs_from_lookup() -> None:
@@ -287,9 +287,13 @@ def test_trace_strategy_display_lookup_indexes_strategy_identifiers() -> None:
 
     engine = create_engine("sqlite:///:memory:", future=True)
     Base.metadata.create_all(engine)
-    Session = sessionmaker(bind=engine, expire_on_commit=False, autoflush=False)
+    session_factory = sessionmaker(
+        bind=engine,
+        expire_on_commit=False,
+        autoflush=False,
+    )
 
-    with Session() as sess:
+    with session_factory() as sess:
         sess.add(
             StrategyMemory(
                 id="promoted:communication-plan-hint",

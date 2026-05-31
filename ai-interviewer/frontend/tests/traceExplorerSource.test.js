@@ -283,7 +283,14 @@ test("trace explorer explains route decisions without generic evaluation evidenc
 
   assert.match(component, /RouteDecisionPanel/);
   assert.match(component, /node\.node === "route_decision"/);
+  assert.match(component, /route_decision/);
   assert.match(component, /路由决策/);
+  assert.match(component, /route_after_eval/);
+  assert.match(component, /条件边诊断/);
+  assert.match(component, /不是真实 workflow node/);
+  assert.match(component, /route_after_eval 条件边诊断/);
+  assert.match(component, /refine \/ next_question \/ end/);
+  assert.match(component, /路由到对应的真实节点/);
   assert.match(component, /决策原因/);
   assert.match(component, /下一节点/);
   assert.match(component, /后续影响/);
@@ -306,16 +313,17 @@ test("trace explorer explains turn finalize housekeeping nodes", () => {
   const component = read("src/components/admin/TraceExplorer.tsx");
 
   assert.match(component, /TurnFinalizePanel/);
-  assert.match(component, /node\.node === "compress_context"/);
+  assert.match(component, /isTurnFinalizeNode/);
   assert.match(component, /traceNodeDisplayName/);
   assert.match(component, /traceNodeRawAlias/);
   assert.match(component, /traceNodeCanonicalName/);
   assert.match(component, /normalizeTraceNodeFilter/);
   assert.match(component, /payload\.display_name_zh/);
   assert.match(component, /payload\.semantic_node/);
+  assert.match(component, /traceNodeDescription/);
+  assert.match(component, /turn_finalize/);
   assert.match(component, /轮次收尾/);
-  assert.match(component, /workflow node/);
-  assert.match(component, /node: compress_context/);
+  assert.match(component, /real workflow node/);
   assert.doesNotMatch(component, /turn_finalize · compress_context/);
   assert.match(component, /状态清理/);
   assert.match(component, /记录状态/);
@@ -336,19 +344,19 @@ test("trace explorer explains turn finalize housekeeping nodes", () => {
   const evidenceStart = component.indexOf("function EvaluationEvidence");
   const evidenceEnd = component.indexOf("function StrategyDecisionSummary");
   const evidenceBody = component.slice(evidenceStart, evidenceEnd);
-  assert.match(evidenceBody, /node\.node === "compress_context"/);
+  assert.match(evidenceBody, /isTurnFinalizeNode\(node\.node\)/);
 
   const detailStart = component.indexOf("function TraceNodeDetail");
   const detailEnd = component.indexOf("function RouteDecisionPanel");
   const detailBody = component.slice(detailStart, detailEnd);
-  assert.match(detailBody, /node\.node !== "compress_context"/);
+  assert.match(detailBody, /!isTurnFinalizeNode\(node\.node\)/);
 });
 
-test("trace explorer treats turn_finalize as a compress_context filter alias", () => {
+test("trace explorer treats compress_context as a turn_finalize filter alias", () => {
   const component = read("src/components/admin/TraceExplorer.tsx");
 
   assert.match(component, /TRACE_NODE_ALIASES/);
-  assert.match(component, /turn_finalize:\s*"compress_context"/);
+  assert.match(component, /compress_context:\s*"turn_finalize"/);
   assert.match(component, /traceNodeCanonicalName\(nodeFilter\)/);
   assert.match(component, /traceNodeCanonicalName\(node\.node\)/);
   assert.match(component, /nodeTypeCounts\[traceNodeCanonicalName\(t\)\]/);
@@ -586,6 +594,13 @@ test("trace explorer explains ask_question evidence as grouped user-facing secti
   assert.doesNotMatch(component, /match_reasons: \{stringList\(item\.match_reasons\)\.join/);
   assert.match(component, /候选人适配提示/);
   assert.match(component, /question_fit_profile/);
+  assert.match(component, /适配层/);
+  assert.match(component, /题库绑定/);
+  assert.match(component, /项目来源/);
+  assert.match(component, /target_dimension/);
+  assert.match(component, /seed_binding/);
+  assert.match(component, /project_anchor_source/);
+  assert.match(component, /candidate_adaptation/);
   assert.match(component, /rank 1/);
   assert.match(component, /展开注入内容 <span className="font-mono">CANDIDATE_ANCHOR<\/span>/);
   assert.match(component, /候选人锚点 RAG/);
@@ -594,6 +609,29 @@ test("trace explorer explains ask_question evidence as grouped user-facing secti
   assert.match(component, /PROMPT_SLOT_DEFINITIONS/);
   assert.match(component, /PromptSlotCard/);
   assert.match(component, /\$\{orderedPromptSlots\.length\} prompt slots/);
+  assert.match(component, /prompt_truncated/);
+  assert.match(component, /trace_text_truncated/);
+  assert.match(component, /runtime_truncated/);
+  assert.match(component, /runtime_items/);
+  assert.match(component, /运行时裁剪/);
+  assert.match(component, /展开运行时裁剪明细/);
+  assert.match(component, /source_type/);
+  assert.match(component, /project_name/);
+  assert.match(component, /chunk_index/);
+  assert.match(component, /score/);
+  assert.match(component, /来源类型/);
+  assert.match(component, /字段/);
+  assert.match(component, /限制类型/);
+  assert.match(component, /限制值/);
+  assert.match(component, /field_item_limit/);
+  assert.match(component, /field_char_limit/);
+  assert.match(component, /项目/);
+  assert.match(component, /标题/);
+  assert.match(component, /Chunk/);
+  assert.match(component, /匹配分/);
+  assert.match(component, /Prompt 预算截断/);
+  assert.match(component, /Trace 文本截断/);
+  assert.doesNotMatch(component, /label="已截断"/);
   assert.doesNotMatch(component, /7 prompt slots/);
   assert.match(component, /INTERVIEW_HISTORY_SUMMARY/);
   assert.match(component, /history_summary_projection/);
@@ -673,6 +711,16 @@ test("trace explorer surfaces candidate anchor RAG diagnostics", () => {
   assert.match(component, /注入字符/);
   assert.match(component, /fallback_reason/);
   assert.match(component, /boost_fallback_reason/);
+  assert.match(component, /bind_validation/);
+  assert.match(component, /bound_count/);
+  assert.match(component, /rebind_attempted/);
+  assert.match(component, /rebind_success/);
+  assert.match(component, /session_anchor_bind_missing/);
+  assert.match(component, /query_embedding_timeout/);
+  assert.match(component, /no_bound_chunks/);
+  assert.match(component, /fetched_rows_by_source/);
+  assert.match(component, /scored_rows_by_source/);
+  assert.match(component, /kept_hits_by_source/);
   assert.match(component, /展开检索诊断 <span className="font-mono">candidate_anchor_rag<\/span>/);
   assert.match(component, /CandidateAnchorHitDiagnostics/);
   assert.match(component, /CandidateAnchorRagDiagnostics/);
@@ -755,6 +803,16 @@ test("trace explorer search covers structured ask_question evidence fields", () 
   assert.match(component, /strategy id\/name/);
   assert.match(component, /ask plan step/);
   assert.match(component, /prompt slot/);
+  assert.match(component, /prompt slot runtime item/);
+  assert.match(component, /PromptBudgetDiagnosticsPanel/);
+  assert.match(component, /Prompt 预算诊断/);
+  assert.match(component, /record\.prompt_budget_diagnostics/);
+  assert.match(component, /budget_level/);
+  assert.match(component, /runtime_budget_level/);
+  assert.match(component, /runtime_budget_source/);
+  assert.match(component, /runtime_global_budget_pressure/);
+  assert.match(component, /protected_slots/);
+  assert.match(component, /fallback_reason/);
   assert.match(component, /record\.ask_plan/);
   assert.match(component, /record\.prompt_slots/);
   assert.match(component, /record\.contract_diagnostics/);
@@ -814,14 +872,21 @@ test("trace explorer groupByTurn defends against non-monotonic ordering", () => 
   // order, which is what the original bug was about).
   assert.match(component, /groups\.sort\(\s*\(a,\s*b\)\s*=>\s*a\.sortKey\s*-\s*b\.sortKey\s*\)/);
   assert.match(component, /effectiveTraceTurnKey/);
+  assert.match(component, /groupByTurn\(filteredNodes,\s*allNodes\)/);
   assert.match(component, /SESSION_CLOSING_NODES/);
   assert.match(component, /收尾阶段/);
-  assert.match(component, /node\.node === "compress_context"/);
+  assert.match(component, /isTurnFinalizeNode\(node\.node\)/);
   assert.match(component, /payload\.phase !== "turn_finalize"/);
   assert.match(component, /Math\.max\(0,\s*node\.turn_idx - 1\)/);
+  assert.match(component, /shouldGroupRefineFollowupWithNextTurn/);
+  assert.match(component, /sameTurnHasQuestionStart/);
+  assert.match(component, /nextTurnHasQuestionStart/);
+  assert.match(component, /isAskRoundStartNode/);
+  assert.match(component, /下一轮准备/);
+  assert.match(component, /traceNodeWorkflowOrder\(a,\s*items\)/);
   assert.match(component, /traceNodeWorkflowOrder/);
   assert.match(component, /reward_update/);
-  assert.match(component, /compress_context/);
+  assert.match(component, /turn_finalize/);
   assert.match(component, /route_decision/);
 });
 

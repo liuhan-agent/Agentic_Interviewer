@@ -20,6 +20,10 @@ from app.engine.workflow.nodes import ask_question as ask_mod
 from app.engine.workflow.plans import llm_planner as llm_planner_mod
 
 
+def _render_result(text: str) -> SimpleNamespace:
+    return SimpleNamespace(text=text, as_diagnostics=lambda: {})
+
+
 def _base_state() -> dict[str, Any]:
     return {
         "session_id": "sess-ap",
@@ -58,8 +62,8 @@ def _wire_fake_steps(monkeypatch) -> None:
     def fake_retrieve_strategies(**_kwargs):
         return []
 
-    def fake_format_strategies(_entries):
-        return "(no relevant strategy memories)"
+    def fake_render_strategies(_entries, **_kwargs):
+        return _render_result("(no relevant strategy memories)")
 
     def fake_generate_question(**kwargs):
         return {
@@ -79,7 +83,7 @@ def _wire_fake_steps(monkeypatch) -> None:
 
     monkeypatch.setattr(ask_mod, "retrieve_for_question", fake_retrieve)
     monkeypatch.setattr(ask_mod, "retrieve_strategies", fake_retrieve_strategies)
-    monkeypatch.setattr(ask_mod, "format_strategies_for_prompt", fake_format_strategies)
+    monkeypatch.setattr(ask_mod, "render_strategies_for_prompt", fake_render_strategies)
     monkeypatch.setattr(ask_mod, "generate_question", fake_generate_question)
     monkeypatch.setattr(ask_mod, "negotiate_contract_via_evaluator", fake_negotiate)
 
@@ -209,8 +213,8 @@ def test_ask_question_builds_history_context_before_retrieval_and_generator(
     monkeypatch.setattr(ask_mod, "retrieve_strategies", fake_retrieve_strategies)
     monkeypatch.setattr(
         ask_mod,
-        "format_strategies_for_prompt",
-        lambda _entries: "(no relevant strategy memories)",
+        "render_strategies_for_prompt",
+        lambda _entries, **_kwargs: _render_result("(no relevant strategy memories)"),
     )
     monkeypatch.setattr(ask_mod, "generate_question", fake_generate_question)
     monkeypatch.setattr(ask_mod, "retrieve_skills", lambda **_kwargs: [])
@@ -289,8 +293,10 @@ def test_ask_question_trace_payload_records_strategy_display_fields(monkeypatch)
     monkeypatch.setattr(ask_mod, "retrieve_strategies", lambda **_kwargs: [strategy])
     monkeypatch.setattr(
         ask_mod,
-        "format_strategies_for_prompt",
-        lambda _entries: "[Strategy 1] Auto: plan_hint for communication",
+        "render_strategies_for_prompt",
+        lambda _entries, **_kwargs: _render_result(
+            "[Strategy 1] Auto: plan_hint for communication"
+        ),
     )
 
     state = _base_state()
