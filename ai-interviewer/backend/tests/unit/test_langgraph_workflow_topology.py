@@ -8,7 +8,6 @@ from __future__ import annotations
 
 from app.engine.workflow import langgraph_workflow
 
-
 EXPECTED_TOPOLOGY = {
     "nodes": [
         "resume_parse",
@@ -21,7 +20,7 @@ EXPECTED_TOPOLOGY = {
         "evaluator",
         "verification",
         "reward_update",
-        "compress_context",
+        "turn_finalize",
         "refine_followup",
         "final_report",
         "training_plan",
@@ -36,7 +35,7 @@ EXPECTED_TOPOLOGY = {
         {"source": "ask_question", "target": "wait_answer"},
         {"source": "evaluator", "target": "verification"},
         {"source": "verification", "target": "reward_update"},
-        {"source": "reward_update", "target": "compress_context"},
+        {"source": "reward_update", "target": "turn_finalize"},
         {"source": "refine_followup", "target": "director_sample"},
         {"source": "final_report", "target": "training_plan"},
         {"source": "training_plan", "target": "experience_extractor"},
@@ -62,7 +61,7 @@ EXPECTED_TOPOLOGY = {
             },
         },
         {
-            "source": "compress_context",
+            "source": "turn_finalize",
             "router": "route_after_eval",
             "branches": {
                 "refine": "refine_followup",

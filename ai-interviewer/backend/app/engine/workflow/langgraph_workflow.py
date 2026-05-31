@@ -22,7 +22,7 @@ Topology::
       -> evaluator
       -> verification
       -> reward_update
-      -> compress_context
+      -> turn_finalize
       -> route_after_eval
            -> "refine"        -> refine_followup -> director_sample
            -> "next_question" -> director_sample
@@ -40,11 +40,10 @@ This mirrors the ACO business-loop pattern with the names mapped to
 the interview domain. Every cycle goes back through ``director_sample``
 so Thompson Sampling gets a fresh draw per turn.
 
-``compress_context`` is kept as the compatibility node name in the
-graph, but its current role is turn-finalize housekeeping: clear
-ephemeral raw-answer state and let the following conditional edge
-choose refine / next_question / end. Prompt-facing history is built
-inside ``ask_question`` by HistoryContextBuilder from the complete
+``turn_finalize`` owns end-of-turn housekeeping: clear ephemeral
+raw-answer state and let the following conditional edge choose refine /
+next_question / end. Prompt-facing history is built inside
+``ask_question`` by HistoryContextBuilder from the complete
 ``qa_history`` source.
 """
 from __future__ import annotations
@@ -60,7 +59,6 @@ from app.engine.workflow.checkpoint_metrics import wrap_saver_with_metrics
 
 from .nodes import (
     ask_question_node,
-    compress_context_node,
     director_sample_node,
     evaluator_node,
     final_report_node,
@@ -71,6 +69,7 @@ from .nodes import (
     self_intro_question_node,
     skip_question_node,
     training_plan_node,
+    turn_finalize_node,
     verification_node,
     wait_answer_node,
 )
@@ -94,7 +93,7 @@ def _register_nodes(graph: Any) -> None:
     # and route diagnostics see the post-verification evaluation.
     graph.add_node("verification", verification_node)
     graph.add_node("reward_update", reward_update_node)
-    graph.add_node("compress_context", compress_context_node)
+    graph.add_node("turn_finalize", turn_finalize_node)
     graph.add_node("refine_followup", refine_followup_node)
     graph.add_node("final_report", final_report_node)
     # Coach turns the final report into an actionable training_plan;
@@ -134,9 +133,9 @@ def _register_edges(graph: Any) -> None:
 
     graph.add_edge("evaluator", "verification")
     graph.add_edge("verification", "reward_update")
-    graph.add_edge("reward_update", "compress_context")
+    graph.add_edge("reward_update", "turn_finalize")
     graph.add_conditional_edges(
-        "compress_context",
+        "turn_finalize",
         route_after_eval,
         {
             "refine": "refine_followup",

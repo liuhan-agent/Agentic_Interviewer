@@ -1,14 +1,11 @@
-"""Tests for the LLM-backed session summariser and its integration
-with ``compress_context_node``."""
+"""Tests for the LLM-backed session summariser and turn-finalize contract."""
 from __future__ import annotations
 
 import json
 from typing import Any
 
-import pytest
-
 from app.engine.agents import session_summarizer as ss
-from app.engine.workflow.nodes import compress_context as cc
+from app.engine.workflow.nodes import turn_finalize as finalize_mod
 
 
 def _turn(turn_idx: int, dim: str, score: float) -> dict[str, Any]:
@@ -143,8 +140,8 @@ def test_summarise_session_llm_raises_preserves_existing(monkeypatch) -> None:
     assert out == "OLD"
 
 
-def test_compress_context_no_longer_updates_qa_summary() -> None:
-    """compress_context is now turn-finalize only; ask_question owns the
+def test_turn_finalize_no_longer_updates_qa_summary() -> None:
+    """turn_finalize is housekeeping only; ask_question owns the
     prompt-facing history projection."""
     state = {
         "qa_history": [
@@ -156,12 +153,12 @@ def test_compress_context_no_longer_updates_qa_summary() -> None:
         "qa_summary": "",
         "qa_summary_through_turn": -1,
     }
-    out = cc.compress_context_node(state)  # type: ignore[arg-type]
+    out = finalize_mod.turn_finalize_node(state)  # type: ignore[arg-type]
     assert "qa_summary" not in out
     assert "qa_summary_through_turn" not in out
 
 
-def test_compress_context_llm_mode_does_not_invoke_summariser(monkeypatch) -> None:
+def test_turn_finalize_llm_mode_does_not_invoke_summariser(monkeypatch) -> None:
     calls: list[int] = []
 
     monkeypatch.setattr(
@@ -180,12 +177,12 @@ def test_compress_context_llm_mode_does_not_invoke_summariser(monkeypatch) -> No
         "qa_summary_through_turn": -1,
         "job_spec": {"title": "SWE", "level": "mid"},
     }
-    out = cc.compress_context_node(state)  # type: ignore[arg-type]
+    out = finalize_mod.turn_finalize_node(state)  # type: ignore[arg-type]
     assert calls == []
     assert "qa_summary" not in out
 
 
-def test_compress_context_auto_mode_does_not_invoke_summariser(monkeypatch) -> None:
+def test_turn_finalize_auto_mode_does_not_invoke_summariser(monkeypatch) -> None:
     calls: list[int] = []
 
     def fake_call(*_a, **_kw):
@@ -212,7 +209,7 @@ def test_compress_context_auto_mode_does_not_invoke_summariser(monkeypatch) -> N
         "qa_summary_through_turn": -1,
         "job_spec": {},
     }
-    cc.compress_context_node(state_short)  # type: ignore[arg-type]
+    finalize_mod.turn_finalize_node(state_short)  # type: ignore[arg-type]
     assert calls == []
 
     long_history = [_turn(i, "d", 7.0) for i in range(6)]
@@ -223,11 +220,11 @@ def test_compress_context_auto_mode_does_not_invoke_summariser(monkeypatch) -> N
         "qa_summary_through_turn": -1,
         "job_spec": {},
     }
-    cc.compress_context_node(state_long)  # type: ignore[arg-type]
+    finalize_mod.turn_finalize_node(state_long)  # type: ignore[arg-type]
     assert calls == []
 
 
-def test_compress_context_ignores_llm_failure_because_no_hot_path_summary(
+def test_turn_finalize_ignores_llm_failure_because_no_hot_path_summary(
     monkeypatch,
 ) -> None:
     """The summarizer can still exist as a standalone helper, but it is
@@ -247,6 +244,6 @@ def test_compress_context_ignores_llm_failure_because_no_hot_path_summary(
         "qa_summary_through_turn": -1,
         "job_spec": {},
     }
-    out = cc.compress_context_node(state)  # type: ignore[arg-type]
+    out = finalize_mod.turn_finalize_node(state)  # type: ignore[arg-type]
     assert "qa_summary" not in out
     assert "qa_summary_through_turn" not in out

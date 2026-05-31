@@ -424,7 +424,7 @@ def test_llm_test_endpoint_rejects_private_base_url(
 
 @pytest.mark.parametrize(
     "provider",
-    ["openai", "anthropic", "deepseek", "qwen", "zhipu", "mistral"],
+    ["openai", "anthropic", "deepseek", "qwen", "zhipu", "mistral", "xiaomimimo"],
 )
 def test_llm_test_endpoint_rejects_private_base_url_for_every_provider(
     client: TestClient,

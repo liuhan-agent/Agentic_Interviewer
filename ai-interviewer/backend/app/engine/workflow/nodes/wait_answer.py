@@ -50,7 +50,7 @@ log = get_logger(__name__)
 # reaches the LangGraph checkpointer / DB / trace rows. Each entry is
 # ``(answer, expires_at_monotonic)``; entries older than the TTL are
 # evicted lazily on read so a graph that crashes between
-# ``wait_answer`` and ``compress_context`` does not keep raw text in
+# ``wait_answer`` and ``turn_finalize`` does not keep raw text in
 # memory forever.
 _RAW_ANSWER_STORE: dict[str, tuple[str, float]] = {}
 

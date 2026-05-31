@@ -2,7 +2,7 @@
 
 Locks in the audit follow-up items:
 - raw answer side-channel is cleared even when a graph segment errors
-  before ``compress_context`` can run;
+  before ``turn_finalize`` can run;
 - cancel reports failure when the cancel-resume segment cannot be
   started, instead of pretending the graceful graph cancel succeeded.
 """

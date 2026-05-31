@@ -179,6 +179,14 @@ export const PROVIDERS = [
     baseUrlMode: "optional",
   },
   {
+    id: "xiaomimimo",
+    label: "Xiaomi MiMo",
+    defaultModel: "mimo-v2.5-pro",
+    defaultBaseUrl: "https://api.xiaomimimo.com/v1",
+    keyPlaceholder: "sk-...",
+    baseUrlMode: "optional",
+  },
+  {
     id: "openai_compatible",
     label: "自定义 OpenAI-Compatible",
     defaultModel: "",

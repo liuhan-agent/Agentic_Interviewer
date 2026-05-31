@@ -199,6 +199,14 @@ def test_embed_query_swallows_timeout(mock_http: _MockHTTP) -> None:
     assert embed_query("cache consistency") is None
 
 
+def test_embed_query_timeout_does_not_retry_hot_path(mock_http: _MockHTTP) -> None:
+    mock_http.set_timeout()
+
+    assert embed_query("cache consistency") is None
+    assert mock_http.call_count == 1
+    assert mock_http.timeouts == [pytest.approx(3.0)]
+
+
 def test_embed_query_cache_avoids_second_call(mock_http: _MockHTTP) -> None:
     mock_http.add_post("/embeddings", lambda req: _ok_response(len(req["input"])))
 

@@ -44,6 +44,24 @@ class QuestionFitProfile:
         }
 
 
+@dataclass(frozen=True)
+class CandidateAnchorBlockRenderResult:
+    text: str
+    original_chars: int
+    injected_chars: int
+    runtime_truncated: bool
+    items: list[dict[str, Any]]
+
+    def as_diagnostics(self) -> dict[str, Any]:
+        return {
+            "runtime_truncated": self.runtime_truncated,
+            "budget_chars": None,
+            "original_chars": self.original_chars,
+            "injected_chars": self.injected_chars,
+            "items": list(self.items),
+        }
+
+
 def build_question_fit_profile(
     *,
     candidate: dict[str, Any] | None,
@@ -136,31 +154,143 @@ def format_candidate_anchor_block(
     signals. It is a candidate/JD grounding block, not a provenance block.
     """
 
+    return render_candidate_anchor_block(profile, candidate).text
+
+
+def render_candidate_anchor_block(
+    profile: QuestionFitProfile,
+    candidate: Any,
+) -> CandidateAnchorBlockRenderResult:
+    """Render CANDIDATE_ANCHOR text with field-level clipping diagnostics."""
+
     if not profile or candidate is None:
-        return ""
+        return CandidateAnchorBlockRenderResult(
+            text="",
+            original_chars=0,
+            injected_chars=0,
+            runtime_truncated=False,
+            items=[],
+        )
+
+    items: list[dict[str, Any]] = []
     lines = [
+        "Purpose: adapt structured question seed to candidate context.",
+        f"Target dimension: {profile.dimension or 'unknown'}",
+        f"Question intent: {profile.turn_intent or 'unknown'}",
         f"Anchor confidence: {profile.anchor_confidence}",
         f"Generic risk: {profile.generic_risk}",
     ]
+    original_lines = list(lines)
+
+    def add_char_field(label: str, field: str, value: str, limit: int) -> None:
+        raw = str(value or "").strip()
+        if not raw:
+            return
+        injected = raw[:limit]
+        original_lines.append(f"{label}: {raw}")
+        lines.append(f"{label}: {injected}")
+        truncated = len(raw) > len(injected)
+        items.append(
+            {
+                "rank": len(items) + 1,
+                "id": field,
+                "field": field,
+                "name": label,
+                "limit": limit,
+                "limit_type": "chars",
+                "body_budget_chars": limit,
+                "original_body_chars": len(raw),
+                "injected_body_chars": len(injected),
+                "runtime_truncated": truncated,
+                "truncation_reason": "field_char_limit" if truncated else None,
+            }
+        )
+
+    def add_list_field(
+        label: str,
+        field: str,
+        values: Sequence[Any],
+        limit: int,
+    ) -> None:
+        raw_values = [str(item) for item in values or [] if str(item).strip()]
+        if not raw_values:
+            return
+        injected_values = raw_values[:limit]
+        original_text = ", ".join(raw_values)
+        injected_text = ", ".join(injected_values)
+        original_lines.append(f"{label}: {original_text}")
+        lines.append(f"{label}: {injected_text}")
+        truncated = len(raw_values) > len(injected_values)
+        items.append(
+            {
+                "rank": len(items) + 1,
+                "id": field,
+                "field": field,
+                "name": label,
+                "limit": limit,
+                "limit_type": "items",
+                "original_count": len(raw_values),
+                "injected_count": len(injected_values),
+                "original_body_chars": len(original_text),
+                "injected_body_chars": len(injected_text),
+                "runtime_truncated": truncated,
+                "truncation_reason": "field_item_limit" if truncated else None,
+            }
+        )
+
     project = profile.candidate_projects[0] if profile.candidate_projects else {}
     if project:
-        lines.append(f"Candidate project: {project.get('name') or 'unspecified'}")
+        project_name_line = f"Selected project anchor: {project.get('name') or 'unspecified'}"
+        lines.append(project_name_line)
+        original_lines.append(project_name_line)
+        source = str(project.get("source") or "").strip()
+        if source:
+            source_line = f"Project anchor source: {source}"
+            lines.append(source_line)
+            original_lines.append(source_line)
         summary = str(project.get("summary") or "").strip()
-        if summary:
-            lines.append(f"Project summary: {summary[:240]}")
-        skills = [str(item) for item in project.get("skills") or []][:6]
-        if skills:
-            lines.append("Project skills: " + ", ".join(skills))
+        add_char_field("Project summary", "project_summary", summary, 240)
+        add_list_field("Project skills", "project_skills", project.get("skills") or [], 6)
+    if profile.target_skills:
+        add_list_field(
+            "Adaptation skills",
+            "adaptation_skills",
+            profile.target_skills,
+            8,
+        )
     if profile.candidate_skills:
-        lines.append("Candidate skills: " + ", ".join(profile.candidate_skills[:8]))
+        add_list_field(
+            "Candidate skills",
+            "candidate_skills",
+            profile.candidate_skills,
+            8,
+        )
     if profile.job_core_skills:
-        lines.append("Job core skills: " + ", ".join(profile.job_core_skills[:8]))
+        add_list_field(
+            "Job core skills",
+            "job_core_skills",
+            profile.job_core_skills,
+            8,
+        )
     scenario = str(getattr(candidate, "scenario_brief", "") or "").strip()
-    if scenario:
-        lines.append(f"Structured scenario: {scenario[:240]}")
+    add_char_field("Structured seed scenario", "structured_seed_scenario", scenario, 240)
     if profile.failure_categories:
-        lines.append("Turn failure categories: " + ", ".join(profile.failure_categories[:5]))
-    return "\n".join(lines)
+        add_list_field(
+            "Turn failure categories",
+            "failure_categories",
+            profile.failure_categories,
+            5,
+        )
+
+    text = "\n".join(lines)
+    original_text = "\n".join(original_lines)
+    return CandidateAnchorBlockRenderResult(
+        text=text,
+        original_chars=len(original_text),
+        injected_chars=len(text),
+        runtime_truncated=any(bool(item.get("runtime_truncated")) for item in items),
+        items=items,
+    )
 
 
 def candidate_anchor_artifact(
@@ -169,11 +299,18 @@ def candidate_anchor_artifact(
 ) -> dict[str, Any]:
     project = profile.candidate_projects[0] if profile.candidate_projects else {}
     return {
+        "prompt_role": "candidate_adaptation",
+        "seed_binding": "rank1_structured_question",
+        "target_dimension": profile.dimension,
+        "turn_intent": profile.turn_intent,
         "variant_id": getattr(candidate, "variant_id", None),
         "title": getattr(candidate, "title", None),
         "anchor_confidence": profile.anchor_confidence,
         "generic_risk": profile.generic_risk,
         "project_name": project.get("name") if isinstance(project, dict) else None,
+        "project_anchor_source": (
+            project.get("source") if isinstance(project, dict) else None
+        ),
         "candidate_skills": list(profile.candidate_skills[:8]),
         "job_core_skills": list(profile.job_core_skills[:8]),
         "failure_categories": list(profile.failure_categories[:5]),
@@ -220,15 +357,21 @@ def _extract_projects(
     self_intro_profile: dict[str, Any],
     resume_anchor: dict[str, Any],
 ) -> list[dict[str, Any]]:
-    raw_projects: list[Any] = []
-    raw_projects.extend(_items(resume_parsed.get("projects"), keep_dict=True))
-    raw_projects.extend(_items(self_intro_profile.get("projects"), keep_dict=True))
+    raw_projects: list[tuple[Any, str]] = []
+    raw_projects.extend(
+        (item, "resume_project")
+        for item in _items(resume_parsed.get("projects"), keep_dict=True)
+    )
+    raw_projects.extend(
+        (item, "self_intro_project")
+        for item in _items(self_intro_profile.get("projects"), keep_dict=True)
+    )
     if resume_anchor:
-        raw_projects.insert(0, resume_anchor)
+        raw_projects.insert(0, (resume_anchor, "resume_anchor"))
 
     projects: list[dict[str, Any]] = []
     seen: set[str] = set()
-    for raw in raw_projects:
+    for raw, source in raw_projects:
         if not isinstance(raw, dict):
             continue
         name = _first_text(raw, ("project_name", "name", "label", "project", "title"))
@@ -257,6 +400,7 @@ def _extract_projects(
                 "name": name or "unspecified project",
                 "summary": summary,
                 "skills": skills,
+                "source": source,
             }
         )
     return projects[:5]

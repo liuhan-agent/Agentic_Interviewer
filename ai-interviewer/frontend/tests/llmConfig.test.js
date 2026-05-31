@@ -42,6 +42,25 @@ test("LLM settings dialog shows the effective model route summary", () => {
   assert.match(source, /modelRouteSummary\(config\)/);
 });
 
+test("LLM route summary keeps default fallback and experimental details lightweight", () => {
+  const source = fs.readFileSync(
+    path.join(__dirname, "..", "src", "components", "layout", "LLMSettingsDialog.tsx"),
+    "utf8",
+  );
+
+  const summaryBlock = source.match(/function ModelRouteSummary[\s\S]*?function ModelStrategyHint/);
+  assert.ok(summaryBlock, "ModelRouteSummary should render before ModelStrategyHint");
+  assert.match(summaryBlock[0], /其它 LLM 调用/);
+  assert.match(summaryBlock[0], /使用默认配置/);
+  assert.match(summaryBlock[0], /没有单独列出的常规调用和后续新增调用/);
+  assert.match(summaryBlock[0], /bg-secondary\/10/);
+  assert.match(summaryBlock[0], /高级明细/);
+  assert.match(summaryBlock[0], /strategy_dream/);
+  assert.match(summaryBlock[0], /question_reranker/);
+  assert.match(summaryBlock[0], /实验开关关闭时不会产生额外 LLM 调用/);
+  assert.doesNotMatch(summaryBlock[0], /<RoleGroupCard/);
+});
+
 test("LLM settings exposes voice ASR and TTS routes", () => {
   const configSource = fs.readFileSync(
     path.join(__dirname, "..", "src", "lib", "llm-config.ts"),
@@ -63,6 +82,23 @@ test("LLM settings exposes voice ASR and TTS routes", () => {
   assert.match(dialogSource, /语音识别/);
   assert.match(dialogSource, /语音合成/);
   assert.match(dialogSource, /VoiceRouteCard/);
+});
+
+test("LLM settings exposes Xiaomi MiMo as an OpenAI-compatible preset", () => {
+  const configSource = fs.readFileSync(
+    path.join(__dirname, "..", "src", "lib", "llm-config.ts"),
+    "utf8",
+  );
+
+  const providerBlock = configSource.match(
+    /export const PROVIDERS = \[([\s\S]*?)\] as const/,
+  )?.[1];
+
+  assert.ok(providerBlock);
+  assert.match(providerBlock, /id: "xiaomimimo"/);
+  assert.match(providerBlock, /label: "Xiaomi MiMo"/);
+  assert.match(providerBlock, /defaultModel: "mimo-v2\.5-pro"/);
+  assert.match(providerBlock, /defaultBaseUrl: "https:\/\/api\.xiaomimimo\.com\/v1"/);
 });
 
 test("voice route cards match role override card interaction style", () => {
@@ -324,6 +360,21 @@ test("LLM test result rows render failed provider error details", () => {
   assert.match(rowsBlock[0], /result\.error \? \(/);
   assert.match(rowsBlock[0], /break-words/);
   assert.match(rowsBlock[0], /result\.error/);
+});
+
+test("LLM test transient rows explain route impact without implying bad config", () => {
+  const dialogSource = fs.readFileSync(
+    path.join(__dirname, "..", "src", "components", "layout", "LLMSettingsDialog.tsx"),
+    "utf8",
+  );
+
+  assert.match(dialogSource, /function connectionImpactMessage/);
+  assert.match(dialogSource, /result\.errorKind === "network"/);
+  assert.match(dialogSource, /result\.errorKind === "timeout"/);
+  assert.match(dialogSource, /临时不可用/);
+  assert.match(dialogSource, /回答评分/);
+  assert.match(dialogSource, /兜底评分/);
+  assert.doesNotMatch(dialogSource, /配置一定有误/);
 });
 
 test("package exposes frontend source test script", () => {

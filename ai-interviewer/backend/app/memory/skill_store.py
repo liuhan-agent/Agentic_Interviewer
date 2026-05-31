@@ -74,6 +74,9 @@ SKILL_REWARD_ROLLOUT_MODES = {"metadata", "reward_shadow", "reward"}
 DEFAULT_SKILL_REWARD_ROLLOUT_MODE = "reward_shadow"
 MIN_REWARD_CANDIDATE_COUNT = 5
 MAX_OVERRULE_RATE = 0.25
+SKILL_PROMPT_SLOT_BUDGET_CHARS = 3600
+SKILL_PROMPT_BODY_BUDGETS = (1100, 800, 600)
+PROMPT_MATERIAL_MIN_BODY_CHARS = 240
 
 
 @dataclass
@@ -114,6 +117,35 @@ class SkillEntry:
     reward_shadow_rank_changed: bool = False
     usage_stats: dict[str, Any] | None = None
     reward_shadow_reason: dict[str, Any] | None = None
+
+
+@dataclass
+class PromptMaterialRenderResult:
+    text: str
+    budget_chars: int
+    original_chars: int
+    injected_chars: int
+    runtime_truncated: bool
+    items: list[dict[str, Any]]
+    budget_level: str = ""
+    budget_source: str = ""
+    global_budget_pressure: str = ""
+
+    def as_diagnostics(self) -> dict[str, Any]:
+        payload = {
+            "budget_chars": self.budget_chars,
+            "original_chars": self.original_chars,
+            "injected_chars": self.injected_chars,
+            "runtime_truncated": self.runtime_truncated,
+            "items": self.items,
+        }
+        if self.budget_level:
+            payload["budget_level"] = self.budget_level
+        if self.budget_source:
+            payload["budget_source"] = self.budget_source
+        if self.global_budget_pressure:
+            payload["global_budget_pressure"] = self.global_budget_pressure
+        return payload
 
 
 def _parse_frontmatter(text: str) -> dict[str, Any]:
@@ -714,7 +746,7 @@ def _skill_reward_gate_reasons(
         reasons.append("reward_samples_below_min")
     if any(
         getattr(row, "overrule_rate", None) is not None
-        and float(getattr(row, "overrule_rate") or 0.0) > MAX_OVERRULE_RATE
+        and float(row.overrule_rate or 0.0) > MAX_OVERRULE_RATE
         for row in stats_rows
     ):
         reasons.append("overrule_rate_high")
@@ -809,10 +841,189 @@ def _context_role(role_tags: list[str]) -> str:
     return concrete[0] if concrete else "general"
 
 
+def _skill_body_budget(
+    rank: int,
+    max_body_chars: int | None,
+    rank_body_budgets: tuple[int, int, int, int] | None = None,
+) -> int:
+    if max_body_chars is not None:
+        return max(0, int(max_body_chars))
+    if rank_body_budgets is not None:
+        if rank <= 3:
+            return max(0, int(rank_body_budgets[rank - 1]))
+        return max(0, int(rank_body_budgets[3]))
+    if rank <= len(SKILL_PROMPT_BODY_BUDGETS):
+        return SKILL_PROMPT_BODY_BUDGETS[rank - 1]
+    return 300
+
+
+def _skill_header(rank: int, entry: SkillEntry) -> str:
+    dims = ", ".join(entry.dimensions) if entry.dimensions else "all"
+    levels = ", ".join(entry.job_levels) if entry.job_levels else "all"
+    return (
+        f"[Skill {rank}] {entry.name}\n"
+        f"  Applies to: dims={dims}, levels={levels}\n"
+        f"  Why selected: {', '.join(entry.match_reasons) or 'manual playbook match'}\n"
+        f"  {entry.description}\n\n"
+        "  "
+    )
+
+
+def _skill_reason(
+    *,
+    original_body_chars: int,
+    final_budget: int,
+    base_budget: int,
+) -> str | None:
+    if original_body_chars <= final_budget:
+        return None
+    if final_budget <= 0:
+        return "slot_budget_omitted_body"
+    if final_budget < base_budget:
+        return "slot_budget_reduced"
+    return "body_budget_exceeded"
+
+
+def _render_skill_with_budgets(
+    entries: list[SkillEntry],
+    bodies: list[str],
+    body_budgets: list[int],
+    base_body_budgets: list[int] | None = None,
+) -> tuple[str, list[dict[str, Any]], bool]:
+    blocks: list[str] = []
+    items: list[dict[str, Any]] = []
+    runtime_truncated = False
+    for rank, (entry, body, body_budget) in enumerate(
+        zip(entries, bodies, body_budgets, strict=True),
+        1,
+    ):
+        base_budget = (
+            base_body_budgets[rank - 1]
+            if base_body_budgets and rank - 1 < len(base_body_budgets)
+            else _skill_body_budget(rank, None)
+        )
+        reason = _skill_reason(
+            original_body_chars=len(body),
+            final_budget=body_budget,
+            base_budget=base_budget,
+        )
+        body_text = "" if body_budget <= 0 else body[:body_budget]
+        suffix = ""
+        if reason == "slot_budget_omitted_body":
+            suffix = " [omitted - slot budget]"
+        elif reason is not None:
+            suffix = " [truncated - see knowledge/skills/ for full text]"
+        item_truncated = reason is not None
+        runtime_truncated = runtime_truncated or item_truncated
+        blocks.append(f"{_skill_header(rank, entry)}{body_text}{suffix}")
+        items.append(
+            {
+                "rank": rank,
+                "skill_id": entry.id,
+                "name": entry.name,
+                "body_budget_chars": body_budget,
+                "original_body_chars": len(body),
+                "injected_body_chars": len(body_text),
+                "runtime_truncated": item_truncated,
+                "truncation_reason": reason,
+            }
+        )
+    return "\n\n".join(blocks), items, runtime_truncated
+
+
+def render_skills_block(
+    entries: list[SkillEntry],
+    *,
+    max_body_chars: int | None = None,
+    slot_budget_chars: int = SKILL_PROMPT_SLOT_BUDGET_CHARS,
+    rank_body_budgets: tuple[int, int, int, int] | None = None,
+    budget_level: str = "",
+    budget_source: str = "",
+    global_budget_pressure: str = "",
+) -> PromptMaterialRenderResult:
+    """Render skill cards with slot- and rank-aware prompt budgets."""
+
+    budget_chars = max(0, int(slot_budget_chars))
+    if not entries:
+        text = "(no relevant interview skills)"
+        return PromptMaterialRenderResult(
+            text=text,
+            budget_chars=budget_chars,
+            original_chars=0,
+            injected_chars=len(text),
+            runtime_truncated=False,
+            items=[],
+        )
+
+    bodies = [_generator_skill_body(entry) for entry in entries]
+    base_body_budgets = [
+        _skill_body_budget(rank, max_body_chars, rank_body_budgets)
+        for rank, _body in enumerate(bodies, 1)
+    ]
+    body_budgets = [
+        min(len(body), base_budget)
+        for body, base_budget in zip(bodies, base_body_budgets, strict=True)
+    ]
+    original_text = "\n\n".join(
+        f"{_skill_header(rank, entry)}{body}"
+        for rank, (entry, body) in enumerate(zip(entries, bodies, strict=True), 1)
+    )
+    text, items, runtime_truncated = _render_skill_with_budgets(
+        entries,
+        bodies,
+        body_budgets,
+        base_body_budgets,
+    )
+
+    if len(text) > budget_chars:
+        for idx in range(len(body_budgets) - 1, -1, -1):
+            if len(text) <= budget_chars:
+                break
+            if body_budgets[idx] <= PROMPT_MATERIAL_MIN_BODY_CHARS:
+                continue
+            reduction = min(
+                body_budgets[idx] - PROMPT_MATERIAL_MIN_BODY_CHARS,
+                len(text) - budget_chars,
+            )
+            body_budgets[idx] -= reduction
+            text, items, runtime_truncated = _render_skill_with_budgets(
+                entries,
+                bodies,
+                body_budgets,
+                base_body_budgets,
+            )
+
+    if len(text) > budget_chars:
+        for idx in range(len(body_budgets) - 1, -1, -1):
+            if len(text) <= budget_chars:
+                break
+            if body_budgets[idx] <= 0:
+                continue
+            body_budgets[idx] = 0
+            text, items, runtime_truncated = _render_skill_with_budgets(
+                entries,
+                bodies,
+                body_budgets,
+                base_body_budgets,
+            )
+
+    return PromptMaterialRenderResult(
+        text=text,
+        budget_chars=budget_chars,
+        original_chars=len(original_text),
+        injected_chars=len(text),
+        runtime_truncated=runtime_truncated or len(original_text) > len(text),
+        items=items,
+        budget_level=budget_level,
+        budget_source=budget_source,
+        global_budget_pressure=global_budget_pressure,
+    )
+
+
 def build_skills_block(
     entries: list[SkillEntry],
     *,
-    max_body_chars: int = 600,
+    max_body_chars: int | None = None,
 ) -> str:
     """Render a list of skill cards into a compact markdown block.
 
@@ -825,25 +1036,7 @@ def build_skills_block(
     Bodies are truncated to ``max_body_chars`` each; the full file
     stays on disk for operators who want to inspect it.
     """
-    if not entries:
-        return "(no relevant interview skills)"
-    blocks: list[str] = []
-    for i, e in enumerate(entries, 1):
-        body = _generator_skill_body(e)
-        truncated = ""
-        if len(body) > max_body_chars:
-            body = body[:max_body_chars]
-            truncated = " [truncated — see knowledge/skills/ for full text]"
-        dims = ", ".join(e.dimensions) if e.dimensions else "all"
-        levels = ", ".join(e.job_levels) if e.job_levels else "all"
-        blocks.append(
-            f"[Skill {i}] {e.name}\n"
-            f"  Applies to: dims={dims}, levels={levels}\n"
-            f"  Why selected: {', '.join(e.match_reasons) or 'manual playbook match'}\n"
-            f"  {e.description}\n\n"
-            f"  {body}{truncated}"
-        )
-    return "\n\n".join(blocks)
+    return render_skills_block(entries, max_body_chars=max_body_chars).text
 
 
 def _generator_skill_body(entry: SkillEntry) -> str:

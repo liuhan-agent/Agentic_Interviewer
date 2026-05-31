@@ -1660,13 +1660,324 @@ def test_prompt_slots_record_final_generator_inputs_and_truncation() -> None:
 
     resume = by_label["CANDIDATE_RESUME_RAG"]
     assert resume["chars"] > len(resume["text"])
-    assert resume["truncated"] is True
+    assert resume["truncated"] is False
+    assert resume["prompt_truncated"] is False
+    assert resume["trace_text_truncated"] is True
     assert resume["text"] == ("[resume] " + ("Redis " * 20))[:24]
     assert resume["injected"] is True
 
     assert by_label["STRATEGY_MEMORY"]["injected"] is False
     assert by_label["STRATEGY_MEMORY"]["empty_reason"] == "no_relevant_strategy_memories"
     assert by_label["INTERVIEW_SKILLS"]["empty_reason"] == "no_relevant_interview_skills"
+
+
+def test_prompt_slots_include_strategy_skill_runtime_diagnostics() -> None:
+    ctx = {
+        "structured_primary_seed_hit": False,
+        "retrieval_block": "",
+        "question_seed_block": "",
+        "candidate_anchor_block": "",
+        "resume_rag_block": "",
+        "self_intro_rag_block": "",
+        "strategy_block": "strategy guidance " * 20,
+        "skill_block": "skill guidance " * 20,
+        "strategy_prompt_diagnostics": {
+            "runtime_truncated": True,
+            "budget_chars": 3200,
+            "budget_level": "tight",
+            "budget_source": "prompt_budget_diagnostics",
+            "global_budget_pressure": "tight",
+            "original_chars": 5000,
+            "injected_chars": 3000,
+            "items": [
+                {
+                    "rank": 1,
+                    "id": "strategy-1",
+                    "name": "Strategy 1",
+                    "body_budget_chars": 1200,
+                    "original_body_chars": 2000,
+                    "injected_body_chars": 1200,
+                    "runtime_truncated": True,
+                    "truncation_reason": "body_budget_exceeded",
+                }
+            ],
+        },
+        "skill_prompt_diagnostics": {
+            "runtime_truncated": False,
+            "budget_chars": 3600,
+            "original_chars": 900,
+            "injected_chars": 900,
+            "items": [
+                {
+                    "rank": 1,
+                    "skill_id": "skill-1",
+                    "name": "Skill 1",
+                    "body_budget_chars": 1100,
+                    "original_body_chars": 600,
+                    "injected_body_chars": 600,
+                    "runtime_truncated": False,
+                    "truncation_reason": None,
+                }
+            ],
+        },
+    }
+
+    slots = ask_mod._prompt_slots_for_trace(ctx, text_limit=32)
+    by_label = {slot["prompt_label"]: slot for slot in slots}
+
+    strategy = by_label["STRATEGY_MEMORY"]
+    assert strategy["prompt_truncated"] is True
+    assert strategy["runtime_truncated"] is True
+    assert strategy["trace_text_truncated"] is True
+    assert strategy["runtime_budget_chars"] == 3200
+    assert strategy["runtime_budget_level"] == "tight"
+    assert strategy["runtime_budget_source"] == "prompt_budget_diagnostics"
+    assert strategy["runtime_global_budget_pressure"] == "tight"
+    assert strategy["runtime_original_chars"] == 5000
+    assert strategy["runtime_injected_chars"] == 3000
+    assert strategy["runtime_items"][0]["id"] == "strategy-1"
+    assert strategy["runtime_items"][0]["truncation_reason"] == "body_budget_exceeded"
+
+    skill = by_label["INTERVIEW_SKILLS"]
+    assert skill["prompt_truncated"] is False
+    assert skill["runtime_truncated"] is False
+    assert skill["trace_text_truncated"] is True
+    assert skill["runtime_items"][0]["skill_id"] == "skill-1"
+
+
+def test_apply_auxiliary_prompt_budget_expands_strategy_and_skill(monkeypatch) -> None:
+    monkeypatch.setattr(
+        ask_mod,
+        "get_settings",
+        lambda: SimpleNamespace(
+            llm_provider="openai",
+            llm_model="gpt-4o-mini",
+            llm_model_per_agent={},
+            llm_max_tokens=2048,
+        ),
+    )
+    monkeypatch.setattr(ask_mod, "_runtime_llm_override", lambda: None)
+    ctx = {
+        "structured_primary_seed_hit": False,
+        "retrieval_block": "retrieval",
+        "question_seed_block": "seed",
+        "candidate_anchor_block": "anchor",
+        "resume_rag_block": "resume",
+        "self_intro_rag_block": "intro",
+        "history_section": "history " * 100,
+        "contract_hints": {"must_cover": ["Redis"]},
+        "strategy_entries": [
+            StrategyEntry(
+                path=Path(f"strategy-{idx}.md"),
+                id=f"strategy-{idx}",
+                name=f"Strategy {idx}",
+                dimensions=["technical_depth"],
+                job_levels=["junior"],
+                body=chr(96 + idx) * 3000,
+            )
+            for idx in range(1, 4)
+        ],
+        "skill_entries": [
+            SkillEntry(
+                path=Path(f"skill-{idx}.md"),
+                id=f"skill-{idx}",
+                name=f"Skill {idx}",
+                description="Probe deeply.",
+                dimensions=["technical_depth"],
+                job_levels=["junior"],
+                body=chr(96 + idx) * 3000,
+            )
+            for idx in range(1, 4)
+        ],
+    }
+
+    ask_mod._apply_auxiliary_prompt_budget(ctx)
+
+    budget = ctx["prompt_budget_diagnostics"]
+    assert budget["budget_level"] == "expanded"
+    assert budget["strategy_budget_chars"] == 4800
+    assert budget["skill_budget_chars"] == 5200
+    assert budget["fallback_used"] is False
+    assert budget["protected_slot_chars"] == sum(
+        slot["chars"] for slot in budget["protected_slots"]
+    )
+    assert ctx["strategy_prompt_diagnostics"]["budget_level"] == "expanded"
+    assert ctx["strategy_prompt_diagnostics"]["items"][0]["body_budget_chars"] == 1800
+    assert ctx["skill_prompt_diagnostics"]["budget_level"] == "expanded"
+    assert ctx["skill_prompt_diagnostics"]["items"][0]["body_budget_chars"] == 1700
+
+
+def test_apply_auxiliary_prompt_budget_falls_back_for_unknown_model(monkeypatch) -> None:
+    monkeypatch.setattr(
+        ask_mod,
+        "get_settings",
+        lambda: SimpleNamespace(
+            llm_provider="openai_compatible",
+            llm_model="custom-local-model",
+            llm_model_per_agent={},
+            llm_max_tokens=2048,
+        ),
+    )
+    monkeypatch.setattr(ask_mod, "_runtime_llm_override", lambda: None)
+    ctx = {
+        "structured_primary_seed_hit": False,
+        "retrieval_block": "",
+        "strategy_entries": [
+            StrategyEntry(
+                path=Path("strategy.md"),
+                id="strategy",
+                name="Fallback Strategy",
+                dimensions=["communication"],
+                job_levels=["junior"],
+                body="x" * 3000,
+            )
+        ],
+        "skill_entries": [
+            SkillEntry(
+                path=Path("skill.md"),
+                id="skill",
+                name="Fallback Skill",
+                description="Probe clearly.",
+                dimensions=["communication"],
+                job_levels=["junior"],
+                body="y" * 3000,
+            )
+        ],
+    }
+
+    ask_mod._apply_auxiliary_prompt_budget(ctx)
+
+    budget = ctx["prompt_budget_diagnostics"]
+    assert budget["budget_level"] == "fallback"
+    assert budget["fallback_used"] is True
+    assert budget["fallback_reason"] == "unknown_model_context_window"
+    assert ctx["strategy_prompt_diagnostics"]["budget_chars"] == 3200
+    assert ctx["strategy_prompt_diagnostics"]["items"][0]["body_budget_chars"] == 1200
+    assert ctx["skill_prompt_diagnostics"]["budget_chars"] == 3600
+    assert ctx["skill_prompt_diagnostics"]["items"][0]["body_budget_chars"] == 1100
+
+
+def test_prompt_slots_include_candidate_rag_runtime_diagnostics() -> None:
+    ctx = {
+        "structured_primary_seed_hit": False,
+        "retrieval_block": "",
+        "question_seed_block": "",
+        "candidate_anchor_block": "",
+        "resume_rag_block": "[resume] Coupon Guard: Redis " * 20,
+        "self_intro_rag_block": "[self_intro] Opening claim: Lua " * 20,
+        "strategy_block": "",
+        "skill_block": "",
+        "resume_rag_prompt_diagnostics": {
+            "runtime_truncated": True,
+            "budget_chars": 800,
+            "original_chars": 1400,
+            "injected_chars": 780,
+            "items": [
+                {
+                    "rank": 1,
+                    "id": 10,
+                    "source_type": "resume",
+                    "project_name": "Coupon Guard",
+                    "heading": "Redis consistency",
+                    "chunk_index": 0,
+                    "score": 0.91,
+                    "body_budget_chars": 520,
+                    "original_body_chars": 1000,
+                    "injected_body_chars": 520,
+                    "runtime_truncated": True,
+                    "truncation_reason": "body_budget_exceeded",
+                }
+            ],
+        },
+        "self_intro_rag_prompt_diagnostics": {
+            "runtime_truncated": False,
+            "budget_chars": 500,
+            "original_chars": 240,
+            "injected_chars": 240,
+            "items": [
+                {
+                    "rank": 1,
+                    "id": 11,
+                    "source_type": "self_intro",
+                    "project_name": "",
+                    "heading": "Opening claim",
+                    "chunk_index": 0,
+                    "score": 0.86,
+                    "body_budget_chars": 220,
+                    "original_body_chars": 200,
+                    "injected_body_chars": 200,
+                    "runtime_truncated": False,
+                    "truncation_reason": None,
+                }
+            ],
+        },
+    }
+
+    slots = ask_mod._prompt_slots_for_trace(ctx, text_limit=32)
+    by_label = {slot["prompt_label"]: slot for slot in slots}
+
+    resume = by_label["CANDIDATE_RESUME_RAG"]
+    assert resume["prompt_truncated"] is True
+    assert resume["runtime_truncated"] is True
+    assert resume["trace_text_truncated"] is True
+    assert resume["runtime_budget_chars"] == 800
+    assert resume["runtime_original_chars"] == 1400
+    assert resume["runtime_injected_chars"] == 780
+    assert resume["runtime_items"][0]["source_type"] == "resume"
+    assert resume["runtime_items"][0]["project_name"] == "Coupon Guard"
+    assert resume["runtime_items"][0]["truncation_reason"] == "body_budget_exceeded"
+
+    self_intro = by_label["SELF_INTRO_RAG"]
+    assert self_intro["prompt_truncated"] is False
+    assert self_intro["runtime_truncated"] is False
+    assert self_intro["trace_text_truncated"] is True
+    assert self_intro["runtime_budget_chars"] == 500
+    assert self_intro["runtime_items"][0]["source_type"] == "self_intro"
+
+
+def test_prompt_slots_include_candidate_anchor_field_runtime_diagnostics() -> None:
+    ctx = {
+        "structured_primary_seed_hit": False,
+        "retrieval_block": "",
+        "question_seed_block": "",
+        "candidate_anchor_block": "Project summary: " + ("Redis " * 20),
+        "resume_rag_block": "",
+        "self_intro_rag_block": "",
+        "strategy_block": "",
+        "skill_block": "",
+        "candidate_anchor_prompt_diagnostics": {
+            "runtime_truncated": True,
+            "budget_chars": 120,
+            "original_chars": 360,
+            "injected_chars": 120,
+            "items": [
+                {
+                    "rank": 1,
+                    "id": "project_summary",
+                    "field": "project_summary",
+                    "name": "Project summary",
+                    "limit": 240,
+                    "limit_type": "chars",
+                    "body_budget_chars": 240,
+                    "original_body_chars": 420,
+                    "injected_body_chars": 240,
+                    "runtime_truncated": True,
+                    "truncation_reason": "field_char_limit",
+                }
+            ],
+        },
+    }
+
+    slots = ask_mod._prompt_slots_for_trace(ctx, text_limit=32)
+    by_label = {slot["prompt_label"]: slot for slot in slots}
+
+    candidate_anchor = by_label["CANDIDATE_ANCHOR"]
+    assert candidate_anchor["prompt_truncated"] is True
+    assert candidate_anchor["runtime_truncated"] is True
+    assert candidate_anchor["trace_text_truncated"] is True
+    assert candidate_anchor["runtime_items"][0]["field"] == "project_summary"
+    assert candidate_anchor["runtime_items"][0]["limit_type"] == "chars"
+    assert candidate_anchor["runtime_items"][0]["truncation_reason"] == "field_char_limit"
 
 
 def test_candidate_anchor_rag_shadow_writes_artifact_but_not_blocks(monkeypatch) -> None:
@@ -1805,6 +2116,170 @@ def test_anchor_rag_blocks_survive_structured_primary_seed_hit(monkeypatch) -> N
     assert ctx["resume_rag_block"] == "[resume] Redis Lua coupon guard"
     assert ctx["self_intro_rag_block"] == "[self_intro] 50w QPS Lua atomic"
     assert ctx["candidate_anchor_rag_artifact"]["status"] == "primary"
+
+
+def test_candidate_anchor_rag_rebinds_missing_cache_hit_chunks(monkeypatch) -> None:
+    monkeypatch.setattr(
+        ask_mod,
+        "get_settings",
+        lambda: SimpleNamespace(resume_rag_mode="primary"),
+    )
+    count_results = [
+        {"resume": 0, "self_intro": 0, "total": 0},
+        {"resume": 24, "self_intro": 0, "total": 24},
+    ]
+    count_calls: list[dict[str, Any]] = []
+
+    def fake_count_session_anchor_chunks(**kwargs):
+        count_calls.append(kwargs)
+        return count_results.pop(0)
+
+    rebind_calls: list[dict[str, Any]] = []
+
+    def fake_try_bind_cached_resume_anchors(**kwargs):
+        rebind_calls.append(kwargs)
+        return {"status": "ready", "chunk_count": 24, "cache_hit": True}
+
+    captured: dict[str, Any] = {}
+
+    def fake_retrieve_candidate_anchors(**kwargs):
+        captured.update(kwargs)
+        return CandidateAnchorRagResult(
+            resume_block="[resume] rebound cached chunk",
+            self_intro_block="",
+            hits=[],
+            latency_ms=12,
+            fallback_reason=None,
+            skipped=False,
+        )
+
+    monkeypatch.setattr(
+        ask_mod,
+        "_count_session_anchor_chunks",
+        fake_count_session_anchor_chunks,
+        raising=False,
+    )
+    monkeypatch.setattr(
+        ask_mod,
+        "try_bind_cached_resume_anchors",
+        fake_try_bind_cached_resume_anchors,
+        raising=False,
+    )
+    monkeypatch.setattr(
+        ask_mod,
+        "retrieve_candidate_anchors",
+        fake_retrieve_candidate_anchors,
+    )
+
+    ctx = {
+        "dimension": "system_design",
+        "question_items": [{"scenario_brief": "Redis consistency"}],
+        "resume_anchor": {"project_name": "Coupon Guard"},
+        "target_skills": ["Redis"],
+    }
+
+    ask_mod._step_retrieve_candidate_anchors(
+        _base_state(
+            candidate={
+                "resume_parsed": {},
+                "resume_vector_status": {
+                    "status": "ready",
+                    "resume_revision_id": "rev_1",
+                    "source_artifact_id": "artifact_1",
+                    "source_cache_key": "cache_1",
+                    "embedding_model_version": "qwen:text-embedding-v4:1536@v1",
+                    "cache_hit": True,
+                    "chunk_count": 24,
+                },
+            },
+        ),
+        ctx,
+    )
+
+    assert ctx["resume_rag_block"] == "[resume] rebound cached chunk"
+    assert captured["resume_revision_id"] == "rev_1"
+    assert captured["self_intro_revision_id"] is None
+    assert len(count_calls) == 2
+    assert rebind_calls == [
+        {
+            "session_id": "sess-selection-artifacts",
+            "resume_revision_id": "rev_1",
+            "source_artifact_id": "artifact_1",
+            "cache_key": "cache_1",
+            "embedding_model_version": "qwen:text-embedding-v4:1536@v1",
+        }
+    ]
+    validation = ctx["candidate_anchor_rag_artifact"]["bind_validation"]
+    assert validation["bound_count"] == 24
+    assert validation["rebind_attempted"] is True
+    assert validation["rebind_success"] is True
+    assert validation["fallback_reason"] is None
+
+
+def test_candidate_anchor_rag_reports_bind_missing_without_retrieval(
+    monkeypatch,
+) -> None:
+    monkeypatch.setattr(
+        ask_mod,
+        "get_settings",
+        lambda: SimpleNamespace(resume_rag_mode="primary"),
+    )
+    monkeypatch.setattr(
+        ask_mod,
+        "_count_session_anchor_chunks",
+        lambda **_kwargs: {"resume": 0, "self_intro": 0, "total": 0},
+        raising=False,
+    )
+    monkeypatch.setattr(
+        ask_mod,
+        "try_bind_cached_resume_anchors",
+        lambda **_kwargs: None,
+        raising=False,
+    )
+    monkeypatch.setattr(
+        ask_mod,
+        "retrieve_candidate_anchors",
+        lambda **_kwargs: (_ for _ in ()).throw(
+            AssertionError("retrieve_candidate_anchors should not run")
+        ),
+    )
+    ctx = {
+        "dimension": "system_design",
+        "question_items": [{"scenario_brief": "Redis consistency"}],
+        "resume_anchor": {"project_name": "Coupon Guard"},
+        "target_skills": ["Redis"],
+    }
+
+    ask_mod._step_retrieve_candidate_anchors(
+        _base_state(
+            candidate={
+                "resume_parsed": {},
+                "resume_vector_status": {
+                    "status": "ready",
+                    "resume_revision_id": "rev_1",
+                    "source_artifact_id": "artifact_1",
+                    "source_cache_key": "cache_1",
+                    "embedding_model_version": "qwen:text-embedding-v4:1536@v1",
+                    "cache_hit": True,
+                    "chunk_count": 24,
+                },
+            },
+        ),
+        ctx,
+    )
+
+    assert ctx["resume_rag_block"] == ""
+    assert ctx["self_intro_rag_block"] == ""
+    artifact = ctx["candidate_anchor_rag_artifact"]
+    assert artifact["status"] == "primary"
+    assert artifact["fallback_reason"] == "session_anchor_bind_missing"
+    assert artifact["prompt_injected"] is False
+    assert artifact["hits"] == []
+    validation = artifact["bind_validation"]
+    assert validation["bound_count"] == 0
+    assert validation["rebind_attempted"] is True
+    assert validation["rebind_success"] is False
+    assert validation["fallback_reason"] == "session_anchor_bind_missing"
 
 
 def test_ask_question_node_refreshes_pending_resume_vector_status(monkeypatch) -> None:

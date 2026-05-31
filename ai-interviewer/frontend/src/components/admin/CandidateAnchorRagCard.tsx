@@ -85,6 +85,10 @@ const STATUS_LABELS: Record<string, string> = {
 const FALLBACK_LABELS: Record<string, string> = {
   low_score: "低分",
   timeout: "超时",
+  query_embedding_timeout: "查询向量超时",
+  no_bound_chunks: "无 session chunks",
+  session_anchor_bind_missing: "cache-hit 未绑定",
+  embedding_model_version_missing: "缺 embedding 版本",
   empty: "空结果",
   not_ready: "未就绪",
   skipped: "跳过",

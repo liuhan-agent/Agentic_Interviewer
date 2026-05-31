@@ -131,6 +131,162 @@ def test_retrieve_candidate_anchors_returns_resume_and_self_intro_quotas(
     assert "team collaboration" not in result.self_intro_block
 
 
+def test_retrieve_candidate_anchors_fetches_self_intro_when_resume_rows_dominate(
+    monkeypatch,
+) -> None:
+    monkeypatch.setattr(
+        "app.services.session_anchor_retriever.embed_query",
+        lambda *_args, **_kwargs: _vec(1.0),
+    )
+    session_local = _db()
+    with session_local() as db_session:
+        for idx in range(24):
+            _add_chunk(
+                db_session,
+                chunk_index=idx,
+                heading=f"Resume chunk {idx}",
+                text=f"Resume chunk {idx} covers Redis Lua consistency.",
+                embedding=_vec(0.95, 0.05),
+            )
+        for idx in range(5):
+            _add_chunk(
+                db_session,
+                source_type="self_intro",
+                source_revision_id="intro_rev_1",
+                source_artifact_id=None,
+                source_turn_id=0,
+                chunk_index=idx,
+                tier="anchor_card",
+                section_name="self_intro",
+                heading=f"Self intro card {idx}",
+                project_name=None,
+                text=f"Self intro card {idx} mentions Redis Lua consistency.",
+                chunker_mode="SI",
+                embedding=_vec(1.0),
+            )
+
+        result = retrieve_candidate_anchors(
+            session_id="sess_a",
+            resume_revision_id="rev_1",
+            self_intro_revision_id="intro_rev_1",
+            dimension="system_design",
+            seed={"id": "seed_1", "scenario_brief": "Redis consistency"},
+            target_skills=["Redis", "Lua"],
+            rule_anchor={"project_name": "Coupon Guard"},
+            self_intro_profile={"emphasized_skills": ["Redis", "Lua"]},
+            db_session=db_session,
+        )
+
+    artifact = result.as_artifact(mode="primary")
+    assert result.fallback_reason is None
+    assert [hit.source_type for hit in result.hits].count("resume") == 2
+    assert [hit.source_type for hit in result.hits].count("self_intro") == 1
+    assert "Self intro card" in result.self_intro_block
+    assert artifact["fetched_rows_by_source"] == {"resume": 10, "self_intro": 5}
+    assert artifact["scored_rows_by_source"]["self_intro"] == 5
+    assert artifact["kept_hits_by_source"] == {"resume": 2, "self_intro": 1}
+
+
+def test_retrieve_candidate_anchors_records_runtime_clipping_per_resume_hit(
+    monkeypatch,
+) -> None:
+    monkeypatch.setattr(
+        "app.services.session_anchor_retriever.embed_query",
+        lambda *_args, **_kwargs: _vec(1.0),
+    )
+    session_local = _db()
+    with session_local() as db_session:
+        _add_chunk(
+            db_session,
+            chunk_index=0,
+            heading="Primary incident",
+            text="primary-detail " * 90,
+        )
+        _add_chunk(
+            db_session,
+            chunk_index=1,
+            heading="Secondary incident",
+            text="secondary-detail " * 90,
+            embedding=_vec(0.99, 0.01),
+        )
+
+        result = retrieve_candidate_anchors(
+            session_id="sess_a",
+            resume_revision_id="rev_1",
+            self_intro_revision_id=None,
+            dimension="system_design",
+            seed={"scenario_brief": "Redis consistency"},
+            target_skills=["Redis"],
+            rule_anchor=None,
+            self_intro_profile={},
+            db_session=db_session,
+        )
+
+    diagnostics = result.resume_prompt_diagnostics
+    items = diagnostics["items"]
+    assert len(result.resume_block) <= 800
+    assert diagnostics["budget_chars"] == 800
+    assert diagnostics["runtime_truncated"] is True
+    assert diagnostics["original_chars"] > diagnostics["injected_chars"]
+    assert [item["rank"] for item in items] == [1, 2]
+    assert items[0]["source_type"] == "resume"
+    assert items[0]["body_budget_chars"] > items[1]["body_budget_chars"]
+    assert items[0]["injected_body_chars"] > items[1]["injected_body_chars"]
+    assert items[0]["runtime_truncated"] is True
+    assert items[0]["truncation_reason"] == "body_budget_exceeded"
+    assert items[1]["truncation_reason"] == "body_budget_exceeded"
+    assert "primary-detail" in result.resume_block
+    assert "secondary-detail" in result.resume_block
+
+
+def test_retrieve_candidate_anchors_records_runtime_clipping_for_self_intro(
+    monkeypatch,
+) -> None:
+    monkeypatch.setattr(
+        "app.services.session_anchor_retriever.embed_query",
+        lambda *_args, **_kwargs: _vec(1.0),
+    )
+    session_local = _db()
+    with session_local() as db_session:
+        _add_chunk(
+            db_session,
+            source_type="self_intro",
+            source_revision_id="intro_rev_1",
+            source_artifact_id=None,
+            source_turn_id=0,
+            chunk_index=0,
+            tier="anchor_card",
+            section_name="self_intro",
+            heading="Opening claim",
+            project_name=None,
+            text="self-intro-detail " * 90,
+            chunker_mode="SI",
+            embedding=_vec(1.0),
+        )
+
+        result = retrieve_candidate_anchors(
+            session_id="sess_a",
+            resume_revision_id=None,
+            self_intro_revision_id="intro_rev_1",
+            dimension="system_design",
+            seed={"scenario_brief": "Redis consistency"},
+            target_skills=["Redis"],
+            rule_anchor=None,
+            self_intro_profile={},
+            db_session=db_session,
+        )
+
+    diagnostics = result.self_intro_prompt_diagnostics
+    item = diagnostics["items"][0]
+    assert len(result.self_intro_block) <= 500
+    assert diagnostics["budget_chars"] == 500
+    assert diagnostics["runtime_truncated"] is True
+    assert item["source_type"] == "self_intro"
+    assert item["heading"] == "Opening claim"
+    assert item["runtime_truncated"] is True
+    assert item["truncation_reason"] == "body_budget_exceeded"
+
+
 def test_retrieve_candidate_anchors_isolates_source_revisions(monkeypatch) -> None:
     monkeypatch.setattr(
         "app.services.session_anchor_retriever.embed_query",
@@ -525,7 +681,7 @@ def test_retrieve_candidate_anchors_boost_timeout_keeps_anchor_hits(
     assert len(captured_texts) == 2
     assert result.fallback_reason is None
     assert "Redis Lua coupon guard" in result.resume_block
-    assert artifact["boost_fallback_reason"] == "timeout"
+    assert artifact["boost_fallback_reason"] == "query_embedding_timeout"
 
 
 def test_retrieve_candidate_anchors_ignores_hash_anchor_key_in_query(
@@ -567,7 +723,37 @@ def test_retrieve_candidate_anchors_ignores_hash_anchor_key_in_query(
     assert "a1b2c3d4e5f6" not in " ".join(artifact["anchor_terms"])
 
 
-def test_retrieve_candidate_anchors_returns_timeout_fallback(monkeypatch) -> None:
+def test_retrieve_candidate_anchors_skips_embedding_when_no_bound_chunks(
+    monkeypatch,
+) -> None:
+    monkeypatch.setattr(
+        "app.services.session_anchor_retriever.embed_query",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(
+            AssertionError("embed_query should not run without bound chunks")
+        ),
+    )
+    session_local = _db()
+    with session_local() as db_session:
+        result = retrieve_candidate_anchors(
+            session_id="sess_a",
+            resume_revision_id="rev_1",
+            self_intro_revision_id=None,
+            dimension="system_design",
+            seed={"scenario_brief": "Redis Lua consistency"},
+            target_skills=["Redis", "Lua"],
+            rule_anchor=None,
+            self_intro_profile={},
+            db_session=db_session,
+        )
+
+    assert result.fallback_reason == "no_bound_chunks"
+    assert result.resume_block == ""
+    assert result.self_intro_block == ""
+
+
+def test_retrieve_candidate_anchors_returns_query_embedding_timeout_fallback(
+    monkeypatch,
+) -> None:
     monkeypatch.setattr(
         "app.services.session_anchor_retriever.embed_query",
         lambda *_args, **_kwargs: None,
@@ -588,6 +774,6 @@ def test_retrieve_candidate_anchors_returns_timeout_fallback(monkeypatch) -> Non
             db_session=db_session,
         )
 
-    assert result.fallback_reason == "timeout"
+    assert result.fallback_reason == "query_embedding_timeout"
     assert result.resume_block == ""
     assert result.self_intro_block == ""

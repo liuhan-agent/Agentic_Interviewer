@@ -2,7 +2,9 @@ from __future__ import annotations
 
 from app.services.question_fit_profile import (
     build_question_fit_profile,
+    candidate_anchor_artifact,
     format_candidate_anchor_block,
+    render_candidate_anchor_block,
 )
 from app.services.question_selector import QuestionCandidate
 
@@ -340,8 +342,111 @@ def test_candidate_anchor_block_uses_rule_profile_and_rule_top1() -> None:
     )
 
     block = format_candidate_anchor_block(profile, _candidate())
+    artifact = candidate_anchor_artifact(profile, _candidate())
 
+    assert "Purpose: adapt structured question seed to candidate context." in block
+    assert "Target dimension: system_design" in block
+    assert "Structured seed scenario: Flash-sale inventory cache consistency." in block
+    assert "Selected project anchor: Flash Sale Inventory" in block
     assert "Flash Sale Inventory" in block
     assert "redis" in block
     assert "system_design.cache_consistency" not in block
     assert "expected_signals" not in block
+    assert artifact["prompt_role"] == "candidate_adaptation"
+    assert artifact["target_dimension"] == "system_design"
+    assert artifact["seed_binding"] == "rank1_structured_question"
+    assert artifact["project_anchor_source"] == "resume_anchor"
+
+
+def test_candidate_anchor_block_reports_field_level_truncation() -> None:
+    profile = build_question_fit_profile(
+        candidate={
+            "resume_parsed": {
+                "projects": [
+                    {
+                        "name": "Flash Sale Inventory",
+                        "tech_stack": [
+                            "Redis",
+                            "Kafka",
+                            "MySQL",
+                            "Sentinel",
+                            "Prometheus",
+                            "Lua",
+                            "Canal",
+                        ],
+                        "summary": "project-summary-detail " * 40,
+                    }
+                ],
+                "skills": [
+                    "Java",
+                    "Redis",
+                    "Kafka",
+                    "MySQL",
+                    "Sentinel",
+                    "Prometheus",
+                    "Lua",
+                    "Canal",
+                    "RocketMQ",
+                ],
+            }
+        },
+        self_intro_profile={},
+        job_spec={
+            "required_skills": [
+                "Redis",
+                "Kafka",
+                "MySQL",
+                "Sentinel",
+                "Prometheus",
+                "Lua",
+                "Canal",
+                "RocketMQ",
+                "Elasticsearch",
+            ]
+        },
+        target_skills=[
+            "Redis",
+            "Kafka",
+            "MySQL",
+            "Sentinel",
+            "Prometheus",
+            "Lua",
+            "Canal",
+            "RocketMQ",
+            "Elasticsearch",
+        ],
+        resume_anchor={
+            "project_name": "Flash Sale Inventory",
+            "summary": "project-summary-detail " * 40,
+            "tech_stack": ["Redis", "Kafka", "MySQL", "Sentinel", "Prometheus", "Lua", "Canal"],
+        },
+        pending_contract_hints={
+            "failure_categories": [
+                "missing_metrics",
+                "missing_tradeoff",
+                "missing_boundary",
+                "missing_validation",
+                "missing_ownership",
+                "missing_failure_mode",
+            ]
+        },
+        dimension="system_design",
+        probe_intent="opening",
+    )
+    candidate = QuestionCandidate(**{**_candidate().__dict__, "scenario_brief": "scenario-detail " * 40})
+
+    rendered = render_candidate_anchor_block(profile, candidate)
+    diagnostics = rendered.as_diagnostics()
+    items_by_field = {item["field"]: item for item in diagnostics["items"]}
+
+    assert rendered.text == format_candidate_anchor_block(profile, candidate)
+    assert diagnostics["runtime_truncated"] is True
+    assert diagnostics["original_chars"] > diagnostics["injected_chars"]
+    assert items_by_field["project_summary"]["runtime_truncated"] is True
+    assert items_by_field["project_summary"]["truncation_reason"] == "field_char_limit"
+    assert items_by_field["project_skills"]["runtime_truncated"] is True
+    assert items_by_field["project_skills"]["truncation_reason"] == "field_item_limit"
+    assert items_by_field["project_skills"]["limit"] == 6
+    assert items_by_field["adaptation_skills"]["limit"] == 8
+    assert items_by_field["structured_seed_scenario"]["limit"] == 240
+    assert items_by_field["failure_categories"]["limit"] == 5
