@@ -576,7 +576,7 @@ def test_retrieve_skills_adds_reward_shadow_without_changing_return_order(
     skills_root: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    from app.models.skill_playbook import SkillRewardRollout, SkillUsageStats
+    from app.models.skill_playbook import SkillUsageStats
 
     _write_skill(
         skills_root,
@@ -880,6 +880,95 @@ def test_build_skills_block_truncates_long_body(
     block = skill_store.build_skills_block(entries, max_body_chars=200)
     assert "truncated" in block
     assert "x" * 2000 not in block
+
+
+def test_render_skills_block_uses_rank_aware_budgets() -> None:
+    entries = [
+        skill_store.SkillEntry(
+            path=Path(f"skill-{idx}.md"),
+            id=f"skill-{idx}",
+            name=f"Skill {idx}",
+            description="Probe deeply.",
+            dimensions=["technical_depth"],
+            job_levels=["junior"],
+            body=chr(96 + idx) * 2000,
+        )
+        for idx in range(1, 4)
+    ]
+
+    result = skill_store.render_skills_block(entries)
+
+    assert result.budget_chars == 3600
+    assert len(result.text) <= 3600
+    assert result.runtime_truncated is True
+    assert result.items[0]["body_budget_chars"] == 1100
+    assert result.items[1]["body_budget_chars"] == 800
+    assert result.items[2]["body_budget_chars"] == 600
+    assert result.items[0]["injected_body_chars"] > result.items[2]["injected_body_chars"]
+    assert result.items[0]["runtime_truncated"] is True
+    assert result.items[0]["truncation_reason"] == "body_budget_exceeded"
+
+
+def test_render_skills_block_respects_total_slot_budget() -> None:
+    entries = [
+        skill_store.SkillEntry(
+            path=Path(f"skill-{idx}.md"),
+            id=f"skill-{idx}",
+            name="Verbose Skill " + ("x" * 160),
+            description="A verbose card that still keeps header context.",
+            dimensions=["technical_depth", "system_design", "problem_solving"],
+            job_levels=["junior", "mid", "senior"],
+            match_reasons=["priority:10", "dimension:technical_depth"],
+            body=str(idx) * 2000,
+        )
+        for idx in range(1, 8)
+    ]
+
+    result = skill_store.render_skills_block(entries)
+
+    assert len(result.text) <= result.budget_chars
+    assert result.runtime_truncated is True
+    assert len(result.items) == len(entries)
+    assert any(
+        item["truncation_reason"] in {"slot_budget_reduced", "slot_budget_omitted_body"}
+        for item in result.items
+    )
+    assert "[Skill 1]" in result.text
+    assert "Why selected:" in result.text
+
+
+def test_render_skills_block_accepts_dynamic_budget_diagnostics() -> None:
+    entries = [
+        skill_store.SkillEntry(
+            path=Path(f"skill-{idx}.md"),
+            id=f"skill-{idx}",
+            name=f"Dynamic Skill {idx}",
+            description="Probe deeply.",
+            dimensions=["technical_depth"],
+            job_levels=["junior"],
+            body=chr(96 + idx) * 3000,
+        )
+        for idx in range(1, 4)
+    ]
+
+    result = skill_store.render_skills_block(
+        entries,
+        slot_budget_chars=5200,
+        rank_body_budgets=(1700, 1200, 900, 400),
+        budget_level="expanded",
+        budget_source="prompt_budget_diagnostics",
+        global_budget_pressure="expanded",
+    )
+    diagnostics = result.as_diagnostics()
+
+    assert result.budget_chars == 5200
+    assert len(result.text) <= 5200
+    assert result.items[0]["body_budget_chars"] == 1700
+    assert result.items[1]["body_budget_chars"] == 1200
+    assert result.items[2]["body_budget_chars"] == 900
+    assert diagnostics["budget_level"] == "expanded"
+    assert diagnostics["budget_source"] == "prompt_budget_diagnostics"
+    assert diagnostics["global_budget_pressure"] == "expanded"
 
 
 def test_build_skills_index_compact_catalog(skills_root: Path) -> None:

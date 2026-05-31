@@ -7,11 +7,11 @@ Trace Explorer do not grow separate hard-coded alias maps.
 from __future__ import annotations
 
 TRACE_NODE_ALIASES: dict[str, str] = {
-    "turn_finalize": "compress_context",
+    "compress_context": "turn_finalize",
 }
 
 TRACE_NODE_DISPLAY_NAMES_ZH: dict[str, str] = {
-    "compress_context": "轮次收尾",
+    "turn_finalize": "轮次收尾",
 }
 
 TRACE_NODE_REVERSE_ALIASES: dict[str, list[str]] = {}
@@ -38,9 +38,9 @@ def trace_node_display_name(node: str | None) -> str:
 
 
 def trace_node_semantic_name(node: str | None) -> str | None:
-    """Return the preferred semantic alias for a node, if defined."""
-    aliases = trace_node_aliases(node)
-    return aliases[0] if aliases else None
+    """Return the preferred semantic name for a node, if defined."""
+    canonical = normalize_trace_node(node)
+    return canonical if canonical else None
 
 
 def trace_node_metadata(node: str | None) -> dict[str, object]:

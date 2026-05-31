@@ -158,6 +158,25 @@ def _get_openai_client(
         return client
 
 
+def _drop_openai_client(
+    *,
+    api_key: str,
+    base_url: str | None,
+    timeout: float,
+    max_retries: int,
+) -> None:
+    """Remove one cached OpenAI SDK client and close its transport."""
+    key = (api_key or "", base_url or "", timeout, max_retries)
+    with _CLIENT_CACHE_LOCK:
+        client = _OPENAI_CLIENT_CACHE.pop(key, None)
+    close = getattr(client, "close", None)
+    if callable(close):
+        try:
+            close()
+        except Exception as exc:  # pragma: no cover - best-effort cleanup
+            log.debug("openai client close skipped after cache drop: %s", exc)
+
+
 def _get_anthropic_client(
     *,
     api_key: str,
@@ -330,6 +349,25 @@ def classify_llm_error_kind(exc: BaseException | str | None) -> LLMErrorKind:
         return _classify_error_text(f"{exc.__class__.__name__}: {exc}")
 
     return _classify_error_text(exc)
+
+
+def _evict_openai_client_after_provider_error(
+    exc: BaseException,
+    *,
+    api_key: str,
+    base_url: str | None,
+    timeout: float,
+    max_retries: int,
+) -> None:
+    """Drop cached OpenAI-compatible clients after transport failures."""
+    if classify_llm_error_kind(exc) not in {"network", "timeout"}:
+        return
+    _drop_openai_client(
+        api_key=api_key,
+        base_url=base_url,
+        timeout=timeout,
+        max_retries=max_retries,
+    )
 
 
 def redact_llm_secrets(text: str, config: dict[str, Any] | None = None) -> str:
@@ -518,6 +556,7 @@ _OPENAI_COMPATIBLE_DEFAULT_BASE_URLS: dict[str, str] = {
     "dashscope": "https://dashscope.aliyuncs.com/compatible-mode/v1",
     "zhipu": "https://open.bigmodel.cn/api/paas/v4/",
     "mistral": "https://api.mistral.ai/v1",
+    "xiaomimimo": "https://api.xiaomimimo.com/v1",
 }
 
 
@@ -532,6 +571,7 @@ _FAKE_IP_ALLOWED_LLM_HOST_SUFFIXES = (
     "dashscope-intl.aliyuncs.com",
     "bigmodel.cn",
     "mistral.ai",
+    "xiaomimimo.com",
 )
 
 
@@ -616,7 +656,7 @@ def _invoke_provider(
       provider-specific quirks (Anthropic system blocks, DeepSeek
       base_url default).
     - Anything in :data:`_OPENAI_COMPATIBLE_DEFAULT_BASE_URLS` keys
-      (moonshot/kimi/qwen/dashscope/zhipu/mistral): routes through
+      (moonshot/kimi/qwen/dashscope/zhipu/mistral/xiaomimimo): routes through
       ``_call_openai_compatible`` with that vendor's default base_url.
     - ``openai_compatible`` (escape hatch): caller MUST supply
       ``base_url`` in the override; raises ``LLMFatal`` otherwise.
@@ -1216,11 +1256,14 @@ def _call_openai(
 
     api_key = (override or {}).get("api_key") or get_settings().openai_api_key
     s = get_settings()
+    timeout = request_timeout or s.llm_request_timeout_seconds
+    client_max_retries = 0 if provider_max_retries is None else provider_max_retries
+    base_url = (override or {}).get("base_url")
     client = _get_openai_client(
         api_key=api_key,
-        base_url=(override or {}).get("base_url"),
-        timeout=request_timeout or s.llm_request_timeout_seconds,
-        max_retries=0 if provider_max_retries is None else provider_max_retries,
+        base_url=base_url,
+        timeout=timeout,
+        max_retries=client_max_retries,
     )
     kwargs: dict[str, Any] = {
         "model": model,
@@ -1231,7 +1274,17 @@ def _call_openai(
     if json_mode:
         kwargs["response_format"] = {"type": "json_object"}
 
-    resp = client.chat.completions.create(**kwargs)
+    try:
+        resp = client.chat.completions.create(**kwargs)
+    except Exception as exc:
+        _evict_openai_client_after_provider_error(
+            exc,
+            api_key=api_key,
+            base_url=base_url,
+            timeout=timeout,
+            max_retries=client_max_retries,
+        )
+        raise
     content = resp.choices[0].message.content or ""
     usage = _extract_openai_usage(
         resp,
@@ -1305,11 +1358,13 @@ def _call_openai_compatible(
 
     s = get_settings()
     api_key = (override or {}).get("api_key") or s.openai_api_key or ""
+    timeout = request_timeout or s.llm_request_timeout_seconds
+    client_max_retries = 0 if provider_max_retries is None else provider_max_retries
     client = _get_openai_client(
         api_key=api_key,
         base_url=base_url,
-        timeout=request_timeout or s.llm_request_timeout_seconds,
-        max_retries=0 if provider_max_retries is None else provider_max_retries,
+        timeout=timeout,
+        max_retries=client_max_retries,
     )
     kwargs: dict[str, Any] = {
         "model": model,
@@ -1320,7 +1375,17 @@ def _call_openai_compatible(
     if json_mode:
         kwargs["response_format"] = {"type": "json_object"}
 
-    resp = client.chat.completions.create(**kwargs)
+    try:
+        resp = client.chat.completions.create(**kwargs)
+    except Exception as exc:
+        _evict_openai_client_after_provider_error(
+            exc,
+            api_key=api_key,
+            base_url=base_url,
+            timeout=timeout,
+            max_retries=client_max_retries,
+        )
+        raise
     content = resp.choices[0].message.content or ""
     usage = _extract_openai_usage(
         resp,

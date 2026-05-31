@@ -66,6 +66,9 @@ REWARD_SCOPE_WEIGHTS = {
     "none": 0.0,
 }
 STRATEGY_RANKING_MODES = {"metadata", "reward_shadow", "reward"}
+STRATEGY_PROMPT_SLOT_BUDGET_CHARS = 3200
+STRATEGY_PROMPT_BODY_BUDGETS = (1200, 800, 500)
+PROMPT_MATERIAL_MIN_BODY_CHARS = 240
 
 
 @dataclass
@@ -92,6 +95,35 @@ class StrategyEntry:
     dimensions: list[str] = field(default_factory=list)
     job_levels: list[str] = field(default_factory=list)
     body: str = ""
+
+
+@dataclass
+class PromptMaterialRenderResult:
+    text: str
+    budget_chars: int
+    original_chars: int
+    injected_chars: int
+    runtime_truncated: bool
+    items: list[dict[str, Any]]
+    budget_level: str = ""
+    budget_source: str = ""
+    global_budget_pressure: str = ""
+
+    def as_diagnostics(self) -> dict[str, Any]:
+        payload = {
+            "budget_chars": self.budget_chars,
+            "original_chars": self.original_chars,
+            "injected_chars": self.injected_chars,
+            "runtime_truncated": self.runtime_truncated,
+            "items": self.items,
+        }
+        if self.budget_level:
+            payload["budget_level"] = self.budget_level
+        if self.budget_source:
+            payload["budget_source"] = self.budget_source
+        if self.global_budget_pressure:
+            payload["global_budget_pressure"] = self.global_budget_pressure
+        return payload
 
 
 @dataclass(frozen=True)
@@ -703,10 +735,181 @@ def build_strategy_index() -> str:
     return "\n".join(lines)
 
 
+def _strategy_body_budget(
+    rank: int,
+    max_body_chars: int | None,
+    rank_body_budgets: tuple[int, int, int, int] | None = None,
+) -> int:
+    if max_body_chars is not None:
+        return max(0, int(max_body_chars))
+    if rank_body_budgets is not None:
+        if rank <= 3:
+            return max(0, int(rank_body_budgets[rank - 1]))
+        return max(0, int(rank_body_budgets[3]))
+    if rank <= len(STRATEGY_PROMPT_BODY_BUDGETS):
+        return STRATEGY_PROMPT_BODY_BUDGETS[rank - 1]
+    return 300
+
+
+def _strategy_header(rank: int, entry: StrategyEntry) -> str:
+    return (
+        f"[Strategy {rank}] {entry.name}\n"
+        f"  Applies to: dims={entry.dimensions}, levels={entry.job_levels}\n"
+        "  "
+    )
+
+
+def _strategy_reason(
+    *,
+    original_body_chars: int,
+    final_budget: int,
+    base_budget: int,
+) -> str | None:
+    if original_body_chars <= final_budget:
+        return None
+    if final_budget <= 0:
+        return "slot_budget_omitted_body"
+    if final_budget < base_budget:
+        return "slot_budget_reduced"
+    return "body_budget_exceeded"
+
+
+def _render_strategy_with_budgets(
+    entries: list[StrategyEntry],
+    body_budgets: list[int],
+    base_body_budgets: list[int] | None = None,
+) -> tuple[str, list[dict[str, Any]], bool]:
+    blocks: list[str] = []
+    items: list[dict[str, Any]] = []
+    runtime_truncated = False
+    for rank, (entry, body_budget) in enumerate(
+        zip(entries, body_budgets, strict=True),
+        1,
+    ):
+        body = entry.body or ""
+        base_budget = (
+            base_body_budgets[rank - 1]
+            if base_body_budgets and rank - 1 < len(base_body_budgets)
+            else _strategy_body_budget(rank, None)
+        )
+        reason = _strategy_reason(
+            original_body_chars=len(body),
+            final_budget=body_budget,
+            base_budget=base_budget,
+        )
+        body_text = "" if body_budget <= 0 else body[:body_budget]
+        suffix = ""
+        if reason == "slot_budget_omitted_body":
+            suffix = " [omitted - slot budget]"
+        elif reason is not None:
+            suffix = " [truncated - see full strategy memory for details]"
+        item_truncated = reason is not None
+        runtime_truncated = runtime_truncated or item_truncated
+        blocks.append(f"{_strategy_header(rank, entry)}{body_text}{suffix}")
+        items.append(
+            {
+                "rank": rank,
+                "id": entry.id or entry.slug or entry.memory_key or entry.name,
+                "name": entry.name,
+                "body_budget_chars": body_budget,
+                "original_body_chars": len(body),
+                "injected_body_chars": len(body_text),
+                "runtime_truncated": item_truncated,
+                "truncation_reason": reason,
+            }
+        )
+    return "\n\n".join(blocks), items, runtime_truncated
+
+
+def render_strategies_for_prompt(
+    entries: list[StrategyEntry],
+    *,
+    max_body_chars: int | None = None,
+    slot_budget_chars: int = STRATEGY_PROMPT_SLOT_BUDGET_CHARS,
+    rank_body_budgets: tuple[int, int, int, int] | None = None,
+    budget_level: str = "",
+    budget_source: str = "",
+    global_budget_pressure: str = "",
+) -> PromptMaterialRenderResult:
+    """Render StrategyMemory guidance with slot- and rank-aware budgets."""
+
+    budget_chars = max(0, int(slot_budget_chars))
+    if not entries:
+        text = "(no relevant strategy memories)"
+        return PromptMaterialRenderResult(
+            text=text,
+            budget_chars=budget_chars,
+            original_chars=0,
+            injected_chars=len(text),
+            runtime_truncated=False,
+            items=[],
+        )
+
+    base_body_budgets = [
+        _strategy_body_budget(rank, max_body_chars, rank_body_budgets)
+        for rank, _entry in enumerate(entries, 1)
+    ]
+    body_budgets = [
+        min(len(entry.body or ""), base_budget)
+        for entry, base_budget in zip(entries, base_body_budgets, strict=True)
+    ]
+    original_text = "\n\n".join(
+        f"{_strategy_header(rank, entry)}{entry.body or ''}"
+        for rank, entry in enumerate(entries, 1)
+    )
+    text, items, runtime_truncated = _render_strategy_with_budgets(
+        entries,
+        body_budgets,
+        base_body_budgets,
+    )
+
+    if len(text) > budget_chars:
+        for idx in range(len(body_budgets) - 1, -1, -1):
+            if len(text) <= budget_chars:
+                break
+            if body_budgets[idx] <= PROMPT_MATERIAL_MIN_BODY_CHARS:
+                continue
+            reduction = min(
+                body_budgets[idx] - PROMPT_MATERIAL_MIN_BODY_CHARS,
+                len(text) - budget_chars,
+            )
+            body_budgets[idx] -= reduction
+            text, items, runtime_truncated = _render_strategy_with_budgets(
+                entries,
+                body_budgets,
+                base_body_budgets,
+            )
+
+    if len(text) > budget_chars:
+        for idx in range(len(body_budgets) - 1, -1, -1):
+            if len(text) <= budget_chars:
+                break
+            if body_budgets[idx] <= 0:
+                continue
+            body_budgets[idx] = 0
+            text, items, runtime_truncated = _render_strategy_with_budgets(
+                entries,
+                body_budgets,
+                base_body_budgets,
+            )
+
+    return PromptMaterialRenderResult(
+        text=text,
+        budget_chars=budget_chars,
+        original_chars=len(original_text),
+        injected_chars=len(text),
+        runtime_truncated=runtime_truncated or len(original_text) > len(text),
+        items=items,
+        budget_level=budget_level,
+        budget_source=budget_source,
+        global_budget_pressure=global_budget_pressure,
+    )
+
+
 def format_strategies_for_prompt(
     entries: list[StrategyEntry],
     *,
-    max_body_chars: int = 800,
+    max_body_chars: int | None = None,
 ) -> str:
     """Tier 2: full content for the most relevant strategies.
 
@@ -715,21 +918,10 @@ def format_strategies_for_prompt(
     to keep the prompt budget bounded; the index (Tier 1) already told
     the LLM what else exists.
     """
-    if not entries:
-        return "(no relevant strategy memories)"
-    blocks: list[str] = []
-    for i, e in enumerate(entries, 1):
-        body = e.body
-        truncated = ""
-        if len(body) > max_body_chars:
-            body = body[:max_body_chars]
-            truncated = " [truncated — see full file for details]"
-        blocks.append(
-            f"[Strategy {i}] {e.name}\n"
-            f"  Applies to: dims={e.dimensions}, levels={e.job_levels}\n"
-            f"  {body}{truncated}"
-        )
-    return "\n\n".join(blocks)
+    return render_strategies_for_prompt(
+        entries,
+        max_body_chars=max_body_chars,
+    ).text
 
 
 def _slugify(name: str) -> str:

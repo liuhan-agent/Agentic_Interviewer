@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import json
 import random
+from types import SimpleNamespace
 from typing import Any
 
 import pytest
@@ -27,6 +28,10 @@ from app.engine.workflow.nodes.director_sample import director_sample_node
 from app.engine.workflow.nodes.refine_followup import refine_followup_node
 from app.engine.workflow.plans import PLAN_TEMPLATES, resolve_ask_plan
 from app.ml.rl import thompson as thompson_mod
+
+
+def _render_result(text: str) -> SimpleNamespace:
+    return SimpleNamespace(text=text, as_diagnostics=lambda: {})
 
 
 def _install_zero_exploration_bandit(monkeypatch) -> None:
@@ -344,7 +349,9 @@ def test_ask_question_writes_plan_and_contract(monkeypatch):
     monkeypatch.setattr(ask_mod, "retrieve_for_question", fake_retrieve)
     monkeypatch.setattr(ask_mod, "retrieve_strategies", fake_retrieve_strategies)
     monkeypatch.setattr(
-        ask_mod, "format_strategies_for_prompt", fake_format_strategies
+        ask_mod,
+        "render_strategies_for_prompt",
+        lambda entries, **_kwargs: _render_result(fake_format_strategies(entries)),
     )
     monkeypatch.setattr(ask_mod, "generate_question", fake_generate_question)
     monkeypatch.setattr(
@@ -415,8 +422,8 @@ def test_ask_question_passes_probe_intent_into_generator(monkeypatch):
     monkeypatch.setattr(ask_mod, "retrieve_strategies", lambda **_kwargs: [])
     monkeypatch.setattr(
         ask_mod,
-        "format_strategies_for_prompt",
-        lambda _entries: "(no relevant strategy memories)",
+        "render_strategies_for_prompt",
+        lambda _entries, **_kwargs: _render_result("(no relevant strategy memories)"),
     )
     monkeypatch.setattr(ask_mod, "generate_question", fake_generate_question)
     monkeypatch.setattr(ask_mod, "negotiate_contract_via_evaluator", fake_negotiate)
@@ -472,8 +479,8 @@ def test_ask_question_uses_coverage_closeout_when_turn_budget_is_tight(monkeypat
     monkeypatch.setattr(ask_mod, "retrieve_strategies", lambda **_kwargs: [])
     monkeypatch.setattr(
         ask_mod,
-        "format_strategies_for_prompt",
-        lambda _entries: "(no relevant strategy memories)",
+        "render_strategies_for_prompt",
+        lambda _entries, **_kwargs: _render_result("(no relevant strategy memories)"),
     )
     monkeypatch.setattr(ask_mod, "generate_question", fake_generate_question)
     monkeypatch.setattr(ask_mod, "negotiate_contract_via_evaluator", fake_negotiate)
@@ -539,8 +546,8 @@ def test_ask_question_simple_plan_is_generator_only_signed(monkeypatch):
     )
     monkeypatch.setattr(
         ask_mod,
-        "build_skills_block",
-        lambda _entries: "skill playbook guidance",
+        "render_skills_block",
+        lambda _entries, **_kwargs: _render_result("skill playbook guidance"),
     )
     monkeypatch.setattr(ask_mod, "generate_question", fake_generate_question)
     monkeypatch.setattr(

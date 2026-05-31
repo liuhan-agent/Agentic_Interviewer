@@ -812,6 +812,9 @@ test("admin rag section labels knowledge and session-anchor panels distinctly", 
   assert.match(anchorCard, /prompt_injected_turns/);
   assert.match(anchorCard, /retrieved_not_injected_turns/);
   assert.match(anchorCard, /prompt_source_counts/);
+  assert.match(anchorCard, /query_embedding_timeout/);
+  assert.match(anchorCard, /session_anchor_bind_missing/);
+  assert.match(anchorCard, /no_bound_chunks/);
   assert.match(anchorCard, /resume: "简历"/);
   assert.match(anchorCard, /self_intro: "自我介绍"/);
   assert.match(anchorCard, /function formatSourceHits[\s\S]*return "无";/);

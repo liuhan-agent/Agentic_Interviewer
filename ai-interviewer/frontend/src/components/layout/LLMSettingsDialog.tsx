@@ -636,6 +636,8 @@ export function LLMSettingsDialog({ children }: { children: React.ReactNode }) {
 }
 
 function ModelRouteSummary({ config }: { config: LLMConfig }) {
+  const defaultProvider = providerInfo(config.provider);
+  const defaultModel = config.model || defaultProvider.defaultModel || "未填写模型";
   const routes = [
     ...modelRouteSummary(config),
     ...(["asr", "tts"] as const).map((routeId) => {
@@ -707,7 +709,37 @@ function ModelRouteSummary({ config }: { config: LLMConfig }) {
             </span>
           </div>
         ))}
+        <div className="flex min-w-0 items-center justify-between gap-3 rounded-md border border-dashed border-border/60 bg-secondary/10 px-3 py-2 text-muted-foreground sm:col-span-2">
+          <div className="min-w-0">
+            <div className="text-xs font-medium text-foreground/80">其它 LLM 调用</div>
+            <div className="mt-0.5 truncate text-[11px]">
+              {defaultProvider.label} {defaultModel}
+            </div>
+            <p className="mt-1 text-[10px] leading-relaxed text-muted-foreground/80">
+              没有单独列出的常规调用和后续新增调用，会继承上面的默认配置。
+            </p>
+          </div>
+          <span className="shrink-0 rounded border border-border/70 px-1.5 py-0.5 text-[10px] text-muted-foreground">
+            使用默认配置
+          </span>
+        </div>
       </div>
+      <details className="group mt-3 rounded-md border border-border/50 bg-background/30 px-3 py-2 text-xs text-muted-foreground">
+        <summary className="flex cursor-pointer list-none items-center justify-between gap-3">
+          <span>高级明细</span>
+          <ChevronDown className="h-3.5 w-3.5 transition-transform group-open:rotate-180" />
+        </summary>
+        <div className="mt-2 grid gap-1.5 text-[11px]">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <span className="font-mono text-foreground/80">strategy_dream</span>
+            <span>策略整理；实验开关关闭时不会产生额外 LLM 调用。</span>
+          </div>
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <span className="font-mono text-foreground/80">question_reranker</span>
+            <span>题目影子重排；实验开关关闭时不会产生额外 LLM 调用。</span>
+          </div>
+        </div>
+      </details>
     </section>
   );
 }
@@ -1262,6 +1294,27 @@ function connectionStatusMessage(statusKind: LLMConfigStatus): string {
   }
 }
 
+function connectionImpactMessage(result: LLMTestTargetStatus): string | null {
+  if (result.ok) return null;
+  const isTransient =
+    result.errorKind === "network" || result.errorKind === "timeout";
+  if (!isTransient) return null;
+
+  if (result.kind === "asr" || result.kind === "tts") {
+    return "语音能力临时不可用；文字面试不受影响，可以稍后重试语音。";
+  }
+  if (result.kind === "embedding") {
+    return "资料理解能力临时不可用；简历和自我介绍锚点可能退回保守召回路径。";
+  }
+  if (result.label === "默认配置") {
+    return "默认配置临时不可用；未单独配置的回答评分等环节会一起受影响，面试中可能触发兜底评分。";
+  }
+  if (result.label === "回答评分") {
+    return "回答评分临时不可用；面试可继续，但本轮可能使用兜底评分，报告可信度会降低。";
+  }
+  return `${result.label} 临时不可用；配置不一定错，稍后重试通常可以恢复。`;
+}
+
 function ConnectionResult({
   config,
   statusKind,
@@ -1356,7 +1409,7 @@ function ConnectionResult({
             <div
               key={result.fingerprint}
               className={cn(
-                "flex items-center justify-between gap-3 rounded border px-2 py-1",
+                "flex items-start justify-between gap-3 rounded border px-2 py-1",
                 result.ok
                   ? "border-emerald-400/30 bg-emerald-400/10 text-emerald-200"
                   : "border-destructive/30 bg-destructive/10 text-destructive",
@@ -1369,6 +1422,11 @@ function ConnectionResult({
                 {!result.ok && result.error ? (
                   <span className="mt-0.5 block break-words opacity-90">
                     {result.error}
+                  </span>
+                ) : null}
+                {connectionImpactMessage(result) ? (
+                  <span className="mt-0.5 block break-words text-[10px] opacity-80">
+                    {connectionImpactMessage(result)}
                   </span>
                 ) : null}
               </span>

@@ -185,7 +185,7 @@ def evaluator_node(state: InterviewState) -> dict[str, Any]:
     # The verification node runs right after the evaluator and needs
     # the same unredacted text we scored on; clearing mid-chain would
     # force the verifier to judge sanitised text and silently diverge
-    # from the evaluator. ``compress_context_node`` (the next node
+    # from the evaluator. ``turn_finalize_node`` (the next node
     # downstream of verification) owns the clear instead, so the raw
     # channel survives exactly the ``wait_answer -> evaluator ->
     # verification`` span that needs it and no longer.

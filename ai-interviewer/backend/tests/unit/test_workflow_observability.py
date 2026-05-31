@@ -3,21 +3,21 @@ from __future__ import annotations
 from types import SimpleNamespace
 from typing import Any
 
-from app.engine.workflow.nodes import compress_context as cnode
+from app.engine.workflow.nodes import turn_finalize as tnode
 from app.engine.workflow.nodes import verification as vnode
 
 
-def test_trace_node_aliases_normalize_turn_finalize() -> None:
+def test_trace_node_aliases_normalize_compress_context() -> None:
     from app.services.trace_nodes import (
         normalize_trace_node,
         trace_node_aliases,
         trace_node_display_name,
     )
 
-    assert normalize_trace_node("turn_finalize") == "compress_context"
-    assert normalize_trace_node("compress_context") == "compress_context"
-    assert "turn_finalize" in trace_node_aliases("compress_context")
-    assert trace_node_display_name("compress_context") == "轮次收尾"
+    assert normalize_trace_node("turn_finalize") == "turn_finalize"
+    assert normalize_trace_node("compress_context") == "turn_finalize"
+    assert "compress_context" in trace_node_aliases("turn_finalize")
+    assert trace_node_display_name("turn_finalize") == "轮次收尾"
 
 
 def test_verification_changes_empty_for_verifier_pass() -> None:
@@ -181,7 +181,7 @@ def test_verification_trace_payload_includes_outcome_metrics(monkeypatch) -> Non
     }
 
 
-def test_compress_context_traces_route_decision_after_eval(monkeypatch) -> None:
+def test_turn_finalize_traces_route_decision_after_eval(monkeypatch) -> None:
     traced: list[tuple[str, dict[str, Any], int | None]] = []
 
     class _Tracer:
@@ -196,7 +196,7 @@ def test_compress_context_traces_route_decision_after_eval(monkeypatch) -> None:
         ) -> None:
             traced.append((node, payload, logical_turn_idx))
 
-    monkeypatch.setattr(cnode, "get_tracer", lambda: _Tracer())
+    monkeypatch.setattr(tnode, "get_tracer", lambda: _Tracer())
 
     state: dict[str, Any] = {
         "turn_idx": 2,
@@ -219,25 +219,25 @@ def test_compress_context_traces_route_decision_after_eval(monkeypatch) -> None:
         ],
     }
 
-    cnode.compress_context_node(state)  # type: ignore[arg-type]
+    tnode.turn_finalize_node(state)  # type: ignore[arg-type]
 
-    compress_events = [item for item in traced if item[0] == "compress_context"]
-    assert compress_events
-    _node, compress_payload, compress_logical_turn_idx = compress_events[-1]
-    assert compress_payload["phase"] == "turn_finalize"
-    assert compress_payload["reason"] == "turn_finalize"
-    assert compress_payload["workflow_node"] == "compress_context"
-    assert compress_payload["semantic_node"] == "turn_finalize"
-    assert compress_payload["node_aliases"] == ["turn_finalize"]
-    assert compress_payload["display_name_zh"] == "轮次收尾"
-    assert compress_payload["raw_answer_cleared"] is False
-    assert compress_payload["summary_updated"] is False
-    assert compress_payload["summary_mode"] == "none"
-    assert compress_payload["history_projection_owner"] == "ask_question"
-    assert compress_payload["compressed_turns"] == 0
-    assert compress_payload["qa_history_count"] == 1
-    assert compress_payload["next_step"] == "route_decision"
-    assert compress_logical_turn_idx == 1
+    finalize_events = [item for item in traced if item[0] == "turn_finalize"]
+    assert finalize_events
+    _node, finalize_payload, finalize_logical_turn_idx = finalize_events[-1]
+    assert finalize_payload["phase"] == "turn_finalize"
+    assert finalize_payload["reason"] == "turn_finalize"
+    assert finalize_payload["workflow_node"] == "turn_finalize"
+    assert finalize_payload["semantic_node"] == "turn_finalize"
+    assert finalize_payload["node_aliases"] == ["compress_context"]
+    assert finalize_payload["display_name_zh"] == "轮次收尾"
+    assert finalize_payload["raw_answer_cleared"] is False
+    assert finalize_payload["summary_updated"] is False
+    assert finalize_payload["summary_mode"] == "none"
+    assert finalize_payload["history_projection_owner"] == "ask_question"
+    assert finalize_payload["compressed_turns"] == 0
+    assert finalize_payload["qa_history_count"] == 1
+    assert finalize_payload["next_step"] == "route_decision"
+    assert finalize_logical_turn_idx == 1
 
     route_events = [item for item in traced if item[0] == "route_decision"]
     assert route_events
@@ -261,7 +261,7 @@ def test_compress_context_traces_route_decision_after_eval(monkeypatch) -> None:
     assert logical_turn_idx == 1
 
 
-def test_compress_context_trace_payload_never_updates_history_projection(
+def test_turn_finalize_trace_payload_never_updates_history_projection(
     monkeypatch,
 ) -> None:
     traced: list[tuple[str, dict[str, Any], int | None]] = []
@@ -278,7 +278,7 @@ def test_compress_context_trace_payload_never_updates_history_projection(
         ) -> None:
             traced.append((node, payload, logical_turn_idx))
 
-    monkeypatch.setattr(cnode, "get_tracer", lambda: _Tracer())
+    monkeypatch.setattr(tnode, "get_tracer", lambda: _Tracer())
 
     base_state: dict[str, Any] = {
         "turn_idx": 4,
@@ -299,23 +299,23 @@ def test_compress_context_trace_payload_never_updates_history_projection(
         ],
     }
 
-    out = cnode.compress_context_node(base_state)  # type: ignore[arg-type]
+    out = tnode.turn_finalize_node(base_state)  # type: ignore[arg-type]
     assert "qa_summary" not in out
     assert "qa_summary_through_turn" not in out
-    compress_events = [item for item in traced if item[0] == "compress_context"]
-    assert compress_events[-1][1]["reason"] == "turn_finalize"
-    assert compress_events[-1][1]["summary_updated"] is False
-    assert compress_events[-1][1]["summary_mode"] == "none"
-    assert compress_events[-1][1]["history_projection_owner"] == "ask_question"
-    assert compress_events[-1][1]["compressed_turns"] == 0
-    assert compress_events[-1][2] == 3
+    finalize_events = [item for item in traced if item[0] == "turn_finalize"]
+    assert finalize_events[-1][1]["reason"] == "turn_finalize"
+    assert finalize_events[-1][1]["summary_updated"] is False
+    assert finalize_events[-1][1]["summary_mode"] == "none"
+    assert finalize_events[-1][1]["history_projection_owner"] == "ask_question"
+    assert finalize_events[-1][1]["compressed_turns"] == 0
+    assert finalize_events[-1][2] == 3
 
     traced.clear()
     no_new_state = {**base_state, "qa_summary": "already", "qa_summary_through_turn": 1}
-    out = cnode.compress_context_node(no_new_state)  # type: ignore[arg-type]
+    out = tnode.turn_finalize_node(no_new_state)  # type: ignore[arg-type]
     assert "qa_summary" not in out
     assert "qa_summary_through_turn" not in out
-    compress_events = [item for item in traced if item[0] == "compress_context"]
-    assert compress_events[-1][1]["reason"] == "turn_finalize"
-    assert compress_events[-1][1]["summary_updated"] is False
-    assert compress_events[-1][1]["history_projection_owner"] == "ask_question"
+    finalize_events = [item for item in traced if item[0] == "turn_finalize"]
+    assert finalize_events[-1][1]["reason"] == "turn_finalize"
+    assert finalize_events[-1][1]["summary_updated"] is False
+    assert finalize_events[-1][1]["history_projection_owner"] == "ask_question"

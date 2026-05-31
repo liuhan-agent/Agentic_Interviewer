@@ -11,7 +11,7 @@ import json
 from typing import Any
 
 DEFAULT_RECENT_QA_WINDOW = 3
-DEFAULT_HISTORY_BUDGET_CHARS = 6000
+DEFAULT_HISTORY_BUDGET_CHARS = 8000
 DEFAULT_RECENT_ANSWER_SOFT_LIMIT_CHARS = 1400
 DEFAULT_RECENT_QUESTION_LIMIT_CHARS = 500
 FIELD_TEXT_LIMIT = 240
@@ -185,12 +185,21 @@ def _compact_dimension(
         "best_score": item.get("best_score"),
         "latest_score": item.get("latest_score"),
         "passed": item.get("passed"),
-        "open_gaps": _compact_text_list(
+        "open_gap_count": item.get(
+            "open_gap_count",
+            (
+                len(item.get("open_gaps") or [])
+                if isinstance(item.get("open_gaps"), list)
+                else 0
+            ),
+        ),
+    }
+    if "open_gaps" in item:
+        compact["open_gaps"] = _compact_text_list(
             item.get("open_gaps"),
             limit=gap_limit,
             text_limit=text_limit,
-        ),
-    }
+        )
     recommended_next = _text(item.get("recommended_next"), limit=text_limit)
     if recommended_next:
         compact["recommended_next"] = recommended_next
@@ -230,7 +239,7 @@ def _compact_projection(
         limit=gap_limit,
         text_limit=text_limit,
     )
-    return {
+    compact_projection = {
         "version": projection.get("version", 1),
         "mode": "deterministic_projection_compact",
         "projection_compacted": True,
@@ -238,20 +247,102 @@ def _compact_projection(
         "source_last_turn_idx": projection.get("source_last_turn_idx", -1),
         "current_dimension": projection.get("current_dimension", ""),
         "dimensions": dimensions,
-        "current_gaps": current_gaps,
+        "current_gap_count": projection.get("current_gap_count", len(current_gaps)),
+        "current_gap_dimensions": list(projection.get("current_gap_dimensions") or []),
+    }
+    if "current_gaps" in projection:
+        compact_projection["current_gaps"] = current_gaps
+    return compact_projection
+
+
+def _current_gap_dimensions(
+    projection: dict[str, Any],
+    current_gaps: list[str],
+) -> list[str]:
+    gap_set = {str(gap) for gap in current_gaps if str(gap)}
+    dimensions: list[str] = []
+    for item in projection.get("dimensions") or []:
+        if not isinstance(item, dict):
+            continue
+        dimension = str(item.get("dimension") or "")
+        if not dimension:
+            continue
+        if any(str(gap) in gap_set for gap in item.get("open_gaps") or []):
+            dimensions.append(dimension)
+    return _dedupe(dimensions)
+
+
+def _prompt_dimension_index(
+    item: dict[str, Any],
+    *,
+    include_context_fields: bool,
+) -> dict[str, Any]:
+    indexed: dict[str, Any] = {
+        "dimension": item.get("dimension"),
+        "turns": item.get("turns"),
+        "latest_turn_idx": item.get("latest_turn_idx"),
+        "best_score": item.get("best_score"),
+        "latest_score": item.get("latest_score"),
+        "passed": item.get("passed"),
+        "open_gap_count": len(item.get("open_gaps") or []),
+    }
+    recommended_next = _text(item.get("recommended_next"), limit=80)
+    if recommended_next:
+        indexed["recommended_next"] = recommended_next
+    if include_context_fields:
+        last_action = _text(item.get("last_action"), limit=80)
+        target_skills = _compact_text_list(
+            item.get("target_skills"),
+            limit=COMPACT_LIST_ITEM_LIMIT,
+            text_limit=80,
+        )
+        if last_action:
+            indexed["last_action"] = last_action
+        if target_skills:
+            indexed["target_skills"] = target_skills
+    return indexed
+
+
+def _build_prompt_projection(
+    projection: dict[str, Any],
+    *,
+    current_gaps: list[str],
+    recent_window: int,
+) -> dict[str, Any]:
+    source_qa_count = int(projection.get("source_qa_count") or 0)
+    short_history = source_qa_count <= max(0, int(recent_window))
+    dimensions = [
+        _prompt_dimension_index(
+            item,
+            include_context_fields=not short_history,
+        )
+        for item in projection.get("dimensions") or []
+        if isinstance(item, dict)
+    ]
+    return {
+        "version": projection.get("version", 1),
+        "mode": "coverage_index" if short_history else "deterministic_projection_index",
+        "source_qa_count": source_qa_count,
+        "source_last_turn_idx": projection.get("source_last_turn_idx", -1),
+        "current_dimension": projection.get("current_dimension", ""),
+        "dimensions": dimensions,
+        "current_gap_count": len(current_gaps),
+        "current_gap_dimensions": _current_gap_dimensions(projection, current_gaps),
     }
 
 
 def _truncate_recent_turn(
     turn: dict[str, Any],
     *,
-    question_limit: int,
+    question_limit: int | None,
     answer_limit: int | None,
 ) -> dict[str, Any]:
     evaluation = _record(turn.get("evaluation"))
     question = str(turn.get("question") or "")
     answer = str(turn.get("answer") or "")
-    question_view = _text(question, limit=question_limit)
+    question_view = (
+        question if question_limit is None else _text(question, limit=question_limit)
+    )
     answer_view = answer
     answer_truncated = False
     if answer_limit is not None and len(answer) > answer_limit:
@@ -274,7 +365,7 @@ def _recent_prompt_view(
     qa_history: list[dict[str, Any]],
     *,
     recent_window: int,
-    question_limit: int,
+    question_limit: int | None,
     answer_limit: int | None,
 ) -> list[dict[str, Any]]:
     turns = [turn for turn in qa_history if isinstance(turn, dict)]
@@ -350,6 +441,8 @@ def _slot(
         "injected": bool(stripped) and stripped not in {"[]", "{}"},
         "chars": len(text),
         "truncated": bool(truncated),
+        "prompt_truncated": bool(truncated),
+        "trace_text_truncated": False,
         "text": text,
         "value": value,
         "empty_reason": None if stripped and stripped not in {"[]", "{}"} else "empty",
@@ -368,17 +461,22 @@ def build_history_context(
 ) -> dict[str, Any]:
     """Build the ask_question history context from complete QA history."""
     source_history = [turn for turn in qa_history if isinstance(turn, dict)]
-    projection = _build_projection(
+    full_projection = _build_projection(
         qa_history=source_history,
         current_dimension=current_dimension,
     )
-    current_gaps = list(projection.get("current_gaps") or [])
 
     active_window = max(0, int(recent_window))
+    current_gaps = list(full_projection.get("current_gaps") or [])
+    projection = _build_prompt_projection(
+        full_projection,
+        current_gaps=current_gaps,
+        recent_window=active_window,
+    )
     recent_view = _recent_prompt_view(
         source_history,
         recent_window=active_window,
-        question_limit=recent_question_limit_chars,
+        question_limit=None,
         answer_limit=None,
     )
     history_section = _render_history_section(
@@ -416,7 +514,6 @@ def build_history_context(
                 text_limit=text_limit,
                 include_context_fields=include_context_fields,
             )
-            current_gaps = list(projection.get("current_gaps") or [])
             projection_compacted = True
             history_section = _render_history_section(
                 projection=projection,
@@ -482,7 +579,8 @@ def build_history_context(
         "recent_qa_prompt_view": recent_view,
         "current_gaps": current_gaps,
         "history_section": history_section,
-        "selector_summary": _selector_summary(projection),
+        "selector_summary": _selector_summary(full_projection),
+        "selector_projection": full_projection,
         "prompt_slots": [
             _slot(
                 prompt_label="INTERVIEW_HISTORY_SUMMARY",
