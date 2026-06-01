@@ -85,6 +85,9 @@ def test_current_chinese_vendor_models_use_known_windows() -> None:
         ("moonshot", "kimi-k2.5", 256_000),
         ("zhipu", "glm-4.5", 128_000),
         ("volcengine", "doubao-seed-1-6-flash-250828", 256_000),
+        ("xiaomimimo", "mimo-v2.5-pro", 1_000_000),
+        ("xiaomimimo", "mimo-v2.5", 1_000_000),
+        ("xiaomimimo", "mimo-v2-flash", 256_000),
     ]
 
     for provider, model, expected_window in cases:
@@ -100,6 +103,20 @@ def test_current_chinese_vendor_models_use_known_windows() -> None:
         assert result["fallback_used"] is False
 
 
+def test_mimo_known_small_context_model_does_not_expand() -> None:
+    result = estimate_auxiliary_prompt_budget(
+        provider="xiaomimimo",
+        model="mimo-v2.5-tts",
+        protected_slot_chars=1_000,
+        output_reserve_tokens=2048,
+    )
+
+    assert result["context_window_tokens"] == 8_000
+    assert result["budget_level"] == "fallback"
+    assert result["fallback_reason"] == "insufficient_estimated_context_window"
+    assert result["fallback_used"] is True
+
+
 def test_mainland_vendor_family_defaults_are_conservative_known_windows() -> None:
     cases = [
         ("baichuan", "baichuan2-turbo", 32_768),
@@ -110,6 +127,7 @@ def test_mainland_vendor_family_defaults_are_conservative_known_windows() -> Non
         ("baidu", "ernie-4.0-turbo", 32_768),
         ("iflytek", "spark-max", 32_768),
         ("sensenova", "sensechat-5", 32_768),
+        ("xiaomimimo", "mimo-unknown-text-model", 256_000),
     ]
 
     for provider, model, expected_window in cases:
@@ -122,6 +140,19 @@ def test_mainland_vendor_family_defaults_are_conservative_known_windows() -> Non
 
         assert result["context_window_tokens"] == expected_window
         assert result["fallback_used"] is False
+
+
+def test_mimo_known_model_prefix_works_without_provider() -> None:
+    result = estimate_auxiliary_prompt_budget(
+        provider="openai_compatible",
+        model="mimo-v2.5-pro-preview",
+        protected_slot_chars=20_000,
+        output_reserve_tokens=2048,
+    )
+
+    assert result["context_window_tokens"] == 1_000_000
+    assert result["budget_level"] == "expanded"
+    assert result["fallback_used"] is False
 
 
 def test_rank_body_budgets_expose_expanded_and_default_levels() -> None:

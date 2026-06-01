@@ -155,6 +155,7 @@ export interface StartSessionRequest {
   quality_threshold?: number;
   turn_budget?: number;
   focus_dimensions?: string[];
+  interview_depth?: "short" | "standard" | "deep";
   /**
    * Interview style understood by the backend. ``tech`` and
    * ``behavioral`` focus the rubric; ``mixed`` combines both.
