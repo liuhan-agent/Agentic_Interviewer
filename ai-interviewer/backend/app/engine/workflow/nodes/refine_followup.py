@@ -25,6 +25,7 @@ Both fields are consumed and cleared by the next round
 """
 from __future__ import annotations
 
+import re
 import time
 from typing import Any
 
@@ -44,6 +45,53 @@ log = get_logger(__name__)
 _ALLOWED_TEMPLATES: set[str] = {
     "simple", "adaptive", "deep_probe",
 }
+
+_OPERATIONAL_GAP_TERMS = (
+    "compensation",
+    "success rate",
+    "retry",
+    "time window",
+    "manual",
+    "fallback",
+    "\u8865\u507f",
+    "\u6210\u529f\u7387",
+    "\u91cd\u8bd5",
+    "\u65f6\u95f4\u7a97\u53e3",
+    "\u4eba\u5de5",
+    "\u515c\u5e95",
+    "\u5b57\u6bb5",
+)
+
+
+def _gap_key(value: Any) -> str:
+    lowered = str(value or "").strip().lower()
+    if any(term in lowered for term in _OPERATIONAL_GAP_TERMS):
+        return "operational_recovery_evidence"
+    compact = re.sub(r"[^0-9a-z\u4e00-\u9fff]+", " ", lowered)
+    return " ".join(compact.split())[:120] or lowered[:120]
+
+
+def _dedupe_gap_hints(values: list[Any]) -> list[str]:
+    result: list[str] = []
+    seen: set[str] = set()
+    for raw in values:
+        text = str(raw or "").strip()
+        if not text:
+            continue
+        key = _gap_key(text)
+        if key in seen:
+            continue
+        result.append(text)
+        seen.add(key)
+    return result
+
+
+def _list_or_empty(value: Any) -> list[Any]:
+    return value if isinstance(value, list) else []
+
+
+def _record_or_empty(value: Any) -> dict[str, Any]:
+    return value if isinstance(value, dict) else {}
 
 
 def _resolve_failure_categories(
@@ -103,15 +151,15 @@ def refine_followup_node(state: InterviewState) -> dict[str, Any]:
     """
     node_started_at = time.perf_counter()
     evaluation = state.get("evaluation", {}) or {}
-    weaknesses = evaluation.get("weaknesses") or []
+    weaknesses = _dedupe_gap_hints(_list_or_empty(evaluation.get("weaknesses")))
     dim = state.get("current_dimension")
 
     next_template = _pick_next_template(evaluation)
-    missing_must_cover = [
+    missing_must_cover = _dedupe_gap_hints([
         k
-        for k, v in (evaluation.get("rubric_coverage") or {}).items()
+        for k, v in _record_or_empty(evaluation.get("rubric_coverage")).items()
         if v == "missing"
-    ]
+    ])
     # ``soft_warnings`` come from the verifier's abstain path (see
     # ``verification_node``): low-confidence concerns that did NOT
     # flip ``passed`` but should still nudge the next contract to

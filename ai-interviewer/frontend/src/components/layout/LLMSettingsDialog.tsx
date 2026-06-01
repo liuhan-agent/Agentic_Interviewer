@@ -533,7 +533,7 @@ export function LLMSettingsDialog({ children }: { children: React.ReactNode }) {
               <ChevronDown className="h-4 w-4 text-muted-foreground transition-transform group-open:rotate-180" />
             </summary>
             <p className="mt-2 text-xs text-muted-foreground">
-              帮面试官理解简历和自我介绍里的经历线索，默认使用 Qwen 资料理解模型。
+              帮面试官理解简历和自我介绍里的经历线索，推荐使用 Qwen；未单独配置时会使用服务器端默认资料理解配置。
             </p>
             <div className="mt-4">
               <EmbeddingRouteCard
@@ -641,7 +641,7 @@ function ModelRouteSummary({ config }: { config: LLMConfig }) {
   const routes = [
     ...modelRouteSummary(config),
     ...(["asr", "tts"] as const).map((routeId) => {
-      const configured = config.voiceOverrides[routeId] ?? defaultVoiceOverride(routeId);
+      const configured = config.voiceOverrides[routeId];
       const effective = effectiveVoiceConfig(config, routeId);
       const provider = voiceProviderInfo(effective.provider);
       return {
@@ -652,14 +652,11 @@ function ModelRouteSummary({ config }: { config: LLMConfig }) {
           routeId === "tts"
             ? `${effective.model || provider.ttsModel} / ${effective.voice || provider.ttsVoice}`
             : effective.model || provider.asrModel,
-        source:
-          configured.apiKey.trim() || config.provider === effective.provider
-            ? "单独配置"
-            : "默认配置",
+        source: configured?.enabled ? "单独配置" : "默认配置",
       };
     }),
     (() => {
-      const configured = config.embeddingOverride ?? defaultEmbeddingOverride();
+      const configured = config.embeddingOverride;
       const effective = effectiveEmbeddingConfig(config);
       const provider = embeddingProviderInfo(effective.provider);
       return {
@@ -667,10 +664,7 @@ function ModelRouteSummary({ config }: { config: LLMConfig }) {
         label: "资料理解能力",
         providerLabel: provider.label,
         model: effective.model || provider.model,
-        source:
-          configured.apiKey.trim() || config.provider === effective.provider
-            ? "单独配置"
-            : "默认配置",
+        source: configured?.enabled ? "单独配置" : "默认配置",
       };
     })(),
   ];
@@ -788,7 +782,7 @@ function EmbeddingRouteCard({
         <div>
           <div className="text-sm font-medium">简历与自我介绍</div>
           <p className="mt-1 text-xs text-muted-foreground">
-            把候选人的关键信息整理成可追问的资料线索，默认使用 Qwen。
+            把候选人的关键信息整理成可追问的资料线索；推荐使用 Qwen，未单独配置时走服务器端默认配置。
           </p>
           <p className="mt-1 text-[11px] text-muted-foreground">
             推荐：{effectiveProvider.label} {effective.model || effectiveProvider.model}

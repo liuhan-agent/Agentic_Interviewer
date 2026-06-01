@@ -4,6 +4,10 @@ from __future__ import annotations
 from typing import Any
 
 from app.core.logging import get_logger
+from app.engine.workflow.depth_followup import (
+    DEPTH_FOLLOWUP_PHASE,
+    sanitize_depth_followup_metadata,
+)
 from app.engine.workflow.state import InterviewState
 from app.services.question_selector import build_question_history_selection_artifacts
 
@@ -62,6 +66,11 @@ def skip_question_node(state: InterviewState) -> dict[str, Any]:
         },
         "current_question": question,
     }
+    depth_followup = sanitize_depth_followup_metadata(question.get("depth_followup"))
+    if question.get("phase") == DEPTH_FOLLOWUP_PHASE or depth_followup:
+        qa_entry["phase"] = DEPTH_FOLLOWUP_PHASE
+        if depth_followup:
+            qa_entry["depth_followup"] = depth_followup
     history_selection_artifacts = build_question_history_selection_artifacts(question)
     if history_selection_artifacts:
         qa_entry["selection_artifacts"] = history_selection_artifacts

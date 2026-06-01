@@ -14,6 +14,10 @@ from app.core.metrics import estimate_llm_cost_usd
 from app.core.settings import get_settings
 from app.core.tracer import get_tracer
 from app.core.video_signals_schema import normalize_video_signals
+from app.engine.workflow.depth_followup import (
+    DEPTH_FOLLOWUP_PHASE,
+    sanitize_depth_followup_metadata,
+)
 from app.engine.workflow.eval_helpers import (
     is_evaluator_fallback as _is_evaluator_fallback,
 )
@@ -515,6 +519,11 @@ def _turn_evidence(qa: dict[str, Any]) -> dict[str, Any]:
         "soft_warnings": evaluation.get("soft_warnings") or [],
     }
     evidence.update(_resume_anchor_display_fields(qa))
+    depth_followup = sanitize_depth_followup_metadata(qa.get("depth_followup"))
+    if qa.get("phase") == DEPTH_FOLLOWUP_PHASE or depth_followup:
+        evidence["phase"] = DEPTH_FOLLOWUP_PHASE
+        if depth_followup:
+            evidence["depth_followup"] = depth_followup
     followup_reason = sanitize_replay_followup_reason(
         evaluation.get("followup_reason")
     )
