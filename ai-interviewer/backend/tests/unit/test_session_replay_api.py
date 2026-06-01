@@ -16,6 +16,7 @@ from app.core.session_auth import hash_session_token
 from app.models.base import Base
 from app.models.generation_trace import GenerationTrace
 from app.models.interview_session import InterviewSession
+from app.models.strategy_learning import InterviewTurn
 
 SESSION_CREATED_AT = datetime(2026, 5, 1, 10, 0, tzinfo=UTC)
 SESSION_UPDATED_AT = datetime(2026, 5, 1, 10, 30, tzinfo=UTC)
@@ -345,6 +346,110 @@ def test_replay_returns_user_facing_timeline(
     assert "state_snapshot" not in str(payload)
     assert "langsmith_run_id" not in str(payload)
     assert "policy_context_keys" not in str(payload)
+
+
+def test_replay_prefers_durable_turns_when_trace_history_lags(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    with _isolated_db(monkeypatch) as testing_session_local:
+        _seed_session(testing_session_local)
+        with testing_session_local() as sess:
+            row = sess.get(InterviewSession, "sess-replay")
+            assert row is not None
+            row.final_report = {**(row.final_report or {}), "total_turns": 2}
+            sess.query(GenerationTrace).delete()
+            sess.add_all(
+                [
+                    InterviewTurn(
+                        session_id="sess-replay",
+                        trace_id="trace-replay",
+                        turn_idx=0,
+                        dimension="technical_depth",
+                        question="Turn 1 durable question",
+                        answer="Turn 1 durable answer",
+                        score=7.0,
+                        passed=True,
+                        evaluation={
+                            "score": 7.0,
+                            "passed": True,
+                            "rationale": "First durable rationale.",
+                            "strengths": ["Specific example"],
+                            "weaknesses": ["Needs sharper metrics"],
+                            "recommended_next": "advance",
+                        },
+                    ),
+                    InterviewTurn(
+                        session_id="sess-replay",
+                        trace_id="trace-replay",
+                        turn_idx=1,
+                        dimension="system_design",
+                        question="Turn 2 durable question",
+                        answer="Turn 2 durable answer",
+                        score=8.0,
+                        passed=True,
+                        evaluation={
+                            "score": 8.0,
+                            "passed": True,
+                            "rationale": "Second durable rationale.",
+                            "strengths": ["Clear tradeoff"],
+                            "weaknesses": [],
+                            "recommended_next": "advance",
+                        },
+                    ),
+                ]
+            )
+            sess.add_all(
+                [
+                    GenerationTrace(
+                        trace_id="trace-replay",
+                        session_id="sess-replay",
+                        turn_idx=0,
+                        node="evaluator",
+                        dimension="technical_depth",
+                        score=7.0,
+                        passed=True,
+                        state_snapshot={"qa_history": []},
+                        question="Turn 1 trace question",
+                        answer="Turn 1 trace answer",
+                        evaluation={"score": 7.0, "passed": True},
+                        created_at=SESSION_CREATED_AT,
+                    ),
+                    GenerationTrace(
+                        trace_id="trace-replay",
+                        session_id="sess-replay",
+                        turn_idx=1,
+                        node="evaluator",
+                        dimension="system_design",
+                        score=8.0,
+                        passed=True,
+                        state_snapshot={
+                            "qa_history": [
+                                {
+                                    "turn_idx": 0,
+                                    "question": "Turn 1 trace question",
+                                    "answer": "Turn 1 trace answer",
+                                }
+                            ]
+                        },
+                        question="Turn 2 trace question",
+                        answer="Turn 2 trace answer",
+                        evaluation={"score": 8.0, "passed": True},
+                        created_at=SESSION_UPDATED_AT,
+                    ),
+                ]
+            )
+            sess.commit()
+        client = _client(monkeypatch)
+
+        resp = client.get("/api/v1/interview/sessions/sess-replay/replay")
+
+    assert resp.status_code == 200
+    timeline = resp.json()["timeline"]
+    assert [turn["turn_idx"] for turn in timeline] == [0, 1]
+    assert [turn["question"] for turn in timeline] == [
+        "Turn 1 durable question",
+        "Turn 2 durable question",
+    ]
 
 
 def test_replay_summary_projects_grouped_priority_items(
@@ -1087,6 +1192,47 @@ def test_replay_trace_projects_display_question_basis(
 
     assert resp.status_code == 200
     assert resp.json()["timeline"][0]["question_basis"] == QUESTION_BASIS
+
+
+def test_replay_trace_projects_depth_followup_metadata(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    depth_followup = {
+        "source_turn_idx": 3,
+        "parent_turn_idx": 10,
+        "depth_reason": "depth_followup_recovery",
+        "depth_slot_rank": 2,
+        "depth_target_turns": 12,
+    }
+    with _isolated_db(monkeypatch) as testing_session_local:
+        _seed_session(testing_session_local)
+        with testing_session_local() as sess:
+            trace = (
+                sess.query(GenerationTrace)
+                .filter(GenerationTrace.session_id == "sess-replay")
+                .filter(GenerationTrace.node == "evaluator")
+                .one()
+            )
+            trace.state_snapshot = {
+                "qa_history": [
+                    {
+                        "turn_idx": 0,
+                        "question": trace.question,
+                        "answer": trace.answer,
+                        "phase": "depth_followup",
+                        "depth_followup": depth_followup,
+                    }
+                ]
+            }
+            sess.commit()
+        client = _client(monkeypatch)
+
+        resp = client.get("/api/v1/interview/sessions/sess-replay/replay")
+
+    turn = resp.json()["timeline"][0]
+    assert resp.status_code == 200
+    assert turn["phase"] == "depth_followup"
+    assert turn["depth_followup"] == depth_followup
 
 
 def test_replay_trace_projects_resume_anchor_display_fields(

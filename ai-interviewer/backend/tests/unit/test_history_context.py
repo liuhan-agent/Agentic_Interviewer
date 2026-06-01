@@ -136,6 +136,107 @@ def test_history_context_current_gaps_live_in_dedicated_slot_only() -> None:
         assert "open_gaps" not in dimension
 
 
+def test_history_context_dedupes_repeated_gap_cluster_without_mutating_source() -> None:
+    qa_history = [
+        _turn(0, "system_design", score=6.0),
+        _turn(1, "system_design", score=6.5),
+        _turn(2, "system_design", score=6.8),
+    ]
+    qa_history[0]["evaluation"]["weaknesses"] = [
+        "Need clarify compensation success rate, retry window, manual fallback fields"
+    ]
+    qa_history[1]["evaluation"]["weaknesses"] = [
+        "Please add retry window, manual fallback fields, and compensation success rate"
+    ]
+    qa_history[2]["evaluation"]["weaknesses"] = [
+        "Need clarify compensation success rate, retry window, manual fallback fields"
+    ]
+    original = deepcopy(qa_history)
+
+    result = build_history_context(
+        qa_history=qa_history,
+        current_dimension="system_design",
+    )
+
+    assert qa_history == original
+    gaps = result["prompt_slots"][2]["value"]
+    assert gaps == [
+        "Need clarify compensation success rate, retry window, manual fallback fields"
+    ]
+    by_dim = {item["dimension"]: item for item in result["selector_projection"]["dimensions"]}
+    assert by_dim["system_design"]["open_gaps"] == gaps
+
+
+def test_history_context_dedupes_near_synonym_current_gaps_with_diagnostics() -> None:
+    qa_history = [
+        _turn(0, "coding_quality", score=8.0, passed=False),
+        _turn(1, "coding_quality", score=8.0, passed=False),
+        _turn(2, "coding_quality", score=8.0, passed=False),
+        _turn(3, "coding_quality", score=8.0, passed=False),
+    ]
+    qa_history[0]["evaluation"]["weaknesses"] = [
+        "未给出优化前指标具体数值",
+    ]
+    qa_history[1]["evaluation"]["weaknesses"] = [
+        "优化前的具体指标（如 TPS、P95、错误率）未给出数值，仅列出指标名称。",
+    ]
+    qa_history[2]["evaluation"]["weaknesses"] = [
+        "回滚措施描述不够具体",
+    ]
+    qa_history[3]["evaluation"]["weaknesses"] = [
+        "未说明如何回滚到旧方案或快速止损。",
+    ]
+    original = deepcopy(qa_history)
+
+    result = build_history_context(
+        qa_history=qa_history,
+        current_dimension="coding_quality",
+    )
+
+    assert qa_history == original
+    gaps_slot = result["prompt_slots"][2]
+    assert gaps_slot["prompt_label"] == "CURRENT_GAPS"
+    assert isinstance(gaps_slot["value"], list)
+    assert gaps_slot["value"] == [
+        "优化前的具体指标（如 TPS、P95、错误率）未给出数值，仅列出指标名称。",
+        "未说明如何回滚到旧方案或快速止损。",
+    ]
+    assert result["current_gaps"] == gaps_slot["value"]
+    stats = result["stats"]
+    assert stats["current_gaps_raw_count"] == 4
+    assert stats["current_gaps_deduped_count"] == 2
+    assert stats["current_gaps_dedupe_merge_count"] == 2
+    groups = {
+        group["key"]: group
+        for group in stats["current_gaps_dedupe_groups"]
+    }
+    assert groups["missing_metric_numbers"]["kept"] == gaps_slot["value"][0]
+    assert groups["rollback_plan_missing"]["kept"] == gaps_slot["value"][1]
+
+
+def test_history_context_does_not_merge_distinct_current_gap_semantics() -> None:
+    qa_history = [_turn(idx, "system_design", score=8.0, passed=False) for idx in range(4)]
+    expected_gaps = [
+        "未给出优化前指标具体数值",
+        "回滚措施描述不够具体",
+        "未讨论读取缓存时的原子性保证",
+        "未明确缓存穿透到DB时的压力保护细节（如限流、熔断）",
+    ]
+    for turn, gap in zip(qa_history, expected_gaps, strict=True):
+        turn["evaluation"]["weaknesses"] = [gap]
+
+    result = build_history_context(
+        qa_history=qa_history,
+        current_dimension="system_design",
+    )
+
+    gaps = result["prompt_slots"][2]["value"]
+    assert sorted(gaps) == sorted(expected_gaps)
+    assert result["stats"]["current_gaps_raw_count"] == 4
+    assert result["stats"]["current_gaps_deduped_count"] == 4
+    assert result["stats"]["current_gaps_dedupe_merge_count"] == 0
+
+
 def test_history_context_keeps_recent_questions_full_before_budget_pressure() -> None:
     long_question = "请详细说明这个复杂链路中的缓存一致性、消息重试和降级恢复。" * 30
     qa_history = [_turn(i, "technical_depth", answer=f"answer {i}") for i in range(4)]

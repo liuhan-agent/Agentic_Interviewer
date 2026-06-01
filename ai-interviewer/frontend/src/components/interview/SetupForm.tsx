@@ -473,9 +473,9 @@ const LENGTH_OPTIONS: ReadonlyArray<{
   desc: string;
   turns: number;
 }> = [
-  { id: "short", label: "快速练习", desc: "约 5 轮 · 快速校准", turns: 5 },
-  { id: "standard", label: "标准面试", desc: "约 8 轮 · 覆盖核心项目", turns: 8 },
-  { id: "deep", label: "深度追问", desc: "约 12 轮 · 更多项目与追问", turns: 12 },
+  { id: "short", label: "快速练习", desc: "目标 5 轮 · 快速校准", turns: 5 },
+  { id: "standard", label: "标准面试", desc: "目标 8 轮 · 核心覆盖", turns: 8 },
+  { id: "deep", label: "深度追问", desc: "目标 12 轮 · 压力追问", turns: 12 },
 ];
 
 const STEPS = [

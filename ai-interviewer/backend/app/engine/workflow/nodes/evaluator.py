@@ -10,6 +10,11 @@ from app.core.metrics import record_question_fallback
 from app.core.settings import get_settings
 from app.core.tracer import get_tracer
 from app.engine.agents.evaluator_agent import evaluate_answer
+from app.engine.workflow.depth_followup import (
+    DEPTH_FOLLOWUP_PHASE,
+    preserve_depth_followup_dimension_status,
+    sanitize_depth_followup_metadata,
+)
 from app.engine.workflow.eval_helpers import is_evaluator_fallback
 from app.engine.workflow.evaluation_consistency import (
     normalize_evaluation_consistency,
@@ -118,6 +123,11 @@ def evaluator_node(state: InterviewState) -> dict[str, Any]:
         dimension,
         evaluation,
     )
+    status = preserve_depth_followup_dimension_status(
+        state=state,
+        status=status,
+        dimension=str(dimension),
+    )
 
     turn_idx = state.get("turn_idx", 0)
     formal_turn_idx = state.get("formal_turn_idx", turn_idx)
@@ -128,9 +138,9 @@ def evaluator_node(state: InterviewState) -> dict[str, Any]:
         "resume_anchor": question.get("resume_anchor") or {},
         "target_skills": question.get("target_skills") or [],
         "skill_focus": question.get("skill_focus") or {},
-        # qa_history lives in the checkpoint + flows into traces, so
-        # we persist the sanitised copy. The raw text was only used
-        # transiently above for scoring.
+        # The pending QA turn later lands in qa_history, so persist the
+        # sanitised copy. The raw text was only used transiently above
+        # for scoring.
         "answer": sanitised_answer,
         "selected_action": (state.get("selected_action") or {}).get("id", ""),
         "evaluation": evaluation,
@@ -142,6 +152,11 @@ def evaluator_node(state: InterviewState) -> dict[str, Any]:
         # classifier.
         "answer_intent": state.get("current_answer_intent") or "normal",
     }
+    depth_followup = sanitize_depth_followup_metadata(question.get("depth_followup"))
+    if question.get("phase") == DEPTH_FOLLOWUP_PHASE or depth_followup:
+        qa_turn["phase"] = DEPTH_FOLLOWUP_PHASE
+        if depth_followup:
+            qa_turn["depth_followup"] = depth_followup
     question_basis = sanitize_replay_question_basis(question.get("question_basis"))
     if question_basis is not None:
         qa_turn["question_basis"] = question_basis
@@ -193,7 +208,7 @@ def evaluator_node(state: InterviewState) -> dict[str, Any]:
         "evaluation": evaluation,
         "scores_per_dim": scores,
         "dimension_status": status,
-        "qa_history": [qa_turn],
+        "pending_qa_turn": qa_turn,
         "turn_idx": turn_idx + 1,
         "formal_turn_idx": formal_turn_idx + 1,
         "turn_budget_remaining": turn_budget,

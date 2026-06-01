@@ -45,6 +45,56 @@ def _logical_turn_idx(state: InterviewState) -> int:
         return 0
 
 
+def _normalised_question(value: Any) -> str:
+    return " ".join(str(value or "").strip().split())
+
+
+def _turn_idx(value: Any) -> int | None:
+    if value is None or isinstance(value, bool):
+        return None
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return None
+
+
+def _same_turn_identity(left: dict[str, Any], right: dict[str, Any]) -> bool:
+    left_idx = _turn_idx(left.get("turn_idx"))
+    right_idx = _turn_idx(right.get("turn_idx"))
+    if left_idx is None or right_idx is None or left_idx != right_idx:
+        return False
+    left_question = _normalised_question(left.get("question"))
+    right_question = _normalised_question(right.get("question"))
+    return bool(left_question and left_question == right_question)
+
+
+def _pending_qa_turn_already_finalized(state: InterviewState, pending: dict[str, Any]) -> bool:
+    return any(
+        isinstance(turn, dict) and _same_turn_identity(turn, pending)
+        for turn in state.get("qa_history", []) or []
+    )
+
+
+def _pending_qa_turn_update(state: InterviewState) -> dict[str, Any]:
+    pending = state.get("pending_qa_turn")
+    if not isinstance(pending, dict):
+        return {}
+    if _pending_qa_turn_already_finalized(state, pending):
+        return {"pending_qa_turn": None}
+    return {
+        "qa_history": [dict(pending)],
+        "pending_qa_turn": None,
+    }
+
+
+def _finalized_qa_history(state: InterviewState, update: dict[str, Any]) -> list[Any]:
+    history = list(state.get("qa_history", []) or [])
+    appended = update.get("qa_history")
+    if isinstance(appended, list):
+        history.extend(appended)
+    return history
+
+
 def _trace_turn_finalize(
     state: InterviewState,
     update: dict[str, Any],
@@ -52,10 +102,11 @@ def _trace_turn_finalize(
     node_started_at: float,
 ) -> None:
     try:
-        qa_history = state.get("qa_history", [])
+        qa_history = _finalized_qa_history(state, update)
+        trace_state = {**state, **update, "qa_history": qa_history}
         raw_answer_cleared = "current_answer_raw" in update
         get_tracer().trace_node_event(
-            {**state, **update},
+            trace_state,
             node="turn_finalize",
             payload={
                 **trace_node_metadata("turn_finalize"),
@@ -79,7 +130,11 @@ def _trace_turn_finalize(
 
 def _trace_route_decision(state: InterviewState, update: dict[str, Any]) -> None:
     """Record the post-evaluation router decision for rhythm audits."""
-    route_state = {**state, **update}
+    route_state = {
+        **state,
+        **update,
+        "qa_history": _finalized_qa_history(state, update),
+    }
     evaluation = route_state.get("evaluation") or {}
     question = route_state.get("current_question") or {}
     diagnostics = route_after_eval_diagnostics(route_state)
@@ -121,7 +176,10 @@ def _trace_route_decision(state: InterviewState, update: dict[str, Any]) -> None
 
 def turn_finalize_node(state: InterviewState) -> dict[str, Any]:
     node_started_at = time.perf_counter()
-    update = _clear_raw_answer_if_set(state)
+    update = {
+        **_pending_qa_turn_update(state),
+        **_clear_raw_answer_if_set(state),
+    }
     _trace_turn_finalize(
         state,
         update,

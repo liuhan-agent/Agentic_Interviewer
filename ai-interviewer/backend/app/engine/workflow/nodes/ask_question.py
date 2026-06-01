@@ -45,6 +45,11 @@ from app.engine.context.prompt_budget import (
 )
 from app.engine.rag.retriever import retrieve_for_question
 from app.engine.resume_plan import select_resume_anchor_with_schedule
+from app.engine.workflow.depth_followup import (
+    DEPTH_FOLLOWUP_PHASE,
+    DEPTH_FOLLOWUP_PLAN_TEMPLATE,
+    sanitize_depth_followup_metadata,
+)
 from app.engine.workflow.difficulty_adapter import difficulty_to_bar_level
 from app.engine.workflow.plans import build_llm_ask_plan, resolve_ask_plan
 from app.engine.workflow.policy_context import policy_context_keys
@@ -521,6 +526,9 @@ def _build_selection_artifacts(ctx: dict[str, Any]) -> dict[str, Any]:
         artifacts["question_reranker"] = ctx["question_reranker_artifact"]
     if ctx.get("candidate_anchor_artifact") is not None:
         artifacts["candidate_anchor"] = ctx["candidate_anchor_artifact"]
+    depth_followup = ctx.get("depth_followup")
+    if isinstance(depth_followup, dict) and depth_followup:
+        artifacts["depth_followup"] = dict(depth_followup)
     return artifacts
 
 
@@ -2250,6 +2258,16 @@ def _resolve_plan(
     return _ensure_retrieve_skills_step(plan)
 
 
+def _depth_followup_slot_from_action(selected_action: Any) -> dict[str, Any] | None:
+    if not isinstance(selected_action, dict):
+        return None
+    diagnostics = selected_action.get("diagnostics")
+    if not isinstance(diagnostics, dict):
+        return None
+    slot = diagnostics.get("depth_followup_slot")
+    return dict(slot) if isinstance(slot, dict) and slot else None
+
+
 def ask_question_node(state: InterviewState) -> dict[str, Any]:
     node_started_at = time.perf_counter()
     state, refreshed_candidate = _state_with_refreshed_resume_vector_status(state)
@@ -2260,6 +2278,14 @@ def ask_question_node(state: InterviewState) -> dict[str, Any]:
     )
     job_level = (state.get("job_spec") or {}).get("level", "mid")
     contract_hints = state.get("pending_contract_hints") or {}
+    depth_followup_slot = _depth_followup_slot_from_action(
+        state.get("selected_action")
+    )
+    depth_metadata = (
+        sanitize_depth_followup_metadata(depth_followup_slot)
+        if depth_followup_slot
+        else {}
+    )
 
     dims = state.get("dimensions", [])
     dim_status = state.get("dimension_status", {})
@@ -2269,7 +2295,11 @@ def ask_question_node(state: InterviewState) -> dict[str, Any]:
     plan = _resolve_plan(
         selected_action=state.get("selected_action"),
         refine_mode=bool(state.get("refine_mode")),
-        pending_plan_template=state.get("pending_plan_template"),
+        pending_plan_template=(
+            DEPTH_FOLLOWUP_PLAN_TEMPLATE
+            if depth_followup_slot
+            else state.get("pending_plan_template")
+        ),
         runtime_config=runtime_config,
         dimension=dimension,
         job_level=job_level,
@@ -2287,6 +2317,20 @@ def ask_question_node(state: InterviewState) -> dict[str, Any]:
         interview_depth=str(runtime_config.get("interview_depth") or "standard"),
         focus_dimensions=list(state.get("focus_dimensions") or []),
     )
+    if depth_followup_slot:
+        slot_anchor = depth_followup_slot.get("resume_anchor")
+        anchor = dict(slot_anchor) if isinstance(slot_anchor, dict) else {}
+        anchor_selection = {
+            "resume_anchor": anchor,
+            "scheduler": {
+                "available": False,
+                "anchor_key": anchor.get("anchor_key"),
+                "anchor_attempt": 0,
+                "max_anchor_attempts": 0,
+                "expansion_reason": DEPTH_FOLLOWUP_PHASE,
+                "source_turn_idx": depth_metadata.get("source_turn_idx"),
+            },
+        }
     ctx: dict[str, Any] = {
         "dimension": dimension,
         "qa_history": state.get("qa_history", []),
@@ -2302,6 +2346,8 @@ def ask_question_node(state: InterviewState) -> dict[str, Any]:
         "contract": None,
         "contract_hints": contract_hints,
     }
+    if depth_metadata:
+        ctx["depth_followup"] = depth_metadata
     history_context = build_history_context(
         qa_history=state.get("qa_history", []),
         current_dimension=dimension,
@@ -2322,24 +2368,29 @@ def ask_question_node(state: InterviewState) -> dict[str, Any]:
     ctx["target_skills"] = skill_focus.get("target_skills") or []
 
     direction = (state.get("job_spec") or {}).get("interview_direction")
-    probe_intent = resolve_probe_intent(
-        direction=direction,
-        dimension=dimension,
-        job_level=job_level,
-        failure_category=(contract_hints or {}).get("failure_category"),
-        failure_reason=(contract_hints or {}).get("failure_reason"),
-        evaluator_hint=(contract_hints or {}).get("probe_intent"),
-        coverage_closeout=_has_coverage_pressure(
-            turn_budget_remaining=state.get("turn_budget_remaining"),
-            uncovered_dimensions=uncovered,
-        ),
-    )
-    probe_intent = _rotate_second_pass_probe_intent(
-        probe_intent=probe_intent,
-        dimension=dimension,
-        scheduler=ctx.get("anchor_scheduler"),
-        qa_history=state.get("qa_history", []),
-    )
+    if depth_followup_slot:
+        probe_intent = str(
+            depth_followup_slot.get("probe_intent") or "debugging_probe"
+        ).strip()
+    else:
+        probe_intent = resolve_probe_intent(
+            direction=direction,
+            dimension=dimension,
+            job_level=job_level,
+            failure_category=(contract_hints or {}).get("failure_category"),
+            failure_reason=(contract_hints or {}).get("failure_reason"),
+            evaluator_hint=(contract_hints or {}).get("probe_intent"),
+            coverage_closeout=_has_coverage_pressure(
+                turn_budget_remaining=state.get("turn_budget_remaining"),
+                uncovered_dimensions=uncovered,
+            ),
+        )
+        probe_intent = _rotate_second_pass_probe_intent(
+            probe_intent=probe_intent,
+            dimension=dimension,
+            scheduler=ctx.get("anchor_scheduler"),
+            qa_history=state.get("qa_history", []),
+        )
     ctx["probe_intent"] = probe_intent
 
     _step_select_structured_question(state, ctx, probe_intent=probe_intent)
@@ -2348,6 +2399,9 @@ def ask_question_node(state: InterviewState) -> dict[str, Any]:
     question_payload: dict[str, Any] = ctx.get("question_payload") or {}
     if probe_intent:
         question_payload["probe_intent"] = probe_intent
+    if depth_metadata:
+        question_payload["phase"] = DEPTH_FOLLOWUP_PHASE
+        question_payload["depth_followup"] = depth_metadata
     _lock_question_dimension(question_payload, dimension)
     _rewrite_duplicate_question(question_payload, ctx=ctx, dimension=dimension)
     _rewrite_non_chinese_question(question_payload, ctx=ctx, dimension=dimension)
@@ -2463,6 +2517,8 @@ def ask_question_node(state: InterviewState) -> dict[str, Any]:
                 "skill_focus": ctx.get("skill_focus") or {},
                 "strategy_memory_refs": ctx.get("strategy_memory_refs") or [],
                 "selection_artifacts": selection_artifacts,
+                "phase": question_payload.get("phase"),
+                "depth_followup": question_payload.get("depth_followup"),
                 "ask_plan": _ask_plan_for_trace(
                     plan,
                     state=state,

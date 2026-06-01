@@ -8,6 +8,7 @@ It never calls an LLM and never mutates the source turns.
 from __future__ import annotations
 
 import json
+import re
 from typing import Any
 
 DEFAULT_RECENT_QA_WINDOW = 3
@@ -57,6 +58,208 @@ def _list_strings(value: Any, *, limit: int = LIST_ITEM_LIMIT) -> list[str]:
     return result
 
 
+_OPERATIONAL_GAP_TERMS = (
+    "compensation",
+    "success rate",
+    "retry",
+    "time window",
+    "manual",
+    "fallback",
+    "\u8865\u507f",
+    "\u6210\u529f\u7387",
+    "\u91cd\u8bd5",
+    "\u65f6\u95f4\u7a97\u53e3",
+    "\u4eba\u5de5",
+    "\u515c\u5e95",
+    "\u5b57\u6bb5",
+)
+
+
+def _normalized_gap_text(value: str) -> str:
+    lowered = value.strip().lower()
+    compact = re.sub(r"[^0-9a-z\u4e00-\u9fff]+", " ", lowered)
+    return " ".join(compact.split()) or lowered
+
+
+def _has_any(value: str, terms: tuple[str, ...]) -> bool:
+    return any(term in value for term in terms)
+
+
+def _gap_key_reason(value: str) -> tuple[str, str]:
+    lowered = value.strip().lower()
+    normalized = _normalized_gap_text(value)
+    missing_terms = ("未", "缺", "missing", "lack", "不够", "没有", "仅")
+    metric_terms = (
+        "指标",
+        "数值",
+        "量化",
+        "阈值",
+        "tps",
+        "qps",
+        "p95",
+        "p99",
+        "响应时间",
+        "错误率",
+    )
+    rollback_terms = ("回滚", "旧方案", "止损", "rollback")
+    cache_atomic_terms = ("原子", "版本检查", "version check", "lua")
+    db_pressure_terms = ("缓存穿透", "限流", "熔断", "压力保护", "db", "数据库")
+
+    if _has_any(lowered, rollback_terms) and _has_any(lowered, missing_terms):
+        return "rollback_plan_missing", "near_synonym:rollback_plan_missing"
+    if _has_any(lowered, metric_terms) and _has_any(lowered, missing_terms):
+        return "missing_metric_numbers", "near_synonym:missing_metric_numbers"
+    if "缓存" in lowered and _has_any(lowered, cache_atomic_terms):
+        return "cache_read_atomicity", "near_synonym:cache_read_atomicity"
+    if (
+        "缓存" in lowered
+        and _has_any(lowered, db_pressure_terms)
+        and _has_any(lowered, missing_terms)
+    ):
+        return "db_pressure_protection", "near_synonym:db_pressure_protection"
+    operational_hits = sum(1 for term in _OPERATIONAL_GAP_TERMS if term in lowered)
+    if operational_hits >= 2:
+        return "operational_recovery_evidence", "near_synonym:operational_recovery_evidence"
+    return normalized[:120] or lowered[:120], "normalized_text"
+
+
+def _gap_key(value: str) -> str:
+    return _gap_key_reason(value)[0]
+
+
+def _gap_specificity_score(value: str) -> tuple[int, int]:
+    lowered = value.strip().lower()
+    signal_terms = (
+        "tps",
+        "qps",
+        "p95",
+        "p99",
+        "错误率",
+        "响应时间",
+        "阈值",
+        "指标名称",
+        "旧方案",
+        "快速止损",
+        "止损",
+        "限流",
+        "熔断",
+        "半开",
+        "原子",
+        "版本",
+        "lua",
+        "补偿",
+        "幂等",
+    )
+    score = len(set(re.findall(r"[0-9a-z]+|[\u4e00-\u9fff]{2,}", lowered)))
+    score += sum(4 for term in signal_terms if term in lowered)
+    score += len(re.findall(r"\d+(?:\.\d+)?%?", lowered)) * 3
+    if "如" in value or "(" in value or "（" in value:
+        score += 2
+    return score, len(value)
+
+
+def _empty_gap_dedupe_diagnostics(
+    *,
+    raw_count: int = 0,
+    deduped_count: int = 0,
+) -> dict[str, Any]:
+    return {
+        "raw_count": raw_count,
+        "deduped_count": deduped_count,
+        "merge_count": 0,
+        "groups": [],
+    }
+
+
+def _dedupe_gap_texts_with_diagnostics(
+    values: list[str],
+    *,
+    limit: int = LIST_ITEM_LIMIT,
+) -> tuple[list[str], dict[str, Any]]:
+    groups: dict[str, dict[str, Any]] = {}
+    order: list[str] = []
+    raw_count = 0
+    for value in values:
+        text = _text(value)
+        if not text:
+            continue
+        raw_count += 1
+        key, reason = _gap_key_reason(text)
+        score = _gap_specificity_score(text)
+        group = groups.get(key)
+        if group is None:
+            groups[key] = {
+                "key": key,
+                "reason": reason,
+                "kept": text,
+                "kept_score": score,
+                "kept_count": 1,
+                "raw_count": 1,
+                "text_counts": {text: 1},
+                "examples": [text],
+                "first_index": len(order),
+            }
+            order.append(key)
+            continue
+        group["raw_count"] = int(group.get("raw_count") or 0) + 1
+        text_counts = group.setdefault("text_counts", {})
+        text_counts[text] = int(text_counts.get(text) or 0) + 1
+        examples = group.setdefault("examples", [])
+        if len(examples) < 3 and text not in examples:
+            examples.append(text)
+        text_count = int(text_counts[text])
+        kept_count = int(group.get("kept_count") or 0)
+        kept_score = group.get("kept_score", (0, 0))
+        clearly_more_specific = score[0] >= kept_score[0] + 6
+        more_frequent_with_similar_detail = (
+            text_count > kept_count and score[0] + 4 >= kept_score[0]
+        )
+        tied_frequency_more_specific = text_count == kept_count and score > kept_score
+        if (
+            clearly_more_specific
+            or more_frequent_with_similar_detail
+            or tied_frequency_more_specific
+        ):
+            group["kept"] = text
+            group["kept_score"] = score
+            group["kept_count"] = text_count
+
+    priority = {
+        "missing_metric_numbers": 10,
+        "rollback_plan_missing": 20,
+        "cache_read_atomicity": 30,
+        "db_pressure_protection": 40,
+        "operational_recovery_evidence": 90,
+    }
+    ordered_groups = sorted(
+        (groups[key] for key in order),
+        key=lambda item: (priority.get(str(item.get("key")), 100), item["first_index"]),
+    )
+    result = [str(group["kept"]) for group in ordered_groups[: max(0, limit)]]
+    dedupe_groups = [
+        {
+            "key": str(group["key"]),
+            "reason": str(group["reason"]),
+            "kept": str(group["kept"]),
+            "merged_count": int(group["raw_count"]) - 1,
+            "examples": [str(example) for example in group.get("examples") or []],
+        }
+        for group in ordered_groups
+        if int(group["raw_count"]) > 1
+    ]
+    diagnostics = {
+        "raw_count": raw_count,
+        "deduped_count": len(result),
+        "merge_count": sum(group["merged_count"] for group in dedupe_groups),
+        "groups": dedupe_groups,
+    }
+    return result, diagnostics
+
+
+def _dedupe_gap_texts(values: list[str], *, limit: int = LIST_ITEM_LIMIT) -> list[str]:
+    return _dedupe_gap_texts_with_diagnostics(values, limit=limit)[0]
+
+
 def _turn_idx(turn: dict[str, Any], fallback: int) -> int:
     try:
         return int(turn.get("turn_idx", fallback))
@@ -83,6 +286,8 @@ def _project_dimension(dimension: str, turns: list[dict[str, Any]]) -> dict[str,
         if len(open_gaps) >= LIST_ITEM_LIMIT and len(covered) >= LIST_ITEM_LIMIT:
             break
 
+    open_gap_texts, open_gap_dedupe = _dedupe_gap_texts_with_diagnostics(open_gaps)
+
     return {
         "dimension": dimension,
         "turns": len(ordered),
@@ -95,7 +300,8 @@ def _project_dimension(dimension: str, turns: list[dict[str, Any]]) -> dict[str,
         "resume_anchor": _record(latest.get("resume_anchor")),
         "target_skills": _list_strings(latest.get("target_skills")),
         "covered": _dedupe(covered),
-        "open_gaps": _dedupe(open_gaps),
+        "open_gaps": open_gap_texts,
+        "open_gap_dedupe": open_gap_dedupe,
         "recommended_next": _text(latest_eval.get("recommended_next")),
     }
 
@@ -131,9 +337,11 @@ def _build_projection(
         for dimension, turns in sorted(by_dimension.items())
     ]
     current_gaps: list[str] = []
+    current_gap_dedupe = _empty_gap_dedupe_diagnostics()
     for item in dimensions:
         if item.get("dimension") == current_dimension:
             current_gaps = list(item.get("open_gaps") or [])
+            current_gap_dedupe = _record(item.get("open_gap_dedupe"))
             break
     if not current_gaps:
         for item in sorted(
@@ -142,6 +350,7 @@ def _build_projection(
             reverse=True,
         ):
             current_gaps.extend([str(gap) for gap in item.get("open_gaps") or []])
+            current_gap_dedupe = _record(item.get("open_gap_dedupe"))
             if current_gaps:
                 break
 
@@ -152,7 +361,12 @@ def _build_projection(
         "source_last_turn_idx": last_turn_idx,
         "current_dimension": current_dimension or "",
         "dimensions": dimensions,
-        "current_gaps": _dedupe(current_gaps),
+        "current_gaps": _dedupe_gap_texts(current_gaps),
+        "current_gap_dedupe": current_gap_dedupe
+        or _empty_gap_dedupe_diagnostics(
+            raw_count=len(current_gaps),
+            deduped_count=len(current_gaps),
+        ),
     }
 
 
@@ -468,6 +682,7 @@ def build_history_context(
 
     active_window = max(0, int(recent_window))
     current_gaps = list(full_projection.get("current_gaps") or [])
+    current_gap_dedupe = _record(full_projection.get("current_gap_dedupe"))
     projection = _build_prompt_projection(
         full_projection,
         current_gaps=current_gaps,
@@ -612,6 +827,16 @@ def build_history_context(
             "history_budget_exceeded": len(history_section) > history_budget_chars,
             "truncated_recent_answers_count": sum(
                 1 for turn in recent_view if turn.get("answer_truncated")
+            ),
+            "current_gaps_raw_count": int(
+                current_gap_dedupe.get("raw_count") or len(current_gaps)
+            ),
+            "current_gaps_deduped_count": len(current_gaps),
+            "current_gaps_dedupe_merge_count": int(
+                current_gap_dedupe.get("merge_count") or 0
+            ),
+            "current_gaps_dedupe_groups": list(
+                current_gap_dedupe.get("groups") or []
             ),
         },
     }
