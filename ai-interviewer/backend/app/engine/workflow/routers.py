@@ -141,6 +141,8 @@ def route_after_eval_diagnostics(state: InterviewState) -> dict[str, Any]:
     formal_turn_idx = state.get("formal_turn_idx", state.get("turn_idx", 0))
     max_turns = state.get("max_turns", 8)
     budget = state.get("turn_budget_remaining", 0)
+    runtime_config = state.get("runtime_config") or {}
+    interview_depth = str(runtime_config.get("interview_depth") or "standard")
     current_dim = str(
         state.get("current_dimension")
         or question.get("dimension")
@@ -169,6 +171,7 @@ def route_after_eval_diagnostics(state: InterviewState) -> dict[str, Any]:
         "formal_turn_idx": formal_turn_idx,
         "max_turns": max_turns,
         "turn_budget_remaining": budget,
+        "interview_depth": interview_depth,
         "current_dimension": current_dim or None,
         "recommended_next": evaluation.get("recommended_next"),
         "passed": bool(evaluation.get("passed")),

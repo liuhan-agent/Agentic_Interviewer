@@ -155,6 +155,14 @@ test("setup accepts weak-focus query prefill", () => {
   assert.match(types, /focus_dimensions\?: string\[\]/);
 });
 
+test("setup sends the selected interview depth to the backend", () => {
+  const source = readSetupForm();
+  const types = readApiTypes();
+
+  assert.match(types, /interview_depth\?: "short" \| "standard" \| "deep"/);
+  assert.match(source, /interview_depth:\s*lengthChoice\.id/);
+});
+
 test("api types expose optional depth followup metadata", () => {
   const types = readApiTypes();
 
