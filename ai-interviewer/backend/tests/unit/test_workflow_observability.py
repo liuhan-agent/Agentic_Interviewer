@@ -3,6 +3,7 @@ from __future__ import annotations
 from types import SimpleNamespace
 from typing import Any
 
+from app.engine.context.history_context import build_history_context
 from app.engine.workflow.nodes import turn_finalize as tnode
 from app.engine.workflow.nodes import verification as vnode
 
@@ -155,6 +156,17 @@ def test_verification_trace_payload_includes_outcome_metrics(monkeypatch) -> Non
             "passed": True,
             "recommended_next": "next_question",
         },
+        "pending_qa_turn": {
+            "turn_idx": 0,
+            "dimension": "technical_depth",
+            "question": "How would you migrate this safely?",
+            "answer": "I would use a canary rollout.",
+            "evaluation": {
+                "score": 8.0,
+                "passed": True,
+                "recommended_next": "next_question",
+            },
+        },
         "dimension_status": {"technical_depth": "passed"},
         "job_spec": {"level": "senior"},
         "quality_threshold": 7.5,
@@ -163,6 +175,8 @@ def test_verification_trace_payload_includes_outcome_metrics(monkeypatch) -> Non
     out = vnode.verification_node(state)  # type: ignore[arg-type]
 
     assert out["evaluation"]["passed"] is False
+    assert out["pending_qa_turn"]["evaluation"]["passed"] is False
+    assert out["pending_qa_turn"]["evaluation"]["recommended_next"] == "refine"
     assert out["dimension_status"]["technical_depth"] == "active"
     assert traced_payloads[-1]["evaluator_passed"] is True
     assert traced_payloads[-1]["updated_passed"] is False
@@ -259,6 +273,181 @@ def test_turn_finalize_traces_route_decision_after_eval(monkeypatch) -> None:
     assert payload["decision_inputs"]["max_refines_per_dimension"] == 2
     assert payload["decision_inputs"]["has_pending_other_dimension"] is True
     assert logical_turn_idx == 1
+
+
+def test_turn_finalize_appends_pending_qa_turn_before_route_decision(
+    monkeypatch,
+) -> None:
+    traced: list[tuple[str, dict[str, Any], dict[str, Any], int | None]] = []
+
+    class _Tracer:
+        def trace_node_event(
+            self,
+            state,
+            *,
+            node,
+            payload,
+            logical_turn_idx=None,
+            **_kwargs,
+        ) -> None:
+            traced.append((node, state, payload, logical_turn_idx))
+
+    monkeypatch.setattr(tnode, "get_tracer", lambda: _Tracer())
+
+    pending_turn = {
+        "turn_idx": 1,
+        "dimension": "system_design",
+        "question": "Q1",
+        "answer": "A1",
+        "evaluation": {"passed": False, "recommended_next": "refine"},
+    }
+    state: dict[str, Any] = {
+        "turn_idx": 2,
+        "formal_turn_idx": 2,
+        "max_turns": 6,
+        "turn_budget_remaining": 4,
+        "current_dimension": "system_design",
+        "dimensions": ["system_design", "communication"],
+        "dimension_status": {"system_design": "active", "communication": "pending"},
+        "evaluation": {"passed": False, "recommended_next": "refine"},
+        "qa_history": [
+            {
+                "turn_idx": 0,
+                "dimension": "system_design",
+                "question": "Q0",
+                "evaluation": {"passed": False},
+            }
+        ],
+        "pending_qa_turn": pending_turn,
+    }
+
+    out = tnode.turn_finalize_node(state)  # type: ignore[arg-type]
+
+    assert out["qa_history"] == [pending_turn]
+    assert out["pending_qa_turn"] is None
+
+    finalize_events = [item for item in traced if item[0] == "turn_finalize"]
+    assert finalize_events[-1][2]["qa_history_count"] == 2
+    assert len(finalize_events[-1][1]["qa_history"]) == 2
+
+    route_events = [item for item in traced if item[0] == "route_decision"]
+    assert route_events[-1][2]["decision"] == "next_question"
+    assert route_events[-1][2]["decision_reason"] == "coverage_advance"
+    assert route_events[-1][2]["decision_inputs"]["current_dimension_attempts"] == 2
+
+
+def test_finalized_pending_turn_feeds_next_history_context_current_gaps(
+    monkeypatch,
+) -> None:
+    traced: list[tuple[str, dict[str, Any], dict[str, Any]]] = []
+
+    class _Tracer:
+        def trace_node_event(
+            self,
+            state,
+            *,
+            node,
+            payload,
+            **_kwargs,
+        ) -> None:
+            traced.append((node, state, payload))
+
+    monkeypatch.setattr(tnode, "get_tracer", lambda: _Tracer())
+
+    final_gap = "未说明如何回滚到旧方案或快速止损。"
+    pending_turn = {
+        "turn_idx": 0,
+        "dimension": "coding_quality",
+        "question": "Q0",
+        "answer": "A0",
+        "evaluation": {
+            "score": 9.0,
+            "passed": False,
+            "weaknesses": [final_gap, "回滚措施描述不够具体"],
+            "recommended_next": "refine",
+        },
+    }
+    state: dict[str, Any] = {
+        "turn_idx": 1,
+        "formal_turn_idx": 1,
+        "max_turns": 6,
+        "turn_budget_remaining": 5,
+        "current_dimension": "coding_quality",
+        "dimensions": ["coding_quality", "system_design"],
+        "dimension_status": {"coding_quality": "active", "system_design": "pending"},
+        "evaluation": pending_turn["evaluation"],
+        "qa_history": [],
+        "pending_qa_turn": pending_turn,
+    }
+
+    out = tnode.turn_finalize_node(state)  # type: ignore[arg-type]
+
+    finalized_history = list(state["qa_history"]) + list(out.get("qa_history") or [])
+    history_context = build_history_context(
+        qa_history=finalized_history,
+        current_dimension="coding_quality",
+    )
+
+    assert out["pending_qa_turn"] is None
+    assert history_context["prompt_slots"][2]["prompt_label"] == "CURRENT_GAPS"
+    assert history_context["prompt_slots"][2]["value"] == [final_gap]
+    assert history_context["stats"]["current_gaps_dedupe_merge_count"] == 1
+
+    finalize_events = [item for item in traced if item[0] == "turn_finalize"]
+    assert finalize_events[-1][2]["qa_history_count"] == 1
+    assert finalize_events[-1][1]["pending_qa_turn"] is None
+
+    route_events = [item for item in traced if item[0] == "route_decision"]
+    assert route_events[-1][2]["decision_inputs"]["current_dimension_attempts"] == 1
+    assert route_events[-1][2]["decision_inputs"]["passed"] is False
+    assert route_events[-1][2]["decision_inputs"]["recommended_next"] == "refine"
+
+
+def test_turn_finalize_does_not_duplicate_existing_pending_qa_turn(
+    monkeypatch,
+) -> None:
+    traced: list[tuple[str, dict[str, Any], dict[str, Any]]] = []
+
+    class _Tracer:
+        def trace_node_event(
+            self,
+            state,
+            *,
+            node,
+            payload,
+            **_kwargs,
+        ) -> None:
+            traced.append((node, state, payload))
+
+    monkeypatch.setattr(tnode, "get_tracer", lambda: _Tracer())
+
+    pending_turn = {
+        "turn_idx": 1,
+        "dimension": "system_design",
+        "question": "Q1",
+        "answer": "A1",
+        "evaluation": {"passed": False, "recommended_next": "refine"},
+    }
+    state: dict[str, Any] = {
+        "turn_idx": 2,
+        "formal_turn_idx": 2,
+        "max_turns": 6,
+        "turn_budget_remaining": 4,
+        "current_dimension": "system_design",
+        "dimensions": ["system_design"],
+        "dimension_status": {"system_design": "active"},
+        "evaluation": {"passed": False, "recommended_next": "refine"},
+        "qa_history": [pending_turn],
+        "pending_qa_turn": dict(pending_turn),
+    }
+
+    out = tnode.turn_finalize_node(state)  # type: ignore[arg-type]
+
+    assert "qa_history" not in out
+    assert out["pending_qa_turn"] is None
+    finalize_events = [item for item in traced if item[0] == "turn_finalize"]
+    assert finalize_events[-1][2]["qa_history_count"] == 1
+    assert len(finalize_events[-1][1]["qa_history"]) == 1
 
 
 def test_turn_finalize_trace_payload_never_updates_history_projection(

@@ -146,3 +146,30 @@ def test_evaluator_categories_filter_unknown_enums_defensively() -> None:
     hints = update["pending_contract_hints"]
     assert hints["failure_categories"] == ["weak_debugging"]
     assert hints["failure_category"] == "weak_debugging"
+
+
+def test_must_address_dedupes_repeated_gap_cluster() -> None:
+    state = _base_state(
+        {
+            "score": 6.0,
+            "passed": False,
+            "weaknesses": [
+                "Need clarify compensation success rate, retry window, manual fallback fields",
+                "Please add retry window, manual fallback fields, and compensation success rate",
+                "Need clarify compensation success rate, retry window, manual fallback fields",
+            ],
+            "rubric_coverage": {
+                "retry window": "missing",
+                "manual fallback fields": "missing",
+            },
+            "recommended_next": "refine",
+        }
+    )
+
+    update = refine_followup_node(state)
+
+    hints = update["pending_contract_hints"]
+    assert hints["must_address"] == [
+        "Need clarify compensation success rate, retry window, manual fallback fields"
+    ]
+    assert hints["missing_must_cover"] == ["retry window"]

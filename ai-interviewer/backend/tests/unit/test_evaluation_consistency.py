@@ -105,6 +105,24 @@ def test_above_threshold_partial_coverage_can_be_promoted_to_passed() -> None:
     assert normal["passed"] is True
 
 
+def test_promoted_pass_clears_refine_routing_fields() -> None:
+    evaluation = _evaluation(score=9.0, passed=False)
+    evaluation["recommended_next"] = "refine"
+    evaluation["recommended_next_plan"] = "deep_probe"
+
+    normal = normalize_evaluation_consistency(
+        evaluation,
+        contract=_contract(),
+        quality_threshold=7.5,
+    )
+
+    assert normal["passed"] is True
+    assert normal["recommended_next"] == "advance"
+    assert normal["recommended_next_plan"] is None
+    assert normal["consistency_normalized"] is True
+    assert normal["normalization_reason"] == "score_and_coverage_promoted_pass"
+
+
 def test_below_threshold_is_never_passed() -> None:
     evaluation = _evaluation(score=6.5, passed=True)
 
@@ -116,6 +134,22 @@ def test_below_threshold_is_never_passed() -> None:
 
     assert normal["passed"] is False
     assert normal["recommended_next"] == "refine"
+
+
+def test_evaluator_fallback_is_not_normalized() -> None:
+    evaluation = _evaluation(score=9.0, passed=False)
+    evaluation["source"] = "fallback"
+    evaluation["fallback_reason"] = "llm_failed"
+    evaluation["recommended_next"] = "refine"
+    evaluation["recommended_next_plan"] = "simple"
+
+    normal = normalize_evaluation_consistency(
+        evaluation,
+        contract=_contract(),
+        quality_threshold=7.5,
+    )
+
+    assert normal == evaluation
 
 
 def test_high_confidence_verifier_override_wins_over_perfect_score() -> None:

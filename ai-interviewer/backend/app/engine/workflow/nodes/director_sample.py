@@ -29,6 +29,7 @@ from app.core.logging import get_logger
 from app.core.settings import get_settings
 from app.core.tracer import get_tracer
 from app.engine.resume_plan import select_resume_anchor_with_schedule
+from app.engine.workflow.depth_followup import select_depth_followup_slot
 from app.engine.workflow.difficulty_adapter import compute_target_difficulty
 from app.engine.workflow.policy_context import policy_context_keys
 from app.engine.workflow.routers import should_advance_for_coverage
@@ -448,6 +449,11 @@ def director_sample_node(state: InterviewState) -> dict[str, Any]:
     anchor_target, anchor_selection = _anchor_expansion_target(state)
     if anchor_target:
         current_dim = anchor_target
+    depth_followup_slot = None
+    if not anchor_target:
+        depth_followup_slot = select_depth_followup_slot(state)
+        if depth_followup_slot:
+            current_dim = str(depth_followup_slot.get("dimension") or current_dim)
     refine_locked = bool(state.get("refine_mode"))
 
     mode, allowed = _resolve_mode_and_actions(
@@ -496,6 +502,21 @@ def director_sample_node(state: InterviewState) -> dict[str, Any]:
             "chosen": action.id,
             "action_guardrail": guardrail.diagnostics,
         }
+    elif depth_followup_slot:
+        action = PLAN_DEEP_PROBE if mode == "template" else DEEPEN_TECHNICAL
+        diagnostics = {
+            "mode": "depth_followup",
+            "context_key": context_key,
+            "chosen": action.id,
+            "target_dimension": depth_followup_slot.get("dimension"),
+            "target_anchor_key": (
+                (depth_followup_slot.get("resume_anchor") or {}).get("anchor_key")
+                if isinstance(depth_followup_slot.get("resume_anchor"), dict)
+                else None
+            ),
+            "depth_followup_slot": depth_followup_slot,
+            "action_guardrail": guardrail.diagnostics,
+        }
     else:
         action, diagnostics = bandit.select(context_key, mask=allowed)
         diagnostics = {
@@ -530,6 +551,9 @@ def director_sample_node(state: InterviewState) -> dict[str, Any]:
     )
     if anchor_target and not coverage_target:
         new_current_dim = anchor_target
+        new_status = dict(state.get("dimension_status", {}) or {})
+    if depth_followup_slot and not coverage_target:
+        new_current_dim = str(depth_followup_slot.get("dimension") or new_current_dim)
         new_status = dict(state.get("dimension_status", {}) or {})
     # If the dimension rotated, update dimension_status for the new
     # active dimension too.

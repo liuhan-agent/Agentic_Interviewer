@@ -779,7 +779,8 @@ def test_evaluator_node_persists_question_basis_in_qa_history(monkeypatch):
 
     out = eval_node_mod.evaluator_node(state)  # type: ignore[arg-type]
 
-    assert out["qa_history"][0]["question_basis"] == question_basis
+    assert "qa_history" not in out
+    assert out["pending_qa_turn"]["question_basis"] == question_basis
 
 
 # ---------------------------------------------------------------------------

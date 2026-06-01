@@ -6,6 +6,7 @@ from typing import Any
 from app.engine.workflow.eval_helpers import is_evaluator_fallback
 
 _HIGH_SCORE_WARNING_THRESHOLD = 9.95
+_REFINE_NEXT_PLANS = {"refine", "deep_probe"}
 
 
 def _finite_score(value: Any) -> float | None:
@@ -44,6 +45,11 @@ def _append_unique_many(items: list[Any], values: list[Any]) -> list[Any]:
         if value:
             _append_unique(items, value)
     return items
+
+
+def _mark_normalized(out: dict[str, Any], reason: str) -> None:
+    out["consistency_normalized"] = True
+    out["normalization_reason"] = reason
 
 
 def _coverage_signals(evaluation: dict[str, Any]) -> tuple[list[str], list[str]]:
@@ -143,11 +149,15 @@ def normalize_evaluation_consistency(
         return out
 
     if score is not None and score < quality_threshold:
+        if out.get("passed") or out.get("recommended_next") != "refine":
+            _mark_normalized(out, "score_below_threshold")
         out["passed"] = False
         out["recommended_next"] = "refine"
         return out
 
     if hard_gap:
+        if out.get("passed") or out.get("recommended_next") != "refine":
+            _mark_normalized(out, "required_evidence_missing")
         out["passed"] = False
         out["recommended_next"] = "refine"
         if score is not None and score >= _HIGH_SCORE_WARNING_THRESHOLD:
@@ -159,7 +169,16 @@ def normalize_evaluation_consistency(
         return out
 
     if score is not None and score >= quality_threshold and enough_coverage:
+        if (
+            not out.get("passed")
+            or out.get("recommended_next") != "advance"
+            or str(out.get("recommended_next_plan") or "") in _REFINE_NEXT_PLANS
+        ):
+            _mark_normalized(out, "score_and_coverage_promoted_pass")
         out["passed"] = True
+        out["recommended_next"] = "advance"
+        if str(out.get("recommended_next_plan") or "") in _REFINE_NEXT_PLANS:
+            out["recommended_next_plan"] = None
 
     return out
 

@@ -209,6 +209,8 @@ export interface PollQuestion {
   formal_turn_idx?: number;
   contract?: unknown;
   resume_anchor?: ResumeAnchor;
+  phase?: "depth_followup" | string | null;
+  depth_followup?: DepthFollowupMetadata | null;
   [key: string]: unknown;
 }
 
@@ -463,6 +465,14 @@ export interface ReplayAnchorFollowup {
   max_attempts: number;
 }
 
+export interface DepthFollowupMetadata {
+  source_turn_idx?: number | null;
+  parent_turn_idx?: number | null;
+  depth_reason?: string | null;
+  depth_slot_rank?: number | null;
+  depth_target_turns?: number | null;
+}
+
 export interface ReplayTurn {
   turn_idx: number;
   dimension?: string | null;
@@ -480,6 +490,8 @@ export interface ReplayTurn {
   followup_reason?: ReplayFollowupReason | null;
   question_basis?: ReplayQuestionBasis | null;
   anchor_followup?: ReplayAnchorFollowup | null;
+  phase?: "depth_followup" | string | null;
+  depth_followup?: DepthFollowupMetadata | null;
 }
 
 export interface ResumeHistoryTurn extends Omit<ReplayTurn, "turn_idx"> {
