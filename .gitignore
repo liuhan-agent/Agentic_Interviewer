@@ -38,6 +38,9 @@ reference/
 # Local agent planning/audit workspace, keep local but do not publish.
 docs/superpowers/
 
+# Local retrospective notes, keep local but do not publish.
+docs/learning-cases/
+
 # Local synced agent skills
 .agents/skills/deploy-to-vercel/
 .agents/skills/vercel-*/
