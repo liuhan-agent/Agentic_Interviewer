@@ -259,7 +259,7 @@ def test_wait_answer_blocked_by_guard_drops_both_answer_and_raw(monkeypatch) -> 
 
 
 # --------------------------------------------------------------------
-# evaluator uses raw answer for scoring but sanitised for qa_history
+# evaluator uses raw answer for scoring but sanitised for the pending QA turn
 # --------------------------------------------------------------------
 
 
@@ -308,8 +308,10 @@ def test_evaluator_scores_raw_and_persists_sanitised(monkeypatch) -> None:
 
     # Scoring saw the raw text
     assert captured["answer"] == "My phone is 13812345678"
-    # qa_history stores the sanitised copy
-    qa_turn = out["qa_history"][0]
+    # The pending QA turn stores the sanitised copy; turn_finalize
+    # appends it to qa_history after verification.
+    assert "qa_history" not in out
+    qa_turn = out["pending_qa_turn"]
     assert qa_turn["answer"] == "My phone is [phone redacted]"
     # Evaluator does NOT clear the raw-answer channel — the verifier
     # node that runs immediately after depends on the same unredacted
@@ -384,7 +386,8 @@ def test_evaluator_fallback_does_not_update_bandit(monkeypatch) -> None:
     out = evaluator_node_mod.evaluator_node(state)  # type: ignore[arg-type]
 
     assert updates == []
-    assert out["qa_history"][0]["evaluation"]["source"] == "fallback"
+    assert "qa_history" not in out
+    assert out["pending_qa_turn"]["evaluation"]["source"] == "fallback"
 
 
 def test_evaluator_trace_receives_node_elapsed_ms(monkeypatch) -> None:

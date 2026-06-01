@@ -2502,3 +2502,67 @@ def test_selection_artifacts_exposes_resume_anchor_query_subject() -> None:
     assert artifacts["resume_anchor"] == resume_anchor
     assert artifacts["anchor_scheduler"]["anchor_key"] == "focus-coupon-consistency"
     assert artifacts["candidate_anchor_rag"]["hits"][0]["project_name"] == "Coupon Guard"
+
+
+def test_ask_question_applies_depth_followup_slot(monkeypatch) -> None:
+    retrieval = RetrievalContext(docs=[], as_prompt_block="")
+    captured_trace = _install_default_patches(
+        monkeypatch,
+        retrieval=retrieval,
+        strategies=[],
+        skills=[],
+    )
+    resume_anchor = {
+        "anchor_key": "focus-redis",
+        "label": "Redis coupon consistency",
+        "project_id": "proj_coupon",
+        "skills": ["Redis"],
+        "dimensions": ["technical_depth"],
+    }
+    slot = {
+        "phase": "depth_followup",
+        "source_turn_idx": 8,
+        "dimension": "technical_depth",
+        "resume_anchor": resume_anchor,
+        "probe_intent": "debugging_probe",
+        "plan_template": "deep_probe",
+        "depth_reason": "recent_refine_then_passed",
+        "depth_slot_rank": 1,
+        "depth_target_turns": 12,
+    }
+
+    out = ask_mod.ask_question_node(
+        _base_state(
+            current_dimension="technical_depth",
+            selected_action={
+                "id": "plan_deep_probe",
+                "plan_template": "deep_probe",
+                "diagnostics": {
+                    "mode": "depth_followup",
+                    "depth_followup_slot": slot,
+                },
+            },
+            runtime_config={"interview_depth": "deep", "rag_mode": "vector"},
+            formal_turn_idx=10,
+            max_turns=12,
+            qa_history=[
+                {
+                    "turn_idx": 8,
+                    "dimension": "technical_depth",
+                    "resume_anchor": resume_anchor,
+                    "evaluation": {"score": 9.0, "passed": True},
+                }
+            ],
+        )
+    )
+
+    question = out["current_question"]
+    artifacts = question["selection_artifacts"]
+    assert question["phase"] == "depth_followup"
+    assert question["depth_followup"]["source_turn_idx"] == 8
+    assert question["probe_intent"] == "debugging_probe"
+    assert question["resume_anchor"] == resume_anchor
+    assert artifacts["depth_followup"]["depth_reason"] == "recent_refine_then_passed"
+    assert artifacts["depth_followup"]["depth_slot_rank"] == 1
+    assert artifacts["resume_anchor"] == resume_anchor
+    assert captured_trace["selection_artifacts"] == artifacts

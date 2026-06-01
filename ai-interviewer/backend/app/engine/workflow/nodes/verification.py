@@ -34,6 +34,7 @@ from app.core.logging import get_logger
 from app.core.settings import get_settings
 from app.core.tracer import get_tracer
 from app.engine.agents.verification import should_trigger, verify_answer
+from app.engine.workflow.depth_followup import preserve_depth_followup_dimension_status
 from app.engine.workflow.evaluation_consistency import (
     normalize_evaluation_consistency,
     sync_dimension_status,
@@ -483,6 +484,19 @@ def _string_items(value: Any) -> list[str]:
     return [str(item) for item in value if item]
 
 
+def _pending_qa_turn_with_evaluation(
+    state: InterviewState,
+    evaluation: dict[str, Any],
+) -> dict[str, Any] | None:
+    pending = state.get("pending_qa_turn")
+    if not isinstance(pending, dict):
+        return None
+    return {
+        **pending,
+        "evaluation": dict(evaluation),
+    }
+
+
 def verification_node(state: InterviewState) -> dict[str, Any]:
     """Optionally verify the evaluator's verdict.
 
@@ -560,6 +574,11 @@ def verification_node(state: InterviewState) -> dict[str, Any]:
         str(dimension),
         updated_evaluation,
     )
+    dimension_status = preserve_depth_followup_dimension_status(
+        state=state,
+        status=dimension_status,
+        dimension=str(dimension),
+    )
     log.info(
         "verification dim=%s verdict=%s forced_refine=%s conf=%.2f",
         dimension,
@@ -630,6 +649,9 @@ def verification_node(state: InterviewState) -> dict[str, Any]:
         "verification": verification,
         "dimension_status": dimension_status,
     }
+    pending_qa_turn = _pending_qa_turn_with_evaluation(state, updated_evaluation)
+    if pending_qa_turn is not None:
+        update["pending_qa_turn"] = pending_qa_turn
     evaluator_passed = bool(evaluation.get("passed", False))
     updated_passed = bool(updated_evaluation.get("passed", False))
     verification_changes = _verification_changes(

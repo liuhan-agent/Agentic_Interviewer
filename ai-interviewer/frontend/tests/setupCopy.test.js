@@ -107,9 +107,9 @@ test("setup uses interview depth copy instead of strict duration copy", () => {
   assert.match(source, /快速练习/);
   assert.match(source, /标准面试/);
   assert.match(source, /深度追问/);
-  assert.match(source, /约 5 轮 · 快速校准/);
-  assert.match(source, /约 8 轮 · 覆盖核心项目/);
-  assert.match(source, /约 12 轮 · 更多项目与追问/);
+  assert.match(source, /目标 5 轮 · 快速校准/);
+  assert.match(source, /目标 8 轮 · 核心覆盖/);
+  assert.match(source, /目标 12 轮 · 压力追问/);
   assert.match(source, /控制最多提问轮数和追问空间/);
 
   assert.doesNotMatch(source, /面试时长/);
@@ -153,6 +153,14 @@ test("setup accepts weak-focus query prefill", () => {
   assert.match(source, /focus_dimensions:\s*practiceFocusDims\.map\(\(d\)\s*=>\s*d\.id\)/);
   assert.match(source, /setValue\("length",\s*queryLength/);
   assert.match(types, /focus_dimensions\?: string\[\]/);
+});
+
+test("api types expose optional depth followup metadata", () => {
+  const types = readApiTypes();
+
+  assert.match(types, /export interface DepthFollowupMetadata/);
+  assert.match(types, /phase\?: "depth_followup" \| string \| null/);
+  assert.match(types, /depth_followup\?: DepthFollowupMetadata \| null/);
 });
 
 test("interview room creates a fallback local history entry on deep links", () => {
@@ -264,6 +272,18 @@ test("interview room exposes progress pause skip and draft persistence", () => {
   assert.match(source, /answerDraftKey/);
   assert.match(source, /sessionStorage/);
   assert.doesNotMatch(source, /将丢失/);
+});
+
+test("interview room clamps visible progress turn to configured max turns", () => {
+  const source = readInterviewRoom();
+
+  assert.match(source, /function clampVisibleFormalTurn\(/);
+  assert.match(source, /Math\.min\(maxTurns,\s*Math\.max\(0,\s*turn\)\)/);
+  assert.match(source, /const currentFormalTurn =\s*clampVisibleFormalTurn\(/);
+  assert.match(
+    source,
+    /\{questionType === "self_intro" \? "0" : currentFormalTurn\}\/\{maxTurns\}/,
+  );
 });
 
 test("interview room keeps answer length aligned with backend validation", () => {

@@ -61,6 +61,25 @@ test("LLM route summary keeps default fallback and experimental details lightwei
   assert.doesNotMatch(summaryBlock[0], /<RoleGroupCard/);
 });
 
+test("LLM route summary badges only mark explicit frontend overrides", () => {
+  const source = fs.readFileSync(
+    path.join(__dirname, "..", "src", "components", "layout", "LLMSettingsDialog.tsx"),
+    "utf8",
+  );
+
+  const summaryBlock = source.match(/function ModelRouteSummary[\s\S]*?function ModelStrategyHint/);
+  assert.ok(summaryBlock, "ModelRouteSummary should render before ModelStrategyHint");
+  assert.equal(
+    (summaryBlock[0].match(/source: configured\?\.enabled \? "单独配置" : "默认配置"/g) ?? [])
+      .length,
+    2,
+  );
+  assert.doesNotMatch(
+    summaryBlock[0],
+    /configured\.apiKey\.trim\(\) \|\| config\.provider === effective\.provider/,
+  );
+});
+
 test("LLM settings exposes voice ASR and TTS routes", () => {
   const configSource = fs.readFileSync(
     path.join(__dirname, "..", "src", "lib", "llm-config.ts"),

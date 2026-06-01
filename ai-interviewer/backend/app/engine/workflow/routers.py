@@ -11,6 +11,10 @@ from typing import Any, Literal, cast
 
 from app.core.logging import get_logger
 from app.engine.resume_plan import has_available_resume_anchor_slot
+from app.engine.workflow.depth_followup import (
+    select_depth_followup_slot,
+    should_consider_depth_followup,
+)
 from app.engine.workflow.eval_helpers import is_evaluator_fallback
 from app.engine.workflow.state import InterviewState
 
@@ -50,6 +54,15 @@ def _has_anchor_expansion_slot(state: InterviewState) -> bool:
         focus_dimensions=list(state.get("focus_dimensions") or []),
         self_intro_profile=state.get("self_intro_profile") or {},
     )
+
+
+def _depth_followup_decision_inputs(state: InterviewState) -> dict[str, Any]:
+    slot = select_depth_followup_slot(state)
+    return {
+        "depth_target_turns": state.get("max_turns", 8),
+        "has_depth_followup_slot": slot is not None,
+        "depth_followup_slot": slot,
+    }
 
 
 def _max_refines_per_dimension(state: InterviewState) -> int:
@@ -167,6 +180,7 @@ def route_after_eval_diagnostics(state: InterviewState) -> dict[str, Any]:
         "max_refines_per_dimension": max_refines,
         "has_pending_other_dimension": has_pending_other,
     }
+    depth_inputs: dict[str, Any] | None = None
 
     if state.get("status") == "cancelled":
         return _route_after_eval_result(
@@ -188,16 +202,30 @@ def route_after_eval_diagnostics(state: InterviewState) -> dict[str, Any]:
             decision_inputs=decision_inputs,
         )
 
-    if all_dims_done and not has_anchor_expansion_slot:
-        return _route_after_eval_result(
-            decision="end",
-            decision_reason="all_dimensions_passed",
-            decision_inputs=decision_inputs,
-        )
-    if all_dims_done:
+    if all_dims_done and has_anchor_expansion_slot:
         return _route_after_eval_result(
             decision="next_question",
             decision_reason="anchor_expansion",
+            decision_inputs=decision_inputs,
+        )
+    if all_dims_done:
+        if should_consider_depth_followup(state):
+            depth_inputs = _depth_followup_decision_inputs(state)
+            decision_inputs.update(depth_inputs)
+            if depth_inputs["has_depth_followup_slot"]:
+                return _route_after_eval_result(
+                    decision="next_question",
+                    decision_reason="depth_followup",
+                    decision_inputs=decision_inputs,
+                )
+            return _route_after_eval_result(
+                decision="end",
+                decision_reason="depth_target_no_high_value_slot",
+                decision_inputs=decision_inputs,
+            )
+        return _route_after_eval_result(
+            decision="end",
+            decision_reason="all_dimensions_passed",
             decision_inputs=decision_inputs,
         )
 
@@ -260,6 +288,9 @@ def route_after_skip(state: InterviewState) -> AfterSkip:
     formal_turn_idx = state.get("formal_turn_idx", state.get("turn_idx", 0))
     max_turns = state.get("max_turns", 8)
     budget = state.get("turn_budget_remaining", 0)
+    if state.get("status") == "cancelled":
+        log.info("router: end after skip (session cancelled)")
+        return "end"
     if formal_turn_idx >= max_turns or budget <= 0:
         log.info(
             "router: end after skip (formal_turn=%d/%d, budget=%d)",
@@ -268,12 +299,17 @@ def route_after_skip(state: InterviewState) -> AfterSkip:
             budget,
         )
         return "end"
-    if _all_dims_done(state) and not _has_anchor_expansion_slot(state):
-        log.info("router: end after skip (all dims passed)")
-        return "end"
-    if _all_dims_done(state):
+    all_dims_done = _all_dims_done(state)
+    has_anchor_expansion_slot = _has_anchor_expansion_slot(state)
+    if all_dims_done and has_anchor_expansion_slot:
         log.info("router: next_question after skip (anchor expansion)")
         return "next_question"
+    if all_dims_done:
+        if should_consider_depth_followup(state) and select_depth_followup_slot(state):
+            log.info("router: next_question after skip (depth followup)")
+            return "next_question"
+        log.info("router: end after skip (all dims passed)")
+        return "end"
     return "next_question"
 
 

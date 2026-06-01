@@ -220,7 +220,8 @@ def test_real_high_score_with_complete_checks_promotes_status_to_passed(
     }
     update = evaluator_node_mod.evaluator_node(state)
 
-    assert update["qa_history"][0]["evaluation"]["passed"] is True
+    assert "qa_history" not in update
+    assert update["pending_qa_turn"]["evaluation"]["passed"] is True
     assert update["dimension_status"]["system_design"] == "passed"
 
 
@@ -245,9 +246,10 @@ def test_real_high_score_with_missing_check_does_not_promote_status(
     }
     update = evaluator_node_mod.evaluator_node(state)
 
-    assert update["qa_history"][0]["evaluation"]["passed"] is False
+    assert "qa_history" not in update
+    assert update["pending_qa_turn"]["evaluation"]["passed"] is False
     assert update["dimension_status"]["system_design"] == "active"
-    assert "score is high but required evidence is missing" in update["qa_history"][0][
+    assert "score is high but required evidence is missing" in update["pending_qa_turn"][
         "evaluation"
     ]["consistency_warnings"]
 
@@ -345,26 +347,26 @@ def test_legacy_zero_placeholder_is_treated_as_unscored_first_sample(
     assert update["scores_per_dim"]["technical_depth"] == 7.0
 
 
-def test_qa_history_persists_answer_intent_normal(
+def test_pending_qa_turn_persists_answer_intent_normal(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """When ``current_answer_intent`` is ``"normal"``, the qa_history entry
-    carries the same intent so downstream report / replay can reason about
-    *why* the turn was scored a given way."""
+    """The pending QA turn carries the answer intent until turn_finalize
+    appends it to qa_history."""
     real = _fake_evaluation(fallback=False, score=7.0, passed=False)
     monkeypatch.setattr(evaluator_node_mod, "evaluate_answer", lambda **_: real)
 
     state = _state_with_dim("technical_depth", prev_score=0.0, prev_status="pending")
     update = evaluator_node_mod.evaluator_node(state)
 
-    assert update["qa_history"][0]["answer_intent"] == "normal"
+    assert "qa_history" not in update
+    assert update["pending_qa_turn"]["answer_intent"] == "normal"
 
 
 @pytest.mark.parametrize(
     "intent",
     ["empty", "clarification", "repeat", "too_short", "skipped"],
 )
-def test_qa_history_persists_non_normal_answer_intent(
+def test_pending_qa_turn_persists_non_normal_answer_intent(
     monkeypatch: pytest.MonkeyPatch,
     intent: str,
 ) -> None:
@@ -376,10 +378,11 @@ def test_qa_history_persists_non_normal_answer_intent(
 
     update = evaluator_node_mod.evaluator_node(state)
 
-    assert update["qa_history"][0]["answer_intent"] == intent
+    assert "qa_history" not in update
+    assert update["pending_qa_turn"]["answer_intent"] == intent
 
 
-def test_qa_history_defaults_to_normal_when_intent_missing(
+def test_pending_qa_turn_defaults_to_normal_when_intent_missing(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """Older checkpoints / partial states without ``current_answer_intent``
@@ -392,10 +395,11 @@ def test_qa_history_defaults_to_normal_when_intent_missing(
 
     update = evaluator_node_mod.evaluator_node(state)
 
-    assert update["qa_history"][0]["answer_intent"] == "normal"
+    assert "qa_history" not in update
+    assert update["pending_qa_turn"]["answer_intent"] == "normal"
 
 
-def test_qa_history_persists_minimal_injected_question_refs(
+def test_pending_qa_turn_persists_minimal_injected_question_refs(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     real = _fake_evaluation(fallback=False, score=7.0, passed=False)
@@ -428,7 +432,8 @@ def test_qa_history_persists_minimal_injected_question_refs(
 
     update = evaluator_node_mod.evaluator_node(state)
 
-    assert update["qa_history"][0]["selection_artifacts"] == {
+    assert "qa_history" not in update
+    assert update["pending_qa_turn"]["selection_artifacts"] == {
         "question_items": [
             {
                 "seed_id": "system_design.cache",
@@ -438,3 +443,40 @@ def test_qa_history_persists_minimal_injected_question_refs(
             }
         ]
     }
+
+
+def test_depth_followup_failed_evaluation_keeps_passed_dimension_status(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    real = _fake_evaluation(fallback=False, score=6.0, passed=False)
+    monkeypatch.setattr(evaluator_node_mod, "evaluate_answer", lambda **_: real)
+
+    depth_followup = {
+        "source_turn_idx": 3,
+        "depth_reason": "recent_refine_then_passed",
+        "depth_slot_rank": 1,
+        "depth_target_turns": 12,
+    }
+    state = _state_with_dim(
+        "technical_depth",
+        prev_score=8.0,
+        prev_status="passed",
+    )
+    state["current_question"] = {
+        "dimension": "technical_depth",
+        "question": "Q",
+        "phase": "depth_followup",
+        "depth_followup": depth_followup,
+        "selection_artifacts": {
+            "depth_followup": depth_followup,
+        },
+    }
+
+    update = evaluator_node_mod.evaluator_node(state)
+
+    assert "qa_history" not in update
+    qa_turn = update["pending_qa_turn"]
+    assert update["dimension_status"]["technical_depth"] == "passed"
+    assert qa_turn["phase"] == "depth_followup"
+    assert qa_turn["depth_followup"] == depth_followup
+    assert qa_turn["selection_artifacts"]["depth_followup"] == depth_followup

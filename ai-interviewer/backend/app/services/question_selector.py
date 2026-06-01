@@ -15,6 +15,7 @@ from typing import Any
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from app.engine.workflow.depth_followup import sanitize_depth_followup_metadata
 from app.models.base import get_session
 from app.models.question_bank import (
     QuestionRewardRollout,
@@ -711,33 +712,35 @@ def build_question_history_selection_artifacts(
     artifacts = current_question.get("selection_artifacts")
     if not isinstance(artifacts, dict):
         return {}
+    history_artifacts: dict[str, Any] = {}
     items = artifacts.get("question_items")
-    if not isinstance(items, list):
-        return {}
-
-    history_items: list[dict[str, Any]] = []
-    for item in items:
-        if not isinstance(item, dict):
-            continue
-        if item.get("injected") is not True:
-            continue
-        if _int_or_none(item.get("rank")) != 1:
-            continue
-        seed_id = str(item.get("seed_id") or "").strip()
-        variant_id = str(item.get("variant_id") or "").strip()
-        if not seed_id and not variant_id:
-            continue
-        history_items.append(
-            {
-                "seed_id": seed_id,
-                "variant_id": variant_id,
-                "rank": 1,
-                "injected": True,
-            }
-        )
-    if not history_items:
-        return {}
-    return {"question_items": history_items}
+    if isinstance(items, list):
+        history_items: list[dict[str, Any]] = []
+        for item in items:
+            if not isinstance(item, dict):
+                continue
+            if item.get("injected") is not True:
+                continue
+            if _int_or_none(item.get("rank")) != 1:
+                continue
+            seed_id = str(item.get("seed_id") or "").strip()
+            variant_id = str(item.get("variant_id") or "").strip()
+            if not seed_id and not variant_id:
+                continue
+            history_items.append(
+                {
+                    "seed_id": seed_id,
+                    "variant_id": variant_id,
+                    "rank": 1,
+                    "injected": True,
+                }
+            )
+        if history_items:
+            history_artifacts["question_items"] = history_items
+    depth_followup = sanitize_depth_followup_metadata(artifacts.get("depth_followup"))
+    if depth_followup:
+        history_artifacts["depth_followup"] = depth_followup
+    return history_artifacts
 
 
 def record_question_usages(

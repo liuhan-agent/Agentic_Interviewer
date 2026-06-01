@@ -117,6 +117,43 @@ def test_skip_question_node_records_unscored_turn() -> None:
     assert out["qa_history"][0]["evaluation"]["score"] is None
 
 
+def test_skip_question_node_preserves_depth_followup_metadata() -> None:
+    from app.engine.workflow.nodes.skip_question import skip_question_node
+
+    depth_followup = {
+        "source_turn_idx": 3,
+        "depth_reason": "depth_followup_recovery",
+        "depth_slot_rank": 2,
+        "depth_target_turns": 12,
+    }
+
+    out = skip_question_node(
+        {
+            "turn_idx": 11,
+            "formal_turn_idx": 11,
+            "turn_budget_remaining": 1,
+            "current_dimension": "technical_depth",
+            "current_question": {
+                "question": "Continue on Redis failure recovery.",
+                "dimension": "technical_depth",
+                "phase": "depth_followup",
+                "depth_followup": depth_followup,
+                "selection_artifacts": {
+                    "depth_followup": depth_followup,
+                },
+            },
+            "dimension_status": {"technical_depth": "passed"},
+            "qa_history": [],
+            "messages": [],
+        }
+    )
+
+    qa_turn = out["qa_history"][0]
+    assert qa_turn["phase"] == "depth_followup"
+    assert qa_turn["depth_followup"] == depth_followup
+    assert qa_turn["selection_artifacts"]["depth_followup"] == depth_followup
+
+
 def test_hint_from_contract_must_cover_is_directional() -> None:
     from app.services.session_manager import build_interview_hint
 

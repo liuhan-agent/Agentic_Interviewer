@@ -852,27 +852,22 @@ function StatusBar({
     state.phase === "waiting_for_answer" && state.question
       ? extractFormalTurnIdx(state.question)
       : null;
+  const maxTurns = state.maxTurns;
+  const rawFormalTurn =
+    questionType === "self_intro"
+      ? 0
+      : currentDisplayTurnIdx !== null && currentDisplayTurnIdx !== undefined
+        ? currentDisplayTurnIdx + 1
+        : formalTurnIdx !== null
+          ? formalTurnIdx + 1
+          : state.turnIdx !== null
+            ? state.turnIdx + 1
+            : 0;
+  const currentFormalTurn = clampVisibleFormalTurn(rawFormalTurn, maxTurns);
   const turnLabel =
     questionType === "self_intro"
       ? "开场"
-      : `第 ${
-          currentDisplayTurnIdx !== null && currentDisplayTurnIdx !== undefined
-            ? currentDisplayTurnIdx + 1
-            : formalTurnIdx !== null
-            ? formalTurnIdx + 1
-            : state.turnIdx !== null
-              ? state.turnIdx + 1
-              : "-"
-        } 题`;
-  const maxTurns = state.maxTurns;
-  const currentFormalTurn =
-    questionType === "self_intro"
-      ? 0
-      : formalTurnIdx !== null
-        ? formalTurnIdx + 1
-        : state.turnIdx !== null
-          ? state.turnIdx + 1
-          : 0;
+      : `第 ${currentFormalTurn > 0 ? currentFormalTurn : "-"} 题`;
   const progressPercent =
     typeof maxTurns === "number" && maxTurns > 0
       ? Math.min(100, Math.max(0, (currentFormalTurn / maxTurns) * 100))
@@ -1999,6 +1994,13 @@ function visibleTurnIdx(entry: QaEntry): number | null {
   if (typeof entry.displayTurnIdx === "number") return entry.displayTurnIdx;
   if (typeof entry.formalTurnIdx === "number") return entry.formalTurnIdx;
   return typeof entry.turnIdx === "number" ? entry.turnIdx : null;
+}
+
+function clampVisibleFormalTurn(turn: number, maxTurns: number | null): number {
+  if (typeof maxTurns === "number" && maxTurns > 0) {
+    return Math.min(maxTurns, Math.max(0, turn));
+  }
+  return Math.max(0, turn);
 }
 
 function answerInsightFromHistory(history: QaEntry[]): AnswerInsight | null {

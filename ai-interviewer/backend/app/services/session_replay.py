@@ -4,6 +4,10 @@ from __future__ import annotations
 from datetime import UTC, datetime
 from typing import Any
 
+from app.engine.workflow.depth_followup import (
+    DEPTH_FOLLOWUP_PHASE,
+    sanitize_depth_followup_metadata,
+)
 from app.engine.workflow.followup_reason import sanitize_replay_followup_reason
 from app.engine.workflow.replay_basis import (
     build_replay_context_basis,
@@ -11,6 +15,7 @@ from app.engine.workflow.replay_basis import (
 )
 from app.models.generation_trace import GenerationTrace
 from app.models.interview_session import InterviewSession
+from app.models.strategy_learning import InterviewTurn
 
 _SYSTEM_FALLBACK_MARKERS = (
     "evaluator llm unavailable",
@@ -132,6 +137,16 @@ def _anchor_followup_display_fields(turn: dict[str, Any]) -> dict[str, dict[str,
             "max_attempts": max_attempts,
         }
     }
+
+
+def _depth_followup_display_fields(turn: dict[str, Any]) -> dict[str, Any]:
+    metadata = sanitize_depth_followup_metadata(turn.get("depth_followup"))
+    if turn.get("phase") != DEPTH_FOLLOWUP_PHASE and not metadata:
+        return {}
+    out: dict[str, Any] = {"phase": DEPTH_FOLLOWUP_PHASE}
+    if metadata:
+        out["depth_followup"] = metadata
+    return out
 
 
 def _int_or_none(value: Any) -> int | None:
@@ -256,12 +271,62 @@ def _turn_payload(trace: GenerationTrace) -> dict[str, Any]:
     }
     payload.update(_resume_anchor_display_fields(qa_turn))
     payload.update(_anchor_followup_display_fields(qa_turn))
+    payload.update(_depth_followup_display_fields(qa_turn))
     followup_reason = sanitize_replay_followup_reason(
         evaluation.get("followup_reason")
     ) or sanitize_replay_followup_reason(qa_evaluation.get("followup_reason"))
     if followup_reason is not None:
         payload["followup_reason"] = followup_reason
     question_basis = sanitize_replay_question_basis(qa_turn.get("question_basis"))
+    if question_basis is not None:
+        payload["question_basis"] = question_basis
+    return payload
+
+
+def _turn_payload_from_fact(row: InterviewTurn) -> dict[str, Any]:
+    evaluation = row.evaluation if isinstance(row.evaluation, dict) else {}
+    artifacts = (
+        row.selection_artifacts if isinstance(row.selection_artifacts, dict) else {}
+    )
+    depth_followup = sanitize_depth_followup_metadata(artifacts.get("depth_followup"))
+    turn = {
+        "resume_anchor_key": row.resume_anchor_key,
+        "resume_anchor_label": row.resume_anchor_label,
+        "resume_project_id": row.resume_project_id,
+        "selection_artifacts": artifacts,
+    }
+    if depth_followup:
+        turn["phase"] = DEPTH_FOLLOWUP_PHASE
+        turn["depth_followup"] = depth_followup
+
+    payload = {
+        "turn_idx": row.turn_idx,
+        "dimension": row.dimension,
+        "question": row.question,
+        "answer": row.answer,
+        "score": row.score if row.score is not None else evaluation.get("score"),
+        "passed": row.passed
+        if row.passed is not None
+        else evaluation.get("passed"),
+        "rationale": _user_text(evaluation.get("rationale")),
+        "strengths": _list(evaluation.get("strengths")),
+        "weaknesses": _list(evaluation.get("weaknesses")),
+        "next_step": _next_step_text(
+            evaluation.get("recommended_next"),
+            evaluation.get("recommended_next_plan"),
+        ),
+    }
+    payload.update(_resume_anchor_display_fields(turn))
+    payload.update(_anchor_followup_display_fields(turn))
+    payload.update(_depth_followup_display_fields(turn))
+    followup_reason = sanitize_replay_followup_reason(
+        evaluation.get("followup_reason")
+    )
+    if followup_reason is not None:
+        payload["followup_reason"] = followup_reason
+    question_basis = sanitize_replay_question_basis(
+        evaluation.get("question_basis") or artifacts.get("question_basis")
+    )
     if question_basis is not None:
         payload["question_basis"] = question_basis
     return payload
@@ -300,6 +365,7 @@ def _timeline_from_report(report: dict[str, Any]) -> list[dict[str, Any]]:
                 ),
             }
             payload.update(_resume_anchor_display_fields(evidence))
+            payload.update(_depth_followup_display_fields(evidence))
             followup_reason = sanitize_replay_followup_reason(
                 evidence.get("followup_reason")
             )
@@ -321,6 +387,24 @@ def _timeline_from_report(report: dict[str, Any]) -> list[dict[str, Any]]:
             ),
         )
     )
+
+
+def _timeline_from_turn_facts(
+    db: Any,
+    session_id: str,
+) -> list[dict[str, Any]]:
+    rows = (
+        db.query(InterviewTurn)
+        .filter(InterviewTurn.session_id == session_id)
+        .order_by(InterviewTurn.turn_idx.asc(), InterviewTurn.id.asc())
+        .all()
+    )
+    timeline: list[dict[str, Any]] = []
+    for row in rows:
+        if not (str(row.question or "").strip() or str(row.answer or "").strip()):
+            continue
+        timeline.append(_turn_payload_from_fact(row))
+    return _annotate_anchor_followups(timeline)
 
 
 def _timeline_from_traces(
@@ -413,7 +497,9 @@ def build_session_replay(db: Any, session_id: str) -> dict[str, Any]:
         raise ReplayNotReady(session_id)
 
     report = row.final_report or {}
-    timeline = _timeline_from_traces(db, session_id)
+    timeline = _timeline_from_turn_facts(db, session_id)
+    if not timeline:
+        timeline = _timeline_from_traces(db, session_id)
     if not timeline:
         timeline = _timeline_from_report(report)
     context_basis = build_replay_context_basis(

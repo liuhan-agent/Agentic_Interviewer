@@ -54,6 +54,8 @@ class QATurn(TypedDict, total=False):
     evaluation: dict[str, Any]
     timestamp: str
     selection_artifacts: dict[str, Any]
+    phase: str
+    depth_followup: dict[str, Any]
     # ``answer_intent`` is classified by ``wait_answer_node`` from the
     # raw candidate answer (empty / too_short / clarification / repeat /
     # skipped / normal). Persisting it on the turn record lets the final
@@ -239,6 +241,10 @@ class InterviewState(TypedDict, total=False):
     current_answer_raw: str
     current_answer_raw_ref: str
     qa_history: Annotated[list[QATurn], operator.add]
+    # The turn currently being evaluated. ``evaluator`` creates it,
+    # ``verification`` may amend its evaluation, and ``turn_finalize``
+    # appends the final copy to ``qa_history``.
+    pending_qa_turn: QATurn | None
 
     # Legacy compressed summary fields. Kept for older checkpoints and
     # callers, but new generator context is projected from full
@@ -366,6 +372,7 @@ def build_initial_state(
         "current_answer_raw": "",
         "current_answer_raw_ref": "",
         "qa_history": [],
+        "pending_qa_turn": None,
         "qa_summary": "",
         "qa_summary_through_turn": -1,
         "qa_summary_projection": {},

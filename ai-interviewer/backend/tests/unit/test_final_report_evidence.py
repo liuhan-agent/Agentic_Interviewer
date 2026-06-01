@@ -230,6 +230,34 @@ def test_turn_evidence_preserves_full_dict_shape() -> None:
     assert evidence["selected_action"] == "plan_deep_probe"
 
 
+def test_turn_evidence_preserves_depth_followup_metadata() -> None:
+    depth_followup = {
+        "source_turn_idx": 3,
+        "parent_turn_idx": 10,
+        "depth_reason": "depth_followup_recovery",
+        "depth_slot_rank": 2,
+        "depth_target_turns": 12,
+    }
+    qa = {
+        "turn_idx": 11,
+        "dimension": "technical_depth",
+        "question": "Continue on Redis failure recovery.",
+        "answer": "I would first isolate whether the stale state is cache-only.",
+        "phase": "depth_followup",
+        "depth_followup": depth_followup,
+        "evaluation": {
+            "score": 7.0,
+            "passed": False,
+            "acceptance_check_results": {},
+        },
+    }
+
+    evidence = _turn_evidence(qa)
+
+    assert evidence["phase"] == "depth_followup"
+    assert evidence["depth_followup"] == depth_followup
+
+
 def test_turn_evidence_keeps_full_answer_alongside_excerpt() -> None:
     long_answer = (
         "我先确认读写路径和一致性目标，再把缓存失效、回源保护、容量估算、"
