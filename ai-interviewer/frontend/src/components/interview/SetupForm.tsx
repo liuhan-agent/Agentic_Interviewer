@@ -1633,6 +1633,7 @@ export function SetupForm() {
           interview_direction_label: selectedDirection.label,
         },
         max_turns,
+        interview_depth: lengthChoice.id,
         quality_threshold: values.quality_threshold,
         turn_budget,
         focus_dimensions: practiceFocusDims.map((d) => d.id),

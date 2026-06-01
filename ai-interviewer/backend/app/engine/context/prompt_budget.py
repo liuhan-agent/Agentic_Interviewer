@@ -61,6 +61,15 @@ KNOWN_MODEL_CONTEXT_WINDOWS: tuple[tuple[str, int], ...] = (
     ("doubao-seed-1.8", 256_000),
     ("doubao-seed-1-6", 256_000),
     ("doubao-seed-1.6", 256_000),
+    ("mimo-v2.5-tts-voiceclone", 8_000),
+    ("mimo-v2.5-tts-voicedesign", 8_000),
+    ("mimo-v2.5-tts", 8_000),
+    ("mimo-v2-tts", 8_000),
+    ("mimo-v2.5-pro", 1_000_000),
+    ("mimo-v2-pro", 1_000_000),
+    ("mimo-v2.5", 1_000_000),
+    ("mimo-v2-omni", 256_000),
+    ("mimo-v2-flash", 256_000),
 )
 
 PROVIDER_CONTEXT_DEFAULTS: dict[str, int] = {
@@ -94,6 +103,9 @@ PROVIDER_CONTEXT_DEFAULTS: dict[str, int] = {
     "spark": 32_768,
     "sensenova": 32_768,
     "sensechat": 32_768,
+    "xiaomimimo": 256_000,
+    "mimo": 256_000,
+    "xiaomi": 256_000,
 }
 
 MODEL_PREFIX_CONTEXT_DEFAULTS: tuple[tuple[str, int], ...] = (
@@ -114,6 +126,7 @@ MODEL_PREFIX_CONTEXT_DEFAULTS: tuple[tuple[str, int], ...] = (
     ("wenxin-", 32_768),
     ("spark-", 32_768),
     ("sensechat", 32_768),
+    ("mimo-", 256_000),
 )
 
 

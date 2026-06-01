@@ -303,6 +303,7 @@ def test_route_after_eval_diagnostics_explains_all_dimensions_done() -> None:
     assert diagnostics["decision_reason"] == "all_dimensions_passed"
     assert diagnostics["decision_inputs"]["all_dimensions_done"] is True
     assert diagnostics["decision_inputs"]["has_anchor_expansion_slot"] is False
+    assert diagnostics["decision_inputs"]["interview_depth"] == "standard"
 
 
 def test_route_after_eval_continues_for_deep_followup_before_target() -> None:
@@ -346,6 +347,7 @@ def test_route_after_eval_continues_for_deep_followup_before_target() -> None:
     assert route_after_eval(state) == "next_question"  # type: ignore[arg-type]
     assert diagnostics["decision"] == "next_question"
     assert diagnostics["decision_reason"] == "depth_followup"
+    assert diagnostics["decision_inputs"]["interview_depth"] == "deep"
     assert diagnostics["decision_inputs"]["has_depth_followup_slot"] is True
     assert diagnostics["decision_inputs"]["depth_followup_slot"]["source_turn_idx"] == 8
 
