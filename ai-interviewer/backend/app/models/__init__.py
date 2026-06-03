@@ -2,14 +2,15 @@
 
 from sqlalchemy.engine import Engine
 
+from .auth import AuthSession, User
 from .base import Base, get_engine, get_session, init_db
 from .generation_trace import GenerationTrace
 from .interview_session import InterviewSession
 from .outcome_record import OutcomeRecord
 from .question_bank import (
-    QuestionRewardRollout,
     QuestionRerankUsage,
     QuestionReview,
+    QuestionRewardRollout,
     QuestionSeed,
     QuestionUsage,
     QuestionUsageStats,
@@ -33,6 +34,8 @@ from .strategy_memory import (
     StrategySignal,
 )
 from .trace_annotation import TraceAnnotation
+from .user_credit import UserCreditAccount, UserCreditLedger
+from .user_credit_request import UserCreditRequest
 from .verifier_drift import VerifierDriftEvent, VerifierDriftPattern
 
 
@@ -47,6 +50,8 @@ __all__ = [
     "get_engine",
     "get_session",
     "init_db",
+    "AuthSession",
+    "User",
     "GenerationTrace",
     "InterviewSession",
     "OutcomeRecord",
@@ -72,6 +77,9 @@ __all__ = [
     "StrategyRewardRollout",
     "StrategySignal",
     "TraceAnnotation",
+    "UserCreditAccount",
+    "UserCreditLedger",
+    "UserCreditRequest",
     "VerifierDriftEvent",
     "VerifierDriftPattern",
 ]

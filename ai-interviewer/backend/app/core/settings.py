@@ -395,12 +395,19 @@ class Settings(BaseSettings):
     # ``_running`` flag.  Too low and clients see spurious "prior
     # segment still running" warnings on cold LLM calls.
     session_resume_idle_timeout_seconds: float = 5.0
+    auth_session_ttl_days: int = 14
+    auth_registration_mode: Literal["open", "closed"] = "open"
+    free_interview_credits: int = 10
+    free_credits_require_email_verified: bool = False
 
     # Lightweight per-process rate limits for high-cost setup and BYOK
     # validation endpoints. Values are per client IP per window.
     rate_limit_backend: Literal["memory", "redis"] = "memory"
     rate_limit_redis_prefix: str = "agentic_interviewer:rate_limit"
     rate_limit_window_seconds: int = 60
+    auth_register_rate_limit_per_minute: int = 20
+    auth_login_rate_limit_per_minute: int = 60
+    anonymous_session_start_rate_limit_per_minute: int = 10
     resume_parse_rate_limit_per_minute: int = 20
     jd_parse_rate_limit_per_minute: int = 30
     llm_test_rate_limit_per_minute: int = 120

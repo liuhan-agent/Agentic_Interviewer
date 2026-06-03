@@ -147,6 +147,110 @@ export interface LLMConfigPayload {
   };
 }
 
+export interface AuthUser {
+  id: number;
+  email: string;
+  role: string;
+  status: string;
+  email_verified: boolean;
+}
+
+export interface AuthState {
+  authenticated: boolean;
+  user: AuthUser | null;
+}
+
+export interface AuthRequest {
+  email: string;
+  password: string;
+}
+
+export interface AccountInterviewSession {
+  session_id: string;
+  status: string;
+  created_at?: string | null;
+  updated_at?: string | null;
+  job_title?: string | null;
+  candidate_name?: string | null;
+  job_level?: string | null;
+  mode?: string | null;
+  turn_idx?: number | null;
+  asked_turn?: number | null;
+  has_report?: boolean;
+  overall_score?: number | null;
+  growth_signal?: string | null;
+  overall_verdict?: string | null;
+  dimension_scores?: Record<string, number>;
+  owner_user_id: number;
+  owner_claimed_at?: string | null;
+}
+
+export interface AccountInterviewSessionsResponse {
+  count: number;
+  total_count: number;
+  limit: number;
+  offset: number;
+  sessions: AccountInterviewSession[];
+}
+
+export interface AccountCreditPolicy {
+  enforced: boolean;
+  free_grant: number;
+  interview_unit: "interview";
+  requires_login_for_platform_hosted: boolean;
+  registration_mode: "open" | "closed";
+  free_credits_require_email_verified: boolean;
+}
+
+export interface AccountCreditLedgerEntry {
+  id: number;
+  user_id: number;
+  delta: number;
+  kind: string;
+  external_ref: string;
+  session_id?: string | null;
+  reason: string;
+  metadata?: Record<string, unknown> | null;
+  balance_after: number;
+  admin_note?: string | null;
+  created_at?: string | null;
+}
+
+export interface AccountCreditsResponse {
+  balance: number;
+  free_grant_total: number;
+  unit: "interview";
+  recent_entries: AccountCreditLedgerEntry[];
+}
+
+export type AccountCreditRequestStatus = "pending" | "approved" | "rejected";
+
+export interface AccountCreditRequest {
+  id: number;
+  user_id: number;
+  requested_amount: number;
+  reason: string;
+  status: AccountCreditRequestStatus;
+  decision_reason?: string | null;
+  decided_by_user_id?: number | null;
+  decided_at?: string | null;
+  credit_ledger_entry_id?: number | null;
+  created_at?: string | null;
+  updated_at?: string | null;
+}
+
+export interface AccountCreditRequestsResponse {
+  count: number;
+  total_count: number;
+  limit: number;
+  offset: number;
+  requests: AccountCreditRequest[];
+}
+
+export interface CreateAccountCreditRequestResponse {
+  request: AccountCreditRequest;
+}
+
 export interface StartSessionRequest {
   candidate: Candidate;
   job_spec: JobSpec;
@@ -175,6 +279,10 @@ export interface StartSessionResponse {
   recovery_token_expires_at: string;
   trace_id: string;
   status: string;
+  owner_user_id: number | null;
+  billing_mode: "platform_credits" | "byok" | "dev_unmetered";
+  credit_delta: number | null;
+  credit_balance: number | null;
   created_at: string;
   updated_at: string;
   max_turns?: number | null;
@@ -185,6 +293,16 @@ export interface RecoverSessionResponse {
   session_id: string;
   session_token: string;
   session_token_expires_at: string;
+}
+
+export interface ClaimSessionResponse {
+  session_id: string;
+  owner_user_id: number;
+  owner_claimed_at?: string | null;
+  session_token: string;
+  session_token_expires_at: string;
+  recovery_token: string;
+  recovery_token_expires_at: string;
 }
 
 export interface VoiceTicketResponse {

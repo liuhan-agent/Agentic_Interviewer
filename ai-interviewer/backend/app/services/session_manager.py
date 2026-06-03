@@ -352,6 +352,8 @@ class SessionHandle:
     recovery_token_hash: str | None = None
     recovery_token_expires_at: datetime | None = None
     recovery_token_revoked_at: datetime | None = None
+    owner_user_id: int | None = None
+    owner_claimed_at: datetime | None = None
 
     # Session-level metadata cached on the handle so every
     # ``workflow.stream`` segment reuses the same LangSmith
@@ -924,6 +926,8 @@ class SessionManager:
         recovery_token_hash: str | None = None,
         recovery_token_expires_at: datetime | None = None,
         setup_snapshot: dict[str, Any] | None = None,
+        owner_user_id: int | None = None,
+        owner_claimed_at: datetime | None = None,
     ) -> SessionHandle:
         runtime_cfg = initial.get("runtime_config") or {}
         use_sync = bool(runtime_cfg.get("use_sync_provider"))
@@ -958,6 +962,8 @@ class SessionManager:
                 session_token_expires_at=session_token_expires_at,
                 recovery_token_hash=recovery_token_hash,
                 recovery_token_expires_at=recovery_token_expires_at,
+                owner_user_id=owner_user_id,
+                owner_claimed_at=owner_claimed_at,
                 setup_snapshot=setup_snapshot,
                 **session_meta,
             )
@@ -982,6 +988,8 @@ class SessionManager:
                 session_token_expires_at=session_token_expires_at,
                 recovery_token_hash=recovery_token_hash,
                 recovery_token_expires_at=recovery_token_expires_at,
+                owner_user_id=owner_user_id,
+                owner_claimed_at=owner_claimed_at,
                 setup_snapshot=setup_snapshot,
                 **session_meta,
             )
@@ -1313,6 +1321,8 @@ class SessionManager:
                 data.get("enable_video_analysis")
                 or (values.get("runtime_config") or {}).get("enable_video_analysis")
             ),
+            owner_user_id=data.get("owner_user_id"),
+            owner_claimed_at=data.get("owner_claimed_at"),
             last_turn_evaluation=_extract_last_turn_evaluation(
                 values.get("qa_history")
             ),
@@ -1364,6 +1374,8 @@ class SessionManager:
                 job_level=data.get("job_level"),
                 mode=data.get("mode"),
                 enable_video_analysis=bool(data.get("enable_video_analysis")),
+                owner_user_id=data.get("owner_user_id"),
+                owner_claimed_at=data.get("owner_claimed_at"),
                 turn_idx=int(data.get("turn_idx") or 0),
                 asked_turn=int(
                     data.get("asked_turn")
@@ -1504,6 +1516,8 @@ class SessionManager:
                 enable_video_analysis=bool(
                     getattr(row, "enable_video_analysis", False)
                 ),
+                owner_user_id=getattr(row, "owner_user_id", None),
+                owner_claimed_at=getattr(row, "owner_claimed_at", None),
                 setup_snapshot=row.setup_snapshot
                 if isinstance(row.setup_snapshot, dict)
                 else None,

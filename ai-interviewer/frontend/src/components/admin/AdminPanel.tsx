@@ -18,7 +18,10 @@ import {
   Play,
   RefreshCw,
   Search,
+  ShieldCheck,
   Trash2,
+  Users,
+  WalletCards,
   Waypoints,
 } from "lucide-react";
 
@@ -26,6 +29,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { PendingNavigationLink } from "@/components/navigation/PendingNavigationLink";
 import { SessionIdTooltip } from "@/components/interview/SessionIdTooltip";
+import { formatCreditLedgerEntry } from "@/lib/credits";
 import {
   Card,
   CardContent,
@@ -42,7 +46,12 @@ import {
   FALLBACK_KIND_DESCRIPTIONS,
   FALLBACK_KIND_LABELS,
   FALLBACK_KIND_ORDER,
+  getAdminCreditRequests,
   getAdminSessions,
+  getAdminUserDetail,
+  getAdminUserCreditLedger,
+  getAdminUserCredits,
+  getAdminUsers,
   getBackendHealth,
   getBanditSnapshot,
   getEvidenceRollUp,
@@ -76,6 +85,8 @@ import {
   archiveQuestionSeed,
   archiveQuestionVariant,
   archiveStrategy,
+  adjustAdminUserCredits,
+  decideAdminCreditRequest,
   disableQuestionSeed,
   disableQuestionVariant,
   disableStrategy,
@@ -88,7 +99,16 @@ import {
   setSkillRewardRollout,
   setQuestionRewardRollout,
   setStrategyRewardRollout,
+  updateAdminUserStatus,
+  type AdminCreditRequest,
+  type AdminCreditRequestsResponse,
   type AdminSessions,
+  type AdminUserDetail,
+  type AdminUserItem,
+  type AdminUserListResponse,
+  type AdminUserCredit,
+  type AdminUserCreditLedgerResponse,
+  type AdminUserCreditsResponse,
   type BackendHealth,
   type BanditSnapshot,
   type EvidenceRollupResponse,
@@ -136,6 +156,7 @@ import { cn } from "@/lib/utils";
 // /health dot in the header uses.
 const REFRESH_INTERVAL_MS = 15_000;
 const HISTORY_PAGE_SIZE = 20;
+const ADMIN_ACCOUNT_PAGE_SIZE = 20;
 const HISTORY_SEARCH_DEBOUNCE_MS = 300;
 const QUESTION_USAGE_STATS_PAGE_SIZE = 25;
 const SKILL_USAGE_STATS_PAGE_SIZE = 25;
@@ -299,6 +320,29 @@ function AdminHealthSection({
   historyPage,
   historyFilters,
   historySearchText,
+  adminUsers,
+  adminUserDetail,
+  selectedAdminUserId,
+  accountSearchText,
+  accountStatusFilter,
+  accountRoleFilter,
+  accountPage,
+  creditRequests,
+  creditRequestSearchText,
+  creditRequestStatusFilter,
+  userCredits,
+  userCreditLedger,
+  selectedCreditUserId,
+  creditSearchText,
+  onSelectedAdminUserIdChange,
+  onAccountSearchTextChange,
+  onAccountStatusFilterChange,
+  onAccountRoleFilterChange,
+  onAccountPageChange,
+  onCreditRequestSearchTextChange,
+  onCreditRequestStatusFilterChange,
+  onSelectedCreditUserIdChange,
+  onCreditSearchTextChange,
   onHistoryPageChange,
   onHistoryFiltersChange,
   onHistorySearchTextChange,
@@ -317,6 +361,29 @@ function AdminHealthSection({
   historyPage: number;
   historyFilters: InterviewSessionHistoryFilters;
   historySearchText: string;
+  adminUsers: Loadable<AdminUserListResponse>;
+  adminUserDetail: Loadable<AdminUserDetail | null>;
+  selectedAdminUserId: number | null;
+  accountSearchText: string;
+  accountStatusFilter: string;
+  accountRoleFilter: string;
+  accountPage: number;
+  creditRequests: Loadable<AdminCreditRequestsResponse>;
+  creditRequestSearchText: string;
+  creditRequestStatusFilter: string;
+  userCredits: Loadable<AdminUserCreditsResponse>;
+  userCreditLedger: Loadable<AdminUserCreditLedgerResponse>;
+  selectedCreditUserId: number | null;
+  creditSearchText: string;
+  onSelectedAdminUserIdChange: (userId: number) => void;
+  onAccountSearchTextChange: (text: string) => void;
+  onAccountStatusFilterChange: (status: string) => void;
+  onAccountRoleFilterChange: (role: string) => void;
+  onAccountPageChange: (page: number) => void;
+  onCreditRequestSearchTextChange: (text: string) => void;
+  onCreditRequestStatusFilterChange: (status: string) => void;
+  onSelectedCreditUserIdChange: (userId: number) => void;
+  onCreditSearchTextChange: (text: string) => void;
   onHistoryPageChange: (page: number) => void;
   onHistoryFiltersChange: (filters: InterviewSessionHistoryFilters) => void;
   onHistorySearchTextChange: (text: string) => void;
@@ -329,6 +396,39 @@ function AdminHealthSection({
         fallback={fallbackRollup}
         evidence={evidenceRollup}
         question={questionQualityRollup}
+      />
+      <AccountManagementPanel
+        users={adminUsers}
+        detail={adminUserDetail}
+        selectedUserId={selectedAdminUserId}
+        searchText={accountSearchText}
+        statusFilter={accountStatusFilter}
+        roleFilter={accountRoleFilter}
+        page={accountPage}
+        pageSize={ADMIN_ACCOUNT_PAGE_SIZE}
+        onSelectedUserIdChange={onSelectedAdminUserIdChange}
+        onSearchTextChange={onAccountSearchTextChange}
+        onStatusFilterChange={onAccountStatusFilterChange}
+        onRoleFilterChange={onAccountRoleFilterChange}
+        onPageChange={onAccountPageChange}
+        onRefresh={onRefresh}
+      />
+      <CreditRequestsPanel
+        requests={creditRequests}
+        searchText={creditRequestSearchText}
+        statusFilter={creditRequestStatusFilter}
+        onSearchTextChange={onCreditRequestSearchTextChange}
+        onStatusFilterChange={onCreditRequestStatusFilterChange}
+        onRefresh={onRefresh}
+      />
+      <UserCreditsPanel
+        users={userCredits}
+        ledger={userCreditLedger}
+        selectedUserId={selectedCreditUserId}
+        searchText={creditSearchText}
+        onSelectedUserIdChange={onSelectedCreditUserIdChange}
+        onSearchTextChange={onCreditSearchTextChange}
+        onRefresh={onRefresh}
       />
       <section aria-label="24 小时主链路诊断" className="space-y-6">
         <TraceHealthRollUp state={traceRollup} />
@@ -522,6 +622,18 @@ export function AdminPanel() {
   const [historySearchText, setHistorySearchText] = useState("");
   const [debouncedHistoryQuery, setDebouncedHistoryQuery] = useState("");
   const [browserHasLlmKey, setBrowserHasLlmKey] = useState(false);
+  const [accountSearchText, setAccountSearchText] = useState("");
+  const [accountStatusFilter, setAccountStatusFilter] = useState("");
+  const [accountRoleFilter, setAccountRoleFilter] = useState("");
+  const [accountPage, setAccountPage] = useState(0);
+  const [selectedAdminUserId, setSelectedAdminUserId] = useState<number | null>(
+    null,
+  );
+  const [creditRequestSearchText, setCreditRequestSearchText] = useState("");
+  const [creditRequestStatusFilter, setCreditRequestStatusFilter] =
+    useState("pending");
+  const [creditSearchText, setCreditSearchText] = useState("");
+  const [selectedCreditUserId, setSelectedCreditUserId] = useState<number | null>(null);
 
   useEffect(() => {
     const t = loadAdminToken();
@@ -563,6 +675,10 @@ export function AdminPanel() {
     setHistoryPage(0);
   }, [historyFilters, debouncedHistoryQuery]);
 
+  useEffect(() => {
+    setAccountPage(0);
+  }, [accountSearchText, accountStatusFilter, accountRoleFilter]);
+
   const activeHistoryFilters = React.useMemo<InterviewSessionHistoryFilters>(() => {
     const next: InterviewSessionHistoryFilters = { ...historyFilters };
     if (debouncedHistoryQuery) {
@@ -602,6 +718,67 @@ export function AdminPanel() {
       }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [tokenSaved, historyPage, activeHistoryFilters],
+  );
+  const userCreditsFetcher = useCallback(
+    (signal?: AbortSignal) =>
+      getAdminUserCredits(signal, {
+        email: creditSearchText.trim() || undefined,
+        limit: 20,
+      }),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [tokenSaved, creditSearchText],
+  );
+  const adminUsersFetcher = useCallback(
+    (signal?: AbortSignal) =>
+      getAdminUsers(signal, {
+        email: accountSearchText.trim() || undefined,
+        status: accountStatusFilter || undefined,
+        role: accountRoleFilter || undefined,
+        offset: accountPage * ADMIN_ACCOUNT_PAGE_SIZE,
+        limit: ADMIN_ACCOUNT_PAGE_SIZE,
+      }),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [
+      tokenSaved,
+      accountSearchText,
+      accountStatusFilter,
+      accountRoleFilter,
+      accountPage,
+    ],
+  );
+  const adminUserDetailFetcher = useCallback(
+    (signal?: AbortSignal) =>
+      selectedAdminUserId
+        ? getAdminUserDetail(selectedAdminUserId, signal)
+        : Promise.resolve(null),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [tokenSaved, selectedAdminUserId],
+  );
+  const creditRequestsFetcher = useCallback(
+    (signal?: AbortSignal) =>
+      getAdminCreditRequests(signal, {
+        email: creditRequestSearchText.trim() || undefined,
+        status: creditRequestStatusFilter || undefined,
+        limit: 20,
+      }),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [tokenSaved, creditRequestSearchText, creditRequestStatusFilter],
+  );
+  const userCreditLedgerFetcher = useCallback(
+    (signal?: AbortSignal) =>
+      selectedCreditUserId
+        ? getAdminUserCreditLedger(selectedCreditUserId, signal)
+        : Promise.resolve({
+            user_id: 0,
+            balance: 0,
+            count: 0,
+            total_count: 0,
+            limit: 100,
+            offset: 0,
+            entries: [],
+          } satisfies AdminUserCreditLedgerResponse),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [tokenSaved, selectedCreditUserId],
   );
   const strategiesFetcher = useCallback(
     (signal?: AbortSignal) => getStrategies(signal),
@@ -720,6 +897,11 @@ export function AdminPanel() {
   const drift = useAutoFetch(driftFetcher, tick);
   const sessions = useAutoFetch(sessionsFetcher, tick);
   const history = useAutoFetch(historyFetcher, tick);
+  const adminUsers = useAutoFetch(adminUsersFetcher, tick);
+  const adminUserDetail = useAutoFetch(adminUserDetailFetcher, tick);
+  const creditRequests = useAutoFetch(creditRequestsFetcher, tick);
+  const userCredits = useAutoFetch(userCreditsFetcher, tick);
+  const userCreditLedger = useAutoFetch(userCreditLedgerFetcher, tick);
   const strategies = useAutoFetch(strategiesFetcher, tick);
   const skillPlaybooks = useAutoFetch(skillPlaybooksFetcher, tick);
   const skillUsageStats = useAutoFetch(skillUsageStatsFetcher, tick);
@@ -755,6 +937,30 @@ export function AdminPanel() {
       // Tab switching should still work when storage is unavailable.
     }
   }
+
+  useEffect(() => {
+    if (userCredits.phase !== "ready") return;
+    const users = userCredits.data.users;
+    if (users.length === 0) {
+      setSelectedCreditUserId(null);
+      return;
+    }
+    if (!selectedCreditUserId || !users.some((user) => user.user_id === selectedCreditUserId)) {
+      setSelectedCreditUserId(users[0].user_id);
+    }
+  }, [selectedCreditUserId, userCredits]);
+
+  useEffect(() => {
+    if (adminUsers.phase !== "ready") return;
+    const users = adminUsers.data.users;
+    if (users.length === 0) {
+      setSelectedAdminUserId(null);
+      return;
+    }
+    if (!selectedAdminUserId || !users.some((user) => user.id === selectedAdminUserId)) {
+      setSelectedAdminUserId(users[0].id);
+    }
+  }, [adminUsers, selectedAdminUserId]);
 
   return (
     <div className="space-y-6">
@@ -815,6 +1021,29 @@ export function AdminPanel() {
             historyPage={historyPage}
             historyFilters={historyFilters}
             historySearchText={historySearchText}
+            adminUsers={adminUsers}
+            adminUserDetail={adminUserDetail}
+            selectedAdminUserId={selectedAdminUserId}
+            accountSearchText={accountSearchText}
+            accountStatusFilter={accountStatusFilter}
+            accountRoleFilter={accountRoleFilter}
+            accountPage={accountPage}
+            creditRequests={creditRequests}
+            creditRequestSearchText={creditRequestSearchText}
+            creditRequestStatusFilter={creditRequestStatusFilter}
+            userCredits={userCredits}
+            userCreditLedger={userCreditLedger}
+            selectedCreditUserId={selectedCreditUserId}
+            creditSearchText={creditSearchText}
+            onSelectedAdminUserIdChange={setSelectedAdminUserId}
+            onAccountSearchTextChange={setAccountSearchText}
+            onAccountStatusFilterChange={setAccountStatusFilter}
+            onAccountRoleFilterChange={setAccountRoleFilter}
+            onAccountPageChange={setAccountPage}
+            onCreditRequestSearchTextChange={setCreditRequestSearchText}
+            onCreditRequestStatusFilterChange={setCreditRequestStatusFilter}
+            onSelectedCreditUserIdChange={setSelectedCreditUserId}
+            onCreditSearchTextChange={setCreditSearchText}
             onHistoryPageChange={setHistoryPage}
             onHistoryFiltersChange={setHistoryFilters}
             onHistorySearchTextChange={setHistorySearchText}
@@ -860,6 +1089,842 @@ export function AdminPanel() {
         </AdminTabPanel>
       )}
     </div>
+  );
+}
+
+function formatAdminUserStatus(status: string): string {
+  if (status === "active") return "可用";
+  if (status === "disabled") return "已禁用";
+  return status || "未知";
+}
+
+function formatAdminUserRole(role: string): string {
+  if (role === "admin") return "管理员";
+  if (role === "user") return "普通用户";
+  return role || "未知";
+}
+
+function formatOptionalAdminTime(value?: string | null): string {
+  return value ? formatDateTime(value) : "—";
+}
+
+function formatAdminCreditRequestStatus(status: AdminCreditRequest["status"]): string {
+  if (status === "pending") return "待处理";
+  if (status === "approved") return "已批准";
+  if (status === "rejected") return "已拒绝";
+  return status;
+}
+
+function CreditRequestsPanel({
+  requests,
+  searchText,
+  statusFilter,
+  onSearchTextChange,
+  onStatusFilterChange,
+  onRefresh,
+}: {
+  requests: Loadable<AdminCreditRequestsResponse>;
+  searchText: string;
+  statusFilter: string;
+  onSearchTextChange: (text: string) => void;
+  onStatusFilterChange: (status: string) => void;
+  onRefresh: () => void;
+}) {
+  const { toast } = useToast();
+  const [pendingId, setPendingId] = useState<number | null>(null);
+
+  async function handleDecision(
+    request: AdminCreditRequest,
+    status: "approved" | "rejected",
+  ) {
+    const reason =
+      status === "approved"
+        ? `批准 ${request.user_email || `user_id ${request.user_id}`} 的额度申请`
+        : `拒绝 ${request.user_email || `user_id ${request.user_id}`} 的额度申请`;
+    setPendingId(request.id);
+    try {
+      await decideAdminCreditRequest(request.id, { status, reason });
+      toast({
+        title: status === "approved" ? "申请已批准" : "申请已拒绝",
+        description:
+          status === "approved"
+            ? `已补充 ${request.requested_amount} 次平台面试次数。`
+            : "该申请不会改动用户额度。",
+      });
+      onRefresh();
+    } catch (err) {
+      toast({
+        title: "处理额度申请失败",
+        description: err instanceof Error ? err.message : "请稍后再试",
+        variant: "destructive",
+      });
+    } finally {
+      setPendingId(null);
+    }
+  }
+
+  return (
+    <Card>
+      <CardHeader>
+        <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+          <div>
+            <CardTitle className="flex items-center gap-2 text-base">
+              <WalletCards className="h-4 w-4 text-emerald-400" />
+              额度申请
+            </CardTitle>
+            <CardDescription className="mt-1">
+              处理用户提交的补充次数申请；批准后会写入现有额度账本。
+            </CardDescription>
+          </div>
+          <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_9rem] lg:w-[30rem]">
+            <div className="relative">
+              <Search className="pointer-events-none absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+              <Input
+                value={searchText}
+                onChange={(event) => onSearchTextChange(event.target.value)}
+                placeholder="按邮箱搜索申请"
+                className="pl-8"
+              />
+            </div>
+            <label className="space-y-1 text-xs text-muted-foreground">
+              <span>状态筛选</span>
+              <select
+                value={statusFilter}
+                onChange={(event) => onStatusFilterChange(event.target.value)}
+                className="h-10 w-full rounded-md border bg-background px-3 text-sm text-foreground"
+              >
+                <option value="">全部</option>
+                <option value="pending">待处理</option>
+                <option value="approved">已批准</option>
+                <option value="rejected">已拒绝</option>
+              </select>
+            </label>
+          </div>
+        </div>
+      </CardHeader>
+      <CardContent className="space-y-3">
+        {requests.phase === "loading" && <LoadingList rows={3} />}
+        {requests.phase === "error" && <ErrorBox message={requests.message} />}
+        {requests.phase === "ready" && requests.data.requests.length === 0 && (
+          <p className="rounded-lg border border-dashed px-3 py-4 text-sm text-muted-foreground">
+            暂无匹配的额度申请。
+          </p>
+        )}
+        {requests.phase === "ready" &&
+          requests.data.requests.map((request) => (
+            <div
+              key={request.id}
+              className="rounded-lg border bg-background px-3 py-3 text-sm"
+            >
+              <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+                <div className="min-w-0">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <p className="truncate font-medium">
+                      {request.user_email || `user_id ${request.user_id}`}
+                    </p>
+                    <Badge
+                      variant={
+                        request.status === "pending"
+                          ? "secondary"
+                          : request.status === "approved"
+                            ? "outline"
+                            : "destructive"
+                      }
+                    >
+                      {formatAdminCreditRequestStatus(request.status)}
+                    </Badge>
+                    <Badge variant="outline">申请 {request.requested_amount} 次</Badge>
+                  </div>
+                  <p className="mt-1 line-clamp-2 text-xs text-muted-foreground">
+                    {request.reason}
+                  </p>
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    提交于 {formatOptionalAdminTime(request.created_at)}
+                    {request.decision_reason
+                      ? ` · 处理意见：${request.decision_reason}`
+                      : ""}
+                  </p>
+                </div>
+                {request.status === "pending" ? (
+                  <div className="flex shrink-0 gap-2">
+                    <Button
+                      type="button"
+                      size="sm"
+                      className="gap-2"
+                      disabled={pendingId === request.id}
+                      onClick={() => void handleDecision(request, "approved")}
+                    >
+                      {pendingId === request.id && (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      )}
+                      批准申请
+                    </Button>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      disabled={pendingId === request.id}
+                      onClick={() => void handleDecision(request, "rejected")}
+                    >
+                      拒绝申请
+                    </Button>
+                  </div>
+                ) : (
+                  <div className="shrink-0 rounded-md border bg-muted/30 px-3 py-2 text-xs text-muted-foreground">
+                    {request.status === "approved"
+                      ? `已补充 ${request.requested_amount} 次`
+                      : "未改动额度"}
+                  </div>
+                )}
+              </div>
+            </div>
+          ))}
+      </CardContent>
+    </Card>
+  );
+}
+
+function AccountManagementPanel({
+  users,
+  detail,
+  selectedUserId,
+  searchText,
+  statusFilter,
+  roleFilter,
+  page,
+  pageSize,
+  onSelectedUserIdChange,
+  onSearchTextChange,
+  onStatusFilterChange,
+  onRoleFilterChange,
+  onPageChange,
+  onRefresh,
+}: {
+  users: Loadable<AdminUserListResponse>;
+  detail: Loadable<AdminUserDetail | null>;
+  selectedUserId: number | null;
+  searchText: string;
+  statusFilter: string;
+  roleFilter: string;
+  page: number;
+  pageSize: number;
+  onSelectedUserIdChange: (userId: number) => void;
+  onSearchTextChange: (text: string) => void;
+  onStatusFilterChange: (status: string) => void;
+  onRoleFilterChange: (role: string) => void;
+  onPageChange: (page: number) => void;
+  onRefresh: () => void;
+}) {
+  const { toast } = useToast();
+  const [confirmEmail, setConfirmEmail] = useState("");
+  const [pending, setPending] = useState(false);
+  const usersData = users.phase === "ready" ? users.data : null;
+  const selectedFromList =
+    usersData?.users.find((user) => user.id === selectedUserId) ?? null;
+  const selectedUser =
+    detail.phase === "ready" && detail.data ? detail.data.user : selectedFromList;
+  const isAdminTarget = selectedUser?.role === "admin";
+  const nextStatus =
+    selectedUser?.status === "disabled" ? "active" : "disabled";
+  const actionLabel = nextStatus === "disabled" ? "禁用账号" : "启用账号";
+  const confirmationMatches =
+    !!selectedUser &&
+    confirmEmail.trim().toLowerCase() === selectedUser.email.toLowerCase();
+  const canGoNext =
+    !!usersData && usersData.offset + usersData.count < usersData.total_count;
+
+  async function handleStatusChange() {
+    if (!selectedUser || isAdminTarget) return;
+    if (!confirmationMatches) {
+      toast({
+        title: "输入邮箱确认后再操作",
+        description: `请完整输入 ${selectedUser.email}`,
+        variant: "destructive",
+      });
+      return;
+    }
+    setPending(true);
+    try {
+      await updateAdminUserStatus(selectedUser.id, {
+        status: nextStatus,
+        reason:
+          nextStatus === "disabled"
+            ? `admin disabled account ${selectedUser.email}`
+            : `admin re-enabled account ${selectedUser.email}`,
+      });
+      toast({
+        title: nextStatus === "disabled" ? "账号已禁用" : "账号已启用",
+        description:
+          nextStatus === "disabled"
+            ? "该用户将无法继续使用登录态访问账号能力；已有面试记录不会删除。"
+            : "该用户可以重新使用账号能力。",
+      });
+      setConfirmEmail("");
+      onRefresh();
+    } catch (err) {
+      toast({
+        title: "账号状态更新失败",
+        description: err instanceof Error ? err.message : "请稍后再试",
+        variant: "destructive",
+      });
+    } finally {
+      setPending(false);
+    }
+  }
+
+  return (
+    <Card>
+      <CardHeader>
+        <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+          <div>
+            <CardTitle className="flex items-center gap-2 text-base">
+              <Users className="h-4 w-4 text-emerald-400" />
+              账号管理
+            </CardTitle>
+            <CardDescription className="mt-1">
+              查询平台用户、查看额度和账号记录概况，并启用或禁用普通用户。
+            </CardDescription>
+          </div>
+          <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_9rem_9rem] lg:w-[42rem]">
+            <div className="relative">
+              <Search className="pointer-events-none absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+              <Input
+                value={searchText}
+                onChange={(event) => onSearchTextChange(event.target.value)}
+                placeholder="按邮箱搜索账号"
+                className="pl-8"
+              />
+            </div>
+            <label className="space-y-1 text-xs text-muted-foreground">
+              <span>状态筛选</span>
+              <select
+                value={statusFilter}
+                onChange={(event) => onStatusFilterChange(event.target.value)}
+                className="h-10 w-full rounded-md border bg-background px-3 text-sm text-foreground"
+              >
+                <option value="">全部状态</option>
+                <option value="active">可用</option>
+                <option value="disabled">已禁用</option>
+              </select>
+            </label>
+            <label className="space-y-1 text-xs text-muted-foreground">
+              <span>角色筛选</span>
+              <select
+                value={roleFilter}
+                onChange={(event) => onRoleFilterChange(event.target.value)}
+                className="h-10 w-full rounded-md border bg-background px-3 text-sm text-foreground"
+              >
+                <option value="">全部角色</option>
+                <option value="user">普通用户</option>
+                <option value="admin">管理员</option>
+              </select>
+            </label>
+          </div>
+        </div>
+      </CardHeader>
+      <CardContent className="grid gap-4 xl:grid-cols-[minmax(0,1.15fr)_minmax(22rem,0.85fr)]">
+        <div className="space-y-3">
+          {users.phase === "loading" && <LoadingList rows={4} />}
+          {users.phase === "error" && <ErrorBox message={users.message} />}
+          {usersData && usersData.users.length === 0 && (
+            <p className="rounded-lg border border-dashed px-3 py-4 text-sm text-muted-foreground">
+              暂无匹配账号。
+            </p>
+          )}
+          {usersData?.users.map((user) => (
+            <AdminUserRow
+              key={user.id}
+              user={user}
+              active={user.id === selectedUserId}
+              onClick={() => onSelectedUserIdChange(user.id)}
+            />
+          ))}
+          {usersData && usersData.total_count > pageSize && (
+            <div className="flex items-center justify-between gap-3 text-xs text-muted-foreground">
+              <span>
+                第 {page + 1} 页 · 共 {usersData.total_count} 个账号
+              </span>
+              <div className="flex gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  disabled={page <= 0}
+                  onClick={() => onPageChange(Math.max(0, page - 1))}
+                >
+                  上一页
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  disabled={!canGoNext}
+                  onClick={() => onPageChange(page + 1)}
+                >
+                  下一页
+                </Button>
+              </div>
+            </div>
+          )}
+        </div>
+
+        <div className="space-y-3 rounded-lg border bg-muted/20 p-3">
+          {!selectedUser && (
+            <p className="text-sm text-muted-foreground">
+              选择一个账号后查看详情、最近流水和最近账号记录。
+            </p>
+          )}
+          {selectedUser && (
+            <>
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+                <div className="min-w-0">
+                  <p className="truncate text-sm font-semibold">{selectedUser.email}</p>
+                  <p className="text-xs text-muted-foreground">
+                    user_id {selectedUser.id} · {formatAdminUserRole(selectedUser.role)} ·{" "}
+                    {formatAdminUserStatus(selectedUser.status)}
+                  </p>
+                </div>
+                <Badge variant={selectedUser.status === "disabled" ? "destructive" : "outline"}>
+                  {formatAdminUserStatus(selectedUser.status)}
+                </Badge>
+              </div>
+              <div className="grid gap-2 text-xs sm:grid-cols-2">
+                <div className="rounded-md border bg-background px-3 py-2">
+                  <p className="text-muted-foreground">剩余额度</p>
+                  <p className="mt-1 text-lg font-semibold">
+                    {selectedUser.credit_balance} 次
+                  </p>
+                </div>
+                <div className="rounded-md border bg-background px-3 py-2">
+                  <p className="text-muted-foreground">账号记录</p>
+                  <p className="mt-1 text-lg font-semibold">
+                    {selectedUser.interview_session_count} 场
+                  </p>
+                </div>
+                <div className="rounded-md border bg-background px-3 py-2">
+                  <p className="text-muted-foreground">最近活跃</p>
+                  <p className="mt-1 font-medium">
+                    {formatOptionalAdminTime(selectedUser.last_seen_at)}
+                  </p>
+                </div>
+                <div className="rounded-md border bg-background px-3 py-2">
+                  <p className="text-muted-foreground">注册时间</p>
+                  <p className="mt-1 font-medium">
+                    {formatOptionalAdminTime(selectedUser.created_at)}
+                  </p>
+                </div>
+              </div>
+              {detail.phase === "loading" && <LoadingList rows={3} />}
+              {detail.phase === "error" && <ErrorBox message={detail.message} />}
+              {detail.phase === "ready" && detail.data && (
+                <div className="space-y-3">
+                  <div>
+                    <p className="text-xs font-medium text-muted-foreground">
+                      最近额度流水
+                    </p>
+                    <div className="mt-2 space-y-2">
+                      {detail.data.recent_credit_entries.length === 0 && (
+                        <p className="text-sm text-muted-foreground">
+                          暂无额度流水。
+                        </p>
+                      )}
+                      {detail.data.recent_credit_entries.slice(0, 4).map((entry) => {
+                        const formatted = formatCreditLedgerEntry(entry);
+                        return (
+                          <div
+                            key={entry.id}
+                            className="flex items-start justify-between gap-3 rounded-md border bg-background px-3 py-2 text-xs"
+                          >
+                            <div className="min-w-0">
+                              <p className="font-medium">
+                                {formatted.title} · {formatted.deltaLabel}
+                              </p>
+                              <p className="truncate text-muted-foreground">
+                                {formatted.description}
+                              </p>
+                            </div>
+                            <div className="shrink-0 text-right text-muted-foreground">
+                              <p>{formatted.balanceLabel}</p>
+                              {entry.created_at && <p>{formatDateTime(entry.created_at)}</p>}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                  <div>
+                    <p className="text-xs font-medium text-muted-foreground">
+                      最近账号记录
+                    </p>
+                    <div className="mt-2 space-y-2">
+                      {detail.data.recent_interview_sessions.length === 0 && (
+                        <p className="text-sm text-muted-foreground">
+                          暂无账号归属面试记录。
+                        </p>
+                      )}
+                      {detail.data.recent_interview_sessions.slice(0, 4).map((session) => (
+                        <div
+                          key={session.session_id}
+                          className="rounded-md border bg-background px-3 py-2 text-xs"
+                        >
+                          <div className="flex items-start justify-between gap-3">
+                            <div className="min-w-0">
+                              <p className="truncate font-medium">
+                                {session.job_title || "未命名面试"}
+                              </p>
+                              <p className="truncate text-muted-foreground">
+                                {session.candidate_name || "候选人未填"} ·{" "}
+                                {session.status}
+                              </p>
+                            </div>
+                            <div className="shrink-0 text-right text-muted-foreground">
+                              <p>
+                                {typeof session.overall_score === "number"
+                                  ? `${session.overall_score}/10`
+                                  : "无报告"}
+                              </p>
+                              <p>{formatOptionalAdminTime(session.updated_at)}</p>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              )}
+              <Separator />
+              {isAdminTarget ? (
+                <div className="rounded-md border border-amber-500/25 bg-amber-500/10 px-3 py-2 text-sm text-amber-700 dark:text-amber-200">
+                  <div className="flex items-center gap-2 font-medium">
+                    <ShieldCheck className="h-4 w-4" />
+                    admin 账号只读保护
+                  </div>
+                  <p className="mt-1 text-xs">
+                    管理员账号不支持在此启用或禁用；管理员提升继续走后端脚本。
+                  </p>
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  <label className="space-y-1 text-xs text-muted-foreground">
+                    <span>输入邮箱确认</span>
+                    <Input
+                      value={confirmEmail}
+                      onChange={(event) => setConfirmEmail(event.target.value)}
+                      placeholder={selectedUser.email}
+                    />
+                  </label>
+                  <Button
+                    type="button"
+                    variant={nextStatus === "disabled" ? "destructive" : "outline"}
+                    className="w-full gap-2"
+                    disabled={pending || !confirmationMatches}
+                    onClick={() => void handleStatusChange()}
+                  >
+                    {pending && <Loader2 className="h-4 w-4 animate-spin" />}
+                    {actionLabel}
+                  </Button>
+                  <p className="text-xs text-muted-foreground">
+                    禁用后该用户将无法继续使用登录态访问账号能力；已有面试记录不删除。
+                  </p>
+                </div>
+              )}
+            </>
+          )}
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+function AdminUserRow({
+  user,
+  active,
+  onClick,
+}: {
+  user: AdminUserItem;
+  active: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={cn(
+        "w-full rounded-lg border px-3 py-3 text-left text-sm transition-colors",
+        active
+          ? "border-emerald-500/40 bg-emerald-500/10"
+          : "bg-background hover:bg-accent",
+      )}
+    >
+      <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+        <div className="min-w-0">
+          <div className="flex flex-wrap items-center gap-2">
+            <p className="truncate font-medium">{user.email}</p>
+            <Badge variant="outline">{formatAdminUserRole(user.role)}</Badge>
+            <Badge variant={user.status === "disabled" ? "destructive" : "secondary"}>
+              {formatAdminUserStatus(user.status)}
+            </Badge>
+          </div>
+          <p className="mt-1 text-xs text-muted-foreground">
+            最近活跃 {formatOptionalAdminTime(user.last_seen_at)} · 注册{" "}
+            {formatOptionalAdminTime(user.created_at)}
+          </p>
+        </div>
+        <div className="grid shrink-0 grid-cols-2 gap-2 text-xs text-muted-foreground sm:min-w-56">
+          <div className="rounded-md border bg-muted/30 px-2 py-1.5">
+            <p>额度</p>
+            <p className="text-sm font-semibold text-foreground">
+              {user.credit_balance} 次
+            </p>
+          </div>
+          <div className="rounded-md border bg-muted/30 px-2 py-1.5">
+            <p>账号记录</p>
+            <p className="text-sm font-semibold text-foreground">
+              {user.interview_session_count} 场
+            </p>
+          </div>
+        </div>
+      </div>
+    </button>
+  );
+}
+
+function UserCreditsPanel({
+  users,
+  ledger,
+  selectedUserId,
+  searchText,
+  onSelectedUserIdChange,
+  onSearchTextChange,
+  onRefresh,
+}: {
+  users: Loadable<AdminUserCreditsResponse>;
+  ledger: Loadable<AdminUserCreditLedgerResponse>;
+  selectedUserId: number | null;
+  searchText: string;
+  onSelectedUserIdChange: (userId: number) => void;
+  onSearchTextChange: (text: string) => void;
+  onRefresh: () => void;
+}) {
+  const { toast } = useToast();
+  const [amount, setAmount] = useState("1");
+  const [reason, setReason] = useState("手动赠送");
+  const [pending, setPending] = useState(false);
+  const selectedUser =
+    users.phase === "ready"
+      ? users.data.users.find((user) => user.user_id === selectedUserId) ?? null
+      : null;
+  const amountDelta = Number.parseInt(amount, 10);
+  const hasValidAmount = Number.isFinite(amountDelta) && amountDelta !== 0;
+  const adjustmentPreviewBalance =
+    selectedUser && hasValidAmount ? selectedUser.balance + amountDelta : null;
+
+  async function handleAdjustCredits() {
+    if (!selectedUser) return;
+    if (!hasValidAmount) {
+      toast({ title: "请输入非 0 整数", variant: "destructive" });
+      return;
+    }
+    const nextBalance = selectedUser.balance + amountDelta;
+    if (nextBalance < 0) {
+      toast({ title: "调整后余额不能为负数", variant: "destructive" });
+      return;
+    }
+    if (!reason.trim()) {
+      toast({ title: "请填写调整原因", variant: "destructive" });
+      return;
+    }
+    setPending(true);
+    try {
+      const result = await adjustAdminUserCredits(selectedUser.user_id, {
+        amount_delta: amountDelta,
+        reason: reason.trim(),
+      });
+      toast({
+        title: amountDelta > 0 ? "已手动赠送次数" : "已调整用户次数",
+        description: `${selectedUser.email} 当前余额 ${result.balance} 次。`,
+      });
+      onRefresh();
+    } catch (err) {
+      toast({
+        title: "调整失败",
+        description: err instanceof Error ? err.message : "请稍后再试",
+        variant: "destructive",
+      });
+    } finally {
+      setPending(false);
+    }
+  }
+
+  return (
+    <Card>
+      <CardHeader>
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+          <div>
+            <CardTitle className="flex items-center gap-2 text-base">
+              <Key className="h-4 w-4 text-emerald-400" />
+              用户额度
+            </CardTitle>
+            <CardDescription className="mt-1">
+              查看账号免费次数、最近账本，并在内测或补偿时手动赠送。
+            </CardDescription>
+          </div>
+          <div className="relative w-full sm:w-72">
+            <Search className="pointer-events-none absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+            <Input
+              value={searchText}
+              onChange={(event) => onSearchTextChange(event.target.value)}
+              placeholder="按邮箱搜索"
+              className="pl-8"
+            />
+          </div>
+        </div>
+      </CardHeader>
+      <CardContent className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.2fr)]">
+        <div className="space-y-2">
+          {users.phase === "loading" && <LoadingList rows={3} />}
+          {users.phase === "error" && <ErrorBox message={users.message} />}
+          {users.phase === "ready" && users.data.users.length === 0 && (
+            <p className="rounded-lg border border-dashed px-3 py-4 text-sm text-muted-foreground">
+              暂无匹配用户。
+            </p>
+          )}
+          {users.phase === "ready" &&
+            users.data.users.map((user) => (
+              <UserCreditRow
+                key={user.user_id}
+                user={user}
+                active={user.user_id === selectedUserId}
+                onClick={() => onSelectedUserIdChange(user.user_id)}
+              />
+            ))}
+        </div>
+
+        <div className="space-y-3 rounded-lg border bg-muted/20 p-3">
+          {selectedUser ? (
+            <>
+              <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                  <p className="text-sm font-medium">{selectedUser.email}</p>
+                  <p className="text-xs text-muted-foreground">
+                    当前余额 {selectedUser.balance} 次 · {selectedUser.status}
+                    {selectedUser.updated_at
+                      ? ` · 最后更新 ${formatDateTime(selectedUser.updated_at)}`
+                      : ""}
+                  </p>
+                </div>
+                <Badge variant="outline">user_id {selectedUser.user_id}</Badge>
+              </div>
+              <div className="grid gap-2 sm:grid-cols-[7rem_minmax(0,1fr)_auto]">
+                <Input
+                  value={amount}
+                  onChange={(event) => setAmount(event.target.value)}
+                  inputMode="numeric"
+                  placeholder="+3 / -1"
+                />
+                <Input
+                  value={reason}
+                  onChange={(event) => setReason(event.target.value)}
+                  placeholder="调整原因"
+                />
+                <Button
+                  type="button"
+                  onClick={() => void handleAdjustCredits()}
+                  disabled={pending}
+                  className="gap-2"
+                >
+                  {pending && <Loader2 className="h-4 w-4 animate-spin" />}
+                  手动赠送
+                </Button>
+              </div>
+              <p
+                className={
+                  adjustmentPreviewBalance !== null && adjustmentPreviewBalance < 0
+                    ? "text-xs text-destructive"
+                    : "text-xs text-muted-foreground"
+                }
+              >
+                调整后余额：
+                {adjustmentPreviewBalance !== null
+                  ? `${adjustmentPreviewBalance} 次`
+                  : "请输入调整次数"}
+              </p>
+              <div className="space-y-2">
+                <p className="text-xs font-medium text-muted-foreground">最近账本</p>
+                {ledger.phase === "loading" && <LoadingList rows={3} />}
+                {ledger.phase === "error" && <ErrorBox message={ledger.message} />}
+                {ledger.phase === "ready" && ledger.data.entries.length === 0 && (
+                  <p className="text-sm text-muted-foreground">暂无账本记录。</p>
+                )}
+                {ledger.phase === "ready" &&
+                  ledger.data.entries.slice(0, 6).map((entry) => {
+                    const formatted = formatCreditLedgerEntry(entry);
+                    return (
+                      <div
+                        key={entry.id}
+                        className="flex items-start justify-between gap-3 rounded-md border bg-background px-3 py-2 text-xs"
+                      >
+                        <div className="min-w-0">
+                          <p className="font-medium">
+                            {formatted.title} · {formatted.deltaLabel}
+                          </p>
+                          <p className="truncate text-muted-foreground">
+                            {formatted.description}
+                          </p>
+                        </div>
+                        <div className="shrink-0 text-right text-muted-foreground">
+                          <p>{formatted.balanceLabel}</p>
+                          {entry.created_at && <p>{formatDateTime(entry.created_at)}</p>}
+                        </div>
+                      </div>
+                    );
+                  })}
+              </div>
+            </>
+          ) : (
+            <p className="text-sm text-muted-foreground">
+              选择一个用户后查看账本和调整额度。
+            </p>
+          )}
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+function UserCreditRow({
+  user,
+  active,
+  onClick,
+}: {
+  user: AdminUserCredit;
+  active: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={cn(
+        "w-full rounded-lg border px-3 py-2 text-left text-sm transition-colors",
+        active
+          ? "border-emerald-500/40 bg-emerald-500/10"
+          : "bg-background hover:bg-accent",
+      )}
+    >
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <p className="truncate font-medium">{user.email}</p>
+          <p className="text-xs text-muted-foreground">
+            {user.role} · {user.status}
+            {user.updated_at ? ` · 最后更新 ${formatDateTime(user.updated_at)}` : ""}
+          </p>
+        </div>
+        <Badge variant={user.balance > 0 ? "success" : "warn"}>
+          {user.balance} 次
+        </Badge>
+      </div>
+    </button>
   );
 }
 
@@ -1894,9 +2959,9 @@ function phaseLabel(state: Loadable<unknown>): string {
 }
 
 // ---------------------------------------------------------------------------
-// Token bar — the server-side check is optional (empty ``api_token``
-// means "dev: leave the admin routes open"), so we treat the token as
-// a helper, not a blocker.
+// Token bar — the page-level gate keeps casual users out of the panel.
+// This in-panel control lets operators update the bearer token used by
+// protected admin API requests after the panel is unlocked.
 // ---------------------------------------------------------------------------
 
 function TokenBar({
@@ -1949,11 +3014,11 @@ function TokenBar({
               <div className="flex flex-wrap items-center gap-2">
                 <span className="text-sm font-medium">后台设置 / 权限</span>
                 <Badge variant="outline" className="text-[10px]">
-                  {tokenSaved ? "令牌已保存" : "本地开发可留空"}
+                  {tokenSaved ? "令牌已保存" : "等待令牌"}
                 </Badge>
               </div>
               <p className="text-xs leading-5 text-muted-foreground">
-                用于访问受保护的后台观测接口，本地开发可留空。
+                用于访问受保护的后台观测接口，本地开发可使用 dev 标记。
               </p>
             </div>
           </div>
@@ -1992,7 +3057,7 @@ function TokenBar({
               </span>
               <Input
                 type="password"
-                placeholder="本地开发可留空"
+                placeholder="API_TOKEN 或本地 dev 标记"
                 value={tokenInput}
                 onChange={(e) => setTokenInput(e.target.value)}
                 className="sm:max-w-md"
@@ -3138,6 +4203,13 @@ const HistoricalSessionsCard = React.memo(function HistoricalSessionsCard({
                                 >
                                   {session.candidate_name || "未填写"}
                                 </div>
+                                <div className="mt-0.5 truncate text-[10px] text-muted-foreground/70">
+                                  {session.owner_email
+                                    ? `Owner: ${session.owner_email}`
+                                    : session.owner_user_id
+                                      ? `Owner #${session.owner_user_id}`
+                                      : "Anonymous"}
+                                </div>
                               </div>
                             </CellWithTooltip>
                           </td>
@@ -3410,6 +4482,13 @@ function HistoryMobileCard({
               {session.job_level}
             </span>
           )}
+        </div>
+        <div className="mt-0.5 truncate text-[10px] text-muted-foreground/60">
+          {session.owner_email
+            ? `Owner: ${session.owner_email}`
+            : session.owner_user_id
+              ? `Owner #${session.owner_user_id}`
+              : "Anonymous"}
         </div>
       </div>
 
