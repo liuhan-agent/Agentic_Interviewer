@@ -5,6 +5,7 @@ import {
   Activity,
   ArrowLeft,
   Gauge,
+  Gift,
   History,
   Home,
   Key,
@@ -12,6 +13,7 @@ import {
   Moon,
   Plus,
   Sun,
+  UserRound,
   X,
 } from "lucide-react";
 import { useEffect, useState } from "react";
@@ -21,8 +23,11 @@ import { AnimatePresence, motion } from "framer-motion";
 import { cn } from "@/lib/utils";
 import { PendingNavigationLink } from "@/components/navigation/PendingNavigationLink";
 import { Button } from "@/components/ui/button";
+import { AuthDialog } from "@/components/auth/AuthDialog";
 import { LLMSettingsDialog } from "@/components/layout/LLMSettingsDialog";
 import { LightScrollWheel } from "@/components/layout/LightScrollWheel";
+import { getAccountCredits } from "@/lib/api/account";
+import { useAuth } from "@/lib/auth/useAuth";
 import {
   getLLMConfigStatus,
   LLM_CONFIG_EVENT,
@@ -117,6 +122,42 @@ function llmStatusLabel(status: LLMConfigStatus): string {
   }
 }
 
+function CreditStatusPill({
+  authenticated,
+  creditBalance,
+  className,
+}: {
+  authenticated: boolean;
+  creditBalance: number | null;
+  className?: string;
+}) {
+  const hasBalance = authenticated && creditBalance !== null;
+  return (
+    <span
+      className={cn(
+        "group relative isolate inline-flex h-8 items-center gap-2 overflow-hidden rounded-full border px-3 text-xs font-medium transition-all duration-200",
+        "before:pointer-events-none before:absolute before:inset-0 before:-z-10 before:opacity-0 before:transition-opacity before:duration-200",
+        hasBalance
+          ? "border-emerald-400/30 bg-emerald-500/[0.08] text-emerald-100 shadow-[0_0_24px_rgba(16,185,129,0.14)] hover:border-emerald-300/50 hover:bg-emerald-500/[0.12] before:bg-[radial-gradient(circle_at_20%_20%,rgba(16,185,129,0.24),transparent_55%)] hover:before:opacity-100"
+          : "border-border/80 bg-background/80 text-muted-foreground hover:border-emerald-400/40 hover:bg-emerald-500/[0.06] hover:text-foreground before:bg-[linear-gradient(90deg,transparent,rgba(16,185,129,0.14),transparent)] hover:before:opacity-100",
+        className,
+      )}
+    >
+      {hasBalance ? (
+        <span className="relative flex h-2 w-2">
+          <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-30" />
+          <span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-300 shadow-[0_0_10px_rgba(16,185,129,0.9)]" />
+        </span>
+      ) : (
+        <Gift className="h-3.5 w-3.5 text-emerald-300 transition-transform duration-200 group-hover:-rotate-6 group-hover:scale-105" />
+      )}
+      <span className="whitespace-nowrap">
+        {hasBalance ? <>剩余 {creditBalance} 次</> : "登录领取免费次数"}
+      </span>
+    </span>
+  );
+}
+
 function resolveParentHref(pathname: string | null): string | null {
   if (!pathname || pathname === "/") return null;
   const segments = pathname.split("/").filter(Boolean);
@@ -163,8 +204,32 @@ function NavigationShortcuts({ pathname }: { pathname: string | null }) {
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
+  const auth = useAuth();
   const [mobileOpen, setMobileOpen] = useState(false);
-  const showAdminNav = process.env.NEXT_PUBLIC_ADMIN_NAV_ENABLED === "true";
+  const [creditBalance, setCreditBalance] = useState<number | null>(null);
+  const showAdminNav =
+    process.env.NEXT_PUBLIC_ADMIN_NAV_ENABLED === "true" &&
+    !auth.loading &&
+    auth.user?.role === "admin";
+
+  useEffect(() => {
+    let cancelled = false;
+    if (auth.loading) return;
+    if (!auth.authenticated) {
+      setCreditBalance(null);
+      return;
+    }
+    void getAccountCredits()
+      .then((credits) => {
+        if (!cancelled) setCreditBalance(credits.balance);
+      })
+      .catch(() => {
+        if (!cancelled) setCreditBalance(null);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [auth.authenticated, auth.loading, auth.user?.id]);
 
   return (
     <div className="flex min-h-dvh flex-col">
@@ -217,6 +282,23 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                 <span className="hidden lg:inline">API 设置</span>
               </button>
             </LLMSettingsDialog>
+            <AuthDialog>
+              <button
+                type="button"
+                className="flex items-center gap-1.5 rounded-lg px-3 py-2 text-sm text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground"
+                aria-label="登录或查看账号"
+              >
+                <UserRound className="h-4 w-4" />
+                <span className="hidden lg:inline">
+                  {auth.authenticated ? "已登录" : "账号"}
+                </span>
+              </button>
+            </AuthDialog>
+            <CreditStatusPill
+              authenticated={auth.authenticated}
+              creditBalance={creditBalance}
+              className="hidden xl:inline-flex"
+            />
             {showAdminNav && (
               <PendingNavigationLink
                 href="/admin"
@@ -310,6 +392,20 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                     API 设置
                   </button>
                 </LLMSettingsDialog>
+                <AuthDialog onSettled={() => setMobileOpen(false)}>
+                  <button
+                    type="button"
+                    className="flex items-center gap-2 rounded-lg px-4 py-2.5 text-sm text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground"
+                  >
+                    <UserRound className="h-4 w-4" />
+                    {auth.authenticated ? "已登录" : "账号"}
+                  </button>
+                </AuthDialog>
+                <CreditStatusPill
+                  authenticated={auth.authenticated}
+                  creditBalance={creditBalance}
+                  className="h-10 justify-center rounded-lg text-sm"
+                />
               </nav>
             </motion.div>
           )}

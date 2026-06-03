@@ -7,6 +7,7 @@ mirrors the vectorstore's "graceful offline" fallback.
 """
 from __future__ import annotations
 
+import importlib
 from collections.abc import Iterator
 from contextlib import contextmanager
 from pathlib import Path
@@ -105,6 +106,8 @@ def __getattr__(name: str) -> Engine:
 
 _SQLITE_UPGRADES: dict[str, dict[str, str]] = {
     "interview_sessions": {
+        "owner_user_id": "INTEGER",
+        "owner_claimed_at": "DATETIME",
         "session_token_hash": "VARCHAR(128)",
         "session_token_expires_at": "DATETIME",
         "recovery_token_hash": "VARCHAR(128)",
@@ -169,6 +172,8 @@ _POSTGRES_UPGRADES: dict[str, dict[str, str]] = {
         "source_cache_key": "VARCHAR(96)",
     },
     "interview_sessions": {
+        "owner_user_id": "INTEGER",
+        "owner_claimed_at": "TIMESTAMP WITH TIME ZONE",
         "session_token_hash": "VARCHAR(128)",
         "session_token_expires_at": "TIMESTAMP WITH TIME ZONE",
         "recovery_token_hash": "VARCHAR(128)",
@@ -422,19 +427,23 @@ def init_db() -> None:
     Intentionally lazy-imports the models so that importing ``base``
     doesn't pull them in unless ``init_db`` is actually called.
     """
-    from app.models import (  # noqa: F401
-        generation_trace,
-        interview_session,
-        outcome_record,
-        question_bank,
-        resume_anchor_cache,
-        resume_parse_artifact,
-        session_anchor,
-        skill_playbook,
-        strategy_learning,
-        strategy_memory,
-        verifier_drift,
-    )
+    for module_name in (
+        "auth",
+        "generation_trace",
+        "interview_session",
+        "outcome_record",
+        "question_bank",
+        "resume_anchor_cache",
+        "resume_parse_artifact",
+        "session_anchor",
+        "skill_playbook",
+        "strategy_learning",
+        "strategy_memory",
+        "user_credit",
+        "user_credit_request",
+        "verifier_drift",
+    ):
+        importlib.import_module(f"app.models.{module_name}")
 
     eng = get_engine()
     pgvector_available = _ensure_pgvector_extension(eng)
@@ -444,6 +453,20 @@ def init_db() -> None:
             eng,
             include_session_anchor=pgvector_available,
         ),
+    )
+    from app.models.auth import AuthSession, User
+    from app.models.user_credit import UserCreditAccount, UserCreditLedger
+    from app.models.user_credit_request import UserCreditRequest
+
+    Base.metadata.create_all(
+        eng,
+        tables=[
+            User.__table__,
+            AuthSession.__table__,
+            UserCreditAccount.__table__,
+            UserCreditLedger.__table__,
+            UserCreditRequest.__table__,
+        ],
     )
     _upgrade_schema(eng)
     if pgvector_available:

@@ -1,3 +1,4 @@
+import { AdminAccessGate } from "@/components/admin/AdminAccessGate";
 import { TraceExplorer } from "@/components/admin/TraceExplorer";
 
 export const metadata = {
@@ -11,7 +12,9 @@ export default function TraceExplorerPage({
 }) {
   return (
     <section className="container max-w-6xl py-10">
-      <TraceExplorer sessionId={params.sessionId} />
+      <AdminAccessGate>
+        <TraceExplorer sessionId={params.sessionId} />
+      </AdminAccessGate>
     </section>
   );
 }

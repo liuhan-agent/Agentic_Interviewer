@@ -986,6 +986,13 @@ _SESSION_ROUTE_AUTH_CASES: list[dict[str, Any]] = [
         "params": None,
     },
     {
+        "id": "POST /claim",
+        "method": "post",
+        "url": "/api/v1/interview/sessions/sess-auth/claim",
+        "json": None,
+        "params": None,
+    },
+    {
         "id": "DELETE /sessions/{id}",
         "method": "delete",
         "url": "/api/v1/interview/sessions/sess-auth",

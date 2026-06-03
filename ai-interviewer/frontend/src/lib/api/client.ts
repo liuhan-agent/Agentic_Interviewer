@@ -1,5 +1,10 @@
 import { apiUrl } from "@/lib/config";
 
+const FASTAPI_FIELD_LABELS: Record<string, string> = {
+  email: "邮箱",
+  password: "密码",
+};
+
 export class ApiError extends Error {
   readonly status: number;
   readonly body?: unknown;
@@ -34,6 +39,57 @@ export interface RequestOptions {
   signal?: AbortSignal;
   /** Soft ceiling on how long we'll wait.  Default 35s (> server long-poll). */
   timeoutMs?: number;
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return value !== null && typeof value === "object" && !Array.isArray(value);
+}
+
+function formatValidationLocation(loc: unknown): string | null {
+  if (!Array.isArray(loc)) return null;
+  const parts = loc
+    .filter((part): part is string | number => {
+      return typeof part === "string" || typeof part === "number";
+    })
+    .filter((part) => part !== "body")
+    .map((part) => FASTAPI_FIELD_LABELS[String(part)] ?? String(part));
+  return parts.length > 0 ? parts.join(".") : null;
+}
+
+function formatValidationMessage(message: string): string {
+  if (message.includes("invalid email")) return "邮箱格式不正确";
+  if (message.includes("at least 8")) return "至少 8 位";
+  if (message.includes("at most 128")) return "最多 128 位";
+  return message;
+}
+
+function formatFastApiValidationDetail(detail: unknown): string | null {
+  if (!Array.isArray(detail)) return null;
+  const messages = detail
+    .map((issue) => {
+      if (!isRecord(issue)) return null;
+      const rawMessage =
+        typeof issue.msg === "string"
+          ? issue.msg
+          : typeof issue.message === "string"
+            ? issue.message
+            : null;
+      if (!rawMessage) return null;
+      const location = formatValidationLocation(issue.loc);
+      const message = formatValidationMessage(rawMessage);
+      return location ? `${location}: ${message}` : message;
+    })
+    .filter((message): message is string => Boolean(message));
+  return messages.length > 0 ? messages.join("; ") : null;
+}
+
+function formatStructuredApiMessage(
+  code: string | undefined,
+  fallback: string,
+): string {
+  if (code === "registration_closed") return "当前暂未开放新账号注册。";
+  if (code === "rate_limit_exceeded") return "请求过于频繁，请稍后再试。";
+  return fallback;
 }
 
 export async function request<T>(
@@ -74,6 +130,7 @@ export async function request<T>(
       body: fetchBody,
       signal: controller.signal,
       cache: "no-store",
+      credentials: "include",
     });
 
     const text = await res.text();
@@ -98,16 +155,20 @@ export async function request<T>(
       const code = typeof detailObject?.code === "string" ? detailObject.code : undefined;
       const action =
         typeof detailObject?.action === "string" ? detailObject.action : undefined;
-      const msg =
+      const validationMessage = formatFastApiValidationDetail(detail);
+      const fallbackMessage =
         (detailObject && typeof detailObject.error === "string"
           ? detailObject.error
           : detailObject && typeof detailObject.message === "string"
             ? detailObject.message
-            : detail
+            : validationMessage
+              ? validationMessage
+              : detail
               ? String(detail)
               : typeof parsed === "string"
                 ? parsed
                 : res.statusText) || `HTTP ${res.status}`;
+      const msg = formatStructuredApiMessage(code, fallbackMessage);
       throw new ApiError(res.status, msg, parsed, code, action);
     }
 

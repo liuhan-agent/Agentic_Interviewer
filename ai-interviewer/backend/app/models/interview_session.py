@@ -21,6 +21,8 @@ class InterviewSession(Base):
 
     session_id: Mapped[str] = mapped_column(String(64), primary_key=True)
     trace_id: Mapped[str] = mapped_column(String(64), index=True)
+    owner_user_id: Mapped[int | None] = mapped_column(Integer, index=True)
+    owner_claimed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     session_token_hash: Mapped[str | None] = mapped_column(String(128))
     candidate_name: Mapped[str | None] = mapped_column(String(128))
     job_title: Mapped[str | None] = mapped_column(String(128))

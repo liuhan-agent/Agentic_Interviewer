@@ -40,12 +40,18 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import {
+  claimSession,
   deleteSession,
   getReport,
   getSessionMetadata,
   resumeSession,
 } from "@/lib/api/interview";
-import type { DeleteSessionResponse } from "@/lib/api/types";
+import { getAccountInterviewSessions } from "@/lib/api/account";
+import type {
+  AccountInterviewSession,
+  DeleteSessionResponse,
+} from "@/lib/api/types";
+import { useAuth } from "@/lib/auth/useAuth";
 import {
   DEFAULT_SORT_DIRECTION,
   DEFAULT_SORT_FIELD,
@@ -61,6 +67,7 @@ import {
 import { useToast } from "@/lib/hooks/useToast";
 import {
   getHistory,
+  getSessionToken,
   mergeServerEntryMetadata,
   removeEntry,
   upsertEntry,
@@ -73,13 +80,30 @@ import {
   type SetupDraft,
 } from "@/lib/storage/setupDrafts";
 
+type HistoryEntrySource = "account" | "local_anonymous" | "local_owned";
+type DisplayHistoryEntry = InterviewHistoryEntry & {
+  source: HistoryEntrySource;
+};
+type SplitHistoryResult = {
+  primaryEntries: DisplayHistoryEntry[];
+  anonymousEntries: DisplayHistoryEntry[];
+  hiddenOtherAccountCount: number;
+};
+const EMPTY_DISPLAY_ENTRIES: DisplayHistoryEntry[] = [];
+
 export function HistoryList() {
-  const [entries, setEntries] = useState<InterviewHistoryEntry[] | null>(null);
+  const auth = useAuth();
+  const currentUserId = auth.user?.id ?? null;
+  const [localEntries, setLocalEntries] = useState<InterviewHistoryEntry[] | null>(null);
+  const [accountSessions, setAccountSessions] = useState<AccountInterviewSession[]>([]);
   const [setupDrafts, setSetupDrafts] = useState<SetupDraft[]>([]);
   const [refreshing, setRefreshing] = useState(false);
+  const [accountLoading, setAccountLoading] = useState(false);
+  const [claiming, setClaiming] = useState(false);
+  const [anonymousOpen, setAnonymousOpen] = useState(false);
   const [deletingSessionId, setDeletingSessionId] = useState<string | null>(null);
   const [deleteTarget, setDeleteTarget] =
-    useState<InterviewHistoryEntry | null>(null);
+    useState<DisplayHistoryEntry | null>(null);
   const [activeFilter, setActiveFilter] = useState<StatusFilterOption["id"]>("all");
   const [activeSortField, setActiveSortField] =
     useState<SortField>(DEFAULT_SORT_FIELD);
@@ -88,9 +112,43 @@ export function HistoryList() {
   const { toast } = useToast();
 
   const reload = useCallback(() => {
-    setEntries(getHistory());
+    setLocalEntries(getHistory());
     setSetupDrafts(getSetupDrafts());
   }, []);
+
+  const refreshAccountSessions = useCallback(async () => {
+    if (!auth.authenticated || currentUserId === null) {
+      setAccountSessions([]);
+      return;
+    }
+    setAccountLoading(true);
+    try {
+      const response = await getAccountInterviewSessions({ limit: 100 });
+      setAccountSessions(response.sessions);
+      for (const session of response.sessions) {
+        mergeServerEntryMetadata({
+          sessionId: session.session_id,
+          createdAt: session.created_at ?? undefined,
+          updatedAt: session.updated_at ?? undefined,
+          jdTitle: session.job_title,
+          candidateName: session.candidate_name,
+          jobLevel: session.job_level,
+          status: mapBackendStatusToLocal(session.status),
+          overallScore: session.overall_score ?? undefined,
+          dimensionScores: session.dimension_scores,
+          growthSignal: session.growth_signal,
+          overallVerdict: session.overall_verdict,
+          ownerUserId: session.owner_user_id,
+          ownerClaimedAt: session.owner_claimed_at,
+        });
+      }
+      setLocalEntries(getHistory());
+    } catch {
+      setAccountSessions([]);
+    } finally {
+      setAccountLoading(false);
+    }
+  }, [auth.authenticated, currentUserId]);
 
   useEffect(() => {
     reload();
@@ -109,8 +167,12 @@ export function HistoryList() {
   }, [reload]);
 
   useEffect(() => {
-    if (!entries) return;
-    const targets = entries.filter((entry) => !entry.updatedAt);
+    void refreshAccountSessions();
+  }, [refreshAccountSessions]);
+
+  useEffect(() => {
+    if (!localEntries) return;
+    const targets = localEntries.filter((entry) => !entry.updatedAt);
     if (targets.length === 0) return;
 
     let cancelled = false;
@@ -147,7 +209,29 @@ export function HistoryList() {
     return () => {
       cancelled = true;
     };
-  }, [entries, reload]);
+  }, [localEntries, reload]);
+
+  const splitHistory = useMemo(
+    () =>
+      localEntries
+        ? splitAccountAndLocalHistory({
+            accountSessions,
+            localEntries,
+            currentUserId,
+          })
+        : null,
+    [accountSessions, localEntries, currentUserId],
+  );
+  const entries = splitHistory?.primaryEntries ?? null;
+  const anonymousEntries = splitHistory?.anonymousEntries ?? EMPTY_DISPLAY_ENTRIES;
+  const hiddenOtherAccountCount = splitHistory?.hiddenOtherAccountCount ?? 0;
+
+  const claimableAnonymousEntries = useMemo(() => {
+    if (!auth.authenticated) return [];
+    return anonymousEntries.filter(
+      (entry) => !entry.ownerUserId && Boolean(getSessionToken(entry.sessionId)),
+    );
+  }, [anonymousEntries, auth.authenticated]);
 
   const runningCount = useMemo(
     () => (entries ?? []).filter((e) => e.status === "running").length,
@@ -217,6 +301,34 @@ export function HistoryList() {
     },
     [deleteTarget, reload, toast],
   );
+
+  const handleClaimAnonymousEntries = useCallback(async () => {
+    if (claimableAnonymousEntries.length === 0) return;
+    setClaiming(true);
+    try {
+      const results = await Promise.allSettled(
+        claimableAnonymousEntries.map((entry) => claimSession(entry.sessionId)),
+      );
+      reload();
+      await refreshAccountSessions();
+      const succeeded = results.filter((result) => result.status === "fulfilled").length;
+      const failed = results.length - succeeded;
+      toast({
+        title:
+          failed === 0
+            ? "匿名记录已同步"
+            : succeeded > 0
+              ? "部分匿名记录已同步"
+              : "匿名记录同步失败",
+        description:
+          failed === 0
+            ? `已同步 ${succeeded} 条可认领记录。`
+            : `成功 ${succeeded} 条，失败 ${failed} 条。缺少有效会话凭证的记录会继续留在本机。`,
+      });
+    } finally {
+      setClaiming(false);
+    }
+  }, [claimableAnonymousEntries, refreshAccountSessions, reload, toast]);
 
   const handleRefresh = useCallback(async () => {
     if (!entries) return;
@@ -310,7 +422,12 @@ export function HistoryList() {
     return <SkeletonList />;
   }
 
-  if (entries.length === 0 && setupDrafts.length === 0) {
+  if (
+    entries.length === 0 &&
+    anonymousEntries.length === 0 &&
+    setupDrafts.length === 0 &&
+    hiddenOtherAccountCount === 0
+  ) {
     return <EmptyState />;
   }
 
@@ -339,9 +456,30 @@ export function HistoryList() {
       <div className="space-y-3">
         {entries.length > 0 && <ProgressChart entries={entries} />}
 
+        {hiddenOtherAccountCount > 0 && (
+          <div className="flex items-start gap-2 rounded-md border border-sky-500/25 bg-sky-500/[0.04] p-3 text-xs text-muted-foreground">
+            <AlertCircle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-sky-300" />
+            <p>
+              本机还有 {hiddenOtherAccountCount} 条属于其他账号的记录，请切换到对应账号查看。
+            </p>
+          </div>
+        )}
+
         <div className="flex flex-wrap items-center justify-between gap-3">
           <p className="text-sm text-muted-foreground">
             共 {entries.length} 场面试
+            {auth.authenticated && (
+              <>
+                {" · "}
+                <span className="text-emerald-300">当前显示账号记录</span>
+              </>
+            )}
+            {accountLoading && (
+              <>
+                {" · "}
+                <span className="text-foreground/70">同步中</span>
+              </>
+            )}
             {runningCount > 0 && (
               <>
                 {" · "}
@@ -465,6 +603,11 @@ export function HistoryList() {
                     <HistoryCard
                       entry={entry}
                       deleting={deletingSessionId === entry.sessionId}
+                      canRemoveLocal={entry.source === "local_anonymous"}
+                      canDeleteData={
+                        entry.source === "account" ||
+                        entry.source === "local_owned"
+                      }
                       onRemoveLocal={handleRemoveLocal}
                       onDeleteData={setDeleteTarget}
                     />
@@ -501,7 +644,90 @@ export function HistoryList() {
           </AnimatePresence>
         </ul>
       )}
+
+      {auth.authenticated && anonymousEntries.length > 0 && (
+        <AnonymousHistorySection
+          entries={anonymousEntries}
+          open={anonymousOpen}
+          claimableCount={claimableAnonymousEntries.length}
+          claiming={claiming}
+          deletingSessionId={deletingSessionId}
+          onOpenChange={setAnonymousOpen}
+          onClaim={handleClaimAnonymousEntries}
+          onRemoveLocal={handleRemoveLocal}
+          onDeleteData={setDeleteTarget}
+        />
+      )}
     </div>
+  );
+}
+
+function AnonymousHistorySection({
+  entries,
+  open,
+  claimableCount,
+  claiming,
+  deletingSessionId,
+  onOpenChange,
+  onClaim,
+  onRemoveLocal,
+  onDeleteData,
+}: {
+  entries: DisplayHistoryEntry[];
+  open: boolean;
+  claimableCount: number;
+  claiming: boolean;
+  deletingSessionId: string | null;
+  onOpenChange: (open: boolean) => void;
+  onClaim: () => void;
+  onRemoveLocal: (sessionId: string) => void;
+  onDeleteData: (entry: DisplayHistoryEntry) => void;
+}) {
+  return (
+    <details
+      open={open}
+      onToggle={(event) => onOpenChange(event.currentTarget.open)}
+      className="rounded-md border border-sky-500/25 bg-sky-500/[0.04] p-3"
+    >
+      <summary className="cursor-pointer text-sm font-medium text-foreground">
+        本机匿名记录（{entries.length}）
+      </summary>
+      <div className="mt-3 space-y-3">
+        <div className="flex flex-col gap-3 text-sm sm:flex-row sm:items-center sm:justify-between">
+          <p className="text-xs leading-5 text-muted-foreground">
+            {claimableCount > 0
+              ? `有 ${claimableCount} 场带有效凭证，可同步到账号；其余记录仍只保留在本机。`
+              : "这些记录只在当前浏览器；当前没有可同步凭证，只能在本机查看，或从本机列表移除，不能删除服务端数据。"}
+          </p>
+          {claimableCount > 0 && (
+            <Button
+              type="button"
+              size="sm"
+              className="gap-1.5 bg-emerald-600 text-white hover:bg-emerald-500"
+              onClick={onClaim}
+              disabled={claiming}
+            >
+              {claiming && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
+              同步可认领记录
+            </Button>
+          )}
+        </div>
+        <ul className="space-y-3">
+          {entries.map((entry) => (
+            <li key={entry.sessionId}>
+              <HistoryCard
+                entry={entry}
+                deleting={deletingSessionId === entry.sessionId}
+                canRemoveLocal={entry.source === "local_anonymous"}
+                canDeleteData={false}
+                onRemoveLocal={onRemoveLocal}
+                onDeleteData={onDeleteData}
+              />
+            </li>
+          ))}
+        </ul>
+      </div>
+    </details>
   );
 }
 
@@ -653,13 +879,17 @@ function FilteredEmptyState({ onClear }: { onClear: () => void }) {
 function HistoryCard({
   entry,
   deleting,
+  canRemoveLocal,
+  canDeleteData,
   onRemoveLocal,
   onDeleteData,
 }: {
-  entry: InterviewHistoryEntry;
+  entry: DisplayHistoryEntry;
   deleting: boolean;
+  canRemoveLocal: boolean;
+  canDeleteData: boolean;
   onRemoveLocal: (sessionId: string) => void;
-  onDeleteData: (entry: InterviewHistoryEntry) => void;
+  onDeleteData: (entry: DisplayHistoryEntry) => void;
 }) {
   const primaryHref =
     entry.status === "done"
@@ -763,31 +993,35 @@ function HistoryCard({
               </PendingNavigationLink>
             </Button>
           )}
-          <Button
-            variant="ghost"
-            size="sm"
-            className="gap-1 text-muted-foreground"
-            onClick={() => onRemoveLocal(entry.sessionId)}
-            aria-label="只从当前浏览器列表中移除，不删除后端数据"
-          >
-            <XCircle className="h-3.5 w-3.5" />
-            从列表移除
-          </Button>
-          <Button
-            variant="ghost"
-            size="sm"
-            className="gap-1 text-muted-foreground hover:text-destructive"
-            onClick={() => onDeleteData(entry)}
-            disabled={deleting}
-            aria-label="删除后端保存的面试数据"
-          >
-            {deleting ? (
-              <Loader2 className="h-3.5 w-3.5 animate-spin" />
-            ) : (
-              <Trash2 className="h-3.5 w-3.5" />
-            )}
-            删除数据
-          </Button>
+          {canRemoveLocal && (
+            <Button
+              variant="ghost"
+              size="sm"
+              className="gap-1 text-muted-foreground"
+              onClick={() => onRemoveLocal(entry.sessionId)}
+              aria-label="只从当前浏览器列表中移除，不删除后端数据"
+            >
+              <XCircle className="h-3.5 w-3.5" />
+              从列表移除
+            </Button>
+          )}
+          {canDeleteData && (
+            <Button
+              variant="ghost"
+              size="sm"
+              className="gap-1 text-muted-foreground hover:text-destructive"
+              onClick={() => onDeleteData(entry)}
+              disabled={deleting}
+              aria-label="删除后端保存的面试数据"
+            >
+              {deleting ? (
+                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              ) : (
+                <Trash2 className="h-3.5 w-3.5" />
+              )}
+              删除数据
+            </Button>
+          )}
         </div>
       </CardContent>
     </Card>
@@ -829,7 +1063,7 @@ function DeleteSessionDialog({
   onOpenChange,
   onConfirm,
 }: {
-  entry: InterviewHistoryEntry | null;
+  entry: DisplayHistoryEntry | null;
   deleting: boolean;
   onOpenChange: (open: boolean) => void;
   onConfirm: () => void;
@@ -995,6 +1229,86 @@ function compactDimensionScores(
     }
   }
   return Object.keys(out).length > 0 ? out : undefined;
+}
+
+export function splitAccountAndLocalHistory({
+  accountSessions,
+  localEntries,
+  currentUserId,
+}: {
+  accountSessions: AccountInterviewSession[];
+  localEntries: InterviewHistoryEntry[];
+  currentUserId: number | null;
+}): SplitHistoryResult {
+  const primarySessionIds = new Set<string>();
+  const primaryEntries: DisplayHistoryEntry[] = [];
+  const anonymousEntries: DisplayHistoryEntry[] = [];
+  let hiddenOtherAccountCount = 0;
+
+  for (const session of accountSessions) {
+    primarySessionIds.add(session.session_id);
+    primaryEntries.push(accountSessionToEntry(session));
+  }
+
+  for (const localEntry of localEntries) {
+    if (
+      typeof localEntry.ownerUserId === "number" &&
+      localEntry.ownerUserId !== currentUserId
+    ) {
+      hiddenOtherAccountCount += 1;
+      continue;
+    }
+    if (primarySessionIds.has(localEntry.sessionId)) {
+      continue;
+    }
+    if (!localEntry.ownerUserId) {
+      const anonymousEntry: DisplayHistoryEntry = {
+        ...localEntry,
+        source: "local_anonymous",
+      };
+      if (currentUserId === null) {
+        primarySessionIds.add(localEntry.sessionId);
+        primaryEntries.push(anonymousEntry);
+      } else {
+        anonymousEntries.push(anonymousEntry);
+      }
+      continue;
+    }
+    primarySessionIds.add(localEntry.sessionId);
+    primaryEntries.push({
+      ...localEntry,
+      source: "local_owned",
+    });
+  }
+
+  primaryEntries.sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+  anonymousEntries.sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+  return { primaryEntries, anonymousEntries, hiddenOtherAccountCount };
+}
+
+function accountSessionToEntry(session: AccountInterviewSession): DisplayHistoryEntry {
+  const now = new Date().toISOString();
+  const createdAt = session.created_at ?? session.updated_at ?? now;
+  const updatedAt = session.updated_at ?? undefined;
+  const dimensionScores = session.dimension_scores ?? undefined;
+  return {
+    source: "account",
+    sessionId: session.session_id,
+    ownerUserId: session.owner_user_id,
+    ownerClaimedAt: session.owner_claimed_at ?? undefined,
+    jdTitle: session.job_title?.trim() || "未命名面试",
+    candidateName: session.candidate_name ?? undefined,
+    jobLevel: session.job_level ?? undefined,
+    rubricDimensions: dimensionScores ? Object.keys(dimensionScores) : undefined,
+    createdAt,
+    updatedAt,
+    lastVisitedAt: updatedAt ?? createdAt,
+    status: mapBackendStatusToLocal(session.status),
+    overallScore: session.overall_score ?? undefined,
+    dimensionScores,
+    growthSignal: session.growth_signal ?? undefined,
+    overallVerdict: session.overall_verdict ?? undefined,
+  };
 }
 
 function formatRelative(iso: string): string {

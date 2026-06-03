@@ -1,22 +1,24 @@
 """Admin observability router.
 
 All routes under ``/admin/*`` are read-only observability surfaces.
-They are gated behind :func:`require_admin_token` which enforces a
-bearer token when ``settings.api_token`` is non-empty. When no token is
-configured, routes fail closed unless ``ALLOW_OPEN_ADMIN=true`` is set
-explicitly for a local demo.
+They are gated behind :func:`require_admin_access`, which accepts an
+active ``role=admin`` account cookie. ``API_TOKEN`` remains available as
+a bootstrap / emergency fallback. When no fallback token is configured,
+routes fail closed unless ``ALLOW_OPEN_ADMIN=true`` is set explicitly for
+a local demo.
 
 The router is intentionally excluded from the generated OpenAPI
 schema so the admin surface is not advertised to casual clients.
 """
 from __future__ import annotations
 
-from copy import deepcopy
 import hashlib
 import re
+from collections.abc import Mapping
+from copy import deepcopy
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
-from typing import Any, Mapping
+from typing import Any, Literal
 from urllib.parse import urlparse, urlunparse
 
 from fastapi import (
@@ -30,14 +32,41 @@ from fastapi import (
     Response,
     status,
 )
+from fastapi import (
+    Path as ApiPath,
+)
+from pydantic import BaseModel, ConfigDict, Field
 
 from app.core.logging import get_logger
 from app.core.settings import get_settings
-from app.models import get_session
+from app.models import (
+    AuthSession,
+    InterviewSession,
+    User,
+    UserCreditAccount,
+    UserCreditLedger,
+    get_session,
+)
+from app.models.auth import USER_ROLE_ADMIN
 from app.services.trace_nodes import (
     normalize_trace_node,
     trace_node_aliases,
     trace_node_metadata,
+)
+from app.services.user_auth import get_optional_user
+from app.services.user_credit_requests import (
+    CreditRequestAlreadyDecidedError,
+    CreditRequestNotFoundError,
+    decide_credit_request,
+    list_admin_credit_requests,
+)
+from app.services.user_credits import (
+    CreditUserNotFoundError,
+    InsufficientCreditsError,
+    admin_adjust_credit,
+    ledger_entry_payload,
+    list_user_credit_accounts,
+    user_credit_ledger,
 )
 
 log = get_logger(__name__)
@@ -50,6 +79,28 @@ api_v1_router = APIRouter(
 _HISTORY_STATUS_FILTERS = {"running", "completed", "cancelled", "errored"}
 _HISTORY_TRACE_HEALTH_FILTERS = {"missing", "partial", "complete"}
 _HISTORY_SINCE_HOURS = {"24h": 24, "7d": 24 * 7, "30d": 24 * 30}
+
+
+class CreditAdjustmentRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    amount_delta: int = Field(..., ge=-10_000, le=10_000)
+    reason: str = Field(min_length=1, max_length=300)
+    admin_note: str | None = Field(default=None, max_length=1000)
+
+
+class UserStatusRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    status: Literal["active", "disabled"]
+    reason: str = Field(min_length=1, max_length=300)
+
+
+class CreditRequestDecisionRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    status: Literal["approved", "rejected"]
+    reason: str = Field(min_length=1, max_length=300)
 
 
 def _langsmith_web_url(api_endpoint: str | None) -> str:
@@ -128,16 +179,13 @@ def _latest_langsmith_run_ids(session_ids: list[str]) -> dict[str, str]:
     return latest
 
 
-def require_admin_token(
+def _require_admin_token_fallback(
     authorization: str | None = Header(default=None),
 ) -> None:
     """Fail any request that doesn't carry the configured bearer token.
 
-    When ``settings.api_token`` is empty, admin routes fail closed
-    unless ``settings.allow_open_admin`` is explicitly enabled for a
-    local demo.
-    Non-empty tokens are compared with a constant-time check to
-    avoid timing oracle leaks.
+    This remains only as a bootstrap / emergency access path. Productized
+    admin access should use an active ``role=admin`` account cookie.
     """
     settings = get_settings()
     expected = settings.api_token
@@ -169,6 +217,332 @@ def require_admin_token(
         )
 
 
+def require_admin_access(
+    request: Request,
+    authorization: str | None = Header(default=None),
+) -> None:
+    """Allow active admin accounts, with API_TOKEN as bootstrap fallback."""
+    user = None
+    try:
+        user = get_optional_user(request)
+    except Exception as e:  # pragma: no cover - token fallback can still recover
+        log.warning("admin account lookup failed; falling back to token gate: %s", e)
+
+    if user is not None and user.role == USER_ROLE_ADMIN:
+        return
+
+    try:
+        _require_admin_token_fallback(authorization)
+        return
+    except HTTPException as e:
+        if user is not None and e.status_code == status.HTTP_401_UNAUTHORIZED:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="admin role required",
+            ) from e
+        raise
+
+
+def _user_last_seen_at(db: Any, user_id: int) -> datetime | None:
+    from sqlalchemy import func
+
+    return (
+        db.query(func.max(AuthSession.last_seen_at))
+        .filter(AuthSession.user_id == int(user_id))
+        .scalar()
+    )
+
+
+def _user_interview_session_count(db: Any, user_id: int) -> int:
+    from sqlalchemy import func
+
+    return int(
+        db.query(func.count(InterviewSession.session_id))
+        .filter(InterviewSession.owner_user_id == int(user_id))
+        .scalar()
+        or 0
+    )
+
+
+def _user_credit_balance(db: Any, user_id: int) -> int:
+    account = db.get(UserCreditAccount, int(user_id))
+    return int(account.balance or 0) if account is not None else 0
+
+
+def _admin_user_item(db: Any, user: User) -> dict[str, Any]:
+    return {
+        "id": int(user.id),
+        "email": user.email,
+        "role": user.role,
+        "status": user.status,
+        "email_verified": user.email_verified_at is not None,
+        "created_at": _iso_or_none(user.created_at),
+        "updated_at": _iso_or_none(user.updated_at),
+        "last_seen_at": _iso_or_none(_user_last_seen_at(db, int(user.id))),
+        "credit_balance": _user_credit_balance(db, int(user.id)),
+        "interview_session_count": _user_interview_session_count(db, int(user.id)),
+    }
+
+
+def _admin_recent_interview_item(row: InterviewSession) -> dict[str, Any]:
+    report = row.final_report if isinstance(row.final_report, dict) else {}
+    return {
+        "session_id": row.session_id,
+        "status": row.status,
+        "created_at": _iso_or_none(row.created_at),
+        "updated_at": _iso_or_none(row.updated_at),
+        "job_title": row.job_title,
+        "candidate_name": row.candidate_name,
+        "job_level": row.job_level,
+        "mode": row.mode,
+        "has_report": bool(report),
+        "overall_score": report.get("overall_score"),
+        "growth_signal": report.get("growth_signal"),
+    }
+
+
+@api_v1_router.get("/user-credits", dependencies=[Depends(require_admin_access)])
+def admin_user_credits(
+    email: str | None = Query(default=None, max_length=320),
+    limit: int = Query(default=100, ge=1, le=100),
+    offset: int = Query(default=0, ge=0, le=10_000),
+) -> dict[str, Any]:
+    with get_session() as sess:
+        return list_user_credit_accounts(
+            sess,
+            email=email,
+            limit=limit,
+            offset=offset,
+            settings=get_settings(),
+        )
+
+
+@api_v1_router.get(
+    "/users/{user_id}/credit-ledger",
+    dependencies=[Depends(require_admin_access)],
+)
+def admin_user_credit_ledger(
+    user_id: int = ApiPath(..., ge=1),
+    limit: int = Query(default=100, ge=1, le=100),
+    offset: int = Query(default=0, ge=0, le=10_000),
+) -> dict[str, Any]:
+    with get_session() as sess:
+        try:
+            return user_credit_ledger(
+                sess,
+                user_id=int(user_id),
+                limit=limit,
+                offset=offset,
+                settings=get_settings(),
+            )
+        except CreditUserNotFoundError as e:
+            raise HTTPException(status_code=404, detail=str(e)) from e
+
+
+@api_v1_router.post(
+    "/users/{user_id}/credit-adjustments",
+    dependencies=[Depends(require_admin_access)],
+)
+def admin_credit_adjustment(
+    body: CreditAdjustmentRequest,
+    user_id: int = ApiPath(..., ge=1),
+) -> dict[str, Any]:
+    if int(body.amount_delta) == 0:
+        raise HTTPException(status_code=422, detail="amount_delta must not be zero")
+    with get_session() as sess:
+        try:
+            entry = admin_adjust_credit(
+                sess,
+                user_id=int(user_id),
+                amount_delta=int(body.amount_delta),
+                reason=body.reason,
+                admin_note=body.admin_note,
+                settings=get_settings(),
+            )
+        except InsufficientCreditsError as e:
+            raise HTTPException(status_code=409, detail=str(e)) from e
+        except CreditUserNotFoundError as e:
+            raise HTTPException(status_code=404, detail=str(e)) from e
+        return {
+            "user_id": int(user_id),
+            "balance": entry["balance_after"],
+            "entry": entry,
+        }
+
+
+@api_v1_router.get(
+    "/credit-requests",
+    dependencies=[Depends(require_admin_access)],
+)
+def admin_credit_requests(
+    email: str | None = Query(default=None, max_length=320),
+    status_filter: str | None = Query(default=None, alias="status", max_length=32),
+    limit: int = Query(default=100, ge=1, le=100),
+    offset: int = Query(default=0, ge=0, le=10_000),
+) -> dict[str, Any]:
+    valid_statuses = {"pending", "approved", "rejected"}
+    if status_filter and status_filter not in valid_statuses:
+        raise HTTPException(status_code=422, detail="unsupported credit request status")
+    with get_session() as sess:
+        return list_admin_credit_requests(
+            sess,
+            status_filter=status_filter,
+            email=email,
+            limit=limit,
+            offset=offset,
+        )
+
+
+@api_v1_router.post(
+    "/credit-requests/{request_id}/decision",
+    dependencies=[Depends(require_admin_access)],
+)
+def admin_credit_request_decision(
+    body: CreditRequestDecisionRequest,
+    request: Request,
+    request_id: int = ApiPath(..., ge=1),
+) -> dict[str, Any]:
+    reason = body.reason.strip()
+    if not reason:
+        raise HTTPException(status_code=422, detail="reason must not be blank")
+    actor = get_optional_user(request)
+    with get_session() as sess:
+        try:
+            return decide_credit_request(
+                sess,
+                request_id=int(request_id),
+                status=body.status,
+                reason=reason,
+                actor_user_id=int(actor.id) if actor is not None else None,
+                settings=get_settings(),
+            )
+        except CreditRequestNotFoundError as e:
+            raise HTTPException(status_code=404, detail=str(e)) from e
+        except CreditRequestAlreadyDecidedError as e:
+            raise HTTPException(status_code=409, detail=str(e)) from e
+        except CreditUserNotFoundError as e:
+            raise HTTPException(status_code=404, detail=str(e)) from e
+        except InsufficientCreditsError as e:
+            raise HTTPException(status_code=409, detail=str(e)) from e
+
+
+@api_v1_router.get("/users", dependencies=[Depends(require_admin_access)])
+def admin_users(
+    email: str | None = Query(default=None, max_length=320),
+    status_filter: str | None = Query(default=None, alias="status", max_length=32),
+    role: str | None = Query(default=None, max_length=32),
+    limit: int = Query(default=100, ge=1, le=100),
+    offset: int = Query(default=0, ge=0, le=10_000),
+) -> dict[str, Any]:
+    valid_statuses = {"active", "disabled"}
+    valid_roles = {"user", "admin"}
+    if status_filter and status_filter not in valid_statuses:
+        raise HTTPException(status_code=422, detail="unsupported user status filter")
+    if role and role not in valid_roles:
+        raise HTTPException(status_code=422, detail="unsupported user role filter")
+
+    capped_limit = max(1, min(int(limit or 100), 100))
+    safe_offset = max(0, min(int(offset or 0), 10_000))
+    needle = (email or "").strip().lower()
+
+    with get_session() as sess:
+        query = sess.query(User)
+        if needle:
+            query = query.filter(User.email.ilike(f"%{needle}%"))
+        if status_filter:
+            query = query.filter(User.status == status_filter)
+        if role:
+            query = query.filter(User.role == role)
+        from sqlalchemy import func
+
+        total_count = int(query.with_entities(func.count(User.id)).scalar() or 0)
+        users = (
+            query.order_by(User.created_at.desc(), User.id.desc())
+            .offset(safe_offset)
+            .limit(capped_limit)
+            .all()
+        )
+        return {
+            "count": len(users),
+            "total_count": total_count,
+            "limit": capped_limit,
+            "offset": safe_offset,
+            "users": [_admin_user_item(sess, user) for user in users],
+        }
+
+
+@api_v1_router.get("/users/{user_id}", dependencies=[Depends(require_admin_access)])
+def admin_user_detail(user_id: int = ApiPath(..., ge=1)) -> dict[str, Any]:
+    with get_session() as sess:
+        user = sess.get(User, int(user_id))
+        if user is None:
+            raise HTTPException(status_code=404, detail=f"user {int(user_id)} not found")
+        account = sess.get(UserCreditAccount, int(user_id))
+        entries = (
+            sess.query(UserCreditLedger)
+            .filter(UserCreditLedger.user_id == int(user_id))
+            .order_by(UserCreditLedger.created_at.desc(), UserCreditLedger.id.desc())
+            .limit(10)
+            .all()
+        )
+        sessions = (
+            sess.query(InterviewSession)
+            .filter(InterviewSession.owner_user_id == int(user_id))
+            .order_by(InterviewSession.created_at.desc())
+            .limit(10)
+            .all()
+        )
+        return {
+            "user": _admin_user_item(sess, user),
+            "credit": {
+                "balance": int(account.balance or 0) if account is not None else 0,
+                "free_grant_version": account.free_grant_version
+                if account is not None
+                else None,
+                "updated_at": _iso_or_none(account.updated_at)
+                if account is not None
+                else None,
+            },
+            "recent_credit_entries": [ledger_entry_payload(row) for row in entries],
+            "recent_interview_sessions": [
+                _admin_recent_interview_item(row) for row in sessions
+            ],
+        }
+
+
+@api_v1_router.post(
+    "/users/{user_id}/status",
+    dependencies=[Depends(require_admin_access)],
+)
+def admin_user_status(
+    body: UserStatusRequest,
+    request: Request,
+    user_id: int = ApiPath(..., ge=1),
+) -> dict[str, Any]:
+    actor = get_optional_user(request)
+    with get_session() as sess:
+        user = sess.get(User, int(user_id))
+        if user is None:
+            raise HTTPException(status_code=404, detail=f"user {int(user_id)} not found")
+        if actor is not None and int(actor.id) == int(user.id):
+            raise HTTPException(status_code=409, detail="cannot update your own status")
+        if user.role == USER_ROLE_ADMIN:
+            raise HTTPException(status_code=409, detail="admin users are read-only")
+
+        user.status = body.status
+        user.updated_at = datetime.now(UTC)
+        log.info(
+            "admin user status changed user_id=%s email=%s status=%s reason=%s actor_user_id=%s",
+            user.id,
+            user.email,
+            body.status,
+            body.reason,
+            getattr(actor, "id", None),
+        )
+        sess.flush()
+        return {"user": _admin_user_item(sess, user)}
+
+
 def _knowledge_coverage_payload(root: Path) -> dict[str, Any]:
     """Summarise ingestible knowledge files by ``source_type``."""
     from app.engine.rag.ingestion import _iter_documents
@@ -196,7 +570,7 @@ def _knowledge_coverage_payload(root: Path) -> dict[str, Any]:
     }
 
 
-@router.get("/bandit/snapshot", dependencies=[Depends(require_admin_token)])
+@router.get("/bandit/snapshot", dependencies=[Depends(require_admin_access)])
 def bandit_snapshot() -> dict[str, Any]:
     """Return the current Thompson posterior + policy knobs.
 
@@ -236,7 +610,7 @@ def bandit_snapshot() -> dict[str, Any]:
     }
 
 
-@router.get("/drift/verifier", dependencies=[Depends(require_admin_token)])
+@router.get("/drift/verifier", dependencies=[Depends(require_admin_access)])
 def verifier_drift_snapshot() -> dict[str, Any]:
     """Return the current verifier-drift rolling-window aggregates.
 
@@ -322,7 +696,7 @@ def _drift_pattern_payload(row: Any) -> dict[str, Any]:
     }
 
 
-@router.get("/drift/events", dependencies=[Depends(require_admin_token)])
+@router.get("/drift/events", dependencies=[Depends(require_admin_access)])
 def list_drift_events(
     since_hours: int = 24,
     limit: int = 200,
@@ -386,7 +760,7 @@ def list_drift_events(
     return payload
 
 
-@router.get("/drift/patterns", dependencies=[Depends(require_admin_token)])
+@router.get("/drift/patterns", dependencies=[Depends(require_admin_access)])
 def list_drift_patterns(
     dimension: str | None = None,
     failure_category: str | None = None,
@@ -449,7 +823,7 @@ def _iso_or_none(value: Any) -> str | None:
     return str(value)
 
 
-@router.get("/drift/freshness", dependencies=[Depends(require_admin_token)])
+@router.get("/drift/freshness", dependencies=[Depends(require_admin_access)])
 def drift_freshness() -> dict[str, Any]:
     """Return scheduler and DB freshness meta for persisted drift."""
     from sqlalchemy import func
@@ -503,7 +877,7 @@ def drift_freshness() -> dict[str, Any]:
 
 @router.post(
     "/drift/aggregation/run",
-    dependencies=[Depends(require_admin_token)],
+    dependencies=[Depends(require_admin_access)],
 )
 def run_drift_pattern_aggregation_route() -> dict[str, int]:
     """Trigger one drift-pattern aggregation pass on demand.
@@ -522,7 +896,7 @@ def run_drift_pattern_aggregation_route() -> dict[str, int]:
 
 @router.post(
     "/drift/retention/run",
-    dependencies=[Depends(require_admin_token)],
+    dependencies=[Depends(require_admin_access)],
 )
 def run_drift_event_retention_route() -> dict[str, int]:
     """Trigger one retention sweep on demand.
@@ -544,7 +918,7 @@ _DRIFT_PARITY_MIN_SUPPORT_CAP = 1000
 
 @router.get(
     "/drift/shadow-parity",
-    dependencies=[Depends(require_admin_token)],
+    dependencies=[Depends(require_admin_access)],
 )
 def drift_shadow_parity(
     top_n: int = 5,
@@ -621,14 +995,14 @@ def drift_shadow_parity(
         }
 
 
-@api_v1_router.get("/knowledge/coverage", dependencies=[Depends(require_admin_token)])
-@router.get("/knowledge/coverage", dependencies=[Depends(require_admin_token)])
+@api_v1_router.get("/knowledge/coverage", dependencies=[Depends(require_admin_access)])
+@router.get("/knowledge/coverage", dependencies=[Depends(require_admin_access)])
 def knowledge_coverage() -> dict[str, Any]:
     """Return ingestible knowledge-file and chunk coverage by source type."""
     return _knowledge_coverage_payload(Path(get_settings().knowledge_dir))
 
 
-@router.get("/sessions", dependencies=[Depends(require_admin_token)])
+@router.get("/sessions", dependencies=[Depends(require_admin_access)])
 def list_sessions() -> dict[str, Any]:
     """Enumerate active session handles held by the session manager.
 
@@ -694,7 +1068,7 @@ def _history_search_value(value: str | None) -> str | None:
 
 def _apply_history_db_filters(
     query: Any,
-    InterviewSession: Any,
+    interview_session_model: Any,
     *,
     status_filter: str | None = None,
     q: str | None = None,
@@ -703,17 +1077,17 @@ def _apply_history_db_filters(
     from sqlalchemy import or_
 
     if status_filter:
-        query = query.filter(InterviewSession.status == status_filter)
+        query = query.filter(interview_session_model.status == status_filter)
     if since:
         cutoff = datetime.now(UTC) - timedelta(hours=_HISTORY_SINCE_HOURS[since])
-        query = query.filter(InterviewSession.created_at >= cutoff)
+        query = query.filter(interview_session_model.created_at >= cutoff)
     if q:
         pattern = f"%{q}%"
         query = query.filter(
             or_(
-                InterviewSession.session_id.ilike(pattern),
-                InterviewSession.candidate_name.ilike(pattern),
-                InterviewSession.job_title.ilike(pattern),
+                interview_session_model.session_id.ilike(pattern),
+                interview_session_model.candidate_name.ilike(pattern),
+                interview_session_model.job_title.ilike(pattern),
             )
         )
     return query
@@ -744,7 +1118,13 @@ def _trace_counts_for_sessions(
     return trace_counts
 
 
-def _session_history_item(row: Any, node_counts: dict[str, int]) -> dict[str, Any]:
+def _session_history_item(
+    row: Any,
+    node_counts: dict[str, int],
+    *,
+    owner_email: str | None = None,
+    owner_status: str | None = None,
+) -> dict[str, Any]:
     report = row.final_report or {}
     trace_count = sum(node_counts.values())
     evaluator_trace_count = int(node_counts.get("evaluator", 0))
@@ -766,6 +1146,9 @@ def _session_history_item(row: Any, node_counts: dict[str, int]) -> dict[str, An
         "job_level": row.job_level,
         "mode": row.mode,
         "status": row.status,
+        "owner_user_id": getattr(row, "owner_user_id", None),
+        "owner_email": owner_email,
+        "owner_status": owner_status,
         "turn_idx": row.turn_idx,
         "asked_turn": row.asked_turn,
         "created_at": row.created_at.isoformat() if row.created_at else None,
@@ -795,27 +1178,32 @@ def _recent_interview_sessions(
     since: str | None = None,
 ) -> list[dict[str, Any]]:
     """Return recent persisted interview sessions for admin history."""
-    from app.models import InterviewSession, get_session
+    from app.models import InterviewSession, User, get_session
 
     capped_limit = max(1, min(int(limit or 20), 100))
     safe_offset = max(0, min(int(offset or 0), 10_000))
     try:
         with get_session() as sess:
-            query = _apply_history_db_filters(
+            base_query = _apply_history_db_filters(
                 sess.query(InterviewSession),
                 InterviewSession,
                 status_filter=status_filter,
                 q=q,
                 since=since,
             ).order_by(InterviewSession.created_at.desc())
+            query = base_query.outerjoin(
+                User,
+                InterviewSession.owner_user_id == User.id,
+            ).with_entities(InterviewSession, User.email, User.status)
             needs_python_filter = (
                 trace_health_filter is not None or has_report_filter is not None
             )
-            rows = (
+            row_pairs = (
                 query.all()
                 if needs_python_filter
                 else query.offset(safe_offset).limit(capped_limit).all()
             )
+            rows = [row for row, _owner_email, _owner_status in row_pairs]
             trace_counts = _trace_counts_for_sessions(
                 sess,
                 [row.session_id for row in rows],
@@ -825,8 +1213,13 @@ def _recent_interview_sessions(
         return []
 
     items: list[dict[str, Any]] = []
-    for row in rows:
-        item = _session_history_item(row, trace_counts.get(row.session_id, {}))
+    for row, owner_email, owner_status in row_pairs:
+        item = _session_history_item(
+            row,
+            trace_counts.get(row.session_id, {}),
+            owner_email=owner_email,
+            owner_status=owner_status,
+        )
         if has_report_filter is not None and item["has_report"] is not has_report_filter:
             continue
         if trace_health_filter is not None and item["trace_health"] != trace_health_filter:
@@ -1425,7 +1818,7 @@ def _interview_session_trace_payload(
     }
 
 
-@router.get("/interview-sessions", dependencies=[Depends(require_admin_token)])
+@router.get("/interview-sessions", dependencies=[Depends(require_admin_access)])
 def list_interview_sessions(
     limit: int = Query(default=20, ge=1, le=100),
     offset: int = Query(default=0, ge=0, le=10_000),
@@ -1484,7 +1877,7 @@ def list_interview_sessions(
 
 @router.delete(
     "/interview-sessions/{session_id}",
-    dependencies=[Depends(require_admin_token)],
+    dependencies=[Depends(require_admin_access)],
 )
 def admin_delete_session(session_id: str) -> dict[str, Any]:
     """Hard-delete a persisted interview session (admin-only).
@@ -1536,7 +1929,7 @@ _ANCHOR_FALLBACK_REASONS = (
 
 @router.get(
     "/session-anchors/summary",
-    dependencies=[Depends(require_admin_token)],
+    dependencies=[Depends(require_admin_access)],
 )
 def session_anchor_summary() -> dict[str, Any]:
     """Summarise session-scoped candidate anchor chunks."""
@@ -1646,7 +2039,7 @@ def session_anchor_summary() -> dict[str, Any]:
 
 @router.get(
     "/session-anchors/metrics",
-    dependencies=[Depends(require_admin_token)],
+    dependencies=[Depends(require_admin_access)],
 )
 def session_anchor_metrics(window_hours: int = 24) -> dict[str, Any]:
     """Aggregate session-anchor RAG artifacts from recent ask traces."""
@@ -1738,7 +2131,7 @@ def session_anchor_metrics(window_hours: int = 24) -> dict[str, Any]:
 
 @router.get(
     "/session-anchors/sessions",
-    dependencies=[Depends(require_admin_token)],
+    dependencies=[Depends(require_admin_access)],
 )
 def session_anchor_sessions(since: str = Query(default="24h")) -> dict[str, Any]:
     """Return session-level candidate-anchor RAG runtime observability."""
@@ -1898,7 +2291,7 @@ def session_anchor_sessions(since: str = Query(default="24h")) -> dict[str, Any]
 
 @router.delete(
     "/sessions/{session_id}/anchor-data",
-    dependencies=[Depends(require_admin_token)],
+    dependencies=[Depends(require_admin_access)],
 )
 def delete_session_anchor_data(session_id: str) -> dict[str, Any]:
     """Delete all session-scoped anchor data and scrub persisted snapshots."""
@@ -2267,7 +2660,7 @@ def _scrub_anchor_payload(value: Any) -> tuple[Any, bool]:
 
 @router.get(
     "/interview-sessions/{session_id}/traces",
-    dependencies=[Depends(require_admin_token)],
+    dependencies=[Depends(require_admin_access)],
 )
 def get_interview_session_traces(
     session_id: str,
@@ -2288,7 +2681,7 @@ _ROLLUP_WINDOWS_HOURS = {"1h": 1, "24h": 24, "7d": 24 * 7, "30d": 24 * 30}
 _ROLLUP_GROUPBYS = {"health", "node", "verdict", "fallback"}
 
 
-@router.get("/trace-rollup", dependencies=[Depends(require_admin_token)])
+@router.get("/trace-rollup", dependencies=[Depends(require_admin_access)])
 def trace_rollup(
     since: str = "24h",
     groupby: str = "health",
@@ -2459,7 +2852,7 @@ def _empty_rollup(*, since: str, groupby: str) -> dict[str, Any]:
     return payload
 
 
-@router.get("/evidence-rollup", dependencies=[Depends(require_admin_token)])
+@router.get("/evidence-rollup", dependencies=[Depends(require_admin_access)])
 def evidence_rollup(since: str = "24h") -> dict[str, Any]:
     """Aggregate evaluator evidence coverage for recent trace rows."""
     if since not in _ROLLUP_WINDOWS_HOURS:
@@ -2470,7 +2863,7 @@ def evidence_rollup(since: str = "24h") -> dict[str, Any]:
     return _compute_evidence_rollup(since=since)
 
 
-@router.get("/credibility-rollup", dependencies=[Depends(require_admin_token)])
+@router.get("/credibility-rollup", dependencies=[Depends(require_admin_access)])
 def credibility_rollup() -> dict[str, Any]:
     """Per-session credibility assessment for recent completed sessions.
 
@@ -2728,7 +3121,7 @@ def _rate(numerator: int, denominator: int) -> float:
     return round(numerator / denominator, 4) if denominator else 0.0
 
 
-@router.get("/question-quality-rollup", dependencies=[Depends(require_admin_token)])
+@router.get("/question-quality-rollup", dependencies=[Depends(require_admin_access)])
 def question_quality_rollup(since: str = "24h") -> dict[str, Any]:
     """Aggregate question-generation grounding signals for recent traces."""
     if since not in _ROLLUP_WINDOWS_HOURS:
@@ -2857,7 +3250,7 @@ _RECENT_TRACES_NODES = {
 }
 
 
-@router.get("/recent-traces", dependencies=[Depends(require_admin_token)])
+@router.get("/recent-traces", dependencies=[Depends(require_admin_access)])
 def recent_traces(node: str = "evaluator", limit: int = 50) -> dict[str, Any]:
     """Return the most recent ``generation_traces`` rows for a node.
 
@@ -2925,7 +3318,7 @@ def recent_traces(node: str = "evaluator", limit: int = 50) -> dict[str, Any]:
     }
 
 
-@router.get("/metrics", dependencies=[Depends(require_admin_token)])
+@router.get("/metrics", dependencies=[Depends(require_admin_access)])
 def metrics() -> Response:
     """Return Prometheus text exposition for operators."""
     from app.core.metrics import metrics_content_type, metrics_text
@@ -2933,7 +3326,7 @@ def metrics() -> Response:
     return Response(content=metrics_text(), media_type=metrics_content_type())
 
 
-@router.get("/tracer/health", dependencies=[Depends(require_admin_token)])
+@router.get("/tracer/health", dependencies=[Depends(require_admin_access)])
 def tracer_health() -> dict[str, Any]:
     """Return a compact JSON snapshot of local trace write health."""
     from app.core.metrics import tracer_health_snapshot
@@ -2941,7 +3334,7 @@ def tracer_health() -> dict[str, Any]:
     return tracer_health_snapshot()
 
 
-@router.get("/fallback-rates", dependencies=[Depends(require_admin_token)])
+@router.get("/fallback-rates", dependencies=[Depends(require_admin_access)])
 def fallback_rates() -> dict[str, Any]:
     """Return per-kind question/evaluator fallback counters.
 
@@ -2957,7 +3350,7 @@ def fallback_rates() -> dict[str, Any]:
     return {"fallback_counts": question_fallbacks_snapshot()}
 
 
-@router.get("/security/summary", dependencies=[Depends(require_admin_token)])
+@router.get("/security/summary", dependencies=[Depends(require_admin_access)])
 def security_summary() -> dict[str, Any]:
     """Return lightweight counters for security and privacy hardening paths."""
     from app.core.metrics import security_metrics_snapshot
@@ -3181,7 +3574,7 @@ def _skill_usage_stats_payload(row: Any) -> dict[str, Any]:
     }
 
 
-@router.get("/skill-playbooks", dependencies=[Depends(require_admin_token)])
+@router.get("/skill-playbooks", dependencies=[Depends(require_admin_access)])
 def list_skill_playbooks(
     status: str | None = None,
     direction_tag: str | None = None,
@@ -3237,7 +3630,7 @@ def list_skill_playbooks(
     }
 
 
-@router.post("/skill-playbooks/import", dependencies=[Depends(require_admin_token)])
+@router.post("/skill-playbooks/import", dependencies=[Depends(require_admin_access)])
 def import_skill_playbooks(archive_missing: bool = False) -> dict[str, int]:
     from app.services.skill_playbook_import import (
         SkillPlaybookImportError,
@@ -3263,7 +3656,7 @@ def import_skill_playbooks(archive_missing: bool = False) -> dict[str, int]:
     }
 
 
-@router.get("/skill-playbooks/{card_id}", dependencies=[Depends(require_admin_token)])
+@router.get("/skill-playbooks/{card_id}", dependencies=[Depends(require_admin_access)])
 def get_skill_playbook(card_id: str) -> dict[str, Any]:
     from app.models.skill_playbook import SkillPlaybookCard
 
@@ -3275,7 +3668,7 @@ def get_skill_playbook(card_id: str) -> dict[str, Any]:
     return {"skill_playbook": payload}
 
 
-@router.get("/skill-usage-stats", dependencies=[Depends(require_admin_token)])
+@router.get("/skill-usage-stats", dependencies=[Depends(require_admin_access)])
 def list_skill_usage_stats(
     auto_refresh: bool = False,
     limit: int = 100,
@@ -3315,7 +3708,7 @@ def list_skill_usage_stats(
     }
 
 
-@router.post("/skill-usage-stats/refresh", dependencies=[Depends(require_admin_token)])
+@router.post("/skill-usage-stats/refresh", dependencies=[Depends(require_admin_access)])
 def refresh_skill_usage_stats_endpoint() -> dict[str, int]:
     from app.services.skill_usage_stats import refresh_skill_usage_stats
 
@@ -3327,7 +3720,7 @@ def refresh_skill_usage_stats_endpoint() -> dict[str, int]:
     }
 
 
-@router.get("/skill-reward-readiness", dependencies=[Depends(require_admin_token)])
+@router.get("/skill-reward-readiness", dependencies=[Depends(require_admin_access)])
 def get_skill_reward_readiness(auto_refresh: bool = False) -> dict[str, Any]:
     from app.services.skill_usage_stats import (
         build_skill_reward_readiness,
@@ -3342,7 +3735,7 @@ def get_skill_reward_readiness(auto_refresh: bool = False) -> dict[str, Any]:
 
 @router.post(
     "/skill-reward-rollouts/{context_key:path}",
-    dependencies=[Depends(require_admin_token)],
+    dependencies=[Depends(require_admin_access)],
 )
 def set_skill_reward_rollout(
     context_key: str,
@@ -3387,7 +3780,7 @@ def _skill_reward_rollout_payload(row: Any) -> dict[str, Any]:
     }
 
 
-@router.get("/question-seeds", dependencies=[Depends(require_admin_token)])
+@router.get("/question-seeds", dependencies=[Depends(require_admin_access)])
 def list_question_seeds(
     direction_tag: str | None = None,
     role_tag: str | None = None,
@@ -3432,7 +3825,7 @@ def list_question_seeds(
     }
 
 
-@router.post("/question-seeds/import", dependencies=[Depends(require_admin_token)])
+@router.post("/question-seeds/import", dependencies=[Depends(require_admin_access)])
 def import_question_seeds(archive_missing: bool = False) -> dict[str, int]:
     from app.services.question_seed_import import (
         QuestionSeedImportError,
@@ -3461,7 +3854,7 @@ def import_question_seeds(archive_missing: bool = False) -> dict[str, int]:
     }
 
 
-@router.post("/question-seeds/lint", dependencies=[Depends(require_admin_token)])
+@router.post("/question-seeds/lint", dependencies=[Depends(require_admin_access)])
 def lint_question_seeds(strict_quality: bool = False) -> dict[str, Any]:
     from app.services.question_seed_lint import lint_question_seed_dir
 
@@ -3470,7 +3863,7 @@ def lint_question_seeds(strict_quality: bool = False) -> dict[str, Any]:
     return result.as_dict()
 
 
-@router.get("/question-seeds/{seed_id}", dependencies=[Depends(require_admin_token)])
+@router.get("/question-seeds/{seed_id}", dependencies=[Depends(require_admin_access)])
 def get_question_seed(seed_id: str) -> dict[str, Any]:
     from app.models.question_bank import QuestionSeed, QuestionVariant
 
@@ -3494,7 +3887,7 @@ def get_question_seed(seed_id: str) -> dict[str, Any]:
     }
 
 
-@router.get("/question-usages", dependencies=[Depends(require_admin_token)])
+@router.get("/question-usages", dependencies=[Depends(require_admin_access)])
 def list_question_usages(
     limit: int = 100,
     direction_tag: str | None = None,
@@ -3541,7 +3934,7 @@ def list_question_usages(
     }
 
 
-@router.get("/question-usage-stats", dependencies=[Depends(require_admin_token)])
+@router.get("/question-usage-stats", dependencies=[Depends(require_admin_access)])
 def list_question_usage_stats(
     auto_refresh: bool = False,
     limit: int = 100,
@@ -3581,7 +3974,7 @@ def list_question_usage_stats(
     }
 
 
-@router.post("/question-usage-stats/refresh", dependencies=[Depends(require_admin_token)])
+@router.post("/question-usage-stats/refresh", dependencies=[Depends(require_admin_access)])
 def refresh_question_usage_stats_endpoint() -> dict[str, int]:
     from app.services.question_usage_stats import refresh_question_usage_stats
 
@@ -3593,7 +3986,7 @@ def refresh_question_usage_stats_endpoint() -> dict[str, int]:
     }
 
 
-@router.get("/question-reward-readiness", dependencies=[Depends(require_admin_token)])
+@router.get("/question-reward-readiness", dependencies=[Depends(require_admin_access)])
 def get_question_reward_readiness(auto_refresh: bool = False) -> dict[str, Any]:
     from app.services.question_usage_stats import (
         build_question_reward_readiness,
@@ -3608,7 +4001,7 @@ def get_question_reward_readiness(auto_refresh: bool = False) -> dict[str, Any]:
 
 @router.post(
     "/question-reward-rollouts/{scope}/{scope_key:path}",
-    dependencies=[Depends(require_admin_token)],
+    dependencies=[Depends(require_admin_access)],
 )
 def set_question_reward_rollout(
     scope: str,
@@ -3675,7 +4068,7 @@ def _question_reward_rollout_payload(row: Any) -> dict[str, Any]:
     }
 
 
-@router.get("/question-rerank-usages", dependencies=[Depends(require_admin_token)])
+@router.get("/question-rerank-usages", dependencies=[Depends(require_admin_access)])
 def list_question_rerank_usages(limit: int = 100) -> dict[str, Any]:
     from app.models.question_bank import QuestionRerankUsage
 
@@ -3693,7 +4086,7 @@ def list_question_rerank_usages(limit: int = 100) -> dict[str, Any]:
     }
 
 
-@router.get("/question-reviews", dependencies=[Depends(require_admin_token)])
+@router.get("/question-reviews", dependencies=[Depends(require_admin_access)])
 def list_question_reviews(limit: int = 100) -> dict[str, Any]:
     from app.models.question_bank import QuestionReview
 
@@ -3711,7 +4104,7 @@ def list_question_reviews(limit: int = 100) -> dict[str, Any]:
     }
 
 
-@router.post("/question-reviews", dependencies=[Depends(require_admin_token)])
+@router.post("/question-reviews", dependencies=[Depends(require_admin_access)])
 def create_question_review(payload: dict[str, Any]) -> dict[str, Any]:
     from app.models.question_bank import QuestionReview
 
@@ -3813,7 +4206,7 @@ def _set_question_variant_status(variant_id: str, status_value: str) -> dict[str
 
 @router.post(
     "/question-seeds/{seed_id}/disable",
-    dependencies=[Depends(require_admin_token)],
+    dependencies=[Depends(require_admin_access)],
 )
 def disable_question_seed(seed_id: str) -> dict[str, str]:
     return _set_question_seed_status(seed_id, "disabled")
@@ -3821,7 +4214,7 @@ def disable_question_seed(seed_id: str) -> dict[str, str]:
 
 @router.post(
     "/question-seeds/{seed_id}/archive",
-    dependencies=[Depends(require_admin_token)],
+    dependencies=[Depends(require_admin_access)],
 )
 def archive_question_seed(seed_id: str) -> dict[str, str]:
     return _set_question_seed_status(seed_id, "archived")
@@ -3829,7 +4222,7 @@ def archive_question_seed(seed_id: str) -> dict[str, str]:
 
 @router.post(
     "/question-variants/{variant_id}/disable",
-    dependencies=[Depends(require_admin_token)],
+    dependencies=[Depends(require_admin_access)],
 )
 def disable_question_variant(variant_id: str) -> dict[str, str]:
     return _set_question_variant_status(variant_id, "disabled")
@@ -3837,13 +4230,13 @@ def disable_question_variant(variant_id: str) -> dict[str, str]:
 
 @router.post(
     "/question-variants/{variant_id}/archive",
-    dependencies=[Depends(require_admin_token)],
+    dependencies=[Depends(require_admin_access)],
 )
 def archive_question_variant(variant_id: str) -> dict[str, str]:
     return _set_question_variant_status(variant_id, "archived")
 
 
-@router.get("/checkpoint/health", dependencies=[Depends(require_admin_token)])
+@router.get("/checkpoint/health", dependencies=[Depends(require_admin_access)])
 def checkpoint_health() -> dict[str, Any]:
     """Return checkpoint write-latency aggregates per ``(backend, operation)``.
 
@@ -3912,7 +4305,7 @@ def _strategy_promotion_scheduler_snapshot(request: Request) -> dict[str, Any]:
     }
 
 
-@router.get("/strategies", dependencies=[Depends(require_admin_token)])
+@router.get("/strategies", dependencies=[Depends(require_admin_access)])
 def list_strategies_route(request: Request) -> dict[str, Any]:
     """Return strategy memory entries across all admin-visible statuses."""
     from app.models.strategy_memory import StrategyMemory
@@ -3969,17 +4362,17 @@ def _set_strategy_status(strategy_id: str, status_value: str) -> dict[str, str]:
     return {"id": strategy_id, "status": status_value}
 
 
-@router.post("/strategies/{strategy_id}/disable", dependencies=[Depends(require_admin_token)])
+@router.post("/strategies/{strategy_id}/disable", dependencies=[Depends(require_admin_access)])
 def disable_strategy(strategy_id: str) -> dict[str, str]:
     return _set_strategy_status(strategy_id, "disabled")
 
 
-@router.post("/strategies/{strategy_id}/archive", dependencies=[Depends(require_admin_token)])
+@router.post("/strategies/{strategy_id}/archive", dependencies=[Depends(require_admin_access)])
 def archive_strategy(strategy_id: str) -> dict[str, str]:
     return _set_strategy_status(strategy_id, "archived")
 
 
-@router.post("/strategies/import-seeds", dependencies=[Depends(require_admin_token)])
+@router.post("/strategies/import-seeds", dependencies=[Depends(require_admin_access)])
 def import_strategy_seeds() -> dict[str, int]:
     from app.services.strategy_memory_import import import_strategy_seed_dir
 
@@ -4128,7 +4521,7 @@ def _strategy_signal_readiness(
     return "ready_low_confidence"
 
 
-@router.get("/strategy-signals", dependencies=[Depends(require_admin_token)])
+@router.get("/strategy-signals", dependencies=[Depends(require_admin_access)])
 def list_strategy_signals(limit: int = 100) -> dict[str, Any]:
     from app.models.strategy_memory import StrategySignal
 
@@ -4169,7 +4562,7 @@ def list_strategy_signals(limit: int = 100) -> dict[str, Any]:
     }
 
 
-@router.get("/strategy-usages", dependencies=[Depends(require_admin_token)])
+@router.get("/strategy-usages", dependencies=[Depends(require_admin_access)])
 def list_strategy_usages(limit: int = 100) -> dict[str, Any]:
     from app.models.strategy_memory import StrategyMemoryUsage
 
@@ -4213,7 +4606,7 @@ def list_strategy_usages(limit: int = 100) -> dict[str, Any]:
     }
 
 
-@router.get("/strategy-stats", dependencies=[Depends(require_admin_token)])
+@router.get("/strategy-stats", dependencies=[Depends(require_admin_access)])
 def list_strategy_stats(
     limit: int = 100,
     auto_refresh: bool = False,
@@ -4262,7 +4655,7 @@ def list_strategy_stats(
     }
 
 
-@router.get("/strategy-reward-readiness", dependencies=[Depends(require_admin_token)])
+@router.get("/strategy-reward-readiness", dependencies=[Depends(require_admin_access)])
 def list_strategy_reward_readiness(auto_refresh: bool = False) -> dict[str, Any]:
     from app.services.strategy_reward_readiness import (
         build_strategy_reward_readiness,
@@ -4284,7 +4677,7 @@ def list_strategy_reward_readiness(auto_refresh: bool = False) -> dict[str, Any]
 
 @router.post(
     "/strategy-reward-rollouts/{context_key:path}",
-    dependencies=[Depends(require_admin_token)],
+    dependencies=[Depends(require_admin_access)],
 )
 def set_strategy_reward_rollout(
     context_key: str,
@@ -4392,7 +4785,7 @@ def _to_utc_datetime(value: datetime | None) -> datetime | None:
     return value.astimezone(UTC)
 
 
-@router.post("/strategy-stats/refresh", dependencies=[Depends(require_admin_token)])
+@router.post("/strategy-stats/refresh", dependencies=[Depends(require_admin_access)])
 def refresh_strategy_stats() -> dict[str, int]:
     from app.services.strategy_memory_stats import refresh_strategy_memory_stats
 
@@ -4401,7 +4794,7 @@ def refresh_strategy_stats() -> dict[str, int]:
     return {"refreshed": result.refreshed, "deleted": result.deleted}
 
 
-@router.post("/strategy-promotion/run", dependencies=[Depends(require_admin_token)])
+@router.post("/strategy-promotion/run", dependencies=[Depends(require_admin_access)])
 def run_strategy_promotion() -> dict[str, int]:
     from app.tasks.strategy_promotion_tasks import run_strategy_promotion_now
 
@@ -4410,7 +4803,7 @@ def run_strategy_promotion() -> dict[str, int]:
 
 @router.get(
     "/failure-category-stats",
-    dependencies=[Depends(require_admin_token)],
+    dependencies=[Depends(require_admin_access)],
 )
 def failure_category_overlap(limit: int = 200) -> dict[str, int]:
     """LLM-output vs keyword-inferred ``failure_categories`` overlap.
@@ -4432,7 +4825,7 @@ def failure_category_overlap(limit: int = 200) -> dict[str, int]:
 
 @router.get(
     "/interview-sessions/{session_id}/workflow-chain",
-    dependencies=[Depends(require_admin_token)],
+    dependencies=[Depends(require_admin_access)],
 )
 def get_workflow_decision_chain(
     session_id: str,
@@ -4528,7 +4921,7 @@ def get_workflow_decision_chain(
 
 @router.get(
     "/rag/eval",
-    dependencies=[Depends(require_admin_token)],
+    dependencies=[Depends(require_admin_access)],
 )
 def rag_evaluation_summary(
     since: str = "7d",
@@ -4616,7 +5009,7 @@ _VALID_ANNOTATION_TYPES = {"bad_question", "wrong_score", "rag_miss", "verifier_
 _VALID_VERDICTS = {"flagged", "approved", "corrected"}
 
 
-@router.post("/annotations", dependencies=[Depends(require_admin_token)])
+@router.post("/annotations", dependencies=[Depends(require_admin_access)])
 def create_annotation(body: dict[str, Any]) -> dict[str, Any]:
     """Create a human review annotation on a trace row."""
     from app.models import GenerationTrace, TraceAnnotation, get_session
@@ -4691,7 +5084,7 @@ def create_annotation(body: dict[str, Any]) -> dict[str, Any]:
     return {"id": ann_id, "ok": True}
 
 
-@router.get("/annotations", dependencies=[Depends(require_admin_token)])
+@router.get("/annotations", dependencies=[Depends(require_admin_access)])
 def list_annotations(
     session_id: str | None = None,
     annotation_type: str | None = None,
@@ -4730,7 +5123,7 @@ def list_annotations(
     }
 
 
-@router.get("/annotations/stats", dependencies=[Depends(require_admin_token)])
+@router.get("/annotations/stats", dependencies=[Depends(require_admin_access)])
 def annotation_stats() -> dict[str, Any]:
     """Aggregate annotation counts by type and verdict."""
     from sqlalchemy import func

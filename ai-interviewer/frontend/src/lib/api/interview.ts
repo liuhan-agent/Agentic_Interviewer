@@ -2,6 +2,7 @@ import { ApiError, request } from "./client";
 import { apiUrl } from "@/lib/config";
 import type {
   AnswerRequest,
+  ClaimSessionResponse,
   DeleteSessionResponse,
   GetReportResponse,
   HintRequest,
@@ -35,6 +36,7 @@ import { buildLLMPayload } from "@/lib/llm-config";
 import {
   getRecoveryToken,
   getSessionToken,
+  upsertEntry,
   writeSessionToken,
 } from "@/lib/storage/interviewHistory";
 
@@ -147,6 +149,29 @@ export function recoverSession(
     method: "POST",
     body: { recovery_token: recoveryToken },
   });
+}
+
+export async function claimSession(sessionId: string): Promise<ClaimSessionResponse> {
+  const claimed = await request<ClaimSessionResponse>(
+    `${BASE}/sessions/${encodeURIComponent(sessionId)}/claim`,
+    {
+      method: "POST",
+      headers: sessionHeaders(sessionId),
+    },
+  );
+  writeSessionToken(
+    sessionId,
+    claimed.session_token,
+    claimed.session_token_expires_at,
+  );
+  upsertEntry({
+    sessionId,
+    ownerUserId: claimed.owner_user_id,
+    ownerClaimedAt: claimed.owner_claimed_at ?? new Date().toISOString(),
+    recoveryToken: claimed.recovery_token,
+    recoveryTokenExpiresAt: claimed.recovery_token_expires_at,
+  });
+  return claimed;
 }
 
 /**

@@ -36,9 +36,16 @@ def test_init_db_adds_durable_hitl_columns_to_existing_sqlite(monkeypatch, tmp_p
     columns = {col["name"] for col in inspect(engine).get_columns("interview_sessions")}
     assert {
         "session_token_hash",
+        "owner_user_id",
+        "owner_claimed_at",
         "current_question",
         "llm_config_meta",
         "turn_idx",
         "asked_turn",
         "enable_video_analysis",
     } <= columns
+
+    tables = set(inspect(engine).get_table_names())
+    assert "user_credit_accounts" in tables
+    assert "user_credit_ledger" in tables
+    assert "user_credit_requests" in tables

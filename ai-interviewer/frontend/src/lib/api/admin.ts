@@ -103,6 +103,9 @@ export interface InterviewSessionHistoryItem {
   job_level?: string | null;
   mode?: string | null;
   status: string;
+  owner_user_id?: number | null;
+  owner_email?: string | null;
+  owner_status?: string | null;
   turn_idx?: number | null;
   asked_turn?: number | null;
   created_at?: string | null;
@@ -149,6 +152,135 @@ export interface InterviewSessionHistoryFilters {
   hasReport?: boolean;
   since?: string;
   query?: string;
+}
+
+export interface AdminCreditLedgerEntry {
+  id: number;
+  user_id: number;
+  delta: number;
+  kind: string;
+  external_ref: string;
+  session_id?: string | null;
+  reason: string;
+  metadata?: Record<string, unknown> | null;
+  balance_after: number;
+  admin_note?: string | null;
+  created_at?: string | null;
+}
+
+export interface AdminUserCredit {
+  user_id: number;
+  email: string;
+  status: string;
+  role: string;
+  balance: number;
+  free_grant_version?: string | null;
+  created_at?: string | null;
+  updated_at?: string | null;
+}
+
+export interface AdminUserCreditsResponse {
+  count: number;
+  total_count: number;
+  limit: number;
+  offset: number;
+  users: AdminUserCredit[];
+}
+
+export interface AdminUserCreditLedgerResponse {
+  user_id: number;
+  balance: number;
+  count: number;
+  total_count: number;
+  limit: number;
+  offset: number;
+  entries: AdminCreditLedgerEntry[];
+}
+
+export interface AdminCreditAdjustmentResponse {
+  user_id: number;
+  balance: number;
+  entry: AdminCreditLedgerEntry;
+}
+
+export type AdminCreditRequestStatus = "pending" | "approved" | "rejected";
+
+export interface AdminCreditRequest {
+  id: number;
+  user_id: number;
+  user_email?: string;
+  requested_amount: number;
+  reason: string;
+  status: AdminCreditRequestStatus;
+  decision_reason?: string | null;
+  decided_by_user_id?: number | null;
+  decided_at?: string | null;
+  credit_ledger_entry_id?: number | null;
+  created_at?: string | null;
+  updated_at?: string | null;
+}
+
+export interface AdminCreditRequestsResponse {
+  count: number;
+  total_count: number;
+  limit: number;
+  offset: number;
+  requests: AdminCreditRequest[];
+}
+
+export interface AdminCreditRequestDecisionResponse {
+  request: AdminCreditRequest;
+  credit_ledger_entry: AdminCreditLedgerEntry | null;
+}
+
+export interface AdminUserItem {
+  id: number;
+  email: string;
+  role: string;
+  status: string;
+  email_verified: boolean;
+  created_at?: string | null;
+  updated_at?: string | null;
+  last_seen_at?: string | null;
+  credit_balance: number;
+  interview_session_count: number;
+}
+
+export interface AdminUserListResponse {
+  count: number;
+  total_count: number;
+  limit: number;
+  offset: number;
+  users: AdminUserItem[];
+}
+
+export interface AdminUserInterviewSessionSummary {
+  session_id: string;
+  status: string;
+  created_at?: string | null;
+  updated_at?: string | null;
+  job_title?: string | null;
+  candidate_name?: string | null;
+  job_level?: string | null;
+  mode?: string | null;
+  has_report?: boolean;
+  overall_score?: number | null;
+  growth_signal?: string | null;
+}
+
+export interface AdminUserDetail {
+  user: AdminUserItem;
+  credit: {
+    balance: number;
+    free_grant_version?: string | null;
+    updated_at?: string | null;
+  };
+  recent_credit_entries: AdminCreditLedgerEntry[];
+  recent_interview_sessions: AdminUserInterviewSessionSummary[];
+}
+
+export interface AdminUserStatusResponse {
+  user: AdminUserItem;
 }
 
 export interface TraceExplorerNode {
@@ -740,6 +872,7 @@ export interface BackendHealth {
 // ---------------------------------------------------------------------------
 
 const ADMIN_TOKEN_KEY = "admin-token";
+export const ADMIN_TOKEN_EVENT = "agentic-interviewer:admin-token";
 
 export function loadAdminToken(): string {
   if (typeof window === "undefined") return "";
@@ -750,10 +883,15 @@ export function loadAdminToken(): string {
   }
 }
 
+export function hasAdminToken(): boolean {
+  return loadAdminToken().trim().length > 0;
+}
+
 export function saveAdminToken(token: string): void {
   if (typeof window === "undefined") return;
   try {
     window.sessionStorage.setItem(ADMIN_TOKEN_KEY, token);
+    window.dispatchEvent(new Event(ADMIN_TOKEN_EVENT));
   } catch {
     /* ignore */
   }
@@ -764,11 +902,16 @@ export function saveAdminToken(token: string): void {
 // when the operator forgot to configure ``API_TOKEN`` in .env.
 // ---------------------------------------------------------------------------
 
-async function adminGet<T>(path: string, signal?: AbortSignal): Promise<T> {
-  const token = loadAdminToken();
+async function adminGet<T>(
+  path: string,
+  signal?: AbortSignal,
+  tokenOverride?: string,
+): Promise<T> {
+  const token = tokenOverride ?? loadAdminToken();
   const res = await fetch(apiUrl(path), {
     signal,
     cache: "no-store",
+    credentials: "include",
     headers: token ? { Authorization: `Bearer ${token}` } : undefined,
   });
   if (res.status === 401) {
@@ -784,6 +927,10 @@ async function adminGet<T>(path: string, signal?: AbortSignal): Promise<T> {
     throw new Error(`${res.status}: ${body || res.statusText}`);
   }
   return (await res.json()) as T;
+}
+
+export async function validateAdminAccess(token?: string): Promise<void> {
+  await adminGet<unknown>("/admin/security/summary", undefined, token?.trim());
 }
 
 async function publicGet<T>(path: string, signal?: AbortSignal): Promise<T> {
@@ -802,6 +949,7 @@ async function adminDelete<T>(path: string): Promise<T> {
   const token = loadAdminToken();
   const res = await fetch(apiUrl(path), {
     method: "DELETE",
+    credentials: "include",
     headers: token ? { Authorization: `Bearer ${token}` } : undefined,
   });
   if (res.status === 401) {
@@ -879,6 +1027,115 @@ export function getInterviewSessionsHistory(
   return adminGet<InterviewSessionHistory>(
     `/admin/interview-sessions${qs ? `?${qs}` : ""}`,
     signal,
+  );
+}
+
+export function getAdminUserCredits(
+  signal?: AbortSignal,
+  options?: { email?: string; offset?: number; limit?: number },
+): Promise<AdminUserCreditsResponse> {
+  const params = new URLSearchParams();
+  if (options?.email) params.set("email", options.email);
+  if (options?.offset) params.set("offset", String(options.offset));
+  if (options?.limit) params.set("limit", String(options.limit));
+  const qs = params.toString();
+  return adminGet<AdminUserCreditsResponse>(
+    `/api/v1/admin/user-credits${qs ? `?${qs}` : ""}`,
+    signal,
+  );
+}
+
+export function getAdminUsers(
+  signal?: AbortSignal,
+  options?: {
+    email?: string;
+    status?: string;
+    role?: string;
+    offset?: number;
+    limit?: number;
+  },
+): Promise<AdminUserListResponse> {
+  const params = new URLSearchParams();
+  if (options?.email) params.set("email", options.email);
+  if (options?.status) params.set("status", options.status);
+  if (options?.role) params.set("role", options.role);
+  if (options?.offset) params.set("offset", String(options.offset));
+  if (options?.limit) params.set("limit", String(options.limit));
+  const qs = params.toString();
+  return adminGet<AdminUserListResponse>(
+    `/api/v1/admin/users${qs ? `?${qs}` : ""}`,
+    signal,
+  );
+}
+
+export function getAdminUserDetail(
+  userId: number,
+  signal?: AbortSignal,
+): Promise<AdminUserDetail> {
+  return adminGet<AdminUserDetail>(
+    `/api/v1/admin/users/${encodeURIComponent(String(userId))}`,
+    signal,
+  );
+}
+
+export function updateAdminUserStatus(
+  userId: number,
+  input: { status: "active" | "disabled"; reason: string },
+): Promise<AdminUserStatusResponse> {
+  return adminPost<AdminUserStatusResponse>(
+    `/api/v1/admin/users/${encodeURIComponent(String(userId))}/status`,
+    input,
+  );
+}
+
+export function getAdminUserCreditLedger(
+  userId: number,
+  signal?: AbortSignal,
+): Promise<AdminUserCreditLedgerResponse> {
+  return adminGet<AdminUserCreditLedgerResponse>(
+    `/api/v1/admin/users/${encodeURIComponent(String(userId))}/credit-ledger`,
+    signal,
+  );
+}
+
+export function adjustAdminUserCredits(
+  userId: number,
+  input: { amount_delta: number; reason: string; admin_note?: string | null },
+): Promise<AdminCreditAdjustmentResponse> {
+  return adminPost<AdminCreditAdjustmentResponse>(
+    `/api/v1/admin/users/${encodeURIComponent(String(userId))}/credit-adjustments`,
+    input,
+  );
+}
+
+export function getAdminCreditRequests(
+  signal?: AbortSignal,
+  options?: {
+    email?: string;
+    status?: string;
+    offset?: number;
+    limit?: number;
+  },
+): Promise<AdminCreditRequestsResponse> {
+  const params = new URLSearchParams();
+  if (options?.email) params.set("email", options.email);
+  if (options?.status) params.set("status", options.status);
+  if (options?.offset) params.set("offset", String(options.offset));
+  if (options?.limit) params.set("limit", String(options.limit));
+  const qs = params.toString();
+  return adminGet<AdminCreditRequestsResponse>(
+    `/api/v1/admin/credit-requests${qs ? `?${qs}` : ""}`,
+    signal,
+  );
+}
+
+export function decideAdminCreditRequest(
+  requestId: number,
+  input: { status: "approved" | "rejected"; reason: string },
+): Promise<AdminCreditRequestDecisionResponse> {
+  return adminPost<AdminCreditRequestDecisionResponse>(
+    `/api/v1/admin/credit-requests/${encodeURIComponent(String(requestId))}/decision`,
+    input,
   );
 }
 
@@ -1859,6 +2116,7 @@ async function adminPost<T>(path: string, body: unknown): Promise<T> {
   const res = await fetch(apiUrl(path), {
     method: "POST",
     cache: "no-store",
+    credentials: "include",
     headers: {
       "Content-Type": "application/json",
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
