@@ -8,6 +8,7 @@ import {
   CheckCircle2,
   Copy,
   FileText,
+  GitBranch,
   Loader2,
   Play,
   Sparkles,
@@ -2249,67 +2250,114 @@ function Actions({
   }
 
   return (
-    <div className="flex flex-wrap items-center gap-2">
-      <Button asChild variant="outline" className="gap-2">
-        <PendingNavigationLink href={`/interview/${sessionId}`}>
-          <ArrowLeft className="h-4 w-4" />
-          返回对话记录
-        </PendingNavigationLink>
-      </Button>
-      <Button asChild className="gap-2 bg-emerald-600 hover:bg-emerald-500 text-white">
-        <PendingNavigationLink href="/interview/setup">
-          <Play className="h-4 w-4" />
-          开始新面试
-        </PendingNavigationLink>
-      </Button>
-      {weakPracticeHref && (
-        <Button asChild className="gap-2 bg-emerald-600 hover:bg-emerald-500 text-white">
-          <PendingNavigationLink href={weakPracticeHref}>
-            <Target className="h-4 w-4" />
-            针对薄弱点专项练习
+    <div className="flex flex-col gap-3">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <Button asChild variant="outline" className="w-fit gap-2">
+          <PendingNavigationLink href={`/interview/${sessionId}`}>
+            <ArrowLeft className="h-4 w-4" />
+            返回对话记录
           </PendingNavigationLink>
         </Button>
-      )}
-      <Button asChild variant="secondary" className="gap-2">
-        <PendingNavigationLink href={`/interview/${sessionId}/replay`}>
-          <Sparkles className="h-4 w-4" />
-          查看训练回放
-        </PendingNavigationLink>
-      </Button>
-      <TooltipProvider delayDuration={150}>
-        <UiTooltip>
-          <TooltipTrigger asChild>
-            <Button
-              variant="outline"
-              size="icon"
-              aria-label="复制报告摘要"
-              disabled={!report}
-              onClick={() => void handleCopySummary()}
-            >
-              <Copy className="h-4 w-4" />
+        <TooltipProvider delayDuration={150}>
+          <div className="flex items-center gap-1.5" aria-label="报告工具">
+            <UiTooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant="outline"
+                  size="icon"
+                  aria-label="复制报告摘要"
+                  disabled={!report}
+                  onClick={() => void handleCopySummary()}
+                >
+                  <Copy className="h-4 w-4" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>
+                <p>复制报告摘要</p>
+              </TooltipContent>
+            </UiTooltip>
+            <UiTooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  aria-label="导出 Markdown"
+                  disabled={!report}
+                  onClick={handleExportMarkdown}
+                >
+                  <FileText className="h-4 w-4" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>
+                <p>导出 Markdown</p>
+              </TooltipContent>
+            </UiTooltip>
+          </div>
+        </TooltipProvider>
+      </div>
+      <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
+        <nav
+          aria-label="复盘视图"
+          className="flex w-full min-w-0 flex-wrap gap-1 rounded-lg border bg-muted/20 p-1 sm:w-fit"
+        >
+          <Button
+            type="button"
+            variant="secondary"
+            aria-current="page"
+            className="h-9 flex-1 cursor-default gap-2 px-3 shadow-none hover:bg-secondary sm:flex-none"
+          >
+            <CheckCircle2 className="h-4 w-4" />
+            报告
+          </Button>
+          <Button
+            asChild
+            variant="ghost"
+            className="h-9 flex-1 gap-2 px-3 sm:flex-none"
+          >
+            <PendingNavigationLink href={`/interview/${sessionId}/replay`}>
+              <Sparkles className="h-4 w-4" />
+              训练回放
+            </PendingNavigationLink>
+          </Button>
+          <Button
+            asChild
+            variant="ghost"
+            className="h-9 flex-1 gap-2 px-3 sm:flex-none"
+          >
+            <PendingNavigationLink href={`/interview/${sessionId}/trace`}>
+              <GitBranch className="h-4 w-4" />
+              Trace
+            </PendingNavigationLink>
+          </Button>
+        </nav>
+        <div
+          className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center xl:justify-end"
+          aria-label="下一步"
+        >
+          {weakPracticeHref && (
+            <Button asChild className="gap-2 bg-emerald-600 hover:bg-emerald-500 text-white">
+              <PendingNavigationLink href={weakPracticeHref}>
+                <Target className="h-4 w-4" />
+                针对薄弱点专项练习
+              </PendingNavigationLink>
             </Button>
-          </TooltipTrigger>
-          <TooltipContent>
-            <p>复制报告摘要</p>
-          </TooltipContent>
-        </UiTooltip>
-        <UiTooltip>
-          <TooltipTrigger asChild>
-            <Button
-              variant="ghost"
-              size="icon"
-              aria-label="导出 Markdown"
-              disabled={!report}
-              onClick={handleExportMarkdown}
-            >
-              <FileText className="h-4 w-4" />
-            </Button>
-          </TooltipTrigger>
-          <TooltipContent>
-            <p>导出 Markdown</p>
-          </TooltipContent>
-        </UiTooltip>
-      </TooltipProvider>
+          )}
+          <Button
+            asChild
+            variant={weakPracticeHref ? "outline" : "default"}
+            className={
+              weakPracticeHref
+                ? "gap-2"
+                : "gap-2 bg-emerald-600 hover:bg-emerald-500 text-white"
+            }
+          >
+            <PendingNavigationLink href="/interview/setup">
+              <Play className="h-4 w-4" />
+              开始新面试
+            </PendingNavigationLink>
+          </Button>
+        </div>
+      </div>
     </div>
   );
 }

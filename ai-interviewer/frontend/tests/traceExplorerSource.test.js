@@ -11,20 +11,57 @@ function read(relPath) {
 
 test("admin api exposes trace explorer client", () => {
   const api = read("src/lib/api/admin.ts");
+  const traceTypes = read("src/lib/api/trace.ts");
 
   assert.match(api, /TraceExplorerResponse/);
   assert.match(api, /TraceExplorerNode/);
   assert.match(api, /getTraceExplorer/);
   assert.match(api, /TraceDiagnostics/);
-  assert.match(api, /trace_diagnostics/);
+  assert.match(api, /from "@\/lib\/api\/trace"/);
+  assert.match(traceTypes, /trace_diagnostics/);
   assert.match(api, /generation_trace_id/);
-  assert.match(api, /node_count_total/);
-  assert.match(api, /node_type_counts/);
-  assert.match(api, /node_type_aliases/);
-  assert.match(api, /fallback_trace_count/);
-  assert.match(api, /turn_count/);
-  assert.match(api, /nodes_has_more/);
+  assert.match(traceTypes, /node_count_total/);
+  assert.match(traceTypes, /node_type_counts/);
+  assert.match(traceTypes, /node_type_aliases/);
+  assert.match(traceTypes, /fallback_trace_count/);
+  assert.match(traceTypes, /turn_count/);
+  assert.match(traceTypes, /nodes_has_more/);
   assert.ok(api.includes("/admin/interview-sessions/${encodeURIComponent(sessionId)}/traces"));
+});
+
+test("interview api exposes session-owned trace client", () => {
+  const api = read("src/lib/api/interview.ts");
+
+  assert.match(api, /getSessionTrace/);
+  assert.match(api, /TraceExplorerResponse/);
+  assert.ok(api.includes("/sessions/${encodeURIComponent(sessionId)}/trace"));
+  assert.match(api, /headers: sessionHeaders\(sessionId\)/);
+  assert.match(api, /withSessionRecovery\(sessionId/);
+});
+
+test("session trace page uses owner wrapper without admin access gate", () => {
+  const page = read("src/app/interview/[sessionId]/trace/page.tsx");
+  const component = read("src/components/admin/TraceExplorer.tsx");
+
+  assert.match(page, /SessionTraceExplorer/);
+  assert.doesNotMatch(page, /AdminAccessGate/);
+  assert.match(component, /export function SessionTraceExplorer/);
+  assert.match(component, /export function TraceExplorerView/);
+  assert.match(component, /audience="owner"/);
+  assert.match(component, /showAdminControls=\{false\}/);
+  assert.match(component, /showAdminControls && initialData\.trace_health === "missing"/);
+  assert.match(component, /showAdminControls\s*\?\s*buildLangSmithRunUrl/);
+  assert.match(component, /showAdminControls && <NodeTimingBar/);
+  assert.match(component, /showAdminControls && annotating/);
+  assert.match(component, /<RawTracePayloadDetails rawPayload=\{rawPayload\}/);
+});
+
+test("report view links to the session trace beside replay", () => {
+  const report = read("src/components/interview/ReportView.tsx");
+
+  assert.ok(report.includes("href={`/interview/${sessionId}/replay`}"));
+  assert.ok(report.includes("href={`/interview/${sessionId}/trace`}"));
+  assert.match(report, /GitBranch/);
 });
 
 test("trace explorer page and component expose workflow states", () => {
@@ -888,6 +925,17 @@ test("trace explorer groupByTurn defends against non-monotonic ordering", () => 
   assert.match(component, /reward_update/);
   assert.match(component, /turn_finalize/);
   assert.match(component, /route_decision/);
+});
+
+test("trace explorer keeps owner-projected turn_finalize in its stored turn", () => {
+  const component = read("src/components/admin/TraceExplorer.tsx");
+  const service = read("../backend/app/services/session_trace.py");
+
+  assert.match(component, /node\.node === "turn_finalize"/);
+  assert.match(component, /return node\.turn_idx;/);
+  assert.match(service, /"phase"/);
+  assert.match(service, /"reason"/);
+  assert.match(service, /"next_step"/);
 });
 
 test("trace explorer can filter and mark evaluator fallback traces", () => {
