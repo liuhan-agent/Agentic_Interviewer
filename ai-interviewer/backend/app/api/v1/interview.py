@@ -169,6 +169,7 @@ from app.services.session_replay import (
     build_resume_history,
     build_session_replay,
 )
+from app.services.session_trace import build_session_trace_payload
 from app.services.user_auth import get_optional_user
 from app.services.user_credits import (
     InsufficientCreditsError,
@@ -2347,6 +2348,29 @@ def get_replay(
             status_code=409,
             detail="replay is only available for completed sessions",
         ) from e
+
+
+@router.get("/sessions/{session_id}/trace")
+def get_session_trace(
+    session_id: SessionIdPath,
+    request: Request,
+    session_token: str | None = Header(default=None, alias="X-Session-Token"),
+    limit: int = Query(default=100, ge=1, le=300),
+    offset: int = Query(default=0, ge=0, le=10_000),
+) -> dict[str, Any]:
+    manager = get_session_manager()
+    _require_session_access(
+        session_id,
+        request,
+        session_token,
+        handle=manager.get(session_id),
+    )
+    return build_session_trace_payload(
+        session_id=session_id,
+        limit=limit,
+        offset=offset,
+        projection="owner",
+    )
 
 
 @router.get("/sessions/{session_id}/resume")

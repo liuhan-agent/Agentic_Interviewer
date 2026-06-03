@@ -20,18 +20,29 @@ import { Skeleton } from "@/components/ui/skeleton";
 import {
   getTraceExplorer,
   getTracerHealth,
-  type LangSmithAdminMeta,
-  type TraceDiagnostics,
-  type TraceExplorerNode,
-  type TraceExplorerResponse,
-  type TraceHealth,
   type TracerHealthSnapshot,
 } from "@/lib/api/admin";
+import { getSessionTrace } from "@/lib/api/interview";
+import type {
+  LangSmithAdminMeta,
+  TraceDiagnostics,
+  TraceExplorerNode,
+  TraceExplorerResponse,
+  TraceHealth,
+} from "@/lib/api/trace";
 
 type Fetch =
   | { phase: "loading" }
   | { phase: "ready"; data: TraceExplorerResponse }
   | { phase: "error"; message: string };
+
+type TraceFetcher = (
+  sessionId: string,
+  signal?: AbortSignal,
+  options?: { offset?: number; limit?: number },
+) => Promise<TraceExplorerResponse>;
+
+type TraceExplorerAudience = "admin" | "owner";
 
 const healthLabel: Record<TraceHealth, string> = {
   missing: "缺失",
@@ -48,13 +59,61 @@ export function TraceExplorer({
   focusNode?: string;
   focusDimension?: string;
 }) {
+  return (
+    <TraceExplorerLoader
+      sessionId={sessionId}
+      focusNode={focusNode}
+      focusDimension={focusDimension}
+      fetchTrace={getTraceExplorer}
+      audience="admin"
+      showAdminControls={true}
+    />
+  );
+}
+
+export function SessionTraceExplorer({
+  sessionId,
+  focusNode,
+  focusDimension,
+}: {
+  sessionId: string;
+  focusNode?: string;
+  focusDimension?: string;
+}) {
+  return (
+    <TraceExplorerLoader
+      sessionId={sessionId}
+      focusNode={focusNode}
+      focusDimension={focusDimension}
+      fetchTrace={getSessionTrace}
+      audience="owner"
+      showAdminControls={false}
+    />
+  );
+}
+
+function TraceExplorerLoader({
+  sessionId,
+  focusNode,
+  focusDimension,
+  fetchTrace,
+  audience,
+  showAdminControls,
+}: {
+  sessionId: string;
+  focusNode?: string;
+  focusDimension?: string;
+  fetchTrace: TraceFetcher;
+  audience: TraceExplorerAudience;
+  showAdminControls: boolean;
+}) {
   const [state, setState] = useState<Fetch>({ phase: "loading" });
   const [retryKey, setRetryKey] = useState(0);
 
   useEffect(() => {
     const ctrl = new AbortController();
     setState({ phase: "loading" });
-    getTraceExplorer(sessionId, ctrl.signal)
+    fetchTrace(sessionId, ctrl.signal)
       .then((data) => {
         if (!ctrl.signal.aborted) setState({ phase: "ready", data });
       })
@@ -64,9 +123,9 @@ export function TraceExplorer({
           phase: "error",
           message: err instanceof Error ? err.message : String(err),
         });
-      });
+    });
     return () => ctrl.abort();
-  }, [sessionId, retryKey]);
+  }, [fetchTrace, sessionId, retryKey]);
 
   if (state.phase === "loading") {
     return (
@@ -94,7 +153,7 @@ export function TraceExplorer({
               <RefreshCw className="h-3.5 w-3.5" />
               重试
             </Button>
-            <BackLinks sessionId={sessionId} />
+            <BackLinks sessionId={sessionId} audience={audience} />
           </div>
         </CardContent>
       </Card>
@@ -102,11 +161,14 @@ export function TraceExplorer({
   }
 
   return (
-    <TraceExplorerBody
+    <TraceExplorerView
       data={state.data}
       sessionId={sessionId}
       focusNode={focusNode}
       focusDimension={focusDimension}
+      fetchTrace={fetchTrace}
+      audience={audience}
+      showAdminControls={showAdminControls}
     />
   );
 }
@@ -279,16 +341,22 @@ const PROMPT_SLOT_DEFINITIONS: PromptSlotDefinition[] = [
 
 const PROMPT_SLOT_PREVIEW_LIMIT = 420;
 
-function TraceExplorerBody({
+export function TraceExplorerView({
   data: initialData,
   sessionId,
   focusNode,
   focusDimension,
+  fetchTrace,
+  audience,
+  showAdminControls,
 }: {
   data: TraceExplorerResponse;
   sessionId: string;
   focusNode?: string;
   focusDimension?: string;
+  fetchTrace: TraceFetcher;
+  audience: TraceExplorerAudience;
+  showAdminControls: boolean;
 }) {
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -334,7 +402,7 @@ function TraceExplorerBody({
     setLoadingMore(true);
     setLoadMoreError(null);
     const ctrl = new AbortController();
-    getTraceExplorer(sessionId, ctrl.signal, { offset: allNodes.length })
+    fetchTrace(sessionId, ctrl.signal, { offset: allNodes.length })
       .then((resp) => {
         if (ctrl.signal.aborted) return;
         setAllNodes((prev) => [...prev, ...resp.nodes]);
@@ -345,7 +413,7 @@ function TraceExplorerBody({
         setLoadMoreError(err instanceof Error ? err.message : String(err));
       })
       .finally(() => setLoadingMore(false));
-  }, [sessionId, allNodes.length, hasMore, loadingMore]);
+  }, [fetchTrace, sessionId, allNodes.length, hasMore, loadingMore]);
 
   const filteredNodes = useMemo(() => {
     const q = searchText.trim().toLowerCase();
@@ -465,9 +533,10 @@ function TraceExplorerBody({
         nodeTypeCounts={nodeTypeCounts}
         totalNodeCount={totalNodeCount}
         turnCount={initialData.turn_count ?? countTurns(allNodes)}
+        audience={audience}
       />
 
-      {initialData.trace_health === "missing" && (
+      {showAdminControls && initialData.trace_health === "missing" && (
         <MissingTraceDiagnostics
           sessionId={initialData.session_id}
           status={initialData.status}
@@ -574,6 +643,7 @@ function TraceExplorerBody({
               sessionId={initialData.session_id}
               traceId={initialData.trace_id ?? initialData.session_id}
               langsmith={initialData.langsmith ?? null}
+              showAdminControls={showAdminControls}
               focusedNodeId={focusedNodeId}
               prefersReducedMotion={prefersReducedMotion}
               onSelectNode={selectNode}
@@ -739,15 +809,23 @@ function MissingTraceDiagnostics({
   );
 }
 
-function BackLinks({ sessionId }: { sessionId: string }) {
+function BackLinks({
+  sessionId,
+  audience = "admin",
+}: {
+  sessionId: string;
+  audience?: TraceExplorerAudience;
+}) {
   return (
     <div className="flex flex-wrap gap-2">
-      <Button asChild variant="outline" size="sm" className="gap-1.5">
-        <PendingNavigationLink href="/admin">
-          <ArrowLeft className="h-3.5 w-3.5" />
-          返回后台
-        </PendingNavigationLink>
-      </Button>
+      {audience === "admin" && (
+        <Button asChild variant="outline" size="sm" className="gap-1.5">
+          <PendingNavigationLink href="/admin">
+            <ArrowLeft className="h-3.5 w-3.5" />
+            返回后台
+          </PendingNavigationLink>
+        </Button>
+      )}
       <Button asChild variant="ghost" size="sm" className="gap-1.5">
         <PendingNavigationLink href={`/interview/${sessionId}/report`}>
           查看报告
@@ -766,6 +844,7 @@ function TraceCommandCenter({
   data,
   diagnostics,
   fallbackTraceCount,
+  audience,
   loadedCount,
   nodeTypeCounts,
   totalNodeCount,
@@ -774,6 +853,7 @@ function TraceCommandCenter({
   data: TraceExplorerResponse;
   diagnostics: TraceDiagnostics | null;
   fallbackTraceCount: number;
+  audience: TraceExplorerAudience;
   loadedCount: number;
   nodeTypeCounts: Record<string, number>;
   totalNodeCount: number;
@@ -809,7 +889,9 @@ function TraceCommandCenter({
           <div className="min-w-0">
             <div className="flex flex-wrap items-center gap-2">
               <GitBranch className="h-4 w-4 text-emerald-400" />
-              <CardTitle className="text-xl">Trace Explorer</CardTitle>
+              <CardTitle className="text-xl">
+                {audience === "owner" ? "Session Trace" : "Trace Explorer"}
+              </CardTitle>
               <Badge variant="outline" className={`font-mono text-[10px] ${healthTone}`}>
                 {healthLabel[data.trace_health]}
               </Badge>
@@ -826,7 +908,7 @@ function TraceCommandCenter({
               {data.session_id}
             </p>
           </div>
-          <BackLinks sessionId={data.session_id} />
+          <BackLinks sessionId={data.session_id} audience={audience} />
         </div>
       </CardHeader>
       <CardContent className="space-y-3">
@@ -942,6 +1024,7 @@ function TraceWorkbench({
   sessionId,
   traceId,
   langsmith,
+  showAdminControls,
   focusedNodeId,
   prefersReducedMotion,
   onSelectNode,
@@ -952,6 +1035,7 @@ function TraceWorkbench({
   sessionId: string;
   traceId: string;
   langsmith: LangSmithAdminMeta | null;
+  showAdminControls: boolean;
   focusedNodeId: number | null;
   prefersReducedMotion: boolean;
   onSelectNode: (node: TraceExplorerNode) => void;
@@ -969,6 +1053,7 @@ function TraceWorkbench({
         sessionId={sessionId}
         traceId={traceId}
         langsmith={langsmith}
+        showAdminControls={showAdminControls}
         focused={Boolean(selectedNode && focusedNodeId === selectedNode.id)}
         prefersReducedMotion={prefersReducedMotion}
       />
@@ -1075,6 +1160,7 @@ function TraceNodeDetail({
   sessionId,
   traceId,
   langsmith,
+  showAdminControls,
   focused,
   prefersReducedMotion,
 }: {
@@ -1082,6 +1168,7 @@ function TraceNodeDetail({
   sessionId: string;
   traceId: string;
   langsmith: LangSmithAdminMeta | null;
+  showAdminControls: boolean;
   focused: boolean;
   prefersReducedMotion: boolean;
 }) {
@@ -1107,7 +1194,9 @@ function TraceNodeDetail({
     );
   }
 
-  const langsmithUrl = buildLangSmithRunUrl(node.langsmith_run_id, langsmith);
+  const langsmithUrl = showAdminControls
+    ? buildLangSmithRunUrl(node.langsmith_run_id, langsmith)
+    : null;
   const isFallback = isEvaluatorFallbackTrace(node);
   const rawPayload = {
     payload: node.payload,
@@ -1153,13 +1242,15 @@ function TraceNodeDetail({
           </div>
         </div>
         <div className="flex flex-wrap items-center gap-1.5">
-          {node.action_id && <Badge variant="secondary">{node.action_id}</Badge>}
+          {showAdminControls && node.action_id && (
+            <Badge variant="secondary">{node.action_id}</Badge>
+          )}
           {typeof node.score === "number" && (
             <Badge variant={node.passed ? "success" : "warn"}>
               {node.score.toFixed(1)}
             </Badge>
           )}
-          {typeof node.immediate_reward === "number" && (
+          {showAdminControls && typeof node.immediate_reward === "number" && (
             <Badge variant="outline">reward {node.immediate_reward.toFixed(2)}</Badge>
           )}
           {isFallback && <Badge variant="warn">Evaluator fallback</Badge>}
@@ -1180,11 +1271,15 @@ function TraceNodeDetail({
 
       <div className="mt-3 grid gap-2 text-xs md:grid-cols-3">
         <NodeFact label="轮次" value={isClosingNode ? "收尾阶段" : String(node.turn_idx ?? "session")} />
-        <NodeFact label="上下文" value={node.context_key || "—"} />
-        <NodeFact label="策略" value={node.policy_id || "—"} />
+        {showAdminControls && (
+          <>
+            <NodeFact label="上下文" value={node.context_key || "—"} />
+            <NodeFact label="策略" value={node.policy_id || "—"} />
+          </>
+        )}
         <NodeFact label="创建时间" value={formatTs(node.created_at)} />
       </div>
-      {node.policy_context_keys && node.policy_context_keys.length > 0 && (
+      {showAdminControls && node.policy_context_keys && node.policy_context_keys.length > 0 && (
         <NodeFact label="策略上下文键" value={node.policy_context_keys.join(", ")} />
       )}
 
@@ -1198,7 +1293,7 @@ function TraceNodeDetail({
         <StrategyDecisionSummary node={node} />
       )}
 
-      <NodeTimingBar payload={node.payload} />
+      {showAdminControls && <NodeTimingBar payload={node.payload} />}
 
       <TurnFinalizePanel node={node} />
       <RouteDecisionPanel node={node} />
@@ -1230,19 +1325,21 @@ function TraceNodeDetail({
         <AskQuestionEvidencePanel node={node} />
       )}
 
-      <div className="mt-3 flex items-center gap-2">
-        <RawTracePayloadDetails rawPayload={rawPayload} />
-        <Button
-          variant="ghost"
-          size="sm"
-          className="shrink-0 gap-1 text-[10px]"
-          onClick={openAnnotation}
-        >
-          <FileText className="h-3 w-3" />
-          标注
-        </Button>
-      </div>
-      {annotating && (
+      {showAdminControls && (
+        <div className="mt-3 flex items-center gap-2">
+          <RawTracePayloadDetails rawPayload={rawPayload} />
+          <Button
+            variant="ghost"
+            size="sm"
+            className="shrink-0 gap-1 text-[10px]"
+            onClick={openAnnotation}
+          >
+            <FileText className="h-3 w-3" />
+            标注
+          </Button>
+        </div>
+      )}
+      {showAdminControls && annotating && (
         <TraceAnnotationDialog
           traceId={traceId}
           sessionId={sessionId}
@@ -6718,6 +6815,7 @@ function effectiveTraceTurnKey(
     return typeof node.turn_idx === "number" ? node.turn_idx + 1 : "session";
   }
   if (isTurnFinalizeNode(node.node) && typeof node.turn_idx === "number") {
+    if (node.node === "turn_finalize") return node.turn_idx;
     const payload = recordFromUnknown(node.payload);
     if (payload.phase !== "turn_finalize") return Math.max(0, node.turn_idx - 1);
   }

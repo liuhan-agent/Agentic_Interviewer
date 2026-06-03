@@ -1021,6 +1021,13 @@ _SESSION_ROUTE_AUTH_CASES: list[dict[str, Any]] = [
         "params": None,
     },
     {
+        "id": "GET /trace",
+        "method": "get",
+        "url": "/api/v1/interview/sessions/sess-auth/trace",
+        "json": None,
+        "params": None,
+    },
+    {
         "id": "GET /resume",
         "method": "get",
         "url": "/api/v1/interview/sessions/sess-auth/resume",
