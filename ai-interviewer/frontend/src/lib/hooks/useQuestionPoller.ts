@@ -331,6 +331,13 @@ export function useQuestionPoller(sessionId: string) {
     [sessionId, pollLoop],
   );
 
+  const refreshStatus = useCallback(() => {
+    abortRef.current?.abort();
+    const ctrl = new AbortController();
+    abortRef.current = ctrl;
+    void begin(ctrl);
+  }, [begin]);
+
   useEffect(() => {
     mountedRef.current = true;
     const ctrl = new AbortController();
@@ -360,5 +367,5 @@ export function useQuestionPoller(sessionId: string) {
     void pollLoop(ctrl);
   }, [pollLoop]);
 
-  return { state, afterAnswerSubmitted, afterQuestionRetryRequested };
+  return { state, afterAnswerSubmitted, afterQuestionRetryRequested, refreshStatus };
 }

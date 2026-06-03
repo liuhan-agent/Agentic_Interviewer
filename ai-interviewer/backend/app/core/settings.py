@@ -383,9 +383,10 @@ class Settings(BaseSettings):
     # ------------------------------------------------------------------
     # SessionManager knobs.  ``session_idle_ttl_minutes`` is the TTL
     # after which an abandoned session handle (no poll / no submit) is
-    # auto-cancelled and evicted.  ``session_reaper_interval_seconds``
-    # is how often the reaper thread wakes up.  Setting the TTL to 0
-    # disables reaping entirely.
+    # evicted from memory. Waiting-for-answer sessions stay resumable;
+    # actively running, non-interrupted work is cancelled as a leak guard.
+    # ``session_reaper_interval_seconds`` is how often the reaper thread
+    # wakes up. Setting the TTL to 0 disables reaping entirely.
     # ------------------------------------------------------------------
     session_idle_ttl_minutes: int = 60
     session_reaper_interval_seconds: int = 120

@@ -612,8 +612,17 @@ class SessionManager:
             except Exception as e:  # pragma: no cover - defensive
                 log.warning("session reaper pass failed: %s", e)
 
+    @staticmethod
+    def _is_waiting_for_answer(handle: SessionHandle) -> bool:
+        return bool(handle.question_event.is_set() and handle.current_question)
+
     def _reap_once(self) -> int:
-        """Evict handles idle beyond the configured TTL, cancelling live work first."""
+        """Evict handles idle beyond the configured TTL.
+
+        Waiting-for-answer sessions are already safely checkpointed as
+        interrupts, so reaping them should free memory without converting a
+        resumable network drop into a user-visible cancellation.
+        """
         settings = get_settings()
         ttl = timedelta(minutes=settings.session_idle_ttl_minutes)
         now = datetime.now(UTC)
@@ -633,6 +642,19 @@ class SessionManager:
             )
             if terminal:
                 log.warning("session reaper: evicting idle terminal session %s", sid)
+            elif self._is_waiting_for_answer(handle):
+                log.warning(
+                    "session reaper: evicting idle waiting session %s",
+                    sid,
+                )
+                try:
+                    self._persist_interrupt(
+                        handle,
+                        handle.current_question or {},
+                        handle.turn_idx,
+                    )
+                except Exception as e:
+                    log.warning("session reaper: persist interrupt %s failed: %s", sid, e)
             else:
                 log.warning("session reaper: cancelling idle session %s", sid)
                 try:

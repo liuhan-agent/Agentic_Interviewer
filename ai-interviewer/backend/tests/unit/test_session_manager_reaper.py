@@ -81,6 +81,37 @@ def test_reaper_cancels_then_removes_expired_live_handle(
     assert manager._sessions == {}
 
 
+def test_reaper_evicts_expired_waiting_handle_without_cancelling(
+    ttl_60: None,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    waiting = _expired_handle("sess-waiting")
+    question = {"question": "Continue?", "dimension": "technical_depth"}
+    waiting.current_question = question
+    waiting.turn_idx = 2
+    waiting.question_event.set()
+    manager = _manager_with_handles(waiting)
+    persisted: list[tuple[str, dict, int]] = []
+
+    def fail_cancel(session_id: str, *, join_timeout: float = 5.0) -> bool:
+        raise AssertionError(f"waiting handle should stay resumable: {session_id}")
+
+    def persist_interrupt(
+        handle: SessionHandle,
+        current_question: dict,
+        turn_idx: int,
+    ) -> None:
+        persisted.append((handle.session_id, current_question, turn_idx))
+
+    monkeypatch.setattr(manager, "cancel", fail_cancel)
+    monkeypatch.setattr(manager, "_persist_interrupt", persist_interrupt)
+
+    assert manager._reap_once() == 1
+    assert manager._sessions == {}
+    assert waiting.cancelled is False
+    assert persisted == [("sess-waiting", question, 2)]
+
+
 def test_reaper_keeps_recent_completed_and_running_handles(
     ttl_60: None,
     monkeypatch: pytest.MonkeyPatch,
