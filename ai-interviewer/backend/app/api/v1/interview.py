@@ -60,7 +60,9 @@ from __future__ import annotations
 
 import asyncio
 import concurrent.futures
+import inspect
 import json
+from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from typing import Annotated, Any, Literal
 
@@ -103,6 +105,7 @@ from app.core.settings import get_settings
 from app.core.video_signals_schema import normalize_video_signals
 from app.core.voice_ticket import issue_voice_ticket
 from app.engine.workflow.nodes.self_intro import SELF_INTRO_QUESTION
+from app.models.auth import User
 from app.models.base import get_session as get_db_session
 from app.models.interview_session import InterviewSession
 from app.services.interview_feedback import (
@@ -165,6 +168,13 @@ from app.services.session_replay import (
     ReplayNotReady,
     build_resume_history,
     build_session_replay,
+)
+from app.services.user_auth import get_optional_user
+from app.services.user_credits import (
+    InsufficientCreditsError,
+    current_balance,
+    debit_session_start,
+    refund_session_start,
 )
 from app.voice.tts import get_tts
 
@@ -711,16 +721,123 @@ def _session_setup_snapshot_from_db(session_id: str) -> dict[str, Any] | None:
         return None
 
 
-def _session_token_meta_from_db(session_id: str) -> tuple[str | None, datetime | None]:
+@dataclass(frozen=True)
+class _SessionAccessRecord:
+    exists: bool
+    owner_user_id: int | None = None
+    session_token_hash: str | None = None
+    session_token_expires_at: datetime | None = None
+    recovery_token_hash: str | None = None
+    recovery_token_expires_at: datetime | None = None
+    recovery_token_revoked_at: datetime | None = None
+
+
+def _owner_id(value: Any) -> int | None:
+    if value is None:
+        return None
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return None
+
+
+def _session_access_record_from_db(session_id: str) -> _SessionAccessRecord:
     try:
         with get_db_session() as db:
             row = db.get(InterviewSession, session_id)
             if row is None:
-                return None, None
-            return row.session_token_hash, row.session_token_expires_at
+                return _SessionAccessRecord(exists=False)
+            return _SessionAccessRecord(
+                exists=True,
+                owner_user_id=_owner_id(row.owner_user_id),
+                session_token_hash=row.session_token_hash,
+                session_token_expires_at=row.session_token_expires_at,
+                recovery_token_hash=row.recovery_token_hash,
+                recovery_token_expires_at=row.recovery_token_expires_at,
+                recovery_token_revoked_at=row.recovery_token_revoked_at,
+            )
+    except HTTPException:
+        raise
     except Exception as e:
-        log.warning("session token lookup failed for %s: %s", session_id, e)
-        return None, None
+        log.warning("session access lookup failed for %s: %s", session_id, e)
+        raise HTTPException(status_code=503, detail="session access lookup failed") from e
+
+
+def _session_access_record(
+    session_id: str,
+    handle: Any | None = None,
+    *,
+    include_recovery: bool = False,
+) -> _SessionAccessRecord:
+    owner_user_id = _owner_id(getattr(handle, "owner_user_id", None))
+    session_token_hash = getattr(handle, "session_token_hash", None)
+    session_token_expires_at = getattr(handle, "session_token_expires_at", None)
+    recovery_token_hash = getattr(handle, "recovery_token_hash", None)
+    recovery_token_expires_at = getattr(handle, "recovery_token_expires_at", None)
+    recovery_token_revoked_at = getattr(handle, "recovery_token_revoked_at", None)
+    needs_db = (
+        handle is None
+        or owner_user_id is None
+        or not session_token_hash
+        or (
+            include_recovery
+            and (
+                not recovery_token_hash
+                or recovery_token_expires_at is None
+                or recovery_token_revoked_at is not None
+            )
+        )
+    )
+    exists = handle is not None
+    if needs_db:
+        try:
+            db_record = _session_access_record_from_db(session_id)
+        except HTTPException:
+            has_required_handle_credential = (
+                bool(recovery_token_hash) if include_recovery else bool(session_token_hash)
+            )
+            if (
+                handle is None
+                or get_settings().app_env == "prod"
+                or not has_required_handle_credential
+            ):
+                raise
+            log.warning(
+                "falling back to in-memory session access metadata for %s",
+                session_id,
+            )
+            db_record = _SessionAccessRecord(exists=False)
+        if db_record.exists:
+            exists = True
+            owner_user_id = db_record.owner_user_id
+            session_token_hash = session_token_hash or db_record.session_token_hash
+            session_token_expires_at = (
+                session_token_expires_at or db_record.session_token_expires_at
+            )
+            recovery_token_hash = recovery_token_hash or db_record.recovery_token_hash
+            recovery_token_expires_at = (
+                recovery_token_expires_at or db_record.recovery_token_expires_at
+            )
+            recovery_token_revoked_at = (
+                recovery_token_revoked_at or db_record.recovery_token_revoked_at
+            )
+    return _SessionAccessRecord(
+        exists=exists,
+        owner_user_id=owner_user_id,
+        session_token_hash=session_token_hash,
+        session_token_expires_at=session_token_expires_at,
+        recovery_token_hash=recovery_token_hash,
+        recovery_token_expires_at=recovery_token_expires_at,
+        recovery_token_revoked_at=recovery_token_revoked_at,
+    )
+
+
+def _session_token_meta_from_db(session_id: str) -> tuple[str | None, datetime | None]:
+    try:
+        record = _session_access_record_from_db(session_id)
+        return record.session_token_hash, record.session_token_expires_at
+    except HTTPException:
+        raise
 
 
 def _session_token_hash_from_db(session_id: str) -> str | None:
@@ -728,30 +845,143 @@ def _session_token_hash_from_db(session_id: str) -> str | None:
     return token_hash
 
 
+def _current_user_from_request(request: Request) -> User | None:
+    try:
+        return get_optional_user(request)
+    except Exception as e:
+        log.warning("auth user lookup failed: %s", e)
+        return None
+
+
+def _persist_started_owned_session(
+    *,
+    session_id: str,
+    trace_id: str,
+    initial: dict[str, Any],
+    owner_user_id: int | None,
+    owner_claimed_at: datetime | None,
+    session_token_hash_value: str,
+    session_token_expires_at: datetime,
+    recovery_token_hash_value: str,
+    recovery_token_expires_at: datetime,
+    setup_snapshot: dict[str, Any],
+) -> None:
+    if owner_user_id is None:
+        return
+    candidate = initial.get("candidate") or {}
+    job_spec = initial.get("job_spec") or {}
+    runtime_config = initial.get("runtime_config") or {}
+    try:
+        with get_db_session() as db:
+            row = db.get(InterviewSession, session_id)
+            if row is None:
+                row = InterviewSession(session_id=session_id, trace_id=trace_id)
+                db.add(row)
+            row.owner_user_id = owner_user_id
+            row.owner_claimed_at = owner_claimed_at
+            row.session_token_hash = session_token_hash_value
+            row.session_token_expires_at = session_token_expires_at
+            row.recovery_token_hash = recovery_token_hash_value
+            row.recovery_token_expires_at = recovery_token_expires_at
+            row.candidate_name = candidate.get("name")
+            row.job_title = job_spec.get("title")
+            row.job_level = job_spec.get("level")
+            row.mode = str(initial.get("mode") or "mixed")
+            row.enable_video_analysis = bool(runtime_config.get("enable_video_analysis"))
+            row.status = "running"
+            row.setup_snapshot = setup_snapshot
+    except Exception as e:
+        log.warning("persist started owned session failed for %s: %s", session_id, e)
+
+
 def _require_session_access(
     session_id: str,
-    session_token: str | None,
+    request: Request,
+    credential_token: str | None,
     *,
     handle: Any | None = None,
+    mode: Literal["resource", "claim", "recover"] = "resource",
+) -> User | None:
+    include_recovery = mode == "recover"
+    record = _session_access_record(
+        session_id,
+        handle,
+        include_recovery=include_recovery,
+    )
+    current_user = _current_user_from_request(request)
+
+    if mode == "claim":
+        if current_user is None:
+            raise HTTPException(status_code=401, detail="login required")
+        owner_user_id = record.owner_user_id
+        if owner_user_id is not None and owner_user_id != int(current_user.id):
+            raise HTTPException(status_code=409, detail="session already claimed")
+        _require_session_capability(
+            record,
+            credential_token,
+            allow_dev_legacy_without_token=False,
+        )
+        return current_user
+
+    if record.owner_user_id is not None:
+        if current_user is None:
+            raise HTTPException(status_code=401, detail="login required")
+        if record.owner_user_id != int(current_user.id):
+            raise HTTPException(status_code=403, detail="session owner required")
+        if mode == "recover":
+            _require_recovery_capability(record, credential_token)
+        return current_user
+
+    if mode == "recover":
+        _require_recovery_capability(record, credential_token)
+        return current_user
+
+    _require_session_capability(
+        record,
+        credential_token,
+        allow_dev_legacy_without_token=True,
+    )
+    return current_user
+
+
+def _require_session_capability(
+    record: _SessionAccessRecord,
+    session_token: str | None,
+    *,
+    allow_dev_legacy_without_token: bool,
 ) -> None:
-    token_hash = getattr(handle, "session_token_hash", None)
-    expires_at = getattr(handle, "session_token_expires_at", None)
-    if not token_hash:
-        token_hash, expires_at = _session_token_meta_from_db(session_id)
-    if not token_hash:
-        if get_settings().app_env != "prod":
+    if not record.session_token_hash:
+        if allow_dev_legacy_without_token and get_settings().app_env != "prod":
             return
         raise HTTPException(status_code=401, detail="session token required")
-    if _is_expired(expires_at):
+    if _is_expired(record.session_token_expires_at):
         raise HTTPException(status_code=401, detail="session token expired")
     if not session_token:
         raise HTTPException(status_code=401, detail="session token required")
-    if not verify_session_token(session_token, token_hash):
+    if not verify_session_token(session_token, record.session_token_hash):
         raise HTTPException(status_code=403, detail="invalid session token")
 
 
+def _require_recovery_capability(
+    record: _SessionAccessRecord,
+    recovery_token: str | None,
+) -> None:
+    invalid_detail = "invalid recovery token"
+    if not record.exists or not record.recovery_token_hash:
+        raise HTTPException(status_code=401, detail=invalid_detail)
+    if record.recovery_token_revoked_at is not None:
+        raise HTTPException(status_code=401, detail=invalid_detail)
+    if _is_expired(record.recovery_token_expires_at):
+        raise HTTPException(status_code=401, detail=invalid_detail)
+    if not recovery_token:
+        raise HTTPException(status_code=401, detail=invalid_detail)
+    if not verify_recovery_token(recovery_token, record.recovery_token_hash):
+        raise HTTPException(status_code=401, detail=invalid_detail)
+
+
 def _get_or_recover_session(manager: Any, session_id: str) -> Any | None:
-    handle = manager.get(session_id)
+    get_handle = getattr(manager, "get", None)
+    handle = get_handle(session_id) if callable(get_handle) else None
     if handle is not None:
         return handle
     recover = getattr(manager, "recover_waiting_session", lambda _sid: None)
@@ -764,6 +994,27 @@ def _session_id_in_use(manager: Any, session_id: str) -> bool:
         return bool(session_exists(session_id))
     get_handle = getattr(manager, "get", None)
     return bool(callable(get_handle) and get_handle(session_id) is not None)
+
+
+def _start_session_handle(
+    manager: Any,
+    session_id: str,
+    trace_id: str,
+    initial: dict[str, Any],
+    **kwargs: Any,
+) -> Any:
+    start = manager.start
+    try:
+        signature = inspect.signature(start)
+    except (TypeError, ValueError):
+        return start(session_id, trace_id, initial, **kwargs)
+    accepts_extra_kwargs = any(
+        param.kind is inspect.Parameter.VAR_KEYWORD
+        for param in signature.parameters.values()
+    )
+    if not accepts_extra_kwargs:
+        kwargs = {key: value for key, value in kwargs.items() if key in signature.parameters}
+    return start(session_id, trace_id, initial, **kwargs)
 
 
 def _terminal_error_payload(
@@ -1128,8 +1379,88 @@ def _enforce_setup_rate_limit(
         ) from e
 
 
+BillingMode = Literal["platform_credits", "byok", "dev_unmetered"]
+
+
+def _has_byok_chat_override(llm_override: dict[str, Any] | None) -> bool:
+    if not isinstance(llm_override, dict):
+        return False
+    if str(llm_override.get("api_key") or "").strip():
+        return True
+    role_overrides = llm_override.get("role_overrides")
+    if not isinstance(role_overrides, dict):
+        return False
+    return any(
+        isinstance(override, dict) and str(override.get("api_key") or "").strip()
+        for override in role_overrides.values()
+    )
+
+
+def _resolve_billing_mode(
+    settings: Any,
+    llm_override: dict[str, Any] | None,
+) -> BillingMode:
+    if _has_byok_chat_override(llm_override):
+        return "byok"
+    if getattr(settings, "app_env", "dev") == "prod":
+        return "platform_credits"
+    return "dev_unmetered"
+
+
+def _enforce_anonymous_start_policy(
+    request: Request,
+    current_user: User | None,
+    *,
+    billing_mode: BillingMode,
+) -> None:
+    if current_user is not None:
+        return
+    settings = get_settings()
+    if billing_mode == "platform_credits":
+        raise HTTPException(
+            status_code=401,
+            detail=api_error_detail(
+                "login_required_for_platform_credits",
+                "请先登录领取免费面试次数。",
+                "login",
+            ),
+        )
+    if getattr(settings, "app_env", "dev") != "prod":
+        return
+    limit = int(getattr(settings, "anonymous_session_start_rate_limit_per_minute", 10))
+    if limit <= 0:
+        return
+    _enforce_setup_rate_limit(
+        request,
+        endpoint="anonymous_session_start",
+        limit=limit,
+    )
+
+
+def _refund_platform_start_credit(
+    *,
+    user_id: int | None,
+    session_id: str,
+    reason: str,
+    settings: Any,
+) -> None:
+    if user_id is None:
+        return
+    try:
+        with get_db_session() as db:
+            refund_session_start(
+                db,
+                user_id=int(user_id),
+                session_id=session_id,
+                reason=reason,
+                settings=settings,
+            )
+    except Exception as e:  # pragma: no cover - best-effort compensation
+        log.warning("platform credit refund failed for %s: %s", session_id, e)
+
+
 @router.post("/sessions")
-def start_session(req: StartSessionRequest) -> dict[str, Any]:
+def start_session(req: StartSessionRequest, request: Request) -> dict[str, Any]:
     session_id, trace_id, initial = translate_request(req.model_dump(exclude_none=False))
     setup_snapshot = _setup_snapshot_from_request(req)
     vector_status = _stamp_resume_source_for_session(
@@ -1150,12 +1481,24 @@ def start_session(req: StartSessionRequest) -> dict[str, Any]:
     recovery_token = new_recovery_token()
     now = datetime.now(UTC)
     settings = get_settings()
+    current_user = _current_user_from_request(request)
+    billing_mode = _resolve_billing_mode(settings, llm_override)
+    _enforce_anonymous_start_policy(
+        request,
+        current_user,
+        billing_mode=billing_mode,
+    )
+    owner_user_id = int(current_user.id) if current_user is not None else None
+    owner_claimed_at = now if owner_user_id is not None else None
     session_token_expires_at = now + timedelta(
         hours=max(1, int(settings.session_token_ttl_hours))
     )
     recovery_token_expires_at = now + timedelta(
         days=max(1, int(settings.recovery_token_ttl_days))
     )
+    credit_delta: int | None = None
+    credit_balance: int | None = None
+    platform_debited = False
     try:
         if _session_id_in_use(manager, session_id):
             raise HTTPException(
@@ -1166,7 +1509,35 @@ def start_session(req: StartSessionRequest) -> dict[str, Any]:
                     "restart_session",
                 ),
             )
-        handle = manager.start(
+        if billing_mode == "platform_credits":
+            if owner_user_id is None:
+                raise HTTPException(
+                    status_code=401,
+                    detail=api_error_detail(
+                        "login_required_for_platform_credits",
+                        "请先登录领取免费面试次数。",
+                        "login",
+                    ),
+                )
+            with get_db_session() as db:
+                debit = debit_session_start(
+                    db,
+                    user_id=owner_user_id,
+                    session_id=session_id,
+                    settings=settings,
+                )
+            platform_debited = True
+            credit_delta = int(debit["delta"])
+            credit_balance = int(debit["balance_after"])
+        elif billing_mode == "byok" and owner_user_id is not None:
+            with get_db_session() as db:
+                credit_balance = current_balance(
+                    db,
+                    owner_user_id,
+                    settings=settings,
+                )
+        handle = _start_session_handle(
+            manager,
             session_id,
             trace_id,
             initial,
@@ -1175,9 +1546,48 @@ def start_session(req: StartSessionRequest) -> dict[str, Any]:
             session_token_expires_at=session_token_expires_at,
             recovery_token_hash=hash_recovery_token(recovery_token),
             recovery_token_expires_at=recovery_token_expires_at,
+            owner_user_id=owner_user_id,
+            owner_claimed_at=owner_claimed_at,
             setup_snapshot=setup_snapshot,
         )
+        _persist_started_owned_session(
+            session_id=session_id,
+            trace_id=trace_id,
+            initial=initial,
+            owner_user_id=owner_user_id,
+            owner_claimed_at=owner_claimed_at,
+            session_token_hash_value=hash_session_token(session_token),
+            session_token_expires_at=session_token_expires_at,
+            recovery_token_hash_value=hash_recovery_token(recovery_token),
+            recovery_token_expires_at=recovery_token_expires_at,
+            setup_snapshot=setup_snapshot,
+        )
+    except InsufficientCreditsError as e:
+        raise HTTPException(
+            status_code=402,
+            detail=api_error_detail(
+                "platform_credits_exhausted",
+                "你的免费面试次数已用完，可以使用个人 API Key 或联系管理员补充次数。",
+                "use_byok_or_contact_admin",
+            ),
+        ) from e
+    except HTTPException:
+        if platform_debited:
+            _refund_platform_start_credit(
+                user_id=owner_user_id,
+                session_id=session_id,
+                reason="session start failed before response",
+                settings=settings,
+            )
+        raise
     except ValueError as e:
+        if platform_debited:
+            _refund_platform_start_credit(
+                user_id=owner_user_id,
+                session_id=session_id,
+                reason="session start failed before response",
+                settings=settings,
+            )
         if "session_id already exists" in str(e):
             raise HTTPException(
                 status_code=409,
@@ -1187,6 +1597,15 @@ def start_session(req: StartSessionRequest) -> dict[str, Any]:
                     "restart_session",
                 ),
             ) from e
+        raise
+    except Exception:
+        if platform_debited:
+            _refund_platform_start_credit(
+                user_id=owner_user_id,
+                session_id=session_id,
+                reason="session start failed before response",
+                settings=settings,
+            )
         raise
     else:
         time_payload = _session_time_payload_from_handle(handle)
@@ -1203,6 +1622,10 @@ def start_session(req: StartSessionRequest) -> dict[str, Any]:
             "recovery_token_expires_at": recovery_token_expires_at.isoformat(),
             "trace_id": trace_id,
             "status": "running",
+            "owner_user_id": owner_user_id,
+            "billing_mode": billing_mode,
+            "credit_delta": credit_delta,
+            "credit_balance": credit_balance,
             "max_turns": initial.get("max_turns"),
             "enable_video_analysis": bool(
                 (initial.get("runtime_config") or {}).get("enable_video_analysis")
@@ -1223,9 +1646,20 @@ class RecoverSessionRequest(BaseModel):
 def recover_session(
     session_id: SessionIdPath,
     body: RecoverSessionRequest,
+    request: Request,
 ) -> dict[str, Any]:
     """Exchange a browser recovery credential for a fresh short session token."""
     invalid_detail = "invalid recovery token"
+    manager = get_session_manager()
+    get_handle = getattr(manager, "get", None)
+    handle = get_handle(session_id) if callable(get_handle) else None
+    _require_session_access(
+        session_id,
+        request,
+        body.recovery_token,
+        handle=handle,
+        mode="recover",
+    )
     settings = get_settings()
     now = datetime.now(UTC)
     new_token = new_session_token()
@@ -1264,9 +1698,6 @@ def recover_session(
             ),
         ) from e
 
-    manager = get_session_manager()
-    get_handle = getattr(manager, "get", None)
-    handle = get_handle(session_id) if callable(get_handle) else None
     if handle is not None:
         handle.session_token_hash = new_token_hash
         handle.session_token_expires_at = expires_at
@@ -1278,15 +1709,97 @@ def recover_session(
     }
 
 
+@router.post("/sessions/{session_id}/claim")
+def claim_session(
+    session_id: SessionIdPath,
+    request: Request,
+    session_token: str | None = Header(default=None, alias="X-Session-Token"),
+) -> dict[str, Any]:
+    manager = get_session_manager()
+    handle = _get_or_recover_session(manager, session_id)
+    current_user = _require_session_access(
+        session_id,
+        request,
+        session_token,
+        handle=handle,
+        mode="claim",
+    )
+    if handle is None:
+        with get_db_session() as db:
+            if db.get(InterviewSession, session_id) is None:
+                raise HTTPException(status_code=404, detail="session not found")
+
+    settings = get_settings()
+    now = datetime.now(UTC)
+    new_token = new_session_token()
+    new_recovery = new_recovery_token()
+    new_token_hash = hash_session_token(new_token)
+    new_recovery_hash = hash_recovery_token(new_recovery)
+    claimed_at = now
+    session_expires_at = now + timedelta(
+        hours=max(1, int(settings.session_token_ttl_hours))
+    )
+    recovery_expires_at = now + timedelta(
+        days=max(1, int(settings.recovery_token_ttl_days))
+    )
+
+    with get_db_session() as db:
+        row = db.get(InterviewSession, session_id)
+        if row is None:
+            if handle is None:
+                raise HTTPException(status_code=404, detail="session not found")
+            row = InterviewSession(
+                session_id=session_id,
+                trace_id=getattr(handle, "trace_id", session_id),
+                candidate_name=getattr(handle, "candidate_name", None),
+                job_title=getattr(handle, "job_title", None),
+                job_level=getattr(handle, "job_level", None),
+                mode=getattr(handle, "mode", None) or "mixed",
+                status="running",
+            )
+            db.add(row)
+        if row.owner_user_id is not None and row.owner_user_id != current_user.id:
+            raise HTTPException(status_code=409, detail="session already claimed")
+
+        row.owner_user_id = int(current_user.id)
+        row.owner_claimed_at = row.owner_claimed_at or now
+        claimed_at = row.owner_claimed_at
+        row.session_token_hash = new_token_hash
+        row.session_token_expires_at = session_expires_at
+        row.recovery_token_hash = new_recovery_hash
+        row.recovery_token_expires_at = recovery_expires_at
+        row.recovery_token_revoked_at = None
+
+    if handle is not None:
+        handle.owner_user_id = int(current_user.id)
+        handle.owner_claimed_at = getattr(handle, "owner_claimed_at", None) or claimed_at
+        handle.session_token_hash = new_token_hash
+        handle.session_token_expires_at = session_expires_at
+        handle.recovery_token_hash = new_recovery_hash
+        handle.recovery_token_expires_at = recovery_expires_at
+        handle.recovery_token_revoked_at = None
+
+    return {
+        "session_id": session_id,
+        "owner_user_id": int(current_user.id),
+        "owner_claimed_at": _iso_datetime(claimed_at) or now.isoformat(),
+        "session_token": new_token,
+        "session_token_expires_at": session_expires_at.isoformat(),
+        "recovery_token": new_recovery,
+        "recovery_token_expires_at": recovery_expires_at.isoformat(),
+    }
+
+
 @router.get("/sessions/{session_id}/question")
 async def poll_question(
     session_id: SessionIdPath,
+    request: Request,
     timeout: float = Query(default=30.0),
     session_token: str | None = Header(default=None, alias="X-Session-Token"),
 ) -> dict[str, Any]:
     manager = get_session_manager()
     handle = _get_or_recover_session(manager, session_id)
-    _require_session_access(session_id, session_token, handle=handle)
+    _require_session_access(session_id, request, session_token, handle=handle)
     if handle is None:
         can_retry = getattr(manager, "can_retry_failed_question", lambda _sid: False)
         persisted = _load_terminal_payload_from_persisted_session(
@@ -1357,11 +1870,12 @@ async def poll_question(
 @router.post("/sessions/{session_id}/voice-ticket")
 def create_voice_ticket(
     session_id: SessionIdPath,
+    request: Request,
     session_token: str | None = Header(default=None, alias="X-Session-Token"),
 ) -> dict[str, Any]:
     manager = get_session_manager()
     handle = _get_or_recover_session(manager, session_id)
-    _require_session_access(session_id, session_token, handle=handle)
+    _require_session_access(session_id, request, session_token, handle=handle)
     if handle is None:
         raise HTTPException(status_code=404, detail="session not found")
     return {
@@ -1374,11 +1888,12 @@ def create_voice_ticket(
 async def synthesize_question_audio(
     session_id: SessionIdPath,
     body: QuestionAudioRequest,
+    request: Request,
     session_token: str | None = Header(default=None, alias="X-Session-Token"),
 ) -> Response:
     manager = get_session_manager()
     handle = _get_or_recover_session(manager, session_id)
-    _require_session_access(session_id, session_token, handle=handle)
+    _require_session_access(session_id, request, session_token, handle=handle)
     if handle is None:
         raise HTTPException(status_code=404, detail="session not found") from None
     if body.turn_idx != getattr(handle, "turn_idx", None):
@@ -1418,6 +1933,7 @@ async def synthesize_question_audio(
 def submit_answer(
     session_id: SessionIdPath,
     body: AnswerRequest,
+    request: Request,
     session_token: str | None = Header(default=None, alias="X-Session-Token"),
     idempotency_key: str | None = Header(
         default=None,
@@ -1427,7 +1943,7 @@ def submit_answer(
 ) -> dict[str, Any]:
     manager = get_session_manager()
     handle = _get_or_recover_session(manager, session_id)
-    _require_session_access(session_id, session_token, handle=handle)
+    _require_session_access(session_id, request, session_token, handle=handle)
     if handle is None:
         raise HTTPException(status_code=404, detail="session not found") from None
     token = bind_log_context(session_id=session_id, trace_id=handle.trace_id)
@@ -1507,11 +2023,12 @@ def submit_answer(
 def skip_question(
     session_id: SessionIdPath,
     body: SkipQuestionRequest,
+    request: Request,
     session_token: str | None = Header(default=None, alias="X-Session-Token"),
 ) -> dict[str, Any]:
     manager = get_session_manager()
     handle = _get_or_recover_session(manager, session_id)
-    _require_session_access(session_id, session_token, handle=handle)
+    _require_session_access(session_id, request, session_token, handle=handle)
     if handle is None:
         raise HTTPException(status_code=404, detail="session not found") from None
     token = bind_log_context(session_id=session_id, trace_id=handle.trace_id)
@@ -1532,11 +2049,12 @@ def skip_question(
 def request_hint(
     session_id: SessionIdPath,
     body: HintRequest,
+    request: Request,
     session_token: str | None = Header(default=None, alias="X-Session-Token"),
 ) -> dict[str, Any]:
     manager = get_session_manager()
     handle = _get_or_recover_session(manager, session_id)
-    _require_session_access(session_id, session_token, handle=handle)
+    _require_session_access(session_id, request, session_token, handle=handle)
     if handle is None:
         raise HTTPException(status_code=404, detail="session not found") from None
     token = bind_log_context(session_id=session_id, trace_id=handle.trace_id)
@@ -1560,12 +2078,14 @@ def request_hint(
 @router.post("/sessions/{session_id}/retry-question")
 def retry_failed_question(
     session_id: SessionIdPath,
+    request: Request,
     body: RetryQuestionRequest | None = None,
     session_token: str | None = Header(default=None, alias="X-Session-Token"),
 ) -> dict[str, Any]:
     manager = get_session_manager()
     _require_session_access(
         session_id,
+        request,
         session_token,
         handle=_get_or_recover_session(manager, session_id),
     )
@@ -1589,6 +2109,7 @@ def retry_failed_question(
 @router.delete("/sessions/{session_id}")
 def delete_session(
     session_id: SessionIdPath,
+    request: Request,
     confirm_session_id: str | None = Query(
         default=None,
         min_length=1,
@@ -1605,7 +2126,12 @@ def delete_session(
 
     manager = get_session_manager()
     active_removed = False
-    _require_session_access(session_id, session_token, handle=manager.get(session_id))
+    _require_session_access(
+        session_id,
+        request,
+        session_token,
+        handle=manager.get(session_id),
+    )
     if manager.get(session_id) is not None:
         try:
             manager.cancel(session_id)
@@ -1642,6 +2168,7 @@ _FEEDBACK_OUTCOME_MAP = FEEDBACK_OUTCOME_MAP
 def submit_feedback(
     session_id: SessionIdPath,
     body: FeedbackRequest,
+    request: Request,
     session_token: str | None = Header(default=None, alias="X-Session-Token"),
 ) -> dict[str, Any]:
     """Accept C-end user outcome feedback and upsert into OutcomeRecord.
@@ -1654,6 +2181,7 @@ def submit_feedback(
     manager = get_session_manager()
     _require_session_access(
         session_id,
+        request,
         session_token,
         handle=_get_or_recover_session(manager, session_id),
     )
@@ -1688,11 +2216,12 @@ def submit_feedback(
 @router.get("/sessions/{session_id}/metadata")
 def get_session_metadata(
     session_id: SessionIdPath,
+    request: Request,
     session_token: str | None = Header(default=None, alias="X-Session-Token"),
 ) -> dict[str, Any]:
     manager = get_session_manager()
     handle = manager.get(session_id)
-    _require_session_access(session_id, session_token, handle=handle)
+    _require_session_access(session_id, request, session_token, handle=handle)
 
     persisted = _session_metadata_from_db(session_id)
     if handle is None:
@@ -1714,11 +2243,12 @@ def get_session_metadata(
 @router.get("/sessions/{session_id}/setup-snapshot")
 def get_session_setup_snapshot(
     session_id: SessionIdPath,
+    request: Request,
     session_token: str | None = Header(default=None, alias="X-Session-Token"),
 ) -> dict[str, Any]:
     manager = get_session_manager()
     handle = manager.get(session_id)
-    _require_session_access(session_id, session_token, handle=handle)
+    _require_session_access(session_id, request, session_token, handle=handle)
 
     live = _setup_snapshot_response(
         session_id,
@@ -1736,11 +2266,12 @@ def get_session_setup_snapshot(
 @router.get("/sessions/{session_id}/report")
 def get_report(
     session_id: SessionIdPath,
+    request: Request,
     session_token: str | None = Header(default=None, alias="X-Session-Token"),
 ) -> dict[str, Any]:
     manager = get_session_manager()
     handle = manager.get(session_id)
-    _require_session_access(session_id, session_token, handle=handle)
+    _require_session_access(session_id, request, session_token, handle=handle)
     if handle is None:
         persisted = _report_payload_from_persisted_session(session_id)
         if persisted is not None:
@@ -1796,11 +2327,13 @@ def get_report(
 @router.get("/sessions/{session_id}/replay")
 def get_replay(
     session_id: SessionIdPath,
+    request: Request,
     session_token: str | None = Header(default=None, alias="X-Session-Token"),
 ) -> dict[str, Any]:
     manager = get_session_manager()
     _require_session_access(
         session_id,
+        request,
         session_token,
         handle=manager.get(session_id),
     )
@@ -1819,6 +2352,7 @@ def get_replay(
 @router.get("/sessions/{session_id}/resume")
 def resume_session(
     session_id: SessionIdPath,
+    request: Request,
     session_token: str | None = Header(default=None, alias="X-Session-Token"),
 ) -> dict[str, Any]:
     """Reconnect to a session that was interrupted (e.g. after restart).
@@ -1830,7 +2364,7 @@ def resume_session(
     """
     manager = get_session_manager()
     handle = _get_or_recover_session(manager, session_id)
-    _require_session_access(session_id, session_token, handle=handle)
+    _require_session_access(session_id, request, session_token, handle=handle)
 
     if handle is None:
         can_retry = getattr(manager, "can_retry_failed_question", lambda _sid: False)

@@ -33,6 +33,41 @@ test("admin page is framed as an agent observability console", () => {
   assert.doesNotMatch(page, /活跃会话和策略记忆/);
 });
 
+test("admin page is gated by admin role before rendering data", () => {
+  const page = read("src/app/admin/page.tsx");
+  const gate = read("src/components/admin/AdminAccessGate.tsx");
+  const api = read("src/lib/api/admin.ts");
+
+  assert.match(page, /AdminAccessGate/);
+  assert.doesNotMatch(page, /<AdminPanel \/>/);
+  assert.match(gate, /useAuth/);
+  assert.match(gate, /!auth\.loading/);
+  assert.match(gate, /auth\.user\?\.role === "admin"/);
+  assert.match(gate, /children \?\? <AdminPanel \/>/);
+  assert.match(gate, /loadAdminToken/);
+  assert.match(gate, /saveAdminToken/);
+  assert.match(gate, /validateAdminAccess/);
+  assert.match(api, /export async function validateAdminAccess/);
+  assert.match(gate, /AdminPanel/);
+  assert.match(gate, /API_TOKEN/);
+  assert.match(gate, /admin 账号/);
+  assert.match(gate, /await validateAdminAccess/);
+});
+
+test("admin trace pages are wrapped by the same access gate", () => {
+  const traceSearchPage = read("src/app/admin/trace/page.tsx");
+  const traceDetailPage = read("src/app/admin/traces/[sessionId]/page.tsx");
+
+  for (const page of [traceSearchPage, traceDetailPage]) {
+    assert.match(page, /AdminAccessGate/);
+    assert.match(page, /<AdminAccessGate>/);
+    assert.ok(
+      page.indexOf("<AdminAccessGate>") < page.indexOf("<TraceExplorer"),
+      "access gate should wrap trace explorer before it is rendered",
+    );
+  }
+});
+
 test("admin panel exposes system overview and productized card copy", () => {
   const panel = read("src/components/admin/AdminPanel.tsx");
 
@@ -72,6 +107,92 @@ test("admin panel exposes system overview and productized card copy", () => {
   assert.match(panel, /已入库策略/);
   assert.match(panel, /面试质量入口/);
   assert.match(panel, /active:scale-\[0\.98\]/);
+});
+
+test("admin panel exposes user credit operations through token-gated api", () => {
+  const panel = read("src/components/admin/AdminPanel.tsx");
+  const api = read("src/lib/api/admin.ts");
+
+  assert.match(api, /export interface AdminUserCredit/);
+  assert.match(api, /export interface AdminCreditLedgerEntry/);
+  assert.match(api, /export function getAdminUserCredits/);
+  assert.match(api, /export function getAdminUserCreditLedger/);
+  assert.match(api, /export function adjustAdminUserCredits/);
+  assert.match(api, /\/user-credits/);
+  assert.match(api, /\/credit-ledger/);
+  assert.match(api, /\/credit-adjustments/);
+  assert.match(panel, /UserCreditsPanel/);
+  assert.match(panel, /用户额度/);
+  assert.match(panel, /手动赠送/);
+  assert.match(panel, /getAdminUserCredits/);
+  assert.match(panel, /adjustAdminUserCredits/);
+});
+
+test("admin panel exposes credit request approvals", () => {
+  const panel = read("src/components/admin/AdminPanel.tsx");
+  const api = read("src/lib/api/admin.ts");
+
+  assert.match(api, /export interface AdminCreditRequest/);
+  assert.match(api, /export interface AdminCreditRequestsResponse/);
+  assert.match(api, /export function getAdminCreditRequests/);
+  assert.match(api, /export function decideAdminCreditRequest/);
+  assert.match(api, /\/api\/v1\/admin\/credit-requests/);
+  assert.match(api, /\/decision/);
+  assert.match(panel, /CreditRequestsPanel/);
+  assert.match(panel, /额度申请/);
+  assert.match(panel, /批准申请/);
+  assert.match(panel, /拒绝申请/);
+  assert.match(panel, /待处理/);
+  assert.match(panel, /已批准/);
+  assert.match(panel, /已拒绝/);
+});
+
+test("admin panel exposes lightweight account management", () => {
+  const panel = read("src/components/admin/AdminPanel.tsx");
+  const api = read("src/lib/api/admin.ts");
+
+  assert.match(api, /export interface AdminUserItem/);
+  assert.match(api, /export interface AdminUserDetail/);
+  assert.match(api, /export function getAdminUsers/);
+  assert.match(api, /export function getAdminUserDetail/);
+  assert.match(api, /export function updateAdminUserStatus/);
+  assert.match(api, /\/api\/v1\/admin\/users/);
+  assert.match(api, /\/status/);
+  assert.match(panel, /AccountManagementPanel/);
+  assert.match(panel, /账号管理/);
+  assert.match(panel, /按邮箱搜索账号/);
+  assert.match(panel, /状态筛选/);
+  assert.match(panel, /角色筛选/);
+  assert.match(panel, /最近活跃/);
+  assert.match(panel, /账号记录/);
+  assert.match(panel, /禁用账号/);
+  assert.match(panel, /启用账号/);
+  assert.match(panel, /输入邮箱确认/);
+  assert.match(panel, /admin 账号只读保护/);
+  assert.doesNotMatch(panel, /提升 admin/);
+  assert.doesNotMatch(panel, /取消 admin/);
+});
+
+test("admin api client sends cookies and keeps bearer token as fallback", () => {
+  const api = read("src/lib/api/admin.ts");
+
+  assert.match(api, /credentials: "include"/);
+  assert.match(api, /loadAdminToken/);
+  assert.match(api, /Authorization: `Bearer \$\{token\}`/);
+});
+
+test("admin credit panel previews adjustments and uses readable ledger labels", () => {
+  const panel = read("src/components/admin/AdminPanel.tsx");
+  const helper = read("src/lib/credits.ts");
+
+  assert.match(panel, /formatCreditLedgerEntry/);
+  assert.match(panel, /adjustmentPreviewBalance/);
+  assert.match(panel, /调整后余额/);
+  assert.match(panel, /nextBalance < 0/);
+  assert.match(panel, /请输入非 0 整数/);
+  assert.match(panel, /请填写调整原因/);
+  assert.match(panel, /最后更新/);
+  assert.match(helper, /formatCreditLedgerEntry/);
 });
 
 test("admin overview status hints render inline without hover-only copy", () => {
@@ -1012,9 +1133,10 @@ test("admin token controls are folded into settings with helper copy", () => {
   assert.match(panel, /settingsOpen/);
   assert.match(panel, /setSettingsOpen/);
   assert.match(panel, /后台设置 \/ 权限/);
-  assert.match(panel, /用于访问受保护的后台观测接口，本地开发可留空。/);
+  assert.match(panel, /用于访问受保护的后台观测接口，本地开发可使用 dev 标记。/);
   assert.match(panel, /管理员认证令牌/);
   assert.match(panel, /令牌已保存/);
+  assert.doesNotMatch(panel, /本地开发可留空/);
 });
 
 test("admin refresh button gives immediate pending feedback", () => {
@@ -1026,4 +1148,15 @@ test("admin refresh button gives immediate pending feedback", () => {
   assert.match(panel, /aria-busy=\{refreshing\}/);
   assert.match(panel, /animate-spin/);
   assert.match(panel, /min-w-\[/);
+});
+
+test("admin interview history surfaces account owner fields", () => {
+  const panel = read("src/components/admin/AdminPanel.tsx");
+  const api = read("src/lib/api/admin.ts");
+
+  assert.match(api, /owner_user_id\?: number \| null/);
+  assert.match(api, /owner_email\?: string \| null/);
+  assert.match(api, /owner_status\?: string \| null/);
+  assert.match(panel, /owner_email/);
+  assert.match(panel, /owner_user_id/);
 });

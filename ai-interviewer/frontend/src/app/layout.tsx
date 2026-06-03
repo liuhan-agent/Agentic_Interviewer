@@ -4,6 +4,7 @@ import { ThemeProvider } from "next-themes";
 import { AppShell } from "@/components/layout/AppShell";
 import { Footer } from "@/components/layout/Footer";
 import { Toaster } from "@/components/ui/toaster";
+import { AuthProvider } from "@/lib/auth/useAuth";
 
 import "./globals.css";
 
@@ -30,10 +31,12 @@ export default function RootLayout({
           enableSystem={false}
           disableTransitionOnChange
         >
-          <AppShell>
-            <main id="app-main-content" className="flex-1">{children}</main>
-            <Footer />
-          </AppShell>
+          <AuthProvider>
+            <AppShell>
+              <main id="app-main-content" className="flex-1">{children}</main>
+              <Footer />
+            </AppShell>
+          </AuthProvider>
           <Toaster />
         </ThemeProvider>
       </body>

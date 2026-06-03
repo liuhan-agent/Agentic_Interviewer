@@ -28,6 +28,8 @@ export interface InterviewHistoryEntry {
   sessionTokenExpiresAt?: string;
   recoveryToken?: string;
   recoveryTokenExpiresAt?: string;
+  ownerUserId?: number;
+  ownerClaimedAt?: string;
   jdTitle: string;
   candidateName?: string;
   jobLevel?: string;
@@ -181,6 +183,8 @@ function isValidEntry(x: unknown): x is InterviewHistoryEntry {
     (e.recoveryToken === undefined || typeof e.recoveryToken === "string") &&
     (e.recoveryTokenExpiresAt === undefined ||
       typeof e.recoveryTokenExpiresAt === "string") &&
+    isValidOwnerUserId(e.ownerUserId) &&
+    (e.ownerClaimedAt === undefined || isValidIsoDate(e.ownerClaimedAt)) &&
     isTextField(e.jdTitle) &&
     (e.candidateName === undefined || isTextField(e.candidateName)) &&
     (e.jobLevel === undefined || isTextField(e.jobLevel)) &&
@@ -228,6 +232,11 @@ function isValidScore(value: unknown): value is number | undefined {
 function isValidPositiveInt(value: unknown): value is number | undefined {
   if (value === undefined) return true;
   return typeof value === "number" && Number.isInteger(value) && value > 0 && value <= 30;
+}
+
+function isValidOwnerUserId(value: unknown): value is number | undefined {
+  if (value === undefined) return true;
+  return typeof value === "number" && Number.isInteger(value) && value > 0;
 }
 
 function isDimensionScoreMap(
@@ -394,6 +403,8 @@ export interface UpsertInput {
   sessionTokenExpiresAt?: string;
   recoveryToken?: string;
   recoveryTokenExpiresAt?: string;
+  ownerUserId?: number;
+  ownerClaimedAt?: string;
   jdTitle?: string;
   candidateName?: string;
   jobLevel?: string;
@@ -439,6 +450,8 @@ export function upsertEntry(input: UpsertInput): InterviewHistoryEntry {
         updatedAt: isoOrUndefined(input.updatedAt),
         recoveryToken: input.recoveryToken,
         recoveryTokenExpiresAt: input.recoveryTokenExpiresAt,
+        ownerUserId: input.ownerUserId,
+        ownerClaimedAt: isoOrUndefined(input.ownerClaimedAt),
         status: input.status,
         overallScore: input.overallScore,
         dimensionScores: input.dimensionScores,
@@ -460,6 +473,8 @@ export function upsertEntry(input: UpsertInput): InterviewHistoryEntry {
       rubricDimensions: input.rubricDimensions,
       recoveryToken: input.recoveryToken,
       recoveryTokenExpiresAt: input.recoveryTokenExpiresAt,
+      ownerUserId: input.ownerUserId,
+      ownerClaimedAt: isoOrUndefined(input.ownerClaimedAt),
       createdAt: isoOrUndefined(input.createdAt) ?? now,
       updatedAt: isoOrUndefined(input.updatedAt),
       lastVisitedAt: now,
@@ -500,6 +515,8 @@ export interface ServerEntryMetadataInput {
   dimensionScores?: Record<string, number>;
   growthSignal?: string | null;
   overallVerdict?: string | null;
+  ownerUserId?: number | null;
+  ownerClaimedAt?: string | null;
 }
 
 export function mergeServerEntryMetadata(
@@ -524,6 +541,9 @@ export function mergeServerEntryMetadata(
       dimensionScores: input.dimensionScores,
       growthSignal: normaliseTextInput(input.growthSignal),
       overallVerdict: normaliseTextInput(input.overallVerdict),
+      ownerUserId:
+        typeof input.ownerUserId === "number" ? input.ownerUserId : undefined,
+      ownerClaimedAt: isoOrUndefined(input.ownerClaimedAt),
     }),
   };
   shape.entries[idx] = next;

@@ -26,6 +26,9 @@ export default function SetupPage() {
           填写你的背景和目标岗位，AI 面试官会据此挑选题目和评分维度。
           没有标准答案——按你真实的想法回答即可，结束后会拿到多维度反馈和提升建议。
         </p>
+        <p className="mt-3 max-w-xl text-xs leading-relaxed text-muted-foreground/80">
+          登录后可以把新的面试保存到账号；不登录也可以先以游客身份体验。
+        </p>
       </div>
       <Suspense
         fallback={

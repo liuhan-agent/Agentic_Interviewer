@@ -172,6 +172,57 @@ test("setup form stores browser recovery credential from start response", () => 
   assert.match(source, /recoveryTokenExpiresAt: res\.recovery_token_expires_at/);
 });
 
+test("setup form surfaces platform credit state before starting hosted interviews", () => {
+  const source = fs.readFileSync(
+    path.join(__dirname, "..", "src", "components", "interview", "SetupForm.tsx"),
+    "utf8",
+  );
+
+  assert.match(source, /getAccountCreditPolicy/);
+  assert.match(source, /getAccountCredits/);
+  assert.match(source, /useAuth/);
+  assert.match(source, /isUsingByokConfig/);
+  assert.match(source, /platformCreditNotice/);
+  assert.match(source, /登录领取免费次数/);
+  assert.match(source, /剩余 \{creditBalance\} 次/);
+  assert.match(source, /次数不足/);
+  assert.match(source, /creditBalance:\s*res\.credit_balance/);
+});
+
+test("setup form reads browser LLM config only after hydration", () => {
+  const source = fs.readFileSync(
+    path.join(__dirname, "..", "src", "components", "interview", "SetupForm.tsx"),
+    "utf8",
+  );
+
+  assert.match(source, /useState<StartSessionRequest\["llm_config"\]>\(undefined\)/);
+  assert.match(source, /setCurrentLlmPayload\(buildLLMPayload\(\)\)/);
+  assert.doesNotMatch(source, /const currentLlmPayload = buildLLMPayload\(\)/);
+});
+
+test("setup form centralizes platform credit gate and disables unsafe starts", () => {
+  const source = fs.readFileSync(
+    path.join(__dirname, "..", "src", "components", "interview", "SetupForm.tsx"),
+    "utf8",
+  );
+  const creditHelper = fs.readFileSync(
+    path.join(__dirname, "..", "src", "lib", "credits.ts"),
+    "utf8",
+  );
+
+  assert.match(source, /getCreditStartGateState/);
+  assert.match(source, /startGate\.disabled/);
+  assert.match(source, /startGate\.notice/);
+  assert.match(creditHelper, /本次将消耗 1 次平台面试次数/);
+  assert.match(creditHelper, /正在同步账号额度/);
+  assert.match(creditHelper, /不扣平台次数/);
+  assert.match(creditHelper, /自己的模型服务额度/);
+  assert.match(source, /disabled=\{isStartingInterview \|\| resumeFieldsLocked \|\| startGate\.disabled\}/);
+  assert.match(source, /login_required_for_platform_credits/);
+  assert.match(source, /platform_credits_exhausted/);
+  assert.match(source, /已扣 1 次/);
+});
+
 test("setup form locks the start action while creating the interview session", () => {
   const source = fs.readFileSync(
     path.join(__dirname, "..", "src", "components", "interview", "SetupForm.tsx"),
@@ -188,7 +239,7 @@ test("setup form locks the start action while creating the interview session", (
   assert.match(source, /w-2\/3/);
   assert.doesNotMatch(source, /animate=\{\{ width: \[/);
   assert.doesNotMatch(source, /repeat: Number\.POSITIVE_INFINITY/);
-  assert.match(source, /disabled=\{isStartingInterview \|\| resumeFieldsLocked\}/);
+  assert.match(source, /disabled=\{isStartingInterview \|\| resumeFieldsLocked \|\| startGate\.disabled\}/);
 });
 
 test("setup preloads the interview route and the interview page has a loading skeleton", () => {

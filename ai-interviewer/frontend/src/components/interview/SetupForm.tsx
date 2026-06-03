@@ -54,8 +54,10 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { AuthDialog } from "@/components/auth/AuthDialog";
 import { LLMSettingsDialog } from "@/components/layout/LLMSettingsDialog";
 import { ApiError } from "@/lib/api/client";
+import { getAccountCreditPolicy, getAccountCredits } from "@/lib/api/account";
 import {
   createResumeParseJob,
   getJobTemplate,
@@ -90,6 +92,8 @@ import type {
   SessionSetupSnapshotResponse,
   StartSessionRequest,
 } from "@/lib/api/types";
+import { useAuth } from "@/lib/auth/useAuth";
+import { getCreditStartGateState } from "@/lib/credits";
 import {
   buildLLMPayload,
   getLLMConfigStatus,
@@ -736,20 +740,40 @@ function setupDraftStatusFromJob(job: ResumeParseJobResponse): SetupDraftStatus 
   return "parsing";
 }
 
+function isUsingByokConfig(payload: StartSessionRequest["llm_config"]): boolean {
+  if (!payload) return false;
+  if (payload.api_key?.trim()) return true;
+  const roleOverrides = payload.role_overrides;
+  if (!roleOverrides) return false;
+  return Object.values(roleOverrides).some((override) =>
+    Boolean(override?.api_key?.trim()),
+  );
+}
+
 // ---------------------------------------------------------------------------
 // SetupForm root
 // ---------------------------------------------------------------------------
 
 export function SetupForm() {
   const router = useRouter();
+  const auth = useAuth();
   const searchParams = useSearchParams();
   const draftIdFromQuery = searchParams.get("draft_id");
   const [step, setStep] = useState(0);
   const [serverError, setServerError] = useState<string | null>(null);
   const [enableVideoAnalysis, setEnableVideoAnalysis] = useState(false);
   const [llmStatus, setLlmStatus] = useState<LLMConfigStatus>("missing");
+  const [currentLlmPayload, setCurrentLlmPayload] =
+    useState<StartSessionRequest["llm_config"]>(undefined);
   const [serverDirections, setServerDirections] = useState<SetupDirection[]>([]);
   const [isInterviewStartPending, setInterviewStartPending] = useState(false);
+  const [creditPolicy, setCreditPolicy] = useState<{
+    enforced: boolean;
+    free_grant: number;
+    requires_login_for_platform_hosted?: boolean;
+  } | null>(null);
+  const [creditBalance, setCreditBalance] = useState<number | null>(null);
+  const [startCreditNotice, setStartCreditNotice] = useState<string | null>(null);
 
   // Resume upload state
   const [upload, setUpload] = useState<UploadStatus>({ kind: "idle" });
@@ -852,6 +876,15 @@ export function SetupForm() {
   const watchedHighlights = watch("candidate_highlights");
   const resumeFieldsLocked = upload.kind === "parsing";
   const isStartingInterview = isSubmitting || isInterviewStartPending;
+  const isByokStart = isUsingByokConfig(currentLlmPayload);
+  const startGate = getCreditStartGateState({
+    policy: creditPolicy,
+    auth,
+    creditBalance,
+    isByok: isByokStart,
+  });
+  const shouldUsePlatformCredits = startGate.usesPlatformCredits;
+  const platformCreditNotice = startGate.notice;
 
   useEffect(() => {
     if (step === STEPS.length - 1) {
@@ -1002,6 +1035,7 @@ export function SetupForm() {
   useEffect(() => {
     function refreshLlmStatus() {
       setLlmStatus(getLLMConfigStatus(loadLLMConfig(), loadLLMTestStatus()));
+      setCurrentLlmPayload(buildLLMPayload());
     }
     refreshLlmStatus();
     window.addEventListener(LLM_CONFIG_EVENT, refreshLlmStatus);
@@ -1011,6 +1045,45 @@ export function SetupForm() {
       window.removeEventListener("storage", refreshLlmStatus);
     };
   }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    void getAccountCreditPolicy()
+      .then((policy) => {
+        if (!cancelled) {
+          setCreditPolicy({
+            enforced: policy.enforced,
+            free_grant: policy.free_grant,
+            requires_login_for_platform_hosted:
+              policy.requires_login_for_platform_hosted,
+          });
+        }
+      })
+      .catch(() => {
+        if (!cancelled) setCreditPolicy(null);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    if (!auth.authenticated) {
+      setCreditBalance(null);
+      return;
+    }
+    void getAccountCredits()
+      .then((credits) => {
+        if (!cancelled) setCreditBalance(credits.balance);
+      })
+      .catch(() => {
+        if (!cancelled) setCreditBalance(null);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [auth.authenticated, auth.user?.id]);
 
   useEffect(() => {
     return () => {
@@ -1578,6 +1651,11 @@ export function SetupForm() {
         setStep(2);
         return;
       }
+      if (startGate.disabled) {
+        setInterviewStartPending(false);
+        setServerError(startGate.notice ?? "当前额度状态还不能开始面试。");
+        return;
+      }
 
       const lengthChoice =
         LENGTH_OPTIONS.find((opt) => opt.id === values.length) ?? LENGTH_OPTIONS[1];
@@ -1639,12 +1717,24 @@ export function SetupForm() {
         focus_dimensions: practiceFocusDims.map((d) => d.id),
         mode: "mixed",
         enable_video_analysis: enableVideoAnalysis,
-        llm_config: buildLLMPayload(),
+        llm_config: currentLlmPayload,
         ...(resumeSourceId ? { resume_source_id: resumeSourceId } : {}),
       };
 
       try {
+        setStartCreditNotice(null);
         const res = await startSession(payload);
+        const creditUpdate = { creditBalance: res.credit_balance };
+        if (typeof creditUpdate.creditBalance === "number") {
+          setCreditBalance(creditUpdate.creditBalance);
+        }
+        if (
+          res.billing_mode === "platform_credits" &&
+          res.credit_delta === -1 &&
+          typeof res.credit_balance === "number"
+        ) {
+          setStartCreditNotice(`已扣 1 次，剩余 ${res.credit_balance} 次。`);
+        }
         try {
           upsertEntry({
             sessionId: res.session_id,
@@ -1652,6 +1742,8 @@ export function SetupForm() {
             sessionTokenExpiresAt: res.session_token_expires_at,
             recoveryToken: res.recovery_token,
             recoveryTokenExpiresAt: res.recovery_token_expires_at,
+            ownerUserId: res.owner_user_id ?? undefined,
+            ownerClaimedAt: res.owner_user_id ? res.created_at : undefined,
             createdAt: res.created_at,
             updatedAt: res.updated_at,
             jdTitle: values.job_title,
@@ -1704,6 +1796,42 @@ export function SetupForm() {
       <ExpectationBanner />
       {llmStatus === "missing" && <ApiKeyHintBanner />}
       {isProblemLLMStatus(llmStatus) && <ApiKeyProblemBanner status={llmStatus} />}
+      {platformCreditNotice && (
+        <div className="flex flex-col gap-2 rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-4 py-3 text-sm sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex items-start gap-3">
+            <Sparkles className="mt-0.5 h-4 w-4 flex-shrink-0 text-emerald-500" />
+            <div>
+              <p className="font-medium text-emerald-700 dark:text-emerald-300">
+                {shouldUsePlatformCredits ? "平台托管免费次数" : "个人 API Key / BYOK"}
+              </p>
+              <p className="text-xs leading-relaxed text-muted-foreground">
+                {shouldUsePlatformCredits &&
+                auth.authenticated &&
+                creditBalance !== null &&
+                creditBalance > 0
+                  ? <>剩余 {creditBalance} 次。本次将消耗 1 次平台面试次数。</>
+                  : platformCreditNotice}
+              </p>
+            </div>
+          </div>
+          {shouldUsePlatformCredits && !auth.authenticated ? (
+            <AuthDialog>
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                className="shrink-0 gap-2"
+              >
+                登录领取免费次数
+              </Button>
+            </AuthDialog>
+          ) : startGate.ctaLabel ? (
+            <span className="shrink-0 rounded-full bg-background px-3 py-1 text-xs font-medium text-emerald-700 dark:text-emerald-300">
+              {startGate.ctaLabel}
+            </span>
+          ) : null}
+        </div>
+      )}
 
       <StepIndicator current={step} onJump={(id) => void handleStepJump(id)} />
 
@@ -2007,6 +2135,20 @@ export function SetupForm() {
         </motion.div>
       )}
 
+      {startCreditNotice && (
+        <motion.div
+          initial={{ opacity: 0, y: -8 }}
+          animate={{ opacity: 1, y: 0 }}
+          role="status"
+          aria-live="polite"
+          className="flex items-start gap-2 rounded-md border border-emerald-500/30 bg-emerald-500/10 p-4 text-sm text-emerald-700 dark:text-emerald-300"
+        >
+          <CheckCircle2 className="mt-0.5 h-4 w-4 flex-shrink-0" />
+          <span>{startCreditNotice}</span>
+        </motion.div>
+      )}
+
+
       <div className="flex items-center justify-between">
         <Button
           type="button"
@@ -2032,7 +2174,7 @@ export function SetupForm() {
             <Button
               type="submit"
               size="lg"
-              disabled={isStartingInterview || resumeFieldsLocked}
+              disabled={isStartingInterview || resumeFieldsLocked || startGate.disabled}
               className="gap-2 bg-emerald-600 hover:bg-emerald-500 text-white"
             >
               {isStartingInterview && <Loader2 className="h-4 w-4 animate-spin" />}
@@ -2285,6 +2427,18 @@ function friendlySetupError(
 ): string {
   const raw = err instanceof Error ? err.message : String(err);
   if (err instanceof ApiError) {
+    if (
+      err.code === "login_required_for_platform_credits" ||
+      (err.status === 401 && raw.includes("login_required_for_platform_credits"))
+    ) {
+      return "请先登录领取免费次数，再开始平台托管面试；也可以使用个人 API Key。";
+    }
+    if (
+      err.code === "platform_credits_exhausted" ||
+      (err.status === 402 && raw.includes("platform_credits_exhausted"))
+    ) {
+      return "次数不足：可以使用个人 API Key，或联系管理员补充次数。";
+    }
     if (err.status === 413) {
       return "文件超过大小限制，请压缩、裁剪，或换成文本版后再试。";
     }
