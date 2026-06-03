@@ -37,6 +37,7 @@ reference/
 
 # Local agent planning/audit workspace, keep local but do not publish.
 docs/superpowers/
+ai-interviewer/docs/superpowers/
 
 # Local retrospective notes, keep local but do not publish.
 docs/learning-cases/

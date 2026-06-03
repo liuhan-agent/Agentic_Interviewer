@@ -82,8 +82,6 @@ npm run build
 ```text
 frontend/
   README.md
-  docs/
-    FRONTEND_PLAN.md
   next.config.mjs          # 本地代理到后端 :8000
   tailwind.config.ts
   components.json          # shadcn/ui 配置

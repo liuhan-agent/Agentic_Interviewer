@@ -198,9 +198,11 @@ python -m app.scripts.production_smoke --check-deps
 ## 关键文档
 
 - [项目内部 README](./ai-interviewer/README.md)
+- [项目文档索引](./ai-interviewer/docs/README.md)
 - [后端 README](./ai-interviewer/backend/README.md)
 - [前端 README](./ai-interviewer/frontend/README.md)
 - [项目架构一页纸](<./ai-interviewer/docs/项目架构一页纸.md>)
+- [控制面与权限边界说明](<./ai-interviewer/docs/控制面与权限边界说明.md>)
 - [简历与面试讲解稿](<./ai-interviewer/docs/简历与面试讲解稿.md>)
 - [Phase 3.0 产品与上线决策](<./ai-interviewer/docs/PHASE_3_0_产品与上线决策.md>)
 - [Production Readiness Runbook](./ai-interviewer/docs/PRODUCTION_READINESS_RUNBOOK.md)
