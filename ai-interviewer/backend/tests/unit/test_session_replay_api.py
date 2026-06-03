@@ -3,6 +3,7 @@ from __future__ import annotations
 import threading
 from contextlib import contextmanager
 from datetime import UTC, datetime
+from types import SimpleNamespace
 
 import pytest
 from fastapi import FastAPI
@@ -169,6 +170,7 @@ def _isolated_db(monkeypatch: pytest.MonkeyPatch):
             sess.close()
 
     monkeypatch.setattr(interview_api, "get_db_session", get_session, raising=False)
+    monkeypatch.setattr("app.models.get_session", get_session)
     yield testing_session_local
 
 
@@ -191,6 +193,7 @@ def _seed_session(
     *,
     status: str = "completed",
     token_hash: str | None = None,
+    owner_user_id: int | None = None,
 ) -> None:
     now = SESSION_CREATED_AT
     with testing_session_local() as sess:
@@ -204,6 +207,7 @@ def _seed_session(
                 job_level="junior",
                 mode="mixed",
                 status=status,
+                owner_user_id=owner_user_id,
                 final_report={
                     "overall_score": 8.1,
                     "growth_signal": "near_target",
@@ -346,6 +350,164 @@ def test_replay_returns_user_facing_timeline(
     assert "state_snapshot" not in str(payload)
     assert "langsmith_run_id" not in str(payload)
     assert "policy_context_keys" not in str(payload)
+
+
+def test_session_trace_returns_owner_projection(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    with _isolated_db(monkeypatch) as testing_session_local:
+        _seed_session(
+            testing_session_local,
+            token_hash=hash_session_token("session-secret"),
+            owner_user_id=101,
+        )
+        with testing_session_local() as sess:
+            sess.add(
+                GenerationTrace(
+                    trace_id="trace-replay",
+                    session_id="sess-replay",
+                    turn_idx=0,
+                    node="turn_finalize",
+                    dimension="technical_depth",
+                    action_id="internal-action",
+                    policy_id="policy",
+                    context_key="junior:technical_depth",
+                    policy_context_keys=["junior:technical_depth"],
+                    score=None,
+                    passed=None,
+                    immediate_reward=None,
+                    delayed_reward=None,
+                    applied_to_bandit=False,
+                    immediate_reward_applied=False,
+                    state_snapshot={
+                        "payload": {
+                            "phase": "turn_finalize",
+                            "reason": "turn_finalize",
+                            "next_step": "route_decision",
+                            "raw_answer_cleared": True,
+                        }
+                    },
+                    question=None,
+                    answer=None,
+                    evaluation=None,
+                    langsmith_run_id="run-internal",
+                    created_at=SESSION_CREATED_AT,
+                )
+            )
+            sess.commit()
+        monkeypatch.setattr(
+            interview_api,
+            "get_optional_user",
+            lambda _request: SimpleNamespace(id=101),
+        )
+        client = _client(monkeypatch)
+
+        resp = client.get(
+            "/api/v1/interview/sessions/sess-replay/trace",
+            headers={"X-Session-Token": "session-secret"},
+        )
+
+    assert resp.status_code == 200
+    payload = resp.json()
+    assert payload["session_id"] == "sess-replay"
+    assert payload["trace_health"] == "partial"
+    assert payload["trace_count"] == 3
+    assert "langsmith" not in payload
+    assert payload["nodes"]
+
+    evaluator = next(node for node in payload["nodes"] if node["node"] == "evaluator")
+    assert isinstance(evaluator["question"], str)
+    assert evaluator["question"].strip()
+    assert evaluator["answer_excerpt"]
+    assert evaluator["evaluation"]["score"] == 7.5
+    assert evaluator["payload"] == {}
+
+    for internal_key in (
+        "action_id",
+        "policy_id",
+        "context_key",
+        "policy_context_keys",
+        "immediate_reward",
+        "immediate_reward_applied",
+        "langsmith_run_id",
+    ):
+        assert internal_key not in evaluator
+
+    finalize = next(node for node in payload["nodes"] if node["node"] == "turn_finalize")
+    assert finalize["payload"]["phase"] == "turn_finalize"
+    assert finalize["payload"]["reason"] == "turn_finalize"
+    assert finalize["payload"]["next_step"] == "route_decision"
+    assert "raw_answer_cleared" not in finalize["payload"]
+
+
+def test_session_trace_requires_completed_session(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    with _isolated_db(monkeypatch) as testing_session_local:
+        _seed_session(
+            testing_session_local,
+            status="running",
+            token_hash=hash_session_token("session-secret"),
+        )
+        client = _client(monkeypatch)
+
+        resp = client.get(
+            "/api/v1/interview/sessions/sess-replay/trace",
+            headers={"X-Session-Token": "session-secret"},
+        )
+
+    assert resp.status_code == 409
+    assert resp.json()["detail"] == "trace is only available for completed sessions"
+
+
+def test_session_trace_requires_session_token_when_persisted(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    with _isolated_db(monkeypatch) as testing_session_local:
+        _seed_session(
+            testing_session_local,
+            token_hash=hash_session_token("session-secret"),
+        )
+        client = _client(monkeypatch)
+
+        missing = client.get("/api/v1/interview/sessions/sess-replay/trace")
+        wrong = client.get(
+            "/api/v1/interview/sessions/sess-replay/trace",
+            headers={"X-Session-Token": "wrong"},
+        )
+        ok = client.get(
+            "/api/v1/interview/sessions/sess-replay/trace",
+            headers={"X-Session-Token": "session-secret"},
+        )
+
+    assert missing.status_code == 401
+    assert wrong.status_code == 403
+    assert ok.status_code == 200
+
+
+def test_session_trace_rejects_wrong_logged_in_owner(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    with _isolated_db(monkeypatch) as testing_session_local:
+        _seed_session(
+            testing_session_local,
+            token_hash=hash_session_token("session-secret"),
+            owner_user_id=101,
+        )
+        monkeypatch.setattr(
+            interview_api,
+            "get_optional_user",
+            lambda _request: SimpleNamespace(id=202),
+        )
+        client = _client(monkeypatch)
+
+        resp = client.get(
+            "/api/v1/interview/sessions/sess-replay/trace",
+            headers={"X-Session-Token": "session-secret"},
+        )
+
+    assert resp.status_code == 403
+    assert resp.json()["detail"] == "session owner required"
 
 
 def test_replay_prefers_durable_turns_when_trace_history_lags(

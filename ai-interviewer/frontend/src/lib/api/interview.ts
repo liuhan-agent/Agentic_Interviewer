@@ -31,6 +31,7 @@ import type {
   SubmitFeedbackResponse,
   VoiceTicketResponse,
 } from "./types";
+import type { TraceExplorerResponse } from "@/lib/api/trace";
 import { jobTemplateRequestPath } from "@/lib/job-template";
 import { buildLLMPayload } from "@/lib/llm-config";
 import {
@@ -423,6 +424,26 @@ export function getReplay(sessionId: string): Promise<ReplayResponse> {
     request(`${BASE}/sessions/${encodeURIComponent(sessionId)}/replay`, {
       headers: sessionHeaders(sessionId),
     }),
+  );
+}
+
+export function getSessionTrace(
+  sessionId: string,
+  signal?: AbortSignal,
+  options?: { offset?: number; limit?: number },
+): Promise<TraceExplorerResponse> {
+  const params = new URLSearchParams();
+  if (options?.offset) params.set("offset", String(options.offset));
+  if (options?.limit) params.set("limit", String(options.limit));
+  const qs = params.toString();
+  return withSessionRecovery(sessionId, () =>
+    request<TraceExplorerResponse>(
+      `${BASE}/sessions/${encodeURIComponent(sessionId)}/trace${qs ? `?${qs}` : ""}`,
+      {
+        headers: sessionHeaders(sessionId),
+        signal,
+      },
+    ),
   );
 }
 

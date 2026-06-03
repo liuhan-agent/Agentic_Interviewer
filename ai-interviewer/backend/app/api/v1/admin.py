@@ -1726,96 +1726,14 @@ def _interview_session_trace_payload(
     limit: int = 100,
     offset: int = 0,
 ) -> dict[str, Any]:
-    from sqlalchemy import func
+    from app.services.session_trace import build_session_trace_payload
 
-    from app.models import GenerationTrace, InterviewSession, get_session
-
-    capped_limit = max(1, min(int(limit or 100), 300))
-    safe_offset = max(0, min(int(offset or 0), 10_000))
-    with get_session() as sess:
-        row = sess.get(InterviewSession, session_id)
-        if row is None:
-            raise HTTPException(status_code=404, detail="session not found")
-        summary_rows = (
-            sess.query(GenerationTrace.node, func.count(GenerationTrace.id))
-            .filter(GenerationTrace.session_id == session_id)
-            .group_by(GenerationTrace.node)
-            .all()
-        )
-        all_traces = (
-            sess.query(GenerationTrace)
-            .filter(GenerationTrace.session_id == session_id)
-            .order_by(GenerationTrace.turn_idx.asc(), GenerationTrace.id.asc())
-            .all()
-        )
-        traces = (
-            sess.query(GenerationTrace)
-            .filter(GenerationTrace.session_id == session_id)
-            .order_by(GenerationTrace.turn_idx.asc(), GenerationTrace.id.asc())
-            .offset(safe_offset)
-            .limit(capped_limit)
-            .all()
-        )
-        skill_display_lookup = _trace_skill_display_lookup(sess)
-        strategy_display_lookup = _trace_strategy_display_lookup(sess)
-        evaluator_contract_lookup = _trace_ask_question_contract_lookup(all_traces)
-
-    nodes = [
-        _trace_node_payload(
-            trace,
-            skill_display_lookup=skill_display_lookup,
-            strategy_display_lookup=strategy_display_lookup,
-            evaluator_contract_lookup=evaluator_contract_lookup,
-        )
-        for trace in traces
-    ]
-    report = row.final_report or {}
-    from app.services.trace_health import trace_diagnostics
-
-    node_counts = {str(node or ""): int(count) for node, count in summary_rows}
-    node_type_aliases = {
-        node: trace_node_aliases(node)
-        for node in node_counts
-        if trace_node_aliases(node)
-    }
-    total_trace_count = sum(node_counts.values())
-    summary_nodes = [{"node": node} for node in node_counts]
-    diagnostics = trace_diagnostics(summary_nodes, session_status=row.status)
-    last_trace = all_traces[-1] if all_traces else None
-    if last_trace is not None:
-        diagnostics["last_node"] = last_trace.node
-    return {
-        "session_id": row.session_id,
-        "trace_id": row.trace_id,
-        "status": row.status,
-        "has_report": bool(report),
-        "overall_score": report.get("overall_score"),
-        "overall_verdict": report.get("overall_verdict") or report.get("verdict"),
-        "trace_count": total_trace_count,
-        "evaluator_trace_count": int(node_counts.get("evaluator", 0)),
-        "reward_trace_count": int(node_counts.get("reward_update", 0)),
-        "final_report_trace_count": int(node_counts.get("final_report", 0)),
-        "trace_health": _trace_health(summary_nodes, session_status=row.status),
-        "trace_diagnostics": diagnostics,
-        "langsmith": _langsmith_admin_meta(),
-        "node_count_total": total_trace_count,
-        "node_type_counts": node_counts,
-        "node_type_aliases": node_type_aliases,
-        "fallback_trace_count": sum(
-            1 for trace in all_traces if _trace_has_evaluator_fallback(trace)
-        ),
-        "turn_count": len(
-            {
-                trace.turn_idx
-                for trace in all_traces
-                if getattr(trace, "turn_idx", None) is not None
-            }
-        ),
-        "nodes_offset": safe_offset,
-        "nodes_limit": capped_limit,
-        "nodes_has_more": safe_offset + len(nodes) < total_trace_count,
-        "nodes": nodes,
-    }
+    return build_session_trace_payload(
+        session_id=session_id,
+        limit=limit,
+        offset=offset,
+        projection="admin",
+    )
 
 
 @router.get("/interview-sessions", dependencies=[Depends(require_admin_access)])

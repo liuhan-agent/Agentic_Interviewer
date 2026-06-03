@@ -127,6 +127,19 @@ test("report page replaces JSON export with copy summary and Markdown export", (
   assert.match(source, /复制失败，可以改用 Markdown 导出/);
 });
 
+test("report actions group review views next steps and tools", () => {
+  const source = read("src/components/interview/ReportView.tsx");
+
+  assert.match(source, /aria-label="复盘视图"/);
+  assert.match(source, /aria-current="page"/);
+  assert.match(source, /aria-label="下一步"/);
+  assert.match(source, /aria-label="报告工具"/);
+  assert.match(source, /href=\{`\/interview\/\$\{sessionId\}\/replay`\}/);
+  assert.match(source, /href=\{`\/interview\/\$\{sessionId\}\/trace`\}/);
+  assert.match(source, /weakPracticeHref[\s\S]{0,240}bg-emerald-600/);
+  assert.match(source, /weakPracticeHref \? "outline" : "default"/);
+});
+
 test("formatReportSummary outputs short user-facing text", () => {
   const summary = formatReportSummary(sampleReport(), { sessionId: "sess_123456789" });
 
