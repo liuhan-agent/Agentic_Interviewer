@@ -114,6 +114,21 @@ test("upsertEntry persists recovery token in local history", () => {
   assert.equal(getEntry("session-recover").recoveryTokenExpiresAt, expiresAt);
 });
 
+test("upsertEntry persists account ownership markers", () => {
+  installLocalStorage();
+
+  upsertEntry({
+    sessionId: "session-owned",
+    jdTitle: "Backend Engineer",
+    ownerUserId: 42,
+    ownerClaimedAt: "2026-06-01T10:00:00.000Z",
+  });
+
+  const entry = getEntry("session-owned");
+  assert.equal(entry.ownerUserId, 42);
+  assert.equal(entry.ownerClaimedAt, "2026-06-01T10:00:00.000Z");
+});
+
 test("expired recovery token is removed while history remains", () => {
   installLocalStorage({
     interviewHistory: JSON.stringify({

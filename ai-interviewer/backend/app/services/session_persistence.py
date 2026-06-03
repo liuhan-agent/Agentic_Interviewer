@@ -45,6 +45,9 @@ class SessionPersistence:
                     row.llm_config_meta = handle.llm_config_meta
                 if getattr(handle, "setup_snapshot", None) is not None:
                     row.setup_snapshot = handle.setup_snapshot
+                if getattr(handle, "owner_user_id", None) is not None:
+                    row.owner_user_id = handle.owner_user_id
+                    row.owner_claimed_at = getattr(handle, "owner_claimed_at", None)
                 row.enable_video_analysis = bool(
                     getattr(handle, "enable_video_analysis", False)
                 )
@@ -81,6 +84,9 @@ class SessionPersistence:
                     row.llm_config_meta = handle.llm_config_meta
                 if getattr(handle, "setup_snapshot", None) is not None:
                     row.setup_snapshot = handle.setup_snapshot
+                if getattr(handle, "owner_user_id", None) is not None:
+                    row.owner_user_id = handle.owner_user_id
+                    row.owner_claimed_at = getattr(handle, "owner_claimed_at", None)
                 row.enable_video_analysis = bool(
                     getattr(handle, "enable_video_analysis", False)
                 )
@@ -116,7 +122,7 @@ class SessionPersistence:
                 row = db.get(InterviewSession, session_id)
                 if row is None:
                     return None
-                return {
+                data = {
                     "trace_id": row.trace_id,
                     "candidate_name": row.candidate_name,
                     "job_title": row.job_title,
@@ -131,6 +137,10 @@ class SessionPersistence:
                     "turn_idx": row.turn_idx,
                     "asked_turn": row.asked_turn,
                 }
+                if row.owner_user_id is not None:
+                    data["owner_user_id"] = row.owner_user_id
+                    data["owner_claimed_at"] = row.owner_claimed_at
+                return data
         except Exception as e:
             log.warning("load retry session %s failed: %s", session_id, e)
             return None

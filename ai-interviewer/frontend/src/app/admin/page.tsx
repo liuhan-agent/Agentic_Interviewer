@@ -1,6 +1,6 @@
 import { Activity } from "lucide-react";
 
-import { AdminPanel } from "@/components/admin/AdminPanel";
+import { AdminAccessGate } from "@/components/admin/AdminAccessGate";
 
 export const metadata = {
   title: "后台观测台 · AI 面试官",
@@ -24,7 +24,7 @@ export default function AdminPage() {
           内存会话和策略记忆。面板每 15 秒自动刷新。
         </p>
       </div>
-      <AdminPanel />
+      <AdminAccessGate />
     </section>
   );
 }

@@ -48,6 +48,11 @@ def build_config_summary(settings: Settings) -> dict[str, Any]:
         "asr_provider": settings.asr_provider,
         "tts_provider": settings.tts_provider,
         "rate_limit_backend": settings.rate_limit_backend,
+        "auth_registration_mode": settings.auth_registration_mode,
+        "auth_register_rate_limit_per_minute": settings.auth_register_rate_limit_per_minute,
+        "auth_login_rate_limit_per_minute": settings.auth_login_rate_limit_per_minute,
+        "free_interview_credits": settings.free_interview_credits,
+        "free_credits_require_email_verified": settings.free_credits_require_email_verified,
         "voice_ticket_backend": settings.voice_ticket_backend,
         "verifier_drift_backend": settings.verifier_drift_backend,
         "langsmith_tracing": settings.langsmith_tracing,
@@ -163,6 +168,18 @@ def run_preflight(settings: Settings) -> dict[str, Any]:
             issues.append(msg)
         else:
             log.warning("preflight: %s", msg)
+
+    if (
+        is_prod
+        and int(getattr(settings, "free_interview_credits", 0)) > 0
+        and getattr(settings, "auth_registration_mode", "open") == "open"
+        and not bool(getattr(settings, "free_credits_require_email_verified", False))
+    ):
+        issues.append(
+            "open registration with free_interview_credits>0 requires "
+            "FREE_CREDITS_REQUIRE_EMAIL_VERIFIED=true or "
+            "AUTH_REGISTRATION_MODE=closed in production"
+        )
 
     if is_prod and settings.embedding_provider != "stub":
         _check_chroma_reachable(settings, issues)

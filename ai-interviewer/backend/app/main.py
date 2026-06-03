@@ -22,7 +22,9 @@ from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
 from app import __version__
+from app.api.v1 import account as account_api
 from app.api.v1 import admin as admin_api
+from app.api.v1 import auth as auth_api
 from app.api.v1 import interview as interview_api
 from app.api.v1 import llm as llm_api
 from app.api.v1 import ws_voice as ws_voice_api
@@ -214,7 +216,9 @@ def create_app() -> FastAPI:
     )
     install_request_context_middleware(app)
 
+    app.include_router(account_api.router)
     app.include_router(interview_api.router)
+    app.include_router(auth_api.router)
     app.include_router(llm_api.router)
     app.include_router(ws_voice_api.router)
     app.include_router(admin_api.router)

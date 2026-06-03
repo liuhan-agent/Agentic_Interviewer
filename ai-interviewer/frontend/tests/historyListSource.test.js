@@ -105,3 +105,54 @@ test("history list does not expose a bulk local clear action", () => {
   assert.doesNotMatch(source, /handleClearAll/);
   assert.doesNotMatch(source, /clearAll\(/);
 });
+
+test("history list splits logged-in account records from local anonymous records", () => {
+  const source = readSource("src", "components", "interview", "HistoryList.tsx");
+
+  assert.match(source, /getAccountInterviewSessions/);
+  assert.match(source, /SplitHistoryResult/);
+  assert.match(source, /splitAccountAndLocalHistory/);
+  assert.match(source, /primaryEntries/);
+  assert.match(source, /anonymousEntries/);
+  assert.match(source, /本机匿名记录/);
+  assert.match(source, /带有效凭证/);
+  assert.match(source, /当前没有可同步凭证/);
+  assert.match(source, /不能删除服务端数据/);
+  assert.match(source, /anonymousOpen/);
+  assert.match(source, /useState\(false\)/);
+  assert.match(source, /hiddenOtherAccountCount/);
+  assert.match(source, /ownerUserId/);
+});
+
+test("history list exposes explicit claim for local anonymous sessions", () => {
+  const source = readSource("src", "components", "interview", "HistoryList.tsx");
+
+  assert.match(source, /claimSession/);
+  assert.match(source, /claimableAnonymousEntries/);
+  assert.match(source, /anonymousEntries/);
+  assert.match(source, /handleClaimAnonymousEntries/);
+  assert.match(source, /Promise\.allSettled/);
+  assert.match(source, /同步可认领记录/);
+  assert.match(source, /匿名记录已同步/);
+  assert.doesNotMatch(source, /一键保存到账号/);
+  assert.doesNotMatch(source, /账号记录已同步/);
+});
+
+test("history split keeps anonymous entries primary only before login", () => {
+  const source = readSource("src", "components", "interview", "HistoryList.tsx");
+
+  assert.match(source, /currentUserId === null/);
+  assert.match(source, /source: "local_anonymous"/);
+  assert.match(source, /primaryEntries\.push/);
+  assert.match(source, /anonymousEntries\.push/);
+  assert.match(source, /localEntry\.ownerUserId !== currentUserId/);
+});
+
+test("account history records do not expose local-only removal", () => {
+  const source = readSource("src", "components", "interview", "HistoryList.tsx");
+
+  assert.match(source, /canRemoveLocal/);
+  assert.match(source, /canDeleteData/);
+  assert.match(source, /entry\.source === "local_anonymous"/);
+  assert.match(source, /entry\.source === "account"/);
+});

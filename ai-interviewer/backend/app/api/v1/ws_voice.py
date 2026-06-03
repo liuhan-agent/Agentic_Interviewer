@@ -31,6 +31,7 @@ from app.core.settings import get_settings
 from app.core.video_signals_schema import normalize_video_signals
 from app.core.voice_ticket import consume_voice_ticket
 from app.services.session_manager import SessionHandle, get_session_manager
+from app.services.user_auth import AUTH_COOKIE_NAME, load_active_user_for_token
 from app.voice.asr import get_asr
 from app.voice.stream_manager import get_audio_buffer
 from app.voice.tts import get_tts
@@ -132,8 +133,55 @@ def _session_token_hash_from_db(session_id: str) -> str | None:
         return None
 
 
+def _owner_id(value: Any) -> int | None:
+    if value is None:
+        return None
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return None
+
+
+def _session_owner_id_from_db(session_id: str) -> tuple[int | None, bool]:
+    try:
+        from app.models import InterviewSession
+        from app.models import get_session as get_db_session
+
+        with get_db_session() as db:
+            row = db.get(InterviewSession, session_id)
+            if row is None:
+                return None, False
+            return _owner_id(row.owner_user_id), False
+    except Exception as e:  # pragma: no cover - DB failures must not unlock prod auth
+        log.warning("ws_voice owner lookup failed for %s: %s", session_id, e)
+        return None, True
+
+
+def _current_ws_user_id(ws: WebSocket) -> int | None:
+    token = ws.cookies.get(AUTH_COOKIE_NAME)
+    if not token:
+        return None
+    try:
+        from app.models import get_session as get_db_session
+
+        with get_db_session() as db:
+            user = load_active_user_for_token(db, token)
+            return int(user.id) if user is not None else None
+    except Exception as e:
+        log.warning("ws_voice auth user lookup failed: %s", e)
+        return None
+
+
 async def _authenticate_ws(ws: WebSocket, handle: SessionHandle) -> VoiceChannelMode | None:
     mode: VoiceChannelMode = "voice"
+    owner_user_id = _owner_id(getattr(handle, "owner_user_id", None))
+    owner_lookup_failed = False
+    if owner_user_id is None:
+        owner_user_id, owner_lookup_failed = _session_owner_id_from_db(handle.session_id)
+    if owner_lookup_failed and get_settings().app_env == "prod":
+        await _send_error(ws, "auth_required")
+        return None
+
     token_hash = getattr(handle, "session_token_hash", None)
     if not token_hash:
         # Mirror app.api.v1.interview._require_session_access: pull the
@@ -143,6 +191,37 @@ async def _authenticate_ws(ws: WebSocket, handle: SessionHandle) -> VoiceChannel
         # must enforce auth based on persisted state, not in-memory
         # lossage.
         token_hash = _session_token_hash_from_db(handle.session_id)
+    if owner_user_id is not None:
+        try:
+            raw = await asyncio.wait_for(ws.receive_text(), timeout=5.0)
+            payload = _parse_text(raw)
+        except Exception:
+            record_ws_invalid_frame("auth_required")
+            await _send_error(ws, "auth_required")
+            return None
+        if payload.get("type") == "invalid":
+            record_ws_invalid_frame(str(payload.get("error") or "invalid_frame"))
+            await _send_error(ws, str(payload.get("error") or "invalid_frame"))
+            return None
+        if payload.get("type") != "auth":
+            await _send_error(ws, "invalid_token")
+            return None
+        if payload.get("mode") == "asr_only":
+            mode = "asr_only"
+        if payload.get("ticket"):
+            consume_voice_ticket(payload.get("ticket"), handle.session_id)
+        current_user_id = _current_ws_user_id(ws)
+        if current_user_id is None:
+            await _send_error(ws, "auth_required")
+            return None
+        if current_user_id != owner_user_id:
+            await _send_error(ws, "session_owner_required")
+            return None
+        llm_config = payload.get("llm_config")
+        if isinstance(llm_config, dict):
+            handle.llm_config = llm_config
+        return mode
+
     if not token_hash:
         if get_settings().app_env == "prod":
             await _send_error(ws, "auth_required")

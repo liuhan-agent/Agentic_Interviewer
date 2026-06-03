@@ -41,6 +41,11 @@ class _StubSettings:
             "asr_provider": "openai",
             "tts_provider": "openai",
             "rate_limit_backend": "redis",
+            "auth_registration_mode": "open",
+            "auth_register_rate_limit_per_minute": 20,
+            "auth_login_rate_limit_per_minute": 60,
+            "free_interview_credits": 10,
+            "free_credits_require_email_verified": True,
             "voice_ticket_backend": "redis",
             "langsmith_tracing": False,
             "default_guard_mode": "regex_only",
@@ -84,6 +89,11 @@ class TestBuildConfigSummary:
             "asr_provider",
             "tts_provider",
             "rate_limit_backend",
+            "auth_registration_mode",
+            "auth_register_rate_limit_per_minute",
+            "auth_login_rate_limit_per_minute",
+            "free_interview_credits",
+            "free_credits_require_email_verified",
             "voice_ticket_backend",
             "verifier_drift_backend",
             "langsmith_tracing",
@@ -160,12 +170,73 @@ class TestRunPreflight:
             api_token="valid-token",
             llm_provider="openai",
             use_stub_llm=False,
+            free_credits_require_email_verified=True,
         )
         with patch("app.core.deployment_preflight._check_chroma_reachable"):
             summary = run_preflight(s)
         assert summary["app_env"] == "prod"
         assert summary["checkpoint_backend"] == "postgres"
         assert summary["api_token_configured"] is True
+
+    def test_prod_open_registration_with_free_credits_without_email_verification_raises(self):
+        s = _StubSettings(
+            app_env="prod",
+            checkpoint_backend="postgres",
+            api_token="valid-token",
+            llm_provider="openai",
+            use_stub_llm=False,
+            auth_registration_mode="open",
+            free_interview_credits=10,
+            free_credits_require_email_verified=False,
+        )
+        with patch("app.core.deployment_preflight._check_chroma_reachable"):
+            with pytest.raises(PreflightError, match="FREE_CREDITS_REQUIRE_EMAIL_VERIFIED"):
+                run_preflight(s)
+
+    def test_prod_free_credit_guard_allows_closed_registration(self):
+        s = _StubSettings(
+            app_env="prod",
+            checkpoint_backend="postgres",
+            api_token="valid-token",
+            llm_provider="openai",
+            use_stub_llm=False,
+            auth_registration_mode="closed",
+            free_interview_credits=10,
+            free_credits_require_email_verified=False,
+        )
+        with patch("app.core.deployment_preflight._check_chroma_reachable"):
+            summary = run_preflight(s)
+        assert summary["auth_registration_mode"] == "closed"
+
+    def test_prod_free_credit_guard_allows_zero_free_credits(self):
+        s = _StubSettings(
+            app_env="prod",
+            checkpoint_backend="postgres",
+            api_token="valid-token",
+            llm_provider="openai",
+            use_stub_llm=False,
+            auth_registration_mode="open",
+            free_interview_credits=0,
+            free_credits_require_email_verified=False,
+        )
+        with patch("app.core.deployment_preflight._check_chroma_reachable"):
+            summary = run_preflight(s)
+        assert summary["free_interview_credits"] == 0
+
+    def test_prod_free_credit_guard_allows_email_verification_requirement(self):
+        s = _StubSettings(
+            app_env="prod",
+            checkpoint_backend="postgres",
+            api_token="valid-token",
+            llm_provider="openai",
+            use_stub_llm=False,
+            auth_registration_mode="open",
+            free_interview_credits=10,
+            free_credits_require_email_verified=True,
+        )
+        with patch("app.core.deployment_preflight._check_chroma_reachable"):
+            summary = run_preflight(s)
+        assert summary["free_credits_require_email_verified"] is True
 
     def test_prod_stub_llm_raises(self):
         s = _StubSettings(

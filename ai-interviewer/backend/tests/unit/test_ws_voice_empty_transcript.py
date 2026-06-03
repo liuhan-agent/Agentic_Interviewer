@@ -609,6 +609,93 @@ def test_voice_channel_accepts_valid_session_token(
         assert json.loads(ws.receive_text()) == {"type": "tts_end", "turn_idx": 0}
 
 
+def test_owned_voice_channel_rejects_session_token_without_owner_cookie(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    handle = _FakeHandle(session_id="sess-owned")
+    handle.owner_user_id = 123  # type: ignore[attr-defined]
+    handle.session_token_hash = hash_session_token("voice-secret")  # type: ignore[attr-defined]
+    manager = _FakeSessionManager(handle)
+
+    monkeypatch.setattr(ws_voice_module, "get_session_manager", lambda: manager)
+    monkeypatch.setattr(ws_voice_module, "get_tts", lambda: _StubTTS())
+    monkeypatch.setattr(
+        ws_voice_module,
+        "_current_ws_user_id",
+        lambda _ws: None,
+        raising=False,
+    )
+
+    app = FastAPI()
+    app.include_router(ws_voice_module.router)
+    client = TestClient(app)
+
+    with client.websocket_connect("/ws/voice/sess-owned") as ws:
+        ws.send_text(json.dumps({"type": "auth", "session_token": "voice-secret"}))
+        assert json.loads(ws.receive_text()) == {
+            "type": "error",
+            "error": "auth_required",
+        }
+
+
+def test_owned_voice_channel_rejects_other_logged_in_user(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    handle = _FakeHandle(session_id="sess-owned")
+    handle.owner_user_id = 123  # type: ignore[attr-defined]
+    handle.session_token_hash = hash_session_token("voice-secret")  # type: ignore[attr-defined]
+    manager = _FakeSessionManager(handle)
+
+    monkeypatch.setattr(ws_voice_module, "get_session_manager", lambda: manager)
+    monkeypatch.setattr(ws_voice_module, "get_tts", lambda: _StubTTS())
+    monkeypatch.setattr(
+        ws_voice_module,
+        "_current_ws_user_id",
+        lambda _ws: 456,
+        raising=False,
+    )
+
+    app = FastAPI()
+    app.include_router(ws_voice_module.router)
+    client = TestClient(app)
+
+    with client.websocket_connect("/ws/voice/sess-owned") as ws:
+        ws.send_text(json.dumps({"type": "auth", "session_token": "voice-secret"}))
+        assert json.loads(ws.receive_text()) == {
+            "type": "error",
+            "error": "session_owner_required",
+        }
+
+
+def test_owned_voice_channel_accepts_owner_cookie_without_session_token(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    handle = _FakeHandle(session_id="sess-owned")
+    handle.owner_user_id = 123  # type: ignore[attr-defined]
+    handle.session_token_hash = hash_session_token("voice-secret")  # type: ignore[attr-defined]
+    manager = _FakeSessionManager(handle)
+
+    monkeypatch.setattr(ws_voice_module, "get_session_manager", lambda: manager)
+    monkeypatch.setattr(ws_voice_module, "get_tts", lambda: _StubTTS())
+    monkeypatch.setattr(
+        ws_voice_module,
+        "_current_ws_user_id",
+        lambda _ws: 123,
+        raising=False,
+    )
+
+    app = FastAPI()
+    app.include_router(ws_voice_module.router)
+    client = TestClient(app)
+
+    with client.websocket_connect("/ws/voice/sess-owned") as ws:
+        ws.send_text(json.dumps({"type": "auth"}))
+        first_question = json.loads(ws.receive_text())
+        assert first_question["type"] == "question"
+        assert ws.receive_bytes().startswith(b"[stub-tts]")
+        assert json.loads(ws.receive_text()) == {"type": "tts_end", "turn_idx": 0}
+
+
 def test_voice_channel_accepts_one_time_voice_ticket(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
