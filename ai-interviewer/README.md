@@ -270,6 +270,9 @@ python -m app.scripts.production_smoke --check-deps
 
 ## Key Documents
 
+- [Documentation index](./docs/README.md): recommended reading paths for
+  architecture, local development, production readiness, resume prep, and
+  archived plans.
 - [Backend README](./backend/README.md): backend setup, workflow modules, env
   variables, persistence, RAG, and voice details.
 - [Frontend README](./frontend/README.md): Next.js setup, routes, UI structure,
@@ -280,6 +283,9 @@ python -m app.scripts.production_smoke --check-deps
 - [Architecture one-pager](<./docs/项目架构一页纸.md>): workflow runtime,
   control plane, data/state layers, production boundary, and interview talking
   points.
+- [Control-plane and permission boundaries](<./docs/控制面与权限边界说明.md>):
+  account ownership, anonymous records, credits, BYOK, admin role, and
+  production preflight boundaries.
 - [Resume and interview talking guide](<./docs/简历与面试讲解稿.md>): resume
   bullets, 30-second and 2-minute project pitches, deep-dive Q&A, and project
   close-out framing.
@@ -287,10 +293,6 @@ python -m app.scripts.production_smoke --check-deps
   decision, launch posture, commercialization boundaries, and resume framing.
 - [Local development command reference](<./docs/本地开发命令速查.md>): local command reference for Docker,
   backend, frontend, and troubleshooting.
-
-The repository-level reference knowledge base starts at
-[reference/MEMORY.md](../reference/MEMORY.md). Use it for repo-scoped pattern
-borrowing and cross-project comparisons, not as a replacement for official docs.
 
 ## Current Scope and Boundaries
 
