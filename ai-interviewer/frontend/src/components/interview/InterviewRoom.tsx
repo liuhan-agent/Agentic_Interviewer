@@ -125,7 +125,7 @@ export function InterviewRoom({
   defaultAnswerMode?: AnswerMode;
 }) {
   const router = useRouter();
-  const { state, afterAnswerSubmitted, afterQuestionRetryRequested } =
+  const { state, afterAnswerSubmitted, afterQuestionRetryRequested, refreshStatus } =
     useQuestionPoller(sessionId);
   const { toast } = useToast();
   const [history, setHistory] = useState<QaEntry[]>([]);
@@ -803,7 +803,7 @@ export function InterviewRoom({
                 <Button
                   variant="outline"
                   size="sm"
-                  onClick={() => router.refresh()}
+                  onClick={refreshStatus}
                 >
                   刷新状态
                 </Button>

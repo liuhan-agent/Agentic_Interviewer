@@ -7,6 +7,10 @@ const source = fs.readFileSync(
   path.join(__dirname, "..", "src", "components", "interview", "InterviewRoom.tsx"),
   "utf8",
 );
+const pollerSource = fs.readFileSync(
+  path.join(__dirname, "..", "src", "lib", "hooks", "useQuestionPoller.ts"),
+  "utf8",
+);
 const voiceSource = fs.readFileSync(
   path.join(__dirname, "..", "src", "components", "interview", "VoiceRoom.tsx"),
   "utf8",
@@ -103,10 +107,18 @@ test("interview room detects final submitted turn for final-report loading copy"
   assert.match(source, /<NextQuestionLoader\s+etaMs=\{state\.lastServerLatencyMs\}\s+isFinalTurn=\{finalTurnSubmitted\}\s+answerInsight=\{latestSubmittedAnswerInsight\}/);
 });
 
-test("interview room separates retry processing from status refresh copy", () => {
+test("interview room status refresh restarts the poller instead of only refreshing the route", () => {
   assert.match(source, /onClick=\{handleRetryQuestionGeneration\}/);
   assert.match(source, /继续处理/);
-  assert.match(source, /onClick=\{\(\) => router\.refresh\(\)\}/);
+  assert.match(source, /refreshStatus/);
+  assert.match(source, /onClick=\{refreshStatus\}/);
+  assert.doesNotMatch(source, /onClick=\{\(\) => router\.refresh\(\)\}/);
+  assert.match(pollerSource, /const refreshStatus = useCallback/);
+  assert.match(pollerSource, /void begin\(ctrl\)/);
+  assert.match(
+    pollerSource,
+    /return \{ state, afterAnswerSubmitted, afterQuestionRetryRequested, refreshStatus \}/,
+  );
   assert.match(source, /刷新状态/);
   assert.doesNotMatch(source, /重试连接/);
 });
