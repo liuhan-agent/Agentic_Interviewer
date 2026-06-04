@@ -2,7 +2,7 @@ import { AdminAccessGate } from "@/components/admin/AdminAccessGate";
 import { TraceExplorer } from "@/components/admin/TraceExplorer";
 
 export const metadata = {
-  title: "Trace Explorer · AI 面试官",
+  title: "Trace Explorer · 问镜",
 };
 
 export default function TraceExplorerPage({

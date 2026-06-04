@@ -13,7 +13,7 @@ export function generateMetadata({ params }: PageProps): Metadata {
       ? `${params.sessionId.slice(0, 4)}…${params.sessionId.slice(-4)}`
       : params.sessionId;
   return {
-    title: `语音面试 ${short} · AI 面试官`,
+    title: `语音面试 ${short} · 问镜`,
   };
 }
 

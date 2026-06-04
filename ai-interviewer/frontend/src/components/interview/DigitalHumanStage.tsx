@@ -165,7 +165,7 @@ export function DigitalHumanStage({
             <div className="flex items-center justify-between gap-3">
               <div>
                 <p className="text-xs font-medium uppercase tracking-[0.24em] text-current/60">
-                  AI 面试官
+                  问镜
                 </p>
                 <h2 className="mt-1 text-xl font-semibold tracking-tight">
                   {meta.label}

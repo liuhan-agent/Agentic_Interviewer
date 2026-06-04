@@ -82,7 +82,7 @@ import type { AggregatedVideoSignal } from "@/lib/video/types";
 
 const ENCOURAGEMENTS = [
   "已收到回答，正在准备下一题。",
-  "回答已提交，AI 面试官正在整理追问。",
+  "回答已提交，问镜正在整理追问。",
   "这一轮已记录，稍等片刻进入下一题。",
   "已保存本轮回答，继续保持节奏。",
   "提交成功，正在生成下一轮问题。",
@@ -929,7 +929,7 @@ function StatusBar({
       )}
       <span className="ml-auto flex items-center gap-1.5 text-muted-foreground">
         <Sparkles className="h-3 w-3 text-emerald-400/60" />
-        <span className="hidden sm:inline">AI 面试官追问中</span>
+        <span className="hidden sm:inline">问镜追问中</span>
       </span>
     </motion.div>
   );

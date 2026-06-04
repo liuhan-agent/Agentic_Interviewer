@@ -13,7 +13,7 @@ export function generateMetadata({ params }: PageProps): Metadata {
       ? `${params.sessionId.slice(0, 4)}…${params.sessionId.slice(-4)}`
       : params.sessionId;
   return {
-    title: `报告 ${short} · AI 面试官`,
+    title: `报告 ${short} · 问镜`,
   };
 }
 
@@ -33,7 +33,7 @@ export default function InterviewReportPage({ params }: PageProps) {
           面试报告
         </h1>
         <p className="max-w-xl text-sm leading-relaxed text-muted-foreground">
-          AI 面试官从多个维度给出了反馈和提升方向，
+          问镜从多个维度给出了反馈和提升方向，
           帮你看清当前的强项和差距。
         </p>
       </header>

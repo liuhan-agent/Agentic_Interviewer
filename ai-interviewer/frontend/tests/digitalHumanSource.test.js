@@ -39,7 +39,7 @@ test("digital human stage exposes state and lightweight lip sync UI", () => {
   assert.match(source, /mouthOpen/);
   assert.match(source, /speaking/);
   assert.match(source, /listening_active/);
-  assert.match(source, /AI 面试官/);
+  assert.match(source, /问镜/);
   assert.match(source, /语音能量/);
 });
 

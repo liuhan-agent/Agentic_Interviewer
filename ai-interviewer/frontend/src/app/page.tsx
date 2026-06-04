@@ -49,8 +49,8 @@ export default function LandingPage() {
   return (
     <>
       <HeroSection />
-      <ArchitectureSection />
       <WorkflowSection />
+      <ArchitectureSection />
       <CtaSection />
     </>
   );
@@ -78,7 +78,7 @@ function HeroSection() {
               className="rounded-full border-emerald-500/30 px-3.5 py-1.5 text-xs backdrop-blur-sm"
             >
               <Sparkles className="mr-1.5 h-3 w-3 text-emerald-400" />
-              AI 面试官 · 追问评分复盘 · 下一场训练
+              问镜 · AI 模拟面试与复盘训练
             </Badge>
           </motion.div>
 
@@ -86,16 +86,15 @@ function HeroSection() {
             variants={fadeUp}
             className="max-w-[18rem] text-balance text-4xl font-semibold leading-[1.08] tracking-tight sm:max-w-none md:text-5xl lg:text-[56px]"
           >
-            一个会<span className="gradient-text">自我进化</span>的 AI 面试官
+            会追问、会评分、会<span className="gradient-text">复盘</span>的 AI 面试陪练
           </motion.h1>
 
           <motion.p
             variants={fadeUp}
             className="max-w-[32rem] text-balance text-base leading-8 text-slate-600 md:text-lg dark:text-muted-foreground"
           >
-            像真实面试一样与你对话，根据岗位需求和你的背景智能出题，
-            围绕面试主链路持续追问、评分和复盘。
-            面试结束后给出下一场训练建议。
+            问镜会根据岗位需求和你的背景生成问题，在作答后即时评估，
+            并围绕薄弱点继续追问。面试结束后，生成报告和下一场训练建议。
           </motion.p>
 
           <motion.div
@@ -124,7 +123,7 @@ function HeroSection() {
 
           <motion.div variants={fadeUp} className="flex flex-wrap gap-3 pt-2">
             <Button asChild size="lg" className="group glow-emerald-sm bg-emerald-600 hover:bg-emerald-500 text-white">
-              <PendingNavigationLink href="/interview/setup" pendingLabel="打开中...">
+              <PendingNavigationLink href="/interview/setup" pendingLabel="打开中…">
                 开始面试
                 <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5" />
               </PendingNavigationLink>
@@ -153,12 +152,12 @@ function WorkflowSection() {
   const inView = useInView(ref, { once: true, margin: "-80px" });
 
   const steps = [
-    { icon: <Zap className="h-4 w-4" />, label: "录入信息", color: "text-blue-400" },
-    { icon: <Brain className="h-4 w-4" />, label: "智能出题", color: "text-purple-400" },
-    { icon: <Sparkles className="h-4 w-4" />, label: "作答互动", color: "text-emerald-400" },
-    { icon: <BarChart3 className="h-4 w-4" />, label: "实时评估", color: "text-amber-400" },
-    { icon: <GitBranch className="h-4 w-4" />, label: "深入追问", color: "text-rose-400" },
-    { icon: <Feather className="h-4 w-4" />, label: "生成报告", color: "text-cyan-400" },
+    { icon: <Zap className="h-4 w-4" />, label: "建档定位", color: "text-blue-400" },
+    { icon: <Brain className="h-4 w-4" />, label: "规划出题", color: "text-purple-400" },
+    { icon: <Sparkles className="h-4 w-4" />, label: "作答采样", color: "text-emerald-400" },
+    { icon: <BarChart3 className="h-4 w-4" />, label: "评分验证", color: "text-amber-400" },
+    { icon: <GitBranch className="h-4 w-4" />, label: "路由追问", color: "text-rose-400" },
+    { icon: <Feather className="h-4 w-4" />, label: "报告复盘", color: "text-cyan-400" },
   ];
 
   return (
@@ -174,8 +173,11 @@ function WorkflowSection() {
             一场练习是怎么走的
           </p>
           <h2 className="text-xl font-semibold tracking-tight md:text-2xl">
-            从录入信息到拿到反馈，只要六步
+            从目标岗位到复盘报告，一条主链路跑到底
           </h2>
+          <p className="mx-auto mt-3 max-w-2xl text-sm leading-relaxed text-muted-foreground">
+            每一步都对应后端面试主链路 workflow 节点：生成问题、评估回答、验证结果、决定追问或收束，最后沉淀成可回放的训练记录。
+          </p>
         </motion.div>
 
         <div className="flex flex-wrap items-center justify-center gap-2 md:gap-0">
@@ -208,39 +210,39 @@ function ArchitectureSection() {
 
   const features = [
     {
-      icon: <GitBranch className="h-5 w-5" />,
-      title: "智能适配出题",
-      desc: "根据你的技能背景和岗位需求，动态调整问题难度和方向。",
-    },
-    {
       icon: <Brain className="h-5 w-5" />,
-      title: "多维度评估",
-      desc: "从技术深度、系统设计、沟通能力等多个维度全面评估你的表现。",
+      title: "简历/JD 驱动出题",
+      desc: "结合目标岗位、背景材料和题库策略，生成贴近真实面试的首问与后续问题。",
     },
     {
       icon: <BarChart3 className="h-5 w-5" />,
-      title: "精准评分",
-      desc: "每道题都有明确的评分标准，确保评估客观、一致、可信赖。",
+      title: "每轮即时评分",
+      desc: "作答后按维度记录评分、强项、短板和本轮反馈，报告结果可追溯。",
+    },
+    {
+      icon: <GitBranch className="h-5 w-5" />,
+      title: "薄弱点触发追问",
+      desc: "路由节点会根据评分和验证结果，决定继续追问、切换维度或收束本轮。",
     },
     {
       icon: <RotateCcw className="h-5 w-5" />,
-      title: "深度追问",
-      desc: "发现薄弱点时自动追问，帮助你全面展示真实水平。",
+      title: "训练回放与恢复",
+      desc: "会话进度、历史记录和报告可继续访问，断点恢复不打断练习链路。",
     },
     {
       icon: <Feather className="h-5 w-5" />,
-      title: "随时继续",
-      desc: "面试进度自动保存，关闭浏览器后可随时回来继续。",
+      title: "结构化复盘报告",
+      desc: "结束后汇总总体评分、维度表现、改进建议和下一场训练计划。",
     },
     {
       icon: <Sparkles className="h-5 w-5" />,
-      title: "下一场训练",
-      desc: "基于追问评分复盘，给出下一场该集中练什么。",
+      title: "Trace 观测 workflow",
+      desc: "后台可查看节点耗时、路由决策和证据来源，便于调试 agentic 链路。",
     },
   ];
 
   return (
-    <section id="features" className="container py-24" ref={ref}>
+    <section id="features" className="container scroll-mt-24 py-24" ref={ref}>
       <motion.div
         initial="hidden"
         animate={inView ? "visible" : "hidden"}
@@ -248,14 +250,15 @@ function ArchitectureSection() {
       >
         <motion.div variants={fadeUp} className="mb-12">
           <p className="mb-2 font-mono text-xs uppercase tracking-widest text-emerald-400">
-            你能得到什么
+            Agentic workflow
           </p>
           <h2 className="mb-3 text-2xl font-semibold tracking-tight md:text-3xl">
-            为你的面试准备而设计
+            把一次模拟面试拆成可观测、可恢复的主链路
           </h2>
           <p className="max-w-2xl text-sm leading-relaxed text-muted-foreground">
-            无论你是准备跳槽还是想系统提升面试能力，
-            AI 面试官都会围绕真实面试流程帮你暴露差距、校准下一场练习。
+            问镜不是单轮聊天工具，而是把出题、作答、评分、验证、追问和复盘拆成可追踪节点，
+            围绕追问评分复盘持续校准训练方向，
+            让用户拿到训练反馈，也让开发者能看清 agentic 链路如何运转。
           </p>
         </motion.div>
 
@@ -303,11 +306,11 @@ function CtaSection() {
           来场练习吧
         </h2>
         <p className="max-w-md text-sm text-muted-foreground">
-          告诉 AI 你的背景和目标岗位，几分钟之后就能开始作答。
+          告诉问镜你的背景和目标岗位，几分钟之后就能开始作答。
           按你的节奏来，没有任何压力。
         </p>
         <Button asChild size="lg" className="group glow-emerald-sm bg-emerald-600 hover:bg-emerald-500 text-white">
-          <PendingNavigationLink href="/interview/setup" pendingLabel="打开中...">
+          <PendingNavigationLink href="/interview/setup" pendingLabel="打开中…">
             立即开始
             <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5" />
           </PendingNavigationLink>

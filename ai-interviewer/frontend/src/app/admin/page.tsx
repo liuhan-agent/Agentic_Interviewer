@@ -3,7 +3,7 @@ import { Activity } from "lucide-react";
 import { AdminAccessGate } from "@/components/admin/AdminAccessGate";
 
 export const metadata = {
-  title: "后台观测台 · AI 面试官",
+  title: "后台观测台 · 问镜",
 };
 
 export default function AdminPage() {

@@ -133,7 +133,8 @@
   }
 
   .card-hover {
-    @apply transition-all duration-300;
+    @apply duration-300;
+    transition-property: border-color, box-shadow, transform;
   }
   .card-hover:hover {
     @apply border-emerald-500/30;

@@ -3,7 +3,7 @@ import { History } from "lucide-react";
 import { HistoryList } from "@/components/interview/HistoryList";
 
 export const metadata = {
-  title: "我的面试 · AI 面试官",
+  title: "我的面试 · 问镜",
 };
 
 export default function InterviewHistoryPage() {

@@ -239,9 +239,9 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-emerald-500/10">
               <Activity className="h-4 w-4 text-emerald-400" />
             </div>
-            <span>AI 面试官</span>
+            <span>问镜</span>
             <span className="hidden rounded-full bg-emerald-500/10 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wider text-emerald-400 sm:inline">
-              预览版
+              演示版
             </span>
           </PendingNavigationLink>
 

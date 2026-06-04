@@ -346,7 +346,7 @@ export function LLMSettingsDialog({ children }: { children: React.ReactNode }) {
             LLM 配置
           </DialogTitle>
           <DialogDescription>
-            配置你的 API Key，以便 AI 面试官可以代你调用 LLM。
+            配置你的 API Key，以便问镜可以代你调用 LLM。
             默认会保留到本浏览器会话结束（关闭浏览器自动清空）；选择本机长期保存后，密钥会留在这台设备上。
           </DialogDescription>
         </DialogHeader>
@@ -446,7 +446,7 @@ export function LLMSettingsDialog({ children }: { children: React.ReactNode }) {
                   </li>
                 </ul>
                 <p className="mt-2 text-muted-foreground">
-                  建议为 AI 面试官单独申请一把额度受限的 Key，并在不再使用时去服务商后台撤销。
+                  建议为问镜单独申请一把额度受限的 Key，并在不再使用时去服务商后台撤销。
                 </p>
               </details>
             </div>

@@ -62,7 +62,7 @@ test("report page header keeps 面试官 + 多维度反馈 phrasing", () => {
   // header against creeping back to either招聘官 ("综合评估") or
   // over-coach ("教练反馈").
   assert.match(source, /面试报告/);
-  assert.match(source, /AI 面试官/);
+  assert.match(source, /问镜/);
   assert.match(source, /多个维度给出了反馈和提升方向/);
   assert.doesNotMatch(source, /综合评估/);
   assert.doesNotMatch(source, /教练反馈/);

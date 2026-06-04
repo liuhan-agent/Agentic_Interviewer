@@ -9,9 +9,9 @@ import { AuthProvider } from "@/lib/auth/useAuth";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "AI 面试官",
+  title: "问镜 | AI 模拟面试与复盘训练",
   description:
-    "面向求职者的 AI 面试练习工具，提供模拟问答、能力评估和个性化提升建议。",
+    "问镜是一套面向求职者的 AI 模拟面试与复盘训练系统，提供模拟问答、追问评分、能力评估和个性化提升建议。",
   icons: {
     icon: [{ url: "/favicon.svg", type: "image/svg+xml" }],
   },

@@ -4,7 +4,7 @@ import { Settings2 } from "lucide-react";
 import { SetupForm } from "@/components/interview/SetupForm";
 
 export const metadata = {
-  title: "开始面试 · AI 面试官",
+  title: "开始面试 · 问镜",
 };
 
 export default function SetupPage() {
@@ -23,7 +23,7 @@ export default function SetupPage() {
           告诉 AI 你想练什么
         </h1>
         <p className="mt-2 max-w-xl text-sm leading-relaxed text-muted-foreground">
-          填写你的背景和目标岗位，AI 面试官会据此挑选题目和评分维度。
+          填写你的背景和目标岗位，问镜会据此挑选题目和评分维度。
           没有标准答案——按你真实的想法回答即可，结束后会拿到多维度反馈和提升建议。
         </p>
         <p className="mt-3 max-w-xl text-xs leading-relaxed text-muted-foreground/80">

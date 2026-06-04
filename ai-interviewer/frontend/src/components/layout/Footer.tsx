@@ -7,7 +7,7 @@ export function Footer() {
         <div className="flex items-center gap-2">
           <Activity className="h-3.5 w-3.5 text-emerald-400/60" />
           <span className="font-mono">
-            AI 面试官 · 追问评分 · 复盘训练
+            问镜 · 追问评分 · 复盘训练
           </span>
         </div>
         <div className="flex items-center gap-3">
