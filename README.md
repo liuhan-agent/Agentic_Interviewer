@@ -1,5 +1,7 @@
 # 问镜（Agentic Interviewer）
 
+[![License: MIT](https://img.shields.io/badge/License-MIT-10b981.svg)](./LICENSE)
+
 > 基于 LangGraph 的 AI 模拟面试与复盘训练系统：核心是可恢复、可观测、可复盘的多智能体面试 workflow，外层再补齐账号归属、平台额度、BYOK、Admin 后台和上线预检等产品控制面。
 
 问镜（Agentic Interviewer）不是普通聊天机器人，也不是“套一层简历问题 prompt”的 Demo。它围绕一次完整模拟面试构建真实 workflow：采集上下文、生成问题、等待用户回答、评分、验证、奖励回填、决定追问或下一题，最后生成报告和复练计划。
