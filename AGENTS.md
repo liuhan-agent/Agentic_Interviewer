@@ -1,12 +1,11 @@
 # Repository Guidelines
 
-## Reference KB
-- Start with `reference/MEMORY.md`. It is the only root entrypoint into the curated knowledge base.
-- Use this KB for repo-scoped pattern borrowing, reading paths, and cross-project comparisons across Claude Code, Hermes Agent, OpenClaw, and Agentic-Content-Optimizer.
-- Concept, comparison, and pattern questions inside this repo scope should enter through `reference/topics/*`.
-- Project trace, source provenance, and "how does project X do it" questions inside this repo scope should enter through `reference/projects/*`.
-- Do not use this KB as the primary source for official definitions, latest viewpoints, or explicit web-search questions; prefer official or web sources first and only compare back to the repo when needed.
-- The expected output from this knowledge layer is `navigation + pattern extraction + source map`, not a direct business solution.
+## Project Scope
+- Treat `ai-interviewer/` as the runnable product source: Next.js frontend, FastAPI backend, LangGraph-style workflow, account/control-plane modules, and project documentation.
+- Local-only research notes, agent planning traces, demo raw files, and private reference material are intentionally ignored and should not be required to build, test, review, or understand the public project.
+- Prefer tracked docs under `ai-interviewer/docs/` for architecture, runbooks, and retrospective material.
 
-## Skills
-- `agentic-workflow-reference`: Use when the task is repo-scoped pattern borrowing, reading-path guidance, or cross-project comparison across Claude Code, Hermes Agent, OpenClaw, and Agentic-Content-Optimizer in this repository. Do not treat it as the primary source for official or web-first questions. File: `.agents/skills/agentic-workflow-reference/SKILL.md`
+## Development Notes
+- Keep product changes connected to the interview workflow and ownership/control-plane boundaries.
+- Do not introduce dependencies on ignored local knowledge bases or machine-specific paths.
+- When documenting design provenance, summarize the pattern in the public doc instead of linking to private workspace notes.

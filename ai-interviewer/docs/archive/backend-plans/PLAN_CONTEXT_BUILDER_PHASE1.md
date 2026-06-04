@@ -342,7 +342,7 @@ def assert_messages_equal(a: list[ChatMessage], b: list[ChatMessage]) -> None:
   - [ ] `use_context_builder=True` 跑同一命令 → 输出与 False 基线字节相等（或仅因 LLM 非确定性产生语义等价 diff）
   - [ ] `/admin/bandit/snapshot` 前后数字对比 0 变化（确认没污染 bandit 状态）
 - [ ] README "Context Engineering" 段更新完毕；`engine/context/__init__.py` docstring 更新
-- [ ] `.agents/skills/agentic-workflow-reference/SKILL.md` **可选** 补回一个最简 SKILL.md（用于方向 3 的铺路），本 Plan 内不强制
+- [ ] 可选：补一个最简 agent skill，用于后续方向 3 的铺路；本 Plan 内不强制
 
 ---
 

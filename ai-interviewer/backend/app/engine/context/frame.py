@@ -1,9 +1,8 @@
 """Typed data class that carries all context slots for one agent call.
 
-The design intent follows ``reference/topics/context-engineering.md``:
-treat a single LLM prompt as a **layered composition**, not a free-form
-string. Three stable layers plus a per-turn ``payload`` cover every
-agent role we currently have:
+The design intent is to treat a single LLM prompt as a **layered
+composition**, not a free-form string. Three stable layers plus a
+per-turn ``payload`` cover every agent role we currently have:
 
 1. ``static_system`` - hot prefix shared across a whole session (e.g.
    ``system_skeleton.md``). This is what Anthropic prompt cache hits

@@ -336,4 +336,4 @@ python -m app.scripts.production_smoke --check-deps
 
 ## 本地研发备注
 
-本地工作区可能存在 `reference/`、`docs/learning-cases/` 等研发参考资料或 agent 工作资料。这些内容不参与项目运行，也不随远程仓库发布；公开 README 以 `ai-interviewer/` 下的可运行项目和已跟踪文档为准。
+本地工作区可能存在未跟踪的研发参考资料、复盘笔记或 agent 工作资料。这些内容不参与项目运行，也不随远程仓库发布；公开 README 以 `ai-interviewer/` 下的可运行项目和已跟踪文档为准。

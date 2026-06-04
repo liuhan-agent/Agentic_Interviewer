@@ -10,10 +10,9 @@ the answer, and the evaluator's evidence report, then either:
 - flips contentious passes to ``verdict="fail"`` when the answer
   doesn't actually hold up under scrutiny.
 
-This is the Claude Code ``verification`` subagent pattern (see
-``reference/claude-code/multi-agent-architecture.md`` §4.11.7):
-keep the reviewer structurally independent from the grader, and
-force it to adopt an adversarial stance rather than "looks fine".
+This follows a three-agent review pattern: keep the reviewer
+structurally independent from the grader, and force it to adopt an
+adversarial stance rather than "looks fine".
 
 Trigger policy lives in :func:`should_trigger`; by default we keep it
 focused on suspicious passes: near-threshold scores, partial contract

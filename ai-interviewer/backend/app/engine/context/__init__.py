@@ -1,8 +1,7 @@
 """Slot-based context assembly for LLM agents.
 
-Phase 2 complete (legacy downsize). See
-``reference/topics/context-engineering.md`` for the design intent:
-layered context (static / dynamic / per-turn) replaces ad-hoc
+Phase 2 complete (legacy downsize). The design intent is layered
+context assembly: static, dynamic, and per-turn slots replace ad-hoc
 prompt string concatenation inside individual agents.
 
 Every agent in the interview workflow now goes through this package

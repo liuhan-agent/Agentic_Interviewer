@@ -245,4 +245,3 @@ CHECKPOINT_BACKEND=memory
 - [项目 README](../README.md)
 - [后端 README](../backend/README.md)
 - [前端 README](../frontend/README.md)
-- [reference/MEMORY.md](../../reference/MEMORY.md)
