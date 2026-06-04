@@ -6,9 +6,9 @@ Agentic Interviewer 不是普通聊天机器人，也不是“套一层简历问
 
 项目的重点是展示：**如何把 agentic workflow 从一次 LLM 调用，工程化成可恢复、可观测、可复盘、可运营的产品系统。**
 
-[![Agentic Interviewer Trace Explorer demo preview](./ai-interviewer/docs/assets/demo-cover.png)](https://github.com/liuhan-agent/Agentic_Interviewer/releases/download/demo-video-2026-06-04/agentic-interviewer-demo-final-bgm.mp4)
+[![Agentic Interviewer Trace Explorer demo preview](./ai-interviewer/docs/assets/demo-cover.png)](https://www.bilibili.com/video/BV1Ey7Z6gEcA/)
 
-[Watch the 5-minute demo video](https://github.com/liuhan-agent/Agentic_Interviewer/releases/download/demo-video-2026-06-04/agentic-interviewer-demo-final-bgm.mp4) · [Release assets](https://github.com/liuhan-agent/Agentic_Interviewer/releases/tag/demo-video-2026-06-04)
+[观看 5 分钟演示视频（Bilibili）](https://www.bilibili.com/video/BV1Ey7Z6gEcA/) · [GitHub Release 下载](https://github.com/liuhan-agent/Agentic_Interviewer/releases/tag/demo-video-2026-06-04)
 
 ## 核心工程主张
 
