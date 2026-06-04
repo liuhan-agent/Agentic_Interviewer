@@ -1,12 +1,12 @@
-# Agentic Interviewer
+# 问镜（Agentic Interviewer）
 
-> 一个 production-aware 的 AI 模拟面试系统：核心是基于 LangGraph 的多智能体面试 workflow，外层再补齐账号归属、平台额度、BYOK、Admin 后台和上线预检等产品控制面。
+> 基于 LangGraph 的 AI 模拟面试与复盘训练系统：核心是可恢复、可观测、可复盘的多智能体面试 workflow，外层再补齐账号归属、平台额度、BYOK、Admin 后台和上线预检等产品控制面。
 
-Agentic Interviewer 不是普通聊天机器人，也不是“套一层简历问题 prompt”的 Demo。它围绕一次完整模拟面试构建真实 workflow：采集上下文、生成问题、等待用户回答、评分、验证、奖励回填、决定追问或下一题，最后生成报告和复练计划。
+问镜（Agentic Interviewer）不是普通聊天机器人，也不是“套一层简历问题 prompt”的 Demo。它围绕一次完整模拟面试构建真实 workflow：采集上下文、生成问题、等待用户回答、评分、验证、奖励回填、决定追问或下一题，最后生成报告和复练计划。
 
 项目的重点是展示：**如何把 agentic workflow 从一次 LLM 调用，工程化成可恢复、可观测、可复盘、可运营的产品系统。**
 
-[![Agentic Interviewer Trace Explorer demo preview](./ai-interviewer/docs/assets/demo-cover.png)](https://www.bilibili.com/video/BV1Ey7Z6gEcA/)
+[![问镜（Agentic Interviewer）Trace Explorer demo preview](./ai-interviewer/docs/assets/demo-cover.png)](https://www.bilibili.com/video/BV1Ey7Z6gEcA/)
 
 [观看 5 分钟演示视频（Bilibili）](https://www.bilibili.com/video/BV1Ey7Z6gEcA/) · [GitHub Release 下载](https://github.com/liuhan-agent/Agentic_Interviewer/releases/tag/demo-video-2026-06-04)
 
