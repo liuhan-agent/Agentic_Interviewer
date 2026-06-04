@@ -43,6 +43,9 @@ ai-interviewer/docs/superpowers/
 docs/learning-cases/
 ai-interviewer/docs/learning-cases/
 
+# Local demo video raw files and rendered drafts; publish final media externally.
+demo-video/
+
 # Local synced agent skills
 .agents/skills/deploy-to-vercel/
 .agents/skills/vercel-*/
