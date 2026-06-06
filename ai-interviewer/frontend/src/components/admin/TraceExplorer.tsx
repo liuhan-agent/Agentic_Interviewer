@@ -187,12 +187,27 @@ const NODE_TYPE_FILTERS = [
   "training_plan",
   "experience_extractor",
   "resume_parse",
+  "self_intro_question",
+  "self_intro_parse",
 ] as const;
+
+const OPENING_NODES = new Set([
+  "resume_parse",
+  "self_intro_question",
+  "self_intro_parse",
+]);
 
 const SESSION_CLOSING_NODES = new Set([
   "final_report",
   "training_plan",
   "experience_extractor",
+]);
+
+const STRATEGY_POLICY_CONTEXT_NODES = new Set([
+  "director_sample",
+  "ask_question",
+  "evaluator",
+  "reward_update",
 ]);
 
 const TRACE_NODE_WORKFLOW_ORDER = [
@@ -259,6 +274,33 @@ function isTurnFinalizeNode(node: string | null | undefined): boolean {
 
 function isVirtualTraceNode(node: string | null | undefined): boolean {
   return node === "route_decision";
+}
+
+function isStrategyPolicyContextNode(nodeName: string | null | undefined): boolean {
+  const canonical = traceNodeCanonicalName(nodeName);
+  return STRATEGY_POLICY_CONTEXT_NODES.has(canonical);
+}
+
+function displayStrategyContextKey(node: TraceExplorerNode): string {
+  if (!isStrategyPolicyContextNode(node.node)) return "-";
+  const contextKey = String(node.context_key || "").trim();
+  return contextKey || "-";
+}
+
+function strategyPolicyContextKeys(node: TraceExplorerNode): string[] {
+  if (!isStrategyPolicyContextNode(node.node)) return [];
+  const rawKeys = Array.isArray(node.policy_context_keys)
+    ? node.policy_context_keys
+    : [];
+  const keys: string[] = [];
+  const seen = new Set<string>();
+  for (const rawKey of rawKeys) {
+    const key = String(rawKey || "").trim();
+    if (!key || seen.has(key)) continue;
+    keys.push(key);
+    seen.add(key);
+  }
+  return keys;
 }
 
 function traceNodeRawAlias(
@@ -1088,6 +1130,8 @@ function TraceTurnRail({
               const focused = focusedNodeId === node.id;
               const nodeAlias = traceNodeRawAlias(node.node, node.payload);
               const nodeDescription = traceNodeDescription(node.node, node.payload);
+              const isOpeningNode = isSessionOpeningNode(node.node);
+              const isClosingNode = isSessionClosingNode(node.node);
               return (
                 <button
                   key={node.id}
@@ -1115,9 +1159,13 @@ function TraceTurnRail({
                   {(nodeDescription ||
                     nodeAlias ||
                     isVirtualTraceNode(node.node) ||
-                    isSessionClosingNode(node.node)) && (
+                    isOpeningNode ||
+                    isClosingNode) && (
                     <div className="mt-0.5 flex min-w-0 flex-wrap items-center gap-1 text-[9px] text-muted-foreground">
-                      {isSessionClosingNode(node.node) && (
+                      {isOpeningNode && (
+                        <span className="truncate">准备/开场阶段</span>
+                      )}
+                      {isClosingNode && (
                         <span className="truncate">收尾阶段</span>
                       )}
                       {nodeDescription && (
@@ -1134,7 +1182,7 @@ function TraceTurnRail({
                     </div>
                   )}
                   <div className="mt-1 flex flex-wrap gap-1">
-                    {node.dimension && !isSessionClosingNode(node.node) && (
+                    {node.dimension && !isOpeningNode && !isClosingNode && (
                       <Badge variant="outline" className="max-w-full truncate text-[9px]">
                         {node.dimension}
                       </Badge>
@@ -1205,8 +1253,10 @@ function TraceNodeDetail({
     answer_excerpt: node.answer_excerpt,
   };
   const isClosingNode = isSessionClosingNode(node.node);
+  const isOpeningNode = isSessionOpeningNode(node.node);
   const nodeAlias = traceNodeRawAlias(node.node, node.payload);
   const nodeDescription = traceNodeDescription(node.node, node.payload);
+  const strategyContextKeys = strategyPolicyContextKeys(node);
 
   return (
     <div
@@ -1236,7 +1286,7 @@ function TraceNodeDetail({
                 {nodeAlias}
               </span>
             )}
-            {node.dimension && !isClosingNode && (
+            {node.dimension && !isOpeningNode && !isClosingNode && (
               <span className="text-xs text-muted-foreground">{node.dimension}</span>
             )}
           </div>
@@ -1270,22 +1320,22 @@ function TraceNodeDetail({
       </div>
 
       <div className="mt-3 grid gap-2 text-xs md:grid-cols-3">
-        <NodeFact label="轮次" value={isClosingNode ? "收尾阶段" : String(node.turn_idx ?? "session")} />
+        <NodeFact label="轮次" value={isOpeningNode ? "准备/开场阶段" : isClosingNode ? "收尾阶段" : String(node.turn_idx ?? "session")} />
         {showAdminControls && (
           <>
-            <NodeFact label="上下文" value={node.context_key || "—"} />
-            <NodeFact label="策略" value={node.policy_id || "—"} />
+            <NodeFact label="策略上下文" value={displayStrategyContextKey(node)} />
+            <NodeFact label="策略" value={node.policy_id || "-"} />
           </>
         )}
         <NodeFact label="创建时间" value={formatTs(node.created_at)} />
       </div>
-      {showAdminControls && node.policy_context_keys && node.policy_context_keys.length > 0 && (
-        <NodeFact label="策略上下文键" value={node.policy_context_keys.join(", ")} />
+      {showAdminControls && strategyContextKeys.length > 0 && (
+        <NodeFact label="策略上下文键" value={strategyContextKeys.join(", ")} />
       )}
 
       {node.node === "reward_update" ? (
         <RewardQuestionContext value={node.question} />
-      ) : !isClosingNode && !isTurnFinalizeNode(node.node) ? (
+      ) : !isOpeningNode && !isClosingNode && !isTurnFinalizeNode(node.node) ? (
         <TraceTextExcerpt label="问题" value={node.question} />
       ) : null}
 
@@ -1295,6 +1345,7 @@ function TraceNodeDetail({
 
       {showAdminControls && <NodeTimingBar payload={node.payload} />}
 
+      <OpeningPreparationPanel node={node} showAdminControls={showAdminControls} />
       <TurnFinalizePanel node={node} />
       <RouteDecisionPanel node={node} />
       <RefineFollowupPanel node={node} />
@@ -1311,6 +1362,7 @@ function TraceNodeDetail({
         !isTurnFinalizeNode(node.node) &&
         node.node !== "reward_update" &&
         node.node !== "experience_extractor" &&
+        !isOpeningNode &&
         node.answer_excerpt && (
         <TraceTextExcerpt label="回答摘录" value={node.answer_excerpt} />
       )}
@@ -1349,6 +1401,310 @@ function TraceNodeDetail({
           onClose={closeAnnotation}
         />
       )}
+    </div>
+  );
+}
+
+function OpeningPreparationPanel({
+  node,
+  showAdminControls,
+}: {
+  node: TraceExplorerNode;
+  showAdminControls: boolean;
+}) {
+  if (!isSessionOpeningNode(node.node)) return null;
+
+  const payload = recordFromUnknown(node.payload);
+  const canonical = traceNodeCanonicalName(node.node);
+  const resumeVectorStatus = recordFromUnknown(payload.resume_vector_status);
+  const selfIntroVectorStatus = recordFromUnknown(payload.self_intro_vector_status);
+  const dimensionStatusSummary = recordFromUnknown(payload.dimension_status_summary);
+  const scoreInitSummary = recordFromUnknown(payload.scores_per_dim_summary);
+  const profileSummary = recordFromUnknown(payload.profile_summary);
+  const anchorCardsSummary = recordFromUnknown(payload.anchor_cards_summary);
+  const resumeAnchors = recordArray(payload.resume_anchors);
+  const selfIntroProfileSnapshot = recordFromUnknown(payload.self_intro_profile_snapshot);
+  const selfIntroAnchorCards = recordArray(payload.self_intro_anchor_cards);
+  const selfIntroCommunication = recordFromUnknown(payload.self_intro_communication);
+  const selfIntroDownstreamUsage = recordFromUnknown(payload.self_intro_downstream_usage);
+  const displayName =
+    traceNodeDescription(node.node, node.payload) ||
+    traceNodeDisplayName(node.node, node.payload);
+  const railSummary = openingNodeRailSummary(node);
+
+  return (
+    <section className="mt-3 rounded-md border border-emerald-500/25 bg-emerald-500/[0.035] p-3 text-xs">
+      <div className="flex flex-wrap items-start justify-between gap-2">
+        <div>
+          <div className="flex flex-wrap items-center gap-2">
+            <GitBranch className="h-3.5 w-3.5 text-emerald-300" />
+            <p className="font-mono font-medium text-emerald-100">{canonical}</p>
+            <span className="text-[11px] text-muted-foreground">{displayName}</span>
+            <Badge variant="outline" className="font-mono text-[9px]">
+              opening
+            </Badge>
+          </div>
+          <p className="mt-1 max-w-3xl text-[11px] leading-relaxed text-muted-foreground">
+            发生在正式提问循环之前，用来锁定面试上下文、完成开场问题与自我介绍解析；这些记录不计入正式 Turn。
+          </p>
+        </div>
+        <Badge variant="secondary" className="text-[10px]">
+          准备/开场阶段
+        </Badge>
+      </div>
+
+      <div className="mt-3 grid gap-2 lg:grid-cols-2">
+        <div className="rounded-md border bg-background/50 p-3 lg:col-span-2">
+          <p className="font-medium">准备上下文</p>
+          <div className="mt-2 grid gap-2 md:grid-cols-3">
+            <NodeFact label="节点" value={canonical} />
+            <NodeFact label="阶段" value="准备/开场阶段" />
+            <NodeFact label="摘要" value={railSummary || "—"} />
+          </div>
+        </div>
+
+        {canonical === "resume_parse" && (
+          <>
+            <div className="rounded-md border bg-background/50 p-3 lg:col-span-2">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <p className="font-medium">面试锚点池</p>
+                <Badge variant="outline" className="font-mono text-[9px]">
+                  {formatCountValue(resumeAnchors.length)}
+                </Badge>
+              </div>
+              <div className="mt-2 grid gap-2">
+                <NodeFact label="摘要" value={formatResumeAnchors(payload.resume_anchors)} />
+                <ResumeAnchorDetails anchors={resumeAnchors} />
+              </div>
+            </div>
+            <div className="rounded-md border bg-background/50 p-3">
+              <p className="font-medium">简历项目锚点</p>
+              <div className="mt-2 grid gap-2">
+                <NodeFact label="项目数" value={formatCountValue(payload.resume_projects_count)} />
+                <NodeFact label="项目列表" value={formatResumeProjects(payload.resume_projects)} />
+              </div>
+            </div>
+            <div className="rounded-md border bg-background/50 p-3">
+              <p className="font-medium">面试重点</p>
+              <div className="mt-2 grid gap-2">
+                <NodeFact label="重点数" value={formatCountValue(payload.resume_focus_areas_count)} />
+                <NodeFact label="重点列表" value={formatResumeFocusAreas(payload.resume_focus_areas)} />
+              </div>
+            </div>
+            <div className="rounded-md border bg-background/50 p-3">
+              <p className="font-medium">技能信号</p>
+              <div className="mt-2 grid gap-2">
+                <NodeFact label="简历技能" value={formatDimensionNames(payload.candidate_skills)} />
+                <NodeFact label="JD 技能" value={formatDimensionNames(payload.required_skills)} />
+                <NodeFact label="交集提示" value={formatSkillSignals(payload.candidate_skills, payload.required_skills)} />
+              </div>
+            </div>
+            <div className="rounded-md border bg-background/50 p-3">
+              <p className="font-medium">评估维度</p>
+              <div className="mt-2 grid gap-2">
+                <NodeFact label="维度列表" value={formatDimensionNames(payload.rubric_dimensions || payload.dimensions)} />
+                <NodeFact label="维度数" value={formatCountValue(payload.dimensions_count)} />
+                {showAdminControls && (
+                  <NodeFact label="初始化" value={`${formatDimensionStatusSummary(dimensionStatusSummary)} · ${formatScoreInitSummary(scoreInitSummary)}`} />
+                )}
+              </div>
+            </div>
+            <OpeningStatusCard
+              heading="简历向量"
+              status={resumeVectorStatus}
+              modeLabel="source_type"
+              showDetails={showAdminControls}
+            />
+          </>
+        )}
+
+        {canonical === "self_intro_question" && (
+          <>
+            <div className="rounded-md border bg-background/50 p-3">
+              <p className="font-medium">开场问题</p>
+              <div className="mt-2 grid gap-2">
+                <NodeFact label="问题类型" value={stringValue(payload.question_type) || "—"} />
+                <NodeFact label="目标维度" value={stringValue(payload.dimension) || node.dimension || "—"} />
+                <NodeFact label="Rubric 点" value={stringList(payload.rubric_points).join(", ") || "—"} />
+              </div>
+            </div>
+            <div className="rounded-md border bg-background/50 p-3">
+              <p className="font-medium">流转位置</p>
+              <div className="mt-2 grid gap-2">
+                <NodeFact label="上游" value="resume_parse" />
+                <NodeFact label="下游" value="wait_answer -> self_intro_parse" />
+                <NodeFact label="正式轮次" value="未开始" />
+              </div>
+            </div>
+          </>
+        )}
+
+        {canonical === "self_intro_parse" && (
+          <>
+            <div className="rounded-md border bg-background/50 p-3 lg:col-span-2">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <p className="font-medium">开场画像</p>
+                <Badge variant="outline" className="font-mono text-[9px]">
+                  {stringValue(payload.parse_status) || "—"}
+                </Badge>
+              </div>
+              <div className="mt-2 grid gap-2 md:grid-cols-2 xl:grid-cols-4">
+                <NodeFact label="项目" value={formatDimensionNames(selfIntroProfileSnapshot.emphasized_projects)} />
+                <NodeFact label="技能" value={formatDimensionNames(selfIntroProfileSnapshot.emphasized_skills)} />
+                <NodeFact label="关注点" value={formatDimensionNames(selfIntroProfileSnapshot.preferred_focus)} />
+                <NodeFact label="待澄清" value={formatDimensionNames(selfIntroProfileSnapshot.clarification_targets)} />
+                <NodeFact label="项目数" value={formatCountValue(payload.emphasized_projects_count)} />
+                <NodeFact label="技能数" value={formatCountValue(payload.emphasized_skills_count)} />
+                <NodeFact label="画像摘要" value={formatSelfIntroProfileSnapshot(payload.self_intro_profile_snapshot)} />
+                <NodeFact label="字段覆盖" value={formatProfileFieldsPresent(payload.profile_fields_present)} />
+                <NodeFact label="解析信号" value={formatProfileSummary(profileSummary)} />
+              </div>
+            </div>
+            <div className="rounded-md border bg-background/50 p-3 lg:col-span-2">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <p className="font-medium">自我介绍追问锚点</p>
+                <Badge variant="outline" className="font-mono text-[9px]">
+                  {formatCountValue(selfIntroAnchorCards.length || anchorCardsSummary.total)}
+                </Badge>
+              </div>
+              <div className="mt-2 grid gap-2">
+                <NodeFact label="摘要" value={formatSelfIntroAnchorCards(payload.self_intro_anchor_cards)} />
+                <NodeFact label="来源" value={formatSelfIntroAnchorSourceSummary(payload.self_intro_anchor_cards)} />
+                <SelfIntroAnchorDetails cards={selfIntroAnchorCards} />
+              </div>
+            </div>
+            <div className="rounded-md border bg-background/50 p-3">
+              <p className="font-medium">沟通与澄清信号</p>
+              <div className="mt-2 grid gap-2">
+                <NodeFact label="摘要" value={formatSelfIntroCommunication(payload.self_intro_communication)} />
+                <NodeFact label="结构" value={stringValue(selfIntroCommunication.structure) || "—"} />
+                <NodeFact label="澄清项" value={formatCountValue(selfIntroCommunication.clarification_targets_count)} />
+                <NodeFact label="notes" value={formatCountValue(selfIntroCommunication.notes_count)} />
+              </div>
+            </div>
+            <div className="rounded-md border bg-background/50 p-3">
+              <p className="font-medium">下游用途</p>
+              <div className="mt-2 grid gap-2">
+                <NodeFact label="摘要" value={formatSelfIntroDownstreamUsage(payload.self_intro_downstream_usage)} />
+                <NodeFact label="调度信号" value={formatDimensionNames(selfIntroDownstreamUsage.anchor_scheduler_signals)} />
+                <NodeFact label="技能选择" value={stringValue(selfIntroDownstreamUsage.skill_focus_signal) || "—"} />
+                <NodeFact label="RAG 来源" value={stringValue(selfIntroDownstreamUsage.rag_source) || "—"} />
+                <NodeFact label="下游节点" value={formatDimensionNames(selfIntroDownstreamUsage.next_nodes)} />
+              </div>
+            </div>
+            <OpeningStatusCard
+              heading="自我介绍向量"
+              status={selfIntroVectorStatus}
+              modeLabel="mode"
+              showDetails={showAdminControls}
+            />
+          </>
+        )}
+      </div>
+
+      {canonical === "self_intro_question" && node.question && (
+        <div className="mt-3">
+          <TraceTextExcerpt label="开场问题文本" value={node.question} />
+        </div>
+      )}
+    </section>
+  );
+}
+
+function ResumeAnchorDetails({ anchors }: { anchors: Record<string, unknown>[] }) {
+  if (anchors.length === 0) {
+    return <NodeFact label="Anchor" value="—" />;
+  }
+
+  return (
+    <details
+      aria-label="查看锚点详情，默认折叠"
+      className="rounded-md border bg-background/40 p-2"
+    >
+      <summary className="cursor-pointer select-none font-medium text-muted-foreground">
+        查看锚点详情
+      </summary>
+      <div className="mt-2 grid gap-2">
+        {anchors.slice(0, 6).map((anchor, index) => (
+          <div
+            key={`${stringValue(anchor.label) || "anchor"}-${index}`}
+            className="rounded-md border bg-background/50 p-2"
+          >
+            <div className="anchor-main-row grid min-w-0 gap-2 xl:grid-cols-3">
+              <NodeFact label="Anchor" value={stringValue(anchor.label) || "—"} />
+              <NodeFact label="项目" value={stringValue(anchor.project_name) || "—"} />
+              <NodeFact label="维度" value={formatDimensionNames(anchor.dimensions)} />
+            </div>
+            <div className="anchor-detail-row mt-2 grid min-w-0 gap-2 xl:grid-cols-3">
+              <NodeFact label="技术栈" value={formatDimensionNames(anchor.tech_stack)} />
+              <NodeFact label="追问点" value={formatDimensionNames(anchor.question_anchors)} />
+              <NodeFact label="技能" value={formatDimensionNames(anchor.skills)} />
+            </div>
+          </div>
+        ))}
+      </div>
+    </details>
+  );
+}
+
+function SelfIntroAnchorDetails({ cards }: { cards: Record<string, unknown>[] }) {
+  if (cards.length === 0) {
+    return <NodeFact label="锚点" value="—" />;
+  }
+
+  return (
+    <details
+      aria-label="查看自我介绍锚点详情，默认折叠"
+      className="rounded-md border bg-background/40 p-2"
+    >
+      <summary className="cursor-pointer select-none font-medium text-muted-foreground">
+        查看自我介绍锚点详情
+      </summary>
+      <div className="mt-2 grid gap-2">
+        {cards.slice(0, 6).map((card, index) => (
+          <div
+            key={`${stringValue(card.title) || "self-intro-card"}-${index}`}
+            className="rounded-md border bg-background/50 p-2"
+          >
+            <div className="grid min-w-0 gap-2 lg:grid-cols-2">
+              <NodeFact label="类型" value={selfIntroKindLabel(stringValue(card.kind))} />
+              <NodeFact label="来源" value={selfIntroSourceLabel(stringValue(card.source))} />
+            </div>
+            <div className="mt-2 grid min-w-0 gap-2 lg:grid-cols-2">
+              <NodeFact label="标题" value={stringValue(card.title) || "—"} />
+              <NodeFact label="关键词" value={formatDimensionNames(card.tech_keywords)} />
+            </div>
+          </div>
+        ))}
+      </div>
+    </details>
+  );
+}
+
+function OpeningStatusCard({
+  heading,
+  status,
+  modeLabel,
+  showDetails = true,
+}: {
+  heading: string;
+  status: Record<string, unknown>;
+  modeLabel: string;
+  showDetails?: boolean;
+}) {
+  return (
+    <div className="rounded-md border bg-background/50 p-3">
+      <p className="font-medium">{heading}</p>
+      <div className="mt-2 grid gap-2">
+        <NodeFact label="状态" value={stringValue(status.status) || "—"} />
+        {showDetails && (
+          <>
+            <NodeFact label={modeLabel} value={stringValue(status[modeLabel]) || stringValue(status.source_type) || "—"} />
+            <NodeFact label="chunk 数" value={formatCountValue(status.chunk_count)} />
+            <NodeFact label="跳过原因" value={stringValue(status.skipped_reason) || "—"} />
+          </>
+        )}
+      </div>
     </div>
   );
 }
@@ -4810,11 +5166,11 @@ function RawTracePayloadDetails({
 
 function NodeFact({ label, value }: { label: string; value: string }) {
   return (
-    <div className="rounded-md bg-background/60 p-2">
+    <div className="min-w-0 rounded-md bg-background/60 p-2">
       <p className="font-mono text-[10px] uppercase tracking-wider text-muted-foreground">
         {label}
       </p>
-      <p className="mt-1 break-words font-mono text-[11px]">{value}</p>
+      <p className="mt-1 min-w-0 whitespace-pre-wrap break-words font-mono text-[11px]">{value}</p>
     </div>
   );
 }
@@ -5091,6 +5447,209 @@ function acceptanceEvidenceQuotes(item: Record<string, unknown>): string[] {
 
 function formatCountValue(value: unknown): string {
   return typeof value === "number" && Number.isFinite(value) ? String(value) : "—";
+}
+
+function formatDimensionNames(value: unknown): string {
+  const dimensions = stringList(value);
+  return dimensions.length > 0 ? dimensions.join(", ") : "—";
+}
+
+function formatResumeProjects(value: unknown): string {
+  const projects = recordArray(value);
+  if (projects.length === 0) return "—";
+  return projects
+    .slice(0, 5)
+    .map((project) => {
+      const name = stringValue(project.name);
+      const role = stringValue(project.role);
+      const techStack = stringList(project.tech_stack).slice(0, 4).join(", ");
+      return [name, role, techStack].filter(Boolean).join(" · ");
+    })
+    .filter(Boolean)
+    .join("；") || "—";
+}
+
+function formatResumeFocusAreas(value: unknown): string {
+  const focusAreas = recordArray(value);
+  if (focusAreas.length === 0) return "—";
+  return focusAreas
+    .slice(0, 6)
+    .map((focus) => {
+      const label = stringValue(focus.label);
+      const dimensions = stringList(focus.dimensions).slice(0, 3).join(", ");
+      const skills = stringList(focus.skills).slice(0, 3).join(", ");
+      return [label, dimensions, skills].filter(Boolean).join(" · ");
+    })
+    .filter(Boolean)
+    .join("；") || "—";
+}
+
+function formatResumeAnchors(value: unknown): string {
+  const anchors = recordArray(value);
+  if (anchors.length === 0) return "—";
+  return anchors
+    .slice(0, 6)
+    .map((anchor) => {
+      const label = stringValue(anchor.label);
+      const project = stringValue(anchor.project_name);
+      const skills = stringList(anchor.skills).slice(0, 3).join(", ");
+      const dimensions = stringList(anchor.dimensions).slice(0, 3).join(", ");
+      return [label, project, skills, dimensions].filter(Boolean).join(" · ");
+    })
+    .filter(Boolean)
+    .join("；") || "—";
+}
+
+function formatSkillSignals(candidateSkillsValue: unknown, requiredSkillsValue: unknown): string {
+  const candidateSkills = stringList(candidateSkillsValue);
+  const requiredSkills = stringList(requiredSkillsValue);
+  if (candidateSkills.length === 0 || requiredSkills.length === 0) return "—";
+  const candidateByLower = new Map(
+    candidateSkills.map((skill) => [skill.toLowerCase(), skill]),
+  );
+  const matched = requiredSkills
+    .map((skill) => candidateByLower.get(skill.toLowerCase()))
+    .filter((skill): skill is string => Boolean(skill));
+  return matched.length > 0 ? matched.join(", ") : "暂无交集";
+}
+
+function formatDimensionStatusSummary(value: unknown): string {
+  const summary = recordFromUnknown(value);
+  if (!Object.keys(summary).length) return "—";
+  return [
+    `总 ${formatCountValue(summary.total)}`,
+    `待覆盖 ${formatCountValue(summary.pending)}`,
+    `进行中 ${formatCountValue(summary.active)}`,
+    `已通过 ${formatCountValue(summary.passed)}`,
+    `未通过 ${formatCountValue(summary.failed)}`,
+    `其它 ${formatCountValue(summary.other)}`,
+  ].join(" · ");
+}
+
+function formatScoreInitSummary(value: unknown): string {
+  const summary = recordFromUnknown(value);
+  if (!Object.keys(summary).length) return "—";
+  return [
+    `总 ${formatCountValue(summary.total)}`,
+    `已评分 ${formatCountValue(summary.scored)}`,
+    `未评分 ${formatCountValue(summary.unscored)}`,
+  ].join(" · ");
+}
+
+function formatProfileFieldsPresent(value: unknown): string {
+  const fields = stringList(value);
+  return fields.length > 0 ? fields.join(", ") : "—";
+}
+
+function formatProfileSummary(value: unknown): string {
+  const summary = recordFromUnknown(value);
+  if (!Object.keys(summary).length) return "—";
+  return [
+    `summary ${formatBooleanValue(summary.has_summary)}`,
+    `关注 ${formatCountValue(summary.preferred_focus_count)}`,
+    `澄清 ${formatCountValue(summary.clarification_targets_count)}`,
+    `结构 ${stringValue(summary.communication_structure) || "—"}`,
+    `notes ${formatCountValue(summary.communication_notes_count)}`,
+  ].join(" · ");
+}
+
+function formatAnchorCardsSummary(value: unknown): string {
+  const summary = recordFromUnknown(value);
+  if (!Object.keys(summary).length) return "—";
+  return [
+    `总 ${formatCountValue(summary.total)}`,
+    `项目 ${formatCountValue(summary.project)}`,
+    `技术 ${formatCountValue(summary.tech)}`,
+    `职责 ${formatCountValue(summary.responsibility)}`,
+    `难点 ${formatCountValue(summary.difficulty)}`,
+    `结果 ${formatCountValue(summary.result)}`,
+    `主张 ${formatCountValue(summary.claim)}`,
+    `其它 ${formatCountValue(summary.other)}`,
+  ].join(" · ");
+}
+
+function formatSelfIntroProfileSnapshot(value: unknown): string {
+  const snapshot = recordFromUnknown(value);
+  if (!Object.keys(snapshot).length) return "—";
+  return [
+    `项目 ${stringList(snapshot.emphasized_projects).length || "—"}`,
+    `技能 ${stringList(snapshot.emphasized_skills).length || "—"}`,
+    `关注 ${stringList(snapshot.preferred_focus).length || "—"}`,
+    `澄清 ${stringList(snapshot.clarification_targets).length || "—"}`,
+  ].join(" · ");
+}
+
+function formatSelfIntroAnchorCards(value: unknown): string {
+  const cards = recordArray(value);
+  if (cards.length === 0) return "—";
+  const counts = new Map<string, number>();
+  for (const card of cards) {
+    const kind = stringValue(card.kind) || "other";
+    counts.set(kind, (counts.get(kind) || 0) + 1);
+  }
+  const parts = [`总 ${cards.length}`];
+  for (const [kind, count] of counts.entries()) {
+    parts.push(`${selfIntroKindLabel(kind)} ${count}`);
+  }
+  return parts.join(" · ");
+}
+
+function formatSelfIntroAnchorSourceSummary(value: unknown): string {
+  const cards = recordArray(value);
+  if (cards.length === 0) return "—";
+  const sources = new Map<string, number>();
+  for (const card of cards) {
+    const source = stringValue(card.source) || "unknown";
+    sources.set(source, (sources.get(source) || 0) + 1);
+  }
+  return Array.from(sources.entries())
+    .map(([source, count]) => `${selfIntroSourceLabel(source)} ${count}`)
+    .join(" · ");
+}
+
+function selfIntroKindLabel(value: string): string {
+  const labels: Record<string, string> = {
+    project: "项目",
+    responsibility: "职责",
+    tech: "技术",
+    difficulty: "难点",
+    result: "结果",
+    claim: "主张",
+    other: "其它",
+  };
+  return labels[value] || value || "—";
+}
+
+function selfIntroSourceLabel(value: string): string {
+  const labels: Record<string, string> = {
+    llm: "模型抽取",
+    fallback: "兜底解析",
+    supplement: "补充抽取",
+    heuristic: "启发式解析",
+    unknown: "未知来源",
+  };
+  return labels[value] || value || "—";
+}
+
+function formatSelfIntroCommunication(value: unknown): string {
+  const communication = recordFromUnknown(value);
+  if (!Object.keys(communication).length) return "—";
+  return [
+    `结构 ${stringValue(communication.structure) || "—"}`,
+    `澄清 ${formatCountValue(communication.clarification_targets_count)}`,
+    `notes ${formatCountValue(communication.notes_count)}`,
+  ].join(" · ");
+}
+
+function formatSelfIntroDownstreamUsage(value: unknown): string {
+  const usage = recordFromUnknown(value);
+  if (!Object.keys(usage).length) return "—";
+  return [
+    `调度 ${formatDimensionNames(usage.anchor_scheduler_signals)}`,
+    `技能 ${stringValue(usage.skill_focus_signal) || "—"}`,
+    `RAG ${stringValue(usage.rag_source) || "—"}`,
+    `节点 ${formatDimensionNames(usage.next_nodes)}`,
+  ].join(" · ");
 }
 
 function formatScore(value: unknown): string {
@@ -6768,10 +7327,36 @@ function usePrefersReducedMotion(): boolean {
   return prefersReducedMotion;
 }
 
-type TraceTurnGroupKey = number | "session" | "closing";
+type TraceTurnGroupKey = "opening" | number | "session" | "closing";
 
-function isSessionClosingNode(nodeName: string): boolean {
-  return SESSION_CLOSING_NODES.has(nodeName);
+function isSessionClosingNode(nodeName: string | null | undefined): boolean {
+  return SESSION_CLOSING_NODES.has(traceNodeCanonicalName(nodeName));
+}
+
+function isSessionOpeningNode(nodeName: string | null | undefined): boolean {
+  return OPENING_NODES.has(traceNodeCanonicalName(nodeName));
+}
+
+function openingNodeRailSummary(node: TraceExplorerNode): string {
+  if (!isSessionOpeningNode(node.node)) return "";
+  const payload = recordFromUnknown(node.payload);
+  const canonical = traceNodeCanonicalName(node.node);
+  if (canonical === "resume_parse") {
+    const resumeStatus = recordFromUnknown(payload.resume_vector_status);
+    const dimensionStatus = recordFromUnknown(payload.dimension_status_summary);
+    const scoreSummary = recordFromUnknown(payload.scores_per_dim_summary);
+    const anchorCount = recordArray(payload.resume_anchors).length;
+    return `锚点 ${anchorCount || "—"} · 维度 ${formatCountValue(payload.dimensions_count)} · 待覆盖 ${formatCountValue(dimensionStatus.pending)} · 未评分 ${formatCountValue(scoreSummary.unscored)} · 简历向量 ${stringValue(resumeStatus.status) || "—"}`;
+  }
+  if (canonical === "self_intro_question") {
+    return `维度 ${stringValue(payload.dimension) || node.dimension || "—"} · Rubric 点 ${stringList(payload.rubric_points).length}`;
+  }
+  if (canonical === "self_intro_parse") {
+    const selfIntroStatus = recordFromUnknown(payload.self_intro_vector_status);
+    const anchorCards = recordFromUnknown(payload.anchor_cards_summary);
+    return `解析 ${stringValue(payload.parse_status) || "—"} · 技能 ${formatCountValue(payload.emphasized_skills_count)} · Cards ${formatCountValue(anchorCards.total)} · 自我介绍向量 ${stringValue(selfIntroStatus.status) || "—"}`;
+  }
+  return "";
 }
 
 function isAskRoundStartNode(node: TraceExplorerNode): boolean {
@@ -6810,6 +7395,7 @@ function effectiveTraceTurnKey(
   node: TraceExplorerNode,
   contextNodes: TraceExplorerNode[] = [],
 ): TraceTurnGroupKey {
+  if (isSessionOpeningNode(node.node)) return "opening";
   if (isSessionClosingNode(node.node)) return "closing";
   if (shouldGroupRefineFollowupWithNextTurn(node, contextNodes)) {
     return typeof node.turn_idx === "number" ? node.turn_idx + 1 : "session";
@@ -6843,12 +7429,14 @@ function traceNodeWorkflowOrder(
 }
 
 function traceTurnGroupLabel(key: TraceTurnGroupKey): string {
+  if (key === "opening") return "准备/开场阶段";
   if (key === "closing") return "收尾阶段";
   if (key === "session") return "Session-level events";
   return `Turn ${key}`;
 }
 
 function traceTurnGroupSortKey(key: TraceTurnGroupKey): number {
+  if (key === "opening") return Number.MIN_SAFE_INTEGER;
   if (key === "closing") return Number.MAX_SAFE_INTEGER;
   if (key === "session") return Number.POSITIVE_INFINITY;
   return key;

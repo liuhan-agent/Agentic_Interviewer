@@ -173,7 +173,7 @@ test("trace explorer detail pane uses Chinese keys for backend evidence fields",
   const component = read("src/components/admin/TraceExplorer.tsx");
 
   assert.match(component, /NodeFact label="轮次"/);
-  assert.match(component, /NodeFact label="上下文"/);
+  assert.match(component, /NodeFact label="策略上下文"/);
   assert.match(component, /NodeFact label="策略"/);
   assert.match(component, /NodeFact label="创建时间"/);
   assert.match(component, /NodeFact label="策略上下文键"/);
@@ -246,9 +246,27 @@ test("trace explorer detail pane uses Chinese keys for backend evidence fields",
   assert.doesNotMatch(component, /line-clamp-2 text-sm leading-relaxed/);
   assert.doesNotMatch(component, /NodeFact label="turn"/);
   assert.doesNotMatch(component, /NodeFact label="context"/);
+  assert.doesNotMatch(component, /NodeFact label="上下文" value=\{node\.context_key/);
   assert.doesNotMatch(component, /NodeFact label="policy"/);
   assert.doesNotMatch(component, /NodeFact label="created"/);
   assert.doesNotMatch(component, />EvaluationEvidence</);
+});
+
+test("trace explorer only surfaces real strategy context in the detail facts", () => {
+  const component = read("src/components/admin/TraceExplorer.tsx");
+
+  assert.match(component, /const STRATEGY_POLICY_CONTEXT_NODES = new Set/);
+  assert.match(component, /"director_sample"/);
+  assert.match(component, /"ask_question"/);
+  assert.match(component, /"evaluator"/);
+  assert.match(component, /"reward_update"/);
+  assert.match(component, /function isStrategyPolicyContextNode/);
+  assert.match(component, /function displayStrategyContextKey/);
+  assert.match(component, /const strategyContextKeys = strategyPolicyContextKeys\(node\)/);
+  assert.match(component, /NodeFact label="策略上下文" value=\{displayStrategyContextKey\(node\)\}/);
+  assert.match(component, /showAdminControls && strategyContextKeys\.length > 0/);
+  assert.doesNotMatch(component, /NodeFact label="上下文" value=\{node\.context_key \|\| "—"\}/);
+  assert.doesNotMatch(component, /showAdminControls && node\.policy_context_keys && node\.policy_context_keys\.length > 0/);
 });
 
 test("trace explorer explains director strategy decisions as user-facing evidence", () => {
@@ -925,6 +943,126 @@ test("trace explorer groupByTurn defends against non-monotonic ordering", () => 
   assert.match(component, /reward_update/);
   assert.match(component, /turn_finalize/);
   assert.match(component, /route_decision/);
+});
+
+test("trace explorer renders opening nodes as a pre-turn phase", () => {
+  const component = read("src/components/admin/TraceExplorer.tsx");
+
+  const filtersStart = component.indexOf("const NODE_TYPE_FILTERS");
+  const filtersEnd = component.indexOf("] as const", filtersStart);
+  const filters = component.slice(filtersStart, filtersEnd);
+  const railStart = component.indexOf("function TraceTurnRail");
+  const railEnd = component.indexOf("function TraceNodeDetail", railStart);
+  const rail = component.slice(railStart, railEnd);
+
+  assert.match(component, /const OPENING_NODES = new Set\(\[/);
+  assert.match(component, /isSessionOpeningNode/);
+  assert.match(component, /type TraceTurnGroupKey = "opening"/);
+  assert.match(component, /if \(isSessionOpeningNode\(node\.node\)\) return "opening"/);
+  assert.match(component, /if \(key === "opening"\) return "准备\/开场阶段"/);
+  assert.match(component, /if \(key === "opening"\) return Number\.MIN_SAFE_INTEGER/);
+  assert.match(component, /isSessionOpeningNode\(node\.node\)/);
+  assert.match(filters, /"resume_parse"/);
+  assert.match(filters, /"self_intro_question"/);
+  assert.match(filters, /"self_intro_parse"/);
+  assert.match(rail, /准备\/开场阶段/);
+  assert.doesNotMatch(rail, /openingNodeRailSummary/);
+  assert.doesNotMatch(rail, /openingSummary/);
+});
+
+test("trace explorer explains opening preparation nodes with structured evidence", () => {
+  const component = read("src/components/admin/TraceExplorer.tsx");
+
+  assert.match(component, /OpeningPreparationPanel/);
+  assert.match(component, /<OpeningPreparationPanel node=\{node\} showAdminControls=\{showAdminControls\} \/>/);
+  assert.match(component, /openingNodeRailSummary/);
+  assert.match(component, /resume_vector_status/);
+  assert.match(component, /self_intro_vector_status/);
+  assert.match(component, /dimension_status_summary/);
+  assert.match(component, /scores_per_dim_summary/);
+  assert.match(component, /profile_summary/);
+  assert.match(component, /anchor_cards_summary/);
+  assert.match(component, /profile_fields_present/);
+  assert.match(component, /self_intro_profile_snapshot/);
+  assert.match(component, /self_intro_anchor_cards/);
+  assert.match(component, /self_intro_communication/);
+  assert.match(component, /self_intro_downstream_usage/);
+  assert.match(component, /payload\.dimensions/);
+  assert.match(component, /payload\.resume_anchors/);
+  assert.match(component, /payload\.resume_projects/);
+  assert.match(component, /payload\.resume_focus_areas/);
+  assert.match(component, /payload\.candidate_skills/);
+  assert.match(component, /payload\.required_skills/);
+  assert.match(component, /payload\.rubric_dimensions/);
+  assert.match(component, /formatDimensionNames/);
+  assert.match(component, /formatResumeAnchors/);
+  assert.match(component, /formatResumeProjects/);
+  assert.match(component, /formatResumeFocusAreas/);
+  assert.match(component, /formatSkillSignals/);
+  assert.match(component, /formatDimensionStatusSummary/);
+  assert.match(component, /formatScoreInitSummary/);
+  assert.match(component, /formatProfileSummary/);
+  assert.match(component, /formatAnchorCardsSummary/);
+  assert.match(component, /formatProfileFieldsPresent/);
+  assert.match(component, /formatSelfIntroProfileSnapshot/);
+  assert.match(component, /formatSelfIntroAnchorCards/);
+  assert.match(component, /formatSelfIntroAnchorSourceSummary/);
+  assert.match(component, /SelfIntroAnchorDetails/);
+  assert.match(component, /查看自我介绍锚点详情/);
+  assert.match(component, /selfIntroSourceLabel/);
+  assert.match(component, /补充抽取/);
+  assert.match(component, /formatSelfIntroCommunication/);
+  assert.match(component, /formatSelfIntroDownstreamUsage/);
+  assert.match(component, /dimensions_count/);
+  assert.match(component, /resume_projects_count/);
+  assert.match(component, /resume_focus_areas_count/);
+  assert.match(component, /面试锚点池/);
+  assert.match(component, /ResumeAnchorDetails/);
+  assert.match(component, /查看锚点详情/);
+  assert.match(component, /默认折叠/);
+  assert.match(component, /anchor-main-row/);
+  assert.match(component, /anchor-detail-row/);
+  assert.match(component, /xl:grid-cols-3/);
+  assert.match(component, /min-w-0/);
+  assert.doesNotMatch(component, /min-w-\[58rem\]/);
+  assert.match(component, /NodeFact label="Anchor"/);
+  assert.match(component, /NodeFact label="项目"/);
+  assert.match(component, /NodeFact label="技术栈"/);
+  assert.match(component, /NodeFact label="追问点"/);
+  assert.match(component, /NodeFact label="技能"/);
+  assert.match(component, /NodeFact label="维度"/);
+  assert.match(component, /简历项目锚点/);
+  assert.match(component, /面试重点/);
+  assert.match(component, /技能信号/);
+  assert.match(component, /评估维度/);
+  assert.doesNotMatch(component, /Rubric 覆盖/);
+  assert.doesNotMatch(component, /评分规则准备/);
+  assert.doesNotMatch(component, /NodeFact label="上下文 Key"/);
+  assert.match(component, /showDetails=\{showAdminControls\}/);
+  assert.match(component, /emphasized_projects_count/);
+  assert.match(component, /emphasized_skills_count/);
+  assert.match(component, /准备上下文/);
+  assert.match(component, /className="mt-3 grid gap-2 lg:grid-cols-2"/);
+  assert.match(
+    component,
+    /className="rounded-md border bg-background\/50 p-3 lg:col-span-2"[\s\S]*准备上下文/,
+  );
+  assert.match(
+    component,
+    /准备上下文[\s\S]*<div className="mt-2 grid gap-2 md:grid-cols-3">/,
+  );
+  assert.match(
+    component,
+    /className="rounded-md border bg-background\/50 p-3 lg:col-span-2"[\s\S]*面试锚点池/,
+  );
+  assert.match(component, /简历向量/);
+  assert.match(component, /自我介绍向量/);
+  assert.match(component, /开场画像/);
+  assert.match(component, /自我介绍追问锚点/);
+  assert.doesNotMatch(component, /return \[kind, title, keywords, source\]\.filter\(Boolean\)\.join\(" · "\)/);
+  assert.match(component, /沟通与澄清信号/);
+  assert.match(component, /下游用途/);
+  assert.doesNotMatch(component, /解析产物摘要/);
 });
 
 test("trace explorer keeps owner-projected turn_finalize in its stored turn", () => {
