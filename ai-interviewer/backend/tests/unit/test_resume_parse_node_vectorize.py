@@ -195,3 +195,155 @@ def test_resume_parse_node_keeps_rubric_outputs_intact() -> None:
     assert out["dimensions"] == ["system_design"]
     assert out["rubric"] == {"system_design": "Assess system_design."}
     assert out["scores_per_dim"] == {"system_design": None}
+
+
+def test_resume_parse_node_traces_opening_event_without_raw_materials(
+    monkeypatch,
+) -> None:
+    traced: list[tuple[str, dict[str, object], int | None]] = []
+
+    class _Tracer:
+        def trace_session_started(self, _state: dict[str, object]) -> None:
+            return None
+
+        def trace_node_event(
+            self,
+            _state: dict[str, object],
+            *,
+            node: str,
+            payload: dict[str, object],
+            logical_turn_idx: int | None = None,
+            **_kwargs: object,
+        ) -> None:
+            traced.append((node, payload, logical_turn_idx))
+
+    monkeypatch.setattr(resume_parse_mod, "get_tracer", lambda: _Tracer())
+    monkeypatch.setattr(
+        resume_parse_mod,
+        "read_resume_parse_artifact",
+        lambda _source_id: None,
+    )
+
+    out = resume_parse_node(
+        {
+            "session_id": "sess_opening",
+            "turn_idx": 0,
+            "job_spec": {
+                "title": "Backend",
+                "required_skills": ["Redis", "Kafka"],
+                "rubric_dimensions": ["system_design", "communication"],
+                "rubric": {
+                    "system_design": "Assess system design.",
+                    "communication": "Assess communication.",
+                },
+            },
+            "candidate": {
+                "resume_source_id": "resume-source-secret-123",
+                "resume_vector_status": {
+                    "resume_revision_id": "resume-revision-secret-456",
+                },
+                "resume_parsed": {
+                    "summary": "raw resume secret should not appear",
+                    "skills": ["Redis", "Spring Boot", "Kafka"],
+                    "highlights": ["raw highlight secret should not appear"],
+                    "concerns": ["raw concern secret should not appear"],
+                    "candidate_profile": {"school": "raw school secret"},
+                    "projects": [
+                        {
+                            "id": "p1",
+                            "name": "Coupon Guard",
+                            "role": "Tech Lead",
+                            "tech_stack": ["Redis", "Kafka"],
+                            "question_anchors": ["热点 key 失效压测"],
+                            "responsibilities": [
+                                "raw responsibility secret should not appear"
+                            ],
+                            "achievements": [
+                                "raw achievement secret should not appear"
+                            ],
+                        }
+                    ],
+                    "focus_areas": [
+                        {
+                            "id": "f1",
+                            "label": "缓存一致性治理",
+                            "project_id": "p1",
+                            "dimensions": ["system_design"],
+                            "skills": ["Redis"],
+                            "priority": 1,
+                        }
+                    ],
+                },
+            },
+        }
+    )
+
+    assert out["dimensions"] == ["system_design", "communication"]
+    events = [item for item in traced if item[0] == "resume_parse"]
+    assert events
+    _node, payload, logical_turn_idx = events[-1]
+    assert logical_turn_idx == 0
+    assert payload["phase"] == "opening"
+    assert payload["workflow_node"] == "resume_parse"
+    assert payload["semantic_node"] == "resume_parse"
+    assert payload["dimensions"] == ["system_design", "communication"]
+    assert payload["rubric_dimensions"] == ["system_design", "communication"]
+    assert payload["required_skills"] == ["Redis", "Kafka"]
+    assert payload["candidate_skills"] == ["Redis", "Spring Boot", "Kafka"]
+    assert payload["resume_projects_count"] == 1
+    assert payload["resume_focus_areas_count"] == 1
+    assert payload["resume_projects"] == [
+        {
+            "id": "p1",
+            "name": "Coupon Guard",
+            "role": "Tech Lead",
+            "tech_stack": ["Redis", "Kafka"],
+        }
+    ]
+    assert payload["resume_focus_areas"] == [
+        {
+            "id": "f1",
+            "label": "缓存一致性治理",
+            "project_id": "p1",
+            "dimensions": ["system_design"],
+            "skills": ["Redis"],
+            "priority": 1,
+        }
+    ]
+    assert payload["resume_anchors"] == [
+        {
+            "label": "缓存一致性治理",
+            "project_name": "Coupon Guard",
+            "tech_stack": ["Redis", "Kafka"],
+            "question_anchors": ["热点 key 失效压测"],
+            "skills": ["Redis"],
+            "dimensions": ["system_design"],
+        }
+    ]
+    assert payload["rubric_dimension_keys"] == ["system_design", "communication"]
+    assert payload["dimensions_count"] == 2
+    assert payload["rubric_count"] == 2
+    assert payload["dimension_status_summary"] == {
+        "total": 2,
+        "pending": 2,
+        "active": 0,
+        "passed": 0,
+        "failed": 0,
+        "other": 0,
+    }
+    assert payload["scores_per_dim_summary"] == {
+        "total": 2,
+        "scored": 0,
+        "unscored": 2,
+    }
+    assert payload["resume_vector_status"]["status"] == "skipped"  # type: ignore[index]
+    dumped = str(payload)
+    assert "raw resume secret should not appear" not in dumped
+    assert "raw highlight secret should not appear" not in dumped
+    assert "raw concern secret should not appear" not in dumped
+    assert "raw school secret" not in dumped
+    assert "raw responsibility secret should not appear" not in dumped
+    assert "raw achievement secret should not appear" not in dumped
+    assert "Assess system design." not in dumped
+    assert "resume-source-secret-123" not in dumped
+    assert "resume-revision-secret-456" not in dumped

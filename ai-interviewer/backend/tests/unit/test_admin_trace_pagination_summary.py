@@ -143,6 +143,42 @@ def test_trace_summary_preserves_turn_finalize_raw_count() -> None:
     assert payload["trace_count"] == 1
 
 
+def test_trace_summary_turn_count_excludes_opening_and_closing_nodes(
+    monkeypatch,
+) -> None:
+    from app.api.v1 import admin as admin_mod
+
+    traces = [
+        _TraceRow(0, "resume_parse"),
+        _TraceRow(0, "self_intro_question"),
+        _TraceRow(0, "self_intro_parse"),
+        _TraceRow(1, "director_sample"),
+        _TraceRow(1, "evaluator"),
+        _TraceRow(1, "reward_update"),
+        _TraceRow(2, "director_sample"),
+        _TraceRow(2, "evaluator"),
+        _TraceRow(2, "reward_update"),
+        _TraceRow(3, "final_report"),
+    ]
+    for idx, trace in enumerate(traces):
+        trace.id = idx + 1
+
+    @contextmanager
+    def _fake_get_session():
+        yield _FakeSession(traces)
+
+    monkeypatch.setattr("app.models.get_session", _fake_get_session)
+
+    payload = admin_mod._interview_session_trace_payload(
+        session_id="sess-long",
+        limit=100,
+    )
+
+    assert payload["turn_count"] == 2
+    assert payload["node_type_counts"]["resume_parse"] == 1
+    assert payload["trace_health"] == "complete"
+
+
 def test_trace_node_payload_hides_legacy_ask_question_answer_and_evaluation() -> None:
     from app.api.v1 import admin as admin_mod
 

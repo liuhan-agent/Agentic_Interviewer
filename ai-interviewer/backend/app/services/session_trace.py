@@ -38,6 +38,46 @@ _OWNER_PAYLOAD_ALLOWLIST = {
     "next_step",
 }
 
+_OWNER_RESUME_PARSE_PAYLOAD_ALLOWLIST = _OWNER_PAYLOAD_ALLOWLIST | {
+    "dimensions",
+    "rubric_dimensions",
+    "required_skills",
+    "candidate_skills",
+    "resume_projects",
+    "resume_focus_areas",
+    "resume_anchors",
+    "resume_projects_count",
+    "resume_focus_areas_count",
+    "dimensions_count",
+    "rubric_count",
+    "dimension_status_summary",
+    "scores_per_dim_summary",
+    "resume_vector_status",
+}
+
+_OWNER_SELF_INTRO_PARSE_PAYLOAD_ALLOWLIST = _OWNER_PAYLOAD_ALLOWLIST | {
+    "parse_status",
+    "emphasized_projects_count",
+    "emphasized_skills_count",
+    "profile_summary",
+    "anchor_cards_summary",
+    "self_intro_profile_snapshot",
+    "self_intro_anchor_cards",
+    "self_intro_communication",
+    "self_intro_downstream_usage",
+    "profile_fields_present",
+    "self_intro_vector_status",
+}
+
+_NON_FORMAL_TURN_TRACE_NODES = {
+    "resume_parse",
+    "self_intro_question",
+    "self_intro_parse",
+    "final_report",
+    "training_plan",
+    "experience_extractor",
+}
+
 
 def _langsmith_web_url(api_endpoint: str | None) -> str:
     endpoint = (api_endpoint or "").strip().strip('"').strip("'").rstrip("/")
@@ -483,13 +523,137 @@ def _owner_trace_node_payload(node: dict[str, Any]) -> dict[str, Any]:
         if key not in _OWNER_NODE_INTERNAL_KEYS
     }
     payload = trace_record_from_unknown(owner_node.get("payload"))
+    node_name = str(owner_node.get("node") or "")
+    allowlist = _OWNER_PAYLOAD_ALLOWLIST
+    if node_name == "resume_parse":
+        allowlist = _OWNER_RESUME_PARSE_PAYLOAD_ALLOWLIST
+    elif node_name == "self_intro_parse":
+        allowlist = _OWNER_SELF_INTRO_PARSE_PAYLOAD_ALLOWLIST
     owner_payload = {
         key: deepcopy(value)
         for key, value in payload.items()
-        if key in _OWNER_PAYLOAD_ALLOWLIST
+        if key in allowlist
     }
+    if node_name == "resume_parse" and "resume_vector_status" in owner_payload:
+        status = trace_record_from_unknown(owner_payload.get("resume_vector_status"))
+        owner_payload["resume_vector_status"] = {
+            "status": deepcopy(status.get("status") or "unknown"),
+        }
+    if node_name == "resume_parse" and "resume_anchors" in owner_payload:
+        owner_payload["resume_anchors"] = _owner_resume_anchors(
+            owner_payload.get("resume_anchors"),
+        )
+    if node_name == "self_intro_parse" and "self_intro_vector_status" in owner_payload:
+        status = trace_record_from_unknown(
+            owner_payload.get("self_intro_vector_status"),
+        )
+        owner_payload["self_intro_vector_status"] = {
+            "status": deepcopy(status.get("status") or "unknown"),
+        }
+    if node_name == "self_intro_parse":
+        if "self_intro_profile_snapshot" in owner_payload:
+            owner_payload["self_intro_profile_snapshot"] = (
+                _owner_self_intro_profile_snapshot(
+                    owner_payload.get("self_intro_profile_snapshot"),
+                )
+            )
+        if "self_intro_anchor_cards" in owner_payload:
+            owner_payload["self_intro_anchor_cards"] = _owner_self_intro_anchor_cards(
+                owner_payload.get("self_intro_anchor_cards"),
+            )
+        if "self_intro_communication" in owner_payload:
+            owner_payload["self_intro_communication"] = (
+                _owner_self_intro_communication(
+                    owner_payload.get("self_intro_communication"),
+                )
+            )
+        if "self_intro_downstream_usage" in owner_payload:
+            owner_payload["self_intro_downstream_usage"] = (
+                _owner_self_intro_downstream_usage(
+                    owner_payload.get("self_intro_downstream_usage"),
+                )
+            )
     owner_node["payload"] = owner_payload
     return owner_node
+
+
+def _owner_resume_anchors(value: Any) -> list[dict[str, Any]]:
+    safe_keys = (
+        "label",
+        "project_name",
+        "tech_stack",
+        "question_anchors",
+        "skills",
+        "dimensions",
+    )
+    anchors: list[dict[str, Any]] = []
+    for raw in value if isinstance(value, list) else []:
+        if not isinstance(raw, Mapping):
+            continue
+        anchors.append(
+            {
+                key: deepcopy(raw.get(key))
+                for key in safe_keys
+                if key in raw
+            }
+        )
+    return anchors
+
+
+def _owner_self_intro_profile_snapshot(value: Any) -> dict[str, Any]:
+    safe_keys = (
+        "emphasized_projects",
+        "emphasized_skills",
+        "preferred_focus",
+        "clarification_targets",
+    )
+    snapshot = trace_record_from_unknown(value)
+    return {
+        key: deepcopy(snapshot.get(key))
+        for key in safe_keys
+        if key in snapshot
+    }
+
+
+def _owner_self_intro_anchor_cards(value: Any) -> list[dict[str, Any]]:
+    safe_keys = ("kind", "title", "tech_keywords", "source")
+    cards: list[dict[str, Any]] = []
+    for raw in value if isinstance(value, list) else []:
+        if not isinstance(raw, Mapping):
+            continue
+        cards.append(
+            {
+                key: deepcopy(raw.get(key))
+                for key in safe_keys
+                if key in raw
+            }
+        )
+    return cards
+
+
+def _owner_self_intro_communication(value: Any) -> dict[str, Any]:
+    safe_keys = ("structure", "notes_count", "clarification_targets_count")
+    communication = trace_record_from_unknown(value)
+    return {
+        key: deepcopy(communication.get(key))
+        for key in safe_keys
+        if key in communication
+    }
+
+
+def _owner_self_intro_downstream_usage(value: Any) -> dict[str, Any]:
+    safe_keys = (
+        "anchor_scheduler_signals",
+        "skill_focus_signal",
+        "rag_source",
+        "next_nodes",
+    )
+    usage = trace_record_from_unknown(value)
+    return {
+        key: deepcopy(usage.get(key))
+        for key in safe_keys
+        if key in usage
+    }
 
 
 def _trace_record_has_fallback_marker(record: dict[str, Any]) -> bool:
@@ -513,6 +677,18 @@ def trace_has_evaluator_fallback(trace: Any) -> bool:
         _trace_record_has_fallback_marker(evaluation)
         or _trace_record_has_fallback_marker(trace_record_from_unknown(payload.get("evaluation")))
         or _trace_record_has_fallback_marker(payload)
+    )
+
+
+def _formal_trace_turn_count(traces: list[Any]) -> int:
+    return len(
+        {
+            trace.turn_idx
+            for trace in traces
+            if getattr(trace, "turn_idx", None) is not None
+            and str(getattr(trace, "node", "") or "")
+            not in _NON_FORMAL_TURN_TRACE_NODES
+        }
     )
 
 
@@ -605,13 +781,7 @@ def build_session_trace_payload(
         "fallback_trace_count": sum(
             1 for trace in all_traces if trace_has_evaluator_fallback(trace)
         ),
-        "turn_count": len(
-            {
-                trace.turn_idx
-                for trace in all_traces
-                if getattr(trace, "turn_idx", None) is not None
-            }
-        ),
+        "turn_count": _formal_trace_turn_count(all_traces),
         "nodes_offset": safe_offset,
         "nodes_limit": capped_limit,
         "nodes_has_more": safe_offset + len(nodes) < total_trace_count,

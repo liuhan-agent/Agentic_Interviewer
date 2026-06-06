@@ -38,6 +38,22 @@ def test_complete_when_evaluator_plus_close_node(close_node: str) -> None:
     )
 
 
+def test_opening_nodes_do_not_change_required_health_signals() -> None:
+    opening_nodes = [
+        {"node": "resume_parse"},
+        {"node": "self_intro_question"},
+        {"node": "self_intro_parse"},
+    ]
+
+    assert classify_trace_health(opening_nodes) == "partial"
+    assert (
+        classify_trace_health(
+            [*opening_nodes, {"node": "evaluator"}, {"node": "reward_update"}]
+        )
+        == "complete"
+    )
+
+
 def test_completed_session_passes_through_complete() -> None:
     assert (
         classify_trace_health(
