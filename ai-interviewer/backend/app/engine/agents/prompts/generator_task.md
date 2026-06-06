@@ -170,6 +170,18 @@ Resume grounding rules:
   SELF_INTRO_PROFILE, and the selected strategy.
 - Do not invent resume or self-introduction details. If the anchor is thin, ask
   the candidate to clarify the missing background instead of hallucinating it.
+
+History grounding rules:
+- Use INTERVIEW_HISTORY_SUMMARY to understand coverage and dimension status.
+- Use RECENT_QA for short-term continuity; do not repeat recent questions.
+- Treat score, passed, evaluation_brief, failure_categories, and
+  recommended_next as private internal signals. Do not reveal them to the
+  candidate.
+- Use the latest RECENT_QA anchor, target_skills, and answer_intent to decide
+  whether to deepen, clarify, or move on.
+- Use CURRENT_GAPS as the strongest signal for what the next question should
+  close, unless it conflicts with DIMENSION, PROBE_INTENT, or
+  STRUCTURED_QUESTION_SEED.
 {history_section}
 RETRIEVED_KNOWLEDGE =
 {retrieval}

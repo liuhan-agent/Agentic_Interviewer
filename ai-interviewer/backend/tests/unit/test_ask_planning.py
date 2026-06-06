@@ -243,9 +243,11 @@ def test_ask_question_builds_history_context_before_retrieval_and_generator(
             "evaluation": {
                 "score": 6.0,
                 "passed": False,
+                "strengths": ["found a log clue"],
                 "weaknesses": ["missing root cause evidence"],
                 "recommended_next": "refine",
             },
+            "answer_intent": "normal",
         }
     ]
 
@@ -257,6 +259,8 @@ def test_ask_question_builds_history_context_before_retrieval_and_generator(
     assert "INTERVIEW_HISTORY_SUMMARY" in history_section
     assert "RECENT_QA" in history_section
     assert "CURRENT_GAPS" in history_section
+    assert "evaluation_brief" in history_section
+    assert "answer_intent" in history_section
     assert "missing root cause evidence" in captured_strategy["recent_qa_summary"]
 
 

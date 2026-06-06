@@ -52,7 +52,7 @@ def build_history_section(
     recent = recent_qa[-3:]
     if recent:
         parts.append(
-            "RECENT_QA (verbatim) = " + json.dumps(recent, ensure_ascii=False)
+            "RECENT_QA (prompt view) = " + json.dumps(recent, ensure_ascii=False)
         )
     if not parts:
         parts.append("RECENT_QA = []")

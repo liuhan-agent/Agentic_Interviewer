@@ -78,7 +78,7 @@ def test_builder_produces_expected_slot_shape() -> None:
     assert payload["resume_anchor"] == json.dumps(
         {"project_name": "Payment Migration"}, ensure_ascii=False
     )
-    assert 'RECENT_QA (verbatim) = [{"q": "Q1", "a": "A1"}]' in payload["history_section"]
+    assert 'RECENT_QA (prompt view) = [{"q": "Q1", "a": "A1"}]' in payload["history_section"]
     assert payload["retrieval"] == "RETRIEVAL"
     assert payload["question_seed"] == "STRUCTURED_SEED"
     assert payload["candidate_anchor"] == "CANDIDATE_ANCHOR"

@@ -3,7 +3,10 @@ from __future__ import annotations
 from copy import deepcopy
 from typing import Any
 
-from app.engine.context.history_context import build_history_context
+from app.engine.context.history_context import (
+    DEFAULT_HISTORY_BUDGET_CHARS,
+    build_history_context,
+)
 
 
 def _turn(
@@ -78,6 +81,68 @@ def test_history_context_projects_older_turns_and_keeps_recent_prompt_view() -> 
     assert [turn["turn_idx"] for turn in recent_turns] == [2, 3, 4]
     assert "Question 4 for technical_depth?" in result["history_section"]
     assert "gap 3" in result["selector_summary"]
+
+
+def test_recent_qa_prompt_view_includes_enhanced_followup_signals_only() -> None:
+    turn = _turn(0, "technical_depth", score=6.2, passed=False)
+    turn["resume_anchor"] = {
+        "anchor_key": "focus-cache-consistency",
+        "label": "缓存一致性改造",
+        "project_name": "交易系统",
+        "description": "完整锚点描述不应该进入 RECENT_QA prompt view。",
+    }
+    turn["target_skills"] = ["Redis", "一致性", "降级", "回滚", "监控", "额外技能"]
+    turn["evaluation"] = {
+        "score": 6.2,
+        "passed": False,
+        "strengths": ["能说明缓存击穿处理", "能说明降级入口", "多余强项"],
+        "weaknesses": ["缺少回滚方案", "缺少指标数据", "缺少一致性校验", "多余弱项"],
+        "recommended_next": "追问异常场景下的数据一致性保障",
+        "recommended_next_plan": "deep_probe",
+        "recommended_probe_intent": "debugging_probe",
+        "failure_reason": "没有说明如何验证回滚有效",
+        "failure_categories": ["missing_metrics", "weak_debugging", "missing_tradeoff", "extra"],
+    }
+    turn["answer_intent"] = "normal"
+    turn["phase"] = "depth_followup"
+    turn["depth_followup"] = {"source_turn_idx": 0, "reason": "recent_refine"}
+    turn["selection_artifacts"] = {"should_not": "leak"}
+    turn["question_basis"] = {"should_not": "leak"}
+    turn["video_signals"] = {"should_not": "leak"}
+    qa_history = [turn]
+    original = deepcopy(qa_history)
+
+    result = build_history_context(
+        qa_history=qa_history,
+        current_dimension="technical_depth",
+    )
+
+    assert qa_history == original
+    recent = result["recent_qa_prompt_view"][0]
+    assert recent["anchor"] == {
+        "anchor_key": "focus-cache-consistency",
+        "label": "缓存一致性改造",
+        "project_name": "交易系统",
+    }
+    assert recent["target_skills"] == ["Redis", "一致性", "降级", "回滚", "监控"]
+    assert recent["evaluation_brief"] == {
+        "strengths": ["能说明缓存击穿处理", "能说明降级入口"],
+        "weaknesses": ["缺少回滚方案", "缺少指标数据", "缺少一致性校验"],
+        "recommended_next": "追问异常场景下的数据一致性保障",
+        "recommended_next_plan": "deep_probe",
+        "recommended_probe_intent": "debugging_probe",
+        "failure_reason": "没有说明如何验证回滚有效",
+        "failure_categories": ["missing_metrics", "weak_debugging", "missing_tradeoff"],
+    }
+    assert recent["answer_intent"] == "normal"
+    assert recent["phase"] == "depth_followup"
+    assert recent["depth_followup_source_turn_idx"] == 0
+    assert "resume_anchor" not in recent
+    assert "evaluation" not in recent
+    assert "selection_artifacts" not in recent
+    assert "question_basis" not in recent
+    assert "video_signals" not in recent
+    assert result["stats"]["recent_enhanced_turn_count"] == 1
 
 
 def test_history_context_uses_thin_index_for_short_history() -> None:
@@ -255,6 +320,10 @@ def test_history_context_keeps_recent_questions_full_before_budget_pressure() ->
     assert result["prompt_slots"][1]["prompt_truncated"] is False
 
 
+def test_default_history_budget_is_large_enough_for_enhanced_recent_view() -> None:
+    assert DEFAULT_HISTORY_BUDGET_CHARS == 12000
+
+
 def test_history_context_truncates_prompt_view_without_mutating_source() -> None:
     long_answer = "answer-" * 600
     qa_history = [_turn(i, "technical_depth", answer=long_answer) for i in range(4)]
@@ -264,7 +333,7 @@ def test_history_context_truncates_prompt_view_without_mutating_source() -> None
     result = build_history_context(
         qa_history=qa_history,
         current_dimension="technical_depth",
-        history_budget_chars=900,
+        history_budget_chars=2200,
         recent_answer_soft_limit_chars=80,
         recent_question_limit_chars=60,
     )
@@ -276,7 +345,46 @@ def test_history_context_truncates_prompt_view_without_mutating_source() -> None
     assert recent_slot["trace_text_truncated"] is False
     assert any(turn["answer_truncated"] for turn in recent_slot["value"])
     assert any(turn["question_truncated"] for turn in recent_slot["value"])
-    assert len(result["history_section"]) <= 900
+    assert len(result["history_section"]) <= 2200
+
+
+def test_history_context_omits_older_recent_answers_before_latest_followup_signals() -> None:
+    qa_history = []
+    for idx in range(4):
+        turn = _turn(idx, "technical_depth", answer="older answer " * 180)
+        turn["question"] = f"Question {idx}: " + "缓存一致性追问。" * 50
+        turn["resume_anchor"] = {
+            "anchor_key": f"anchor-{idx}",
+            "label": f"锚点 {idx}",
+            "project_name": "交易系统",
+        }
+        turn["evaluation"]["weaknesses"] = [f"缺口 {idx}"]
+        turn["evaluation"]["recommended_next"] = f"继续追问 {idx}"
+        qa_history.append(turn)
+    original = deepcopy(qa_history)
+
+    result = build_history_context(
+        qa_history=qa_history,
+        current_dimension="technical_depth",
+        history_budget_chars=2000,
+        recent_answer_soft_limit_chars=90,
+        recent_question_limit_chars=80,
+    )
+
+    assert qa_history == original
+    recent = result["recent_qa_prompt_view"]
+    assert len(result["history_section"]) <= 2000
+    assert [turn["turn_idx"] for turn in recent] == [1, 2, 3]
+    assert recent[0]["answer"] == ""
+    assert recent[0]["answer_omitted_reason"] == "older_recent_budget"
+    assert recent[-1]["anchor"] == {
+        "anchor_key": "anchor-3",
+        "label": "锚点 3",
+        "project_name": "交易系统",
+    }
+    assert recent[-1]["evaluation_brief"]["weaknesses"] == ["缺口 3"]
+    assert recent[-1]["evaluation_brief"]["recommended_next"] == "继续追问 3"
+    assert result["stats"]["older_recent_answers_omitted_count"] >= 1
 
 
 def test_history_context_compacts_projection_when_summary_exceeds_budget() -> None:
@@ -342,12 +450,12 @@ def test_history_context_preserves_three_recent_turns_when_projection_index_is_e
     result = build_history_context(
         qa_history=qa_history,
         current_dimension="dimension_1",
-        history_budget_chars=3600,
+        history_budget_chars=5000,
         recent_answer_soft_limit_chars=120,
         recent_question_limit_chars=80,
     )
 
-    assert len(result["history_section"]) <= 3600
+    assert len(result["history_section"]) <= 5000
     assert result["stats"]["projection_compacted"] is False
     assert result["stats"]["recent_turn_count"] == 3
     assert [turn["turn_idx"] for turn in result["recent_qa_prompt_view"]] == [7, 8, 9]
@@ -362,6 +470,8 @@ def test_history_context_tolerates_malformed_evaluation() -> None:
             "question": "Q2",
             "answer": "A2",
             "evaluation": "not-a-dict",
+            "resume_anchor": "not-a-dict",
+            "target_skills": None,
         },
     ]
 
@@ -374,3 +484,7 @@ def test_history_context_tolerates_malformed_evaluation() -> None:
     assert dim["dimension"] == "communication"
     assert dim["turns"] == 2
     assert dim["best_score"] is None
+    recent = result["recent_qa_prompt_view"][-1]
+    assert "anchor" not in recent
+    assert "target_skills" not in recent
+    assert "evaluation_brief" not in recent
