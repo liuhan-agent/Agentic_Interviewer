@@ -99,6 +99,33 @@ const initial: PollerState = {
 const completedWithoutReportMessage =
   "这场面试还没有生成报告，可能是会话被取消或状态尚未同步。";
 
+function isLongPollTimeoutError(err: unknown): boolean {
+  const isAbortTimeout = (name: unknown, message: unknown) => {
+    if (name !== "AbortError") return false;
+    const text = String(message || "").toLowerCase();
+    return (
+      !text ||
+      text.includes("timeout") ||
+      text.includes("abort") ||
+      text.includes("aborted")
+    );
+  };
+
+  if (typeof DOMException !== "undefined" && err instanceof DOMException) {
+    return isAbortTimeout(err.name, err.message);
+  }
+  if (err instanceof Error) {
+    return isAbortTimeout(err.name, err.message);
+  }
+  return false;
+}
+
+function isTransientPollError(err: unknown): boolean {
+  if (isLongPollTimeoutError(err)) return true;
+  if (!(err instanceof ApiError)) return false;
+  return err.status === 408 || err.status === 429 || err.status >= 500;
+}
+
 function reducer(state: PollerState, a: Action): PollerState {
   switch (a.type) {
     case "START":
@@ -248,6 +275,14 @@ export function useQuestionPoller(sessionId: string) {
           await new Promise((r) => setTimeout(r, 250));
         } catch (err) {
           if (ctrl.signal.aborted) return;
+          if (isLongPollTimeoutError(err)) {
+            await new Promise((r) => setTimeout(r, 250));
+            continue;
+          }
+          if (isTransientPollError(err)) {
+            await new Promise((r) => setTimeout(r, 250));
+            continue;
+          }
           const msg =
             err instanceof ApiError
               ? `${err.status}: ${err.message}`

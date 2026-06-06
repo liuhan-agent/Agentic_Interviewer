@@ -297,6 +297,33 @@ test("poller keeps resume history while waiting for the next question", () => {
   assert.match(poller, /if \(r\.question\) \{\s*return;\s*\}/);
 });
 
+test("poller treats browser long-poll timeout as pending work", () => {
+  const poller = fs.readFileSync(
+    path.join(__dirname, "..", "src", "lib", "hooks", "useQuestionPoller.ts"),
+    "utf8",
+  );
+
+  assert.match(poller, /function isLongPollTimeoutError\(err: unknown\): boolean/);
+  assert.match(
+    poller,
+    /if \(isLongPollTimeoutError\(err\)\) \{\s*await new Promise\(\(r\) => setTimeout\(r, 250\)\);\s*continue;\s*\}/,
+  );
+});
+
+test("poller keeps waiting through transient question poll failures", () => {
+  const poller = fs.readFileSync(
+    path.join(__dirname, "..", "src", "lib", "hooks", "useQuestionPoller.ts"),
+    "utf8",
+  );
+
+  assert.match(poller, /function isTransientPollError\(err: unknown\): boolean/);
+  assert.match(poller, /err instanceof ApiError[\s\S]*err\.status >= 500/);
+  assert.match(
+    poller,
+    /if \(isTransientPollError\(err\)\) \{\s*await new Promise\(\(r\) => setTimeout\(r, 250\)\);\s*continue;\s*\}/,
+  );
+});
+
 test("api client preserves structured error code and action", () => {
   const source = fs.readFileSync(
     path.join(__dirname, "..", "src", "lib", "api", "client.ts"),
