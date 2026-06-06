@@ -12,8 +12,25 @@ from app.engine.workflow.routers import route_after_eval, route_after_wait
 from app.services.session_manager import temporary_llm_override
 
 
-def test_self_intro_question_payload_is_opening_turn() -> None:
+def test_self_intro_question_payload_is_opening_turn(monkeypatch) -> None:
+    from app.engine.workflow.nodes import self_intro as intro_mod
     from app.engine.workflow.nodes.self_intro import self_intro_question_node
+
+    traced: list[tuple[str, dict[str, object], int | None]] = []
+
+    class _Tracer:
+        def trace_node_event(
+            self,
+            _state: dict[str, object],
+            *,
+            node: str,
+            payload: dict[str, object],
+            logical_turn_idx: int | None = None,
+            **_kwargs: object,
+        ) -> None:
+            traced.append((node, payload, logical_turn_idx))
+
+    monkeypatch.setattr(intro_mod, "get_tracer", lambda: _Tracer(), raising=False)
 
     out = self_intro_question_node({"session_id": "sess-intro"})  # type: ignore[arg-type]
 
@@ -22,6 +39,16 @@ def test_self_intro_question_payload_is_opening_turn() -> None:
     assert question["dimension"] == "communication"
     assert "自我介绍" in question["question"]
     assert out["intro_completed"] is False
+    events = [item for item in traced if item[0] == "self_intro_question"]
+    assert events
+    _node, payload, logical_turn_idx = events[-1]
+    assert logical_turn_idx == 0
+    assert payload["phase"] == "opening"
+    assert payload["workflow_node"] == "self_intro_question"
+    assert payload["semantic_node"] == "self_intro_question"
+    assert payload["question_type"] == "self_intro"
+    assert payload["dimension"] == "communication"
+    assert payload["rubric_points"] == ["structure", "focus"]
 
 
 def test_route_after_wait_sends_self_intro_to_parser_not_evaluator() -> None:
@@ -38,6 +65,20 @@ def test_self_intro_parse_fallback_profile_does_not_advance_formal_turns(
 ) -> None:
     from app.engine.workflow.nodes import self_intro as intro_mod
 
+    traced: list[tuple[str, dict[str, object], int | None]] = []
+
+    class _Tracer:
+        def trace_node_event(
+            self,
+            _state: dict[str, object],
+            *,
+            node: str,
+            payload: dict[str, object],
+            logical_turn_idx: int | None = None,
+            **_kwargs: object,
+        ) -> None:
+            traced.append((node, payload, logical_turn_idx))
+
     monkeypatch.setattr(
         intro_mod,
         "parse_self_intro_profile",
@@ -45,9 +86,32 @@ def test_self_intro_parse_fallback_profile_does_not_advance_formal_turns(
             "summary": "候选人强调 AI 健康评估系统和权限设计。",
             "emphasized_projects": ["AI 健康评估系统"],
             "emphasized_skills": ["权限设计"],
+            "preferred_focus": ["权限边界"],
+            "clarification_targets": ["项目规模"],
+            "communication_signal": {
+                "structure": "clear",
+                "notes": ["表达清晰"],
+            },
+            "anchor_cards": [
+                {
+                    "kind": "project",
+                    "title": "AI 健康评估系统",
+                    "text": "候选人介绍了 AI 健康评估系统。",
+                    "tech_keywords": ["权限设计"],
+                    "source": "llm",
+                },
+                {
+                    "kind": "tech",
+                    "title": "权限设计",
+                    "text": "候选人强调了权限设计经验。",
+                    "tech_keywords": ["权限设计"],
+                    "source": "supplement",
+                },
+            ],
             "parse_status": "fallback",
         },
     )
+    monkeypatch.setattr(intro_mod, "get_tracer", lambda: _Tracer(), raising=False)
 
     out = intro_mod.self_intro_parse_node(
         {
@@ -67,6 +131,83 @@ def test_self_intro_parse_fallback_profile_does_not_advance_formal_turns(
     assert "evaluation" not in out
     assert "scores_per_dim" not in out
     assert "qa_history" not in out
+    events = [item for item in traced if item[0] == "self_intro_parse"]
+    assert events
+    _node, payload, logical_turn_idx = events[-1]
+    assert logical_turn_idx == 0
+    assert payload["phase"] == "opening"
+    assert payload["workflow_node"] == "self_intro_parse"
+    assert payload["semantic_node"] == "self_intro_parse"
+    assert payload["parse_status"] == "fallback"
+    assert payload["emphasized_projects_count"] == 1
+    assert payload["emphasized_skills_count"] == 1
+    assert payload["profile_summary"] == {
+        "has_summary": True,
+        "preferred_focus_count": 1,
+        "clarification_targets_count": 1,
+        "communication_signal_present": True,
+        "communication_structure": "clear",
+        "communication_notes_count": 1,
+    }
+    assert payload["anchor_cards_summary"] == {
+        "total": 2,
+        "project": 1,
+        "responsibility": 0,
+        "tech": 1,
+        "difficulty": 0,
+        "result": 0,
+        "claim": 0,
+        "other": 0,
+    }
+    assert payload["self_intro_profile_snapshot"] == {
+        "emphasized_projects": ["AI 健康评估系统"],
+        "emphasized_skills": ["权限设计"],
+        "preferred_focus": ["权限边界"],
+        "clarification_targets": ["项目规模"],
+    }
+    assert payload["self_intro_anchor_cards"] == [
+        {
+            "kind": "project",
+            "title": "AI 健康评估系统",
+            "tech_keywords": ["权限设计"],
+            "source": "llm",
+        },
+        {
+            "kind": "tech",
+            "title": "权限设计",
+            "tech_keywords": ["权限设计"],
+            "source": "supplement",
+        },
+    ]
+    assert payload["self_intro_communication"] == {
+        "structure": "clear",
+        "notes_count": 1,
+        "clarification_targets_count": 1,
+    }
+    assert payload["self_intro_downstream_usage"] == {
+        "anchor_scheduler_signals": [
+            "emphasized_projects",
+            "emphasized_skills",
+            "preferred_focus",
+        ],
+        "skill_focus_signal": "emphasized_skills",
+        "rag_source": "anchor_cards",
+        "next_nodes": ["director_sample", "ask_question"],
+    }
+    assert payload["profile_fields_present"] == [
+        "summary",
+        "emphasized_projects",
+        "emphasized_skills",
+        "preferred_focus",
+        "clarification_targets",
+        "communication_signal",
+        "anchor_cards",
+    ]
+    assert payload["self_intro_vector_status"]["status"] == "skipped"  # type: ignore[index]
+    dumped = str(payload)
+    assert out["self_intro_answer"] not in dumped
+    assert "候选人介绍了 AI 健康评估系统。" not in dumped
+    assert "候选人强调了权限设计经验。" not in dumped
 
 
 def test_parse_self_intro_profile_tolerates_missing_resume_projects(monkeypatch) -> None:

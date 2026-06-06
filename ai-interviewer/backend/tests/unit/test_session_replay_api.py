@@ -367,6 +367,203 @@ def test_session_trace_returns_owner_projection(
                     trace_id="trace-replay",
                     session_id="sess-replay",
                     turn_idx=0,
+                    node="resume_parse",
+                    dimension=None,
+                    action_id="internal-action",
+                    policy_id="policy",
+                    context_key="junior:setup",
+                    policy_context_keys=["junior:setup"],
+                    score=None,
+                    passed=None,
+                    immediate_reward=None,
+                    delayed_reward=None,
+                    applied_to_bandit=False,
+                    immediate_reward_applied=False,
+                    state_snapshot={
+                        "payload": {
+                            "workflow_node": "resume_parse",
+                            "semantic_node": "resume_parse",
+                            "display_name_zh": "简历准备",
+                            "phase": "opening",
+                            "dimensions": ["system_design", "communication"],
+                            "rubric_dimensions": [
+                                "system_design",
+                                "communication",
+                            ],
+                            "required_skills": ["Redis", "Kafka"],
+                            "candidate_skills": ["Redis", "Spring Boot"],
+                            "resume_projects_count": 1,
+                            "resume_focus_areas_count": 1,
+                            "resume_projects": [
+                                {
+                                    "id": "p1",
+                                    "name": "Coupon Guard",
+                                    "role": "Tech Lead",
+                                    "tech_stack": ["Redis", "Kafka"],
+                                }
+                            ],
+                            "resume_focus_areas": [
+                                {
+                                    "id": "f1",
+                                    "label": "缓存一致性治理",
+                                    "project_id": "p1",
+                                    "dimensions": ["system_design"],
+                                    "skills": ["Redis"],
+                                    "priority": 1,
+                                }
+                            ],
+                            "resume_anchors": [
+                                {
+                                    "label": "缓存一致性治理",
+                                    "project_name": "Coupon Guard",
+                                    "tech_stack": ["Redis", "Kafka"],
+                                    "question_anchors": ["热点 key 失效压测"],
+                                    "skills": ["Redis"],
+                                    "dimensions": ["system_design"],
+                                    "anchor_key": "internal-anchor-key",
+                                    "raw_debug_note": "owner should not see this",
+                                }
+                            ],
+                            "rubric_dimension_keys": [
+                                "system_design",
+                                "communication",
+                            ],
+                            "dimensions_count": 2,
+                            "rubric_count": 2,
+                            "dimension_status_summary": {
+                                "total": 2,
+                                "pending": 2,
+                                "active": 0,
+                                "passed": 0,
+                                "failed": 0,
+                                "other": 0,
+                            },
+                            "scores_per_dim_summary": {
+                                "total": 2,
+                                "scored": 0,
+                                "unscored": 2,
+                            },
+                            "resume_vector_status": {
+                                "status": "ready",
+                                "source_type": "parse_artifact",
+                                "chunk_count": 6,
+                                "has_resume_source_id": True,
+                                "has_resume_revision_id": True,
+                            },
+                        }
+                    },
+                    question=None,
+                    answer=None,
+                    evaluation=None,
+                    langsmith_run_id="run-internal",
+                    created_at=SESSION_CREATED_AT,
+                )
+            )
+            sess.add(
+                GenerationTrace(
+                    trace_id="trace-replay",
+                    session_id="sess-replay",
+                    turn_idx=0,
+                    node="self_intro_parse",
+                    dimension=None,
+                    action_id="internal-action",
+                    policy_id="policy",
+                    context_key="junior:setup",
+                    policy_context_keys=["junior:setup"],
+                    score=None,
+                    passed=None,
+                    immediate_reward=None,
+                    delayed_reward=None,
+                    applied_to_bandit=False,
+                    immediate_reward_applied=False,
+                    state_snapshot={
+                        "payload": {
+                            "workflow_node": "self_intro_parse",
+                            "semantic_node": "self_intro_parse",
+                            "display_name_zh": "开场解析",
+                            "phase": "opening",
+                            "parse_status": "llm",
+                            "emphasized_projects_count": 1,
+                            "emphasized_skills_count": 2,
+                            "profile_summary": {
+                                "has_summary": True,
+                                "preferred_focus_count": 1,
+                                "clarification_targets_count": 0,
+                                "communication_signal_present": True,
+                                "communication_structure": "clear",
+                                "communication_notes_count": 1,
+                            },
+                            "anchor_cards_summary": {
+                                "total": 3,
+                                "project": 1,
+                                "responsibility": 0,
+                                "tech": 2,
+                                "difficulty": 0,
+                                "result": 0,
+                                "claim": 0,
+                                "other": 0,
+                            },
+                            "profile_fields_present": [
+                                "summary",
+                                "emphasized_projects",
+                                "emphasized_skills",
+                                "preferred_focus",
+                                "communication_signal",
+                                "anchor_cards",
+                            ],
+                            "self_intro_profile_snapshot": {
+                                "emphasized_projects": ["Coupon Guard"],
+                                "emphasized_skills": ["Redis", "Kafka"],
+                                "preferred_focus": ["缓存一致性治理"],
+                                "clarification_targets": ["压测规模"],
+                            },
+                            "self_intro_anchor_cards": [
+                                {
+                                    "kind": "project",
+                                    "title": "Coupon Guard",
+                                    "tech_keywords": ["Redis"],
+                                    "source": "llm",
+                                    "text": "owner should not see full card text",
+                                    "raw_debug_note": "owner should not see debug",
+                                }
+                            ],
+                            "self_intro_communication": {
+                                "structure": "clear",
+                                "notes_count": 1,
+                                "clarification_targets_count": 1,
+                                "notes": ["owner should not see notes"],
+                            },
+                            "self_intro_downstream_usage": {
+                                "anchor_scheduler_signals": [
+                                    "emphasized_projects",
+                                    "emphasized_skills",
+                                    "preferred_focus",
+                                ],
+                                "skill_focus_signal": "emphasized_skills",
+                                "rag_source": "anchor_cards",
+                                "next_nodes": ["director_sample", "ask_question"],
+                                "raw_debug_note": "owner should not see debug",
+                            },
+                            "self_intro_vector_status": {
+                                "status": "ready",
+                                "mode": "self_intro",
+                                "chunk_count": 3,
+                                "has_self_intro_revision_id": True,
+                            },
+                        }
+                    },
+                    question=None,
+                    answer=None,
+                    evaluation=None,
+                    langsmith_run_id="run-internal",
+                    created_at=SESSION_CREATED_AT,
+                )
+            )
+            sess.add(
+                GenerationTrace(
+                    trace_id="trace-replay",
+                    session_id="sess-replay",
+                    turn_idx=0,
                     node="turn_finalize",
                     dimension="technical_depth",
                     action_id="internal-action",
@@ -411,7 +608,7 @@ def test_session_trace_returns_owner_projection(
     payload = resp.json()
     assert payload["session_id"] == "sess-replay"
     assert payload["trace_health"] == "partial"
-    assert payload["trace_count"] == 3
+    assert payload["trace_count"] == 5
     assert "langsmith" not in payload
     assert payload["nodes"]
 
@@ -438,6 +635,91 @@ def test_session_trace_returns_owner_projection(
     assert finalize["payload"]["reason"] == "turn_finalize"
     assert finalize["payload"]["next_step"] == "route_decision"
     assert "raw_answer_cleared" not in finalize["payload"]
+
+    opening = next(node for node in payload["nodes"] if node["node"] == "resume_parse")
+    assert opening["payload"]["phase"] == "opening"
+    assert opening["payload"]["dimensions"] == ["system_design", "communication"]
+    assert opening["payload"]["rubric_dimensions"] == [
+        "system_design",
+        "communication",
+    ]
+    assert opening["payload"]["required_skills"] == ["Redis", "Kafka"]
+    assert opening["payload"]["candidate_skills"] == ["Redis", "Spring Boot"]
+    assert opening["payload"]["resume_projects_count"] == 1
+    assert opening["payload"]["resume_focus_areas_count"] == 1
+    assert opening["payload"]["resume_projects"][0]["name"] == "Coupon Guard"
+    assert opening["payload"]["resume_focus_areas"][0]["label"] == "缓存一致性治理"
+    assert opening["payload"]["resume_anchors"] == [
+        {
+            "label": "缓存一致性治理",
+            "project_name": "Coupon Guard",
+            "tech_stack": ["Redis", "Kafka"],
+            "question_anchors": ["热点 key 失效压测"],
+            "skills": ["Redis"],
+            "dimensions": ["system_design"],
+        }
+    ]
+    assert opening["payload"]["dimensions_count"] == 2
+    assert opening["payload"]["rubric_count"] == 2
+    assert opening["payload"]["dimension_status_summary"]["pending"] == 2
+    assert opening["payload"]["scores_per_dim_summary"]["unscored"] == 2
+    assert opening["payload"]["resume_vector_status"] == {"status": "ready"}
+    assert "rubric_dimension_keys" not in opening["payload"]
+    assert "anchor_key" not in str(opening["payload"]["resume_anchors"])
+    assert "raw_debug_note" not in str(opening["payload"]["resume_anchors"])
+    assert "chunk_count" not in opening["payload"]["resume_vector_status"]
+
+    intro_parse = next(
+        node for node in payload["nodes"] if node["node"] == "self_intro_parse"
+    )
+    assert intro_parse["payload"]["phase"] == "opening"
+    assert intro_parse["payload"]["parse_status"] == "llm"
+    assert intro_parse["payload"]["emphasized_projects_count"] == 1
+    assert intro_parse["payload"]["emphasized_skills_count"] == 2
+    assert intro_parse["payload"]["profile_summary"]["preferred_focus_count"] == 1
+    assert intro_parse["payload"]["anchor_cards_summary"]["total"] == 3
+    assert intro_parse["payload"]["self_intro_profile_snapshot"] == {
+        "emphasized_projects": ["Coupon Guard"],
+        "emphasized_skills": ["Redis", "Kafka"],
+        "preferred_focus": ["缓存一致性治理"],
+        "clarification_targets": ["压测规模"],
+    }
+    assert intro_parse["payload"]["self_intro_anchor_cards"] == [
+        {
+            "kind": "project",
+            "title": "Coupon Guard",
+            "tech_keywords": ["Redis"],
+            "source": "llm",
+        }
+    ]
+    assert intro_parse["payload"]["self_intro_communication"] == {
+        "structure": "clear",
+        "notes_count": 1,
+        "clarification_targets_count": 1,
+    }
+    assert intro_parse["payload"]["self_intro_downstream_usage"] == {
+        "anchor_scheduler_signals": [
+            "emphasized_projects",
+            "emphasized_skills",
+            "preferred_focus",
+        ],
+        "skill_focus_signal": "emphasized_skills",
+        "rag_source": "anchor_cards",
+        "next_nodes": ["director_sample", "ask_question"],
+    }
+    assert intro_parse["payload"]["profile_fields_present"] == [
+        "summary",
+        "emphasized_projects",
+        "emphasized_skills",
+        "preferred_focus",
+        "communication_signal",
+        "anchor_cards",
+    ]
+    assert intro_parse["payload"]["self_intro_vector_status"] == {"status": "ready"}
+    assert "full card text" not in str(intro_parse["payload"])
+    assert "raw_debug_note" not in str(intro_parse["payload"])
+    assert "owner should not see notes" not in str(intro_parse["payload"])
+    assert "chunk_count" not in intro_parse["payload"]["self_intro_vector_status"]
 
 
 def test_session_trace_requires_completed_session(
