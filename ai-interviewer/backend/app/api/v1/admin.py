@@ -3302,8 +3302,8 @@ def _question_seed_payload(row: Any, *, variant_count: int | None = None) -> dic
     return payload
 
 
-def _question_variant_payload(row: Any) -> dict[str, Any]:
-    return {
+def _question_variant_payload(row: Any, *, seed_version: int | None = None) -> dict[str, Any]:
+    payload = {
         "id": row.id,
         "seed_id": row.seed_id,
         "version": row.version,
@@ -3319,12 +3319,16 @@ def _question_variant_payload(row: Any) -> dict[str, Any]:
         "expected_signals": list(row.expected_signals or []),
         "anti_patterns": list(row.anti_patterns or []),
         "good_answer_hints": list(row.good_answer_hints or []),
+        "reviewed_acceptance_checks": list(
+            getattr(row, "reviewed_acceptance_checks", []) or []
+        ),
         "role_tags": list(getattr(row, "role_tags", []) or []),
         "priority": row.priority,
         "status": row.status,
         "created_at": row.created_at.isoformat() if row.created_at else None,
         "updated_at": row.updated_at.isoformat() if row.updated_at else None,
     }
+    return payload
 
 
 def _question_usage_payload(
@@ -3801,7 +3805,10 @@ def get_question_seed(seed_id: str) -> dict[str, Any]:
         )
     return {
         "seed": _question_seed_payload(seed, variant_count=len(variants)),
-        "variants": [_question_variant_payload(row) for row in variants],
+        "variants": [
+            _question_variant_payload(row, seed_version=seed.version)
+            for row in variants
+        ],
     }
 
 

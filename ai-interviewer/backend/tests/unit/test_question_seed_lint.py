@@ -83,6 +83,95 @@ def test_question_seed_quality_lint_passes_dense_seed_file(tmp_path: Path) -> No
     assert result.error_count == 0
 
 
+def test_question_seed_quality_lint_passes_valid_reviewed_acceptance_checks(
+    tmp_path: Path,
+) -> None:
+    seed_dir = tmp_path / "question_seeds"
+    reviewed_yaml = _valid_yaml().replace(
+        "        priority: 10\n        status: active",
+        """
+        reviewed_acceptance_checks:
+          - check_id: reviewed:cache-consistency:core:v1
+            source: must_cover
+            source_text: consistency
+            acceptance_check: Answer defines the target consistency level.
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: qa-lead
+            reviewed_at: "2026-06-01"
+        priority: 10
+        status: active""",
+        1,
+    )
+    _write_seed_file(seed_dir, reviewed_yaml)
+
+    result = lint_question_seed_dir(seed_dir, strict=True, check_role_coverage=False)
+
+    assert result.passed is True
+    assert result.error_count == 0
+
+
+def test_question_seed_quality_lint_flags_bad_reviewed_acceptance_checks(
+    tmp_path: Path,
+) -> None:
+    seed_dir = tmp_path / "question_seeds"
+    reviewed_yaml = _valid_yaml().replace(
+        "        priority: 10\n        status: active",
+        """
+        reviewed_acceptance_checks:
+          - source: must_cover
+            source_text: consistency
+            acceptance_check: Answer defines the target consistency level.
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+          - check_id: reviewed:bad-enum:v1
+            source: mystery
+            source_text: consistency
+            acceptance_check: Answer is clear.
+            severity: blocker
+            review_status: approved
+            version: 1
+            reviewed_seed_version: 0
+            reviewed_variant_version: 0
+          - check_id: reviewed:duplicate:v1
+            source: manual
+            source_text: manual
+            acceptance_check: ""
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+          - check_id: reviewed:duplicate:v1
+            source: manual
+            source_text: manual
+            acceptance_check: Answer names one mitigation.
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+        priority: 10
+        status: active""",
+        1,
+    )
+    _write_seed_file(seed_dir, reviewed_yaml)
+
+    result = lint_question_seed_dir(seed_dir, strict=False, check_role_coverage=False)
+    codes = {issue.code for issue in result.issues}
+
+    assert "reviewed_check_schema" in codes
+    assert "reviewed_check_duplicate_id" in codes
+    assert "review_stale" in codes
+    assert "generic_reviewed_acceptance_check" in codes
+
+
 def test_question_seed_quality_lint_warns_and_strict_fails(tmp_path: Path) -> None:
     seed_dir = tmp_path / "question_seeds"
     broken = _valid_yaml().replace(

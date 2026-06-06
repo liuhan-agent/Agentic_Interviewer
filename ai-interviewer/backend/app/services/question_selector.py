@@ -9,7 +9,7 @@ from __future__ import annotations
 import hashlib
 import re
 from collections.abc import Sequence
-from dataclasses import dataclass, replace
+from dataclasses import dataclass, field, replace
 from typing import Any
 
 from sqlalchemy import select
@@ -66,6 +66,7 @@ class QuestionCandidate:
     expected_signals: list[str]
     anti_patterns: list[str]
     good_answer_hints: list[str]
+    reviewed_acceptance_checks: list[dict[str, Any]] = field(default_factory=list)
     fit_score: float = 0.0
     anchor_confidence: str = ""
     generic_penalty: float = 0.0
@@ -239,6 +240,9 @@ def select_question_candidates(
                 expected_signals=list(variant.expected_signals or []),
                 anti_patterns=list(variant.anti_patterns or []),
                 good_answer_hints=list(variant.good_answer_hints or []),
+                reviewed_acceptance_checks=list(
+                    variant.reviewed_acceptance_checks or []
+                ),
                 fit_score=fit_details["fit_score"],
                 anchor_confidence=fit_details["anchor_confidence"],
                 generic_penalty=fit_details["generic_penalty"],
@@ -695,6 +699,7 @@ def build_question_seed_contract_hints(
             "expected_signals": list(candidate.expected_signals),
             "anti_patterns": list(candidate.anti_patterns),
             "good_answer_hints": list(candidate.good_answer_hints),
+            "reviewed_acceptance_checks": list(candidate.reviewed_acceptance_checks),
         }
     }
 

@@ -111,6 +111,90 @@ def test_import_question_seed_dir_imports_supported_dimensions_and_normalizes_ta
     assert variants[1].failure_categories == ["missing_tradeoff", "missing_metrics"]
 
 
+def test_import_question_seed_dir_imports_optional_reviewed_acceptance_checks(
+    tmp_path: Path,
+) -> None:
+    seed_dir = tmp_path / "question_seeds"
+    seed_dir.mkdir()
+    (seed_dir / "system_design.yaml").write_text(
+        """
+dimension: system_design
+seeds:
+  - id: system_design.cache_consistency
+    version: 3
+    title: Cache consistency
+    dimension: system_design
+    job_levels: [senior]
+    skill_tags: [redis]
+    direction_tags: [internet_tech]
+    role_tags: [java_backend]
+    rubric:
+      must_cover: [consistency target]
+      minimum_bar: Explains the consistency target.
+    priority: 20
+    status: active
+    source: manual_yaml
+    scope: global
+    language: zh-CN
+    variants:
+      - id: system_design.cache_consistency.flash_sale_inventory
+        version: 7
+        intent: opening
+        difficulty: standard
+        scenario_brief: Flash sale inventory reads are cache-heavy.
+        question_stem: Design a cache consistency approach.
+        prompt_template: Ask one system design question.
+        scenario_skill_tags: [redis]
+        resume_anchor_hints: [cache]
+        failure_categories: [missing_metrics]
+        rubric_additions: [mentions invalidation window]
+        expected_signals: [distinguishes strong and eventual consistency]
+        anti_patterns: [only says add lock]
+        good_answer_hints: [define consistency target first]
+        reviewed_acceptance_checks:
+          - check_id: reviewed:cache-consistency:core:v1
+            source: must_cover
+            source_text: consistency target
+            acceptance_check: Answer defines the target consistency level.
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 3
+            reviewed_variant_version: 7
+            reviewed_by: qa-lead
+            reviewed_at: "2026-06-01"
+        priority: 10
+        status: active
+""".lstrip(),
+        encoding="utf-8",
+    )
+
+    session_local = _session_factory()
+    with session_local() as sess:
+        import_question_seed_dir(seed_dir, session=sess)
+        variant = sess.get(
+            QuestionVariant,
+            "system_design.cache_consistency.flash_sale_inventory",
+        )
+
+    assert variant is not None
+    assert variant.reviewed_acceptance_checks == [
+        {
+            "check_id": "reviewed:cache-consistency:core:v1",
+            "source": "must_cover",
+            "source_text": "consistency target",
+            "acceptance_check": "Answer defines the target consistency level.",
+            "severity": "core",
+            "review_status": "reviewed",
+            "version": 1,
+            "reviewed_seed_version": 3,
+            "reviewed_variant_version": 7,
+            "reviewed_by": "qa-lead",
+            "reviewed_at": "2026-06-01",
+        }
+    ]
+
+
 def test_import_question_seed_dir_fails_atomically_with_full_error_list(
     tmp_path: Path,
 ) -> None:

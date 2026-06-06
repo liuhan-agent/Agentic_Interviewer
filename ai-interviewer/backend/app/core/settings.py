@@ -595,6 +595,8 @@ class Settings(BaseSettings):
         "off",
         "shadow",
         "append_locked",
+        "reviewed_shadow",
+        "reviewed_append",
     ] = "shadow"
     enable_question_fit_profile: bool = True
     enable_question_reranker_shadow: bool = False

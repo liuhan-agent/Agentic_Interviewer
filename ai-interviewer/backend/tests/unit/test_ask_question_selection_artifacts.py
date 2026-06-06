@@ -1088,10 +1088,16 @@ def test_question_selector_structured_primary_injects_top_seed_and_shadows_rag(
     )
     monkeypatch.setattr(ask_mod, "generate_question", fake_generate_question)
     monkeypatch.setattr(ask_mod, "negotiate_contract_via_evaluator", fake_negotiate)
+    selected_candidate = QuestionCandidate(
+        **{
+            **_question_candidate().__dict__,
+            "reviewed_acceptance_checks": _reviewed_acceptance_checks(),
+        }
+    )
     monkeypatch.setattr(
         ask_mod,
         "select_question_candidates",
-        lambda **_kwargs: QuestionSelectionResult(candidates=[_question_candidate()]),
+        lambda **_kwargs: QuestionSelectionResult(candidates=[selected_candidate]),
     )
     monkeypatch.setattr(ask_mod, "record_question_usages", fake_record)
 
@@ -1117,11 +1123,633 @@ def test_question_selector_structured_primary_injects_top_seed_and_shadows_rag(
     assert generated_kwargs["contract_hints"]["question_seed"]["seed_id"] == (
         "system_design.cache_consistency"
     )
+    assert "seed_version" not in generated_kwargs["contract_hints"]["question_seed"]
+    assert "variant_version" not in generated_kwargs["contract_hints"]["question_seed"]
+    assert (
+        "reviewed_acceptance_checks"
+        not in generated_kwargs["contract_hints"]["question_seed"]
+    )
     assert negotiated_kwargs["contract_hints"]["question_seed"]["variant_id"] == (
         "system_design.cache_consistency.flash_sale_inventory"
     )
+    assert "seed_version" not in negotiated_kwargs["contract_hints"]["question_seed"]
+    assert "variant_version" not in negotiated_kwargs["contract_hints"]["question_seed"]
+    assert (
+        "reviewed_acceptance_checks"
+        not in negotiated_kwargs["contract_hints"]["question_seed"]
+    )
     assert recorded["question_selector_mode"] == "structured_primary"
     assert [candidate.injected for candidate in recorded["candidates"]] == [True]
+
+
+def _ascii_question_candidate(**overrides: Any) -> QuestionCandidate:
+    values = {
+        **_question_candidate().__dict__,
+        "seed_version": 2,
+        "variant_version": 5,
+        "rubric": {
+            "must_cover": ["seed consistency"],
+            "minimum_bar": "Seed minimum bar.",
+        },
+        "rubric_additions": ["seed invalidation window"],
+        "expected_signals": ["seed signal"],
+        "anti_patterns": ["seed anti-pattern"],
+        "good_answer_hints": ["seed hint"],
+    }
+    values.update(overrides)
+    return QuestionCandidate(**values)
+
+
+def _reviewed_acceptance_checks() -> list[dict[str, Any]]:
+    return [
+        {
+            "check_id": "reviewed:cache-consistency:core:v1",
+            "source": "must_cover",
+            "source_text": "seed consistency",
+            "acceptance_check": "Answer defines the target consistency level.",
+            "severity": "core",
+            "review_status": "reviewed",
+            "version": 1,
+            "reviewed_seed_version": 2,
+            "reviewed_variant_version": 5,
+            "reviewed_by": "qa-lead",
+            "reviewed_at": "2026-06-01",
+        },
+        {
+            "check_id": "reviewed:cache-consistency:draft:v1",
+            "source": "manual",
+            "source_text": "draft",
+            "acceptance_check": "Draft check must stay out of runtime.",
+            "severity": "supporting",
+            "review_status": "draft",
+            "version": 1,
+            "reviewed_seed_version": 2,
+            "reviewed_variant_version": 5,
+            "reviewed_by": "qa-lead",
+            "reviewed_at": "2026-06-01",
+        },
+    ]
+
+
+def test_locked_core_shadow_keeps_negotiated_contract_and_traces_diff(
+    monkeypatch,
+) -> None:
+    captured_trace = _install_default_patches(
+        monkeypatch,
+        retrieval=_make_retrieval(),
+        strategies=[_make_strategy()],
+        skills=[_make_skill()],
+    )
+
+    def fake_generate_question(**kwargs):
+        return {
+            "question": "请说明一次缓存一致性设计。",
+            "dimension": kwargs["dimension"],
+            "proposed_contract": {
+                "must_cover": ["llm-only"],
+                "acceptance_checks": ["Answer mentions llm-only."],
+                "minimum_bar": "LLM minimum bar.",
+                "bar_level": "standard",
+            },
+        }
+
+    def fake_negotiate(**kwargs):
+        return {**kwargs["proposed_contract"], "signed_by": ["generator", "evaluator"]}
+
+    monkeypatch.setattr(ask_mod, "generate_question", fake_generate_question)
+    monkeypatch.setattr(ask_mod, "negotiate_contract_via_evaluator", fake_negotiate)
+    monkeypatch.setattr(
+        ask_mod,
+        "select_question_candidates",
+        lambda **_kwargs: QuestionSelectionResult(
+            candidates=[_ascii_question_candidate()]
+        ),
+    )
+    monkeypatch.setattr(ask_mod, "record_question_usages", lambda **_kwargs: None)
+
+    out = ask_mod.ask_question_node(
+        _base_state(
+            runtime_config={
+                "rag_mode": "vector",
+                "question_selector_mode": "structured_primary",
+            }
+        )
+    )  # type: ignore[arg-type]
+
+    contract = out["current_contract"]
+    assert contract["must_cover"] == ["llm-only"]
+    diagnostics = captured_trace["contract_diagnostics"]
+    assert diagnostics["contract_core_mode"] == "shadow"
+    assert diagnostics["locked_core_present"] is True
+    assert diagnostics["locked_core_applied"] is False
+    assert diagnostics["locked_core_seed_ref"]["seed_version"] == 2
+    assert diagnostics["locked_core_missing_from_final"] == ["seed consistency"]
+
+
+def test_locked_core_mode_overrides_negotiated_core_fields(
+    monkeypatch,
+) -> None:
+    captured_trace = _install_default_patches(
+        monkeypatch,
+        retrieval=_make_retrieval(),
+        strategies=[_make_strategy()],
+        skills=[_make_skill()],
+    )
+
+    def fake_generate_question(**kwargs):
+        return {
+            "question": "请说明一次缓存一致性设计。",
+            "dimension": kwargs["dimension"],
+            "proposed_contract": {
+                "must_cover": ["llm-only"],
+                "acceptance_checks": ["Answer mentions llm-only."],
+                "minimum_bar": "LLM minimum bar.",
+                "bar_level": "intro",
+            },
+        }
+
+    def fake_negotiate(**kwargs):
+        return {**kwargs["proposed_contract"], "signed_by": ["generator", "evaluator"]}
+
+    monkeypatch.setattr(ask_mod, "generate_question", fake_generate_question)
+    monkeypatch.setattr(ask_mod, "negotiate_contract_via_evaluator", fake_negotiate)
+    monkeypatch.setattr(
+        ask_mod,
+        "select_question_candidates",
+        lambda **_kwargs: QuestionSelectionResult(
+            candidates=[_ascii_question_candidate()]
+        ),
+    )
+    monkeypatch.setattr(ask_mod, "record_question_usages", lambda **_kwargs: None)
+
+    out = ask_mod.ask_question_node(
+        _base_state(
+            runtime_config={
+                "rag_mode": "vector",
+                "question_selector_mode": "structured_primary",
+                "contract_core_mode": "locked",
+            },
+            target_difficulty="hard",
+        )
+    )  # type: ignore[arg-type]
+
+    contract = out["current_contract"]
+    assert contract["must_cover"] == ["seed consistency"]
+    assert contract["minimum_bar"] == "Seed minimum bar."
+    assert contract["bar_level"] == "deep_probe"
+    assert contract["acceptance_checks"] == ["Answer mentions llm-only."]
+    assert captured_trace["contract_diagnostics"]["locked_core_applied"] is True
+
+
+def test_locked_core_mode_overrides_simple_plan_generator_only_contract(
+    monkeypatch,
+) -> None:
+    _install_default_patches(
+        monkeypatch,
+        retrieval=_make_retrieval(),
+        strategies=[_make_strategy()],
+        skills=[_make_skill()],
+    )
+    monkeypatch.setattr(
+        ask_mod,
+        "select_question_candidates",
+        lambda **_kwargs: QuestionSelectionResult(
+            candidates=[_ascii_question_candidate()]
+        ),
+    )
+    monkeypatch.setattr(ask_mod, "record_question_usages", lambda **_kwargs: None)
+
+    out = ask_mod.ask_question_node(
+        _base_state(
+            runtime_config={
+                "rag_mode": "vector",
+                "question_selector_mode": "structured_primary",
+                "contract_core_mode": "locked",
+            },
+            selected_action={"id": "give_hint"},
+        )
+    )  # type: ignore[arg-type]
+
+    contract = out["current_contract"]
+    assert contract["must_cover"] == ["seed consistency"]
+    assert contract["minimum_bar"] == "Seed minimum bar."
+    assert contract["signed_by"] == ["generator"]
+
+
+def test_compiled_acceptance_shadow_keeps_negotiated_checks_and_traces_candidates(
+    monkeypatch,
+) -> None:
+    captured_trace = _install_default_patches(
+        monkeypatch,
+        retrieval=_make_retrieval(),
+        strategies=[_make_strategy()],
+        skills=[_make_skill()],
+    )
+
+    def fake_generate_question(**kwargs):
+        return {
+            "question": "请说明一次缓存一致性设计。",
+            "dimension": kwargs["dimension"],
+            "proposed_contract": {
+                "must_cover": ["llm-only"],
+                "acceptance_checks": ["Answer mentions llm-only."],
+                "minimum_bar": "LLM minimum bar.",
+                "bar_level": "standard",
+            },
+        }
+
+    def fake_negotiate(**kwargs):
+        return {**kwargs["proposed_contract"], "signed_by": ["generator", "evaluator"]}
+
+    monkeypatch.setattr(ask_mod, "generate_question", fake_generate_question)
+    monkeypatch.setattr(ask_mod, "negotiate_contract_via_evaluator", fake_negotiate)
+    monkeypatch.setattr(
+        ask_mod,
+        "select_question_candidates",
+        lambda **_kwargs: QuestionSelectionResult(
+            candidates=[_ascii_question_candidate()]
+        ),
+    )
+    monkeypatch.setattr(ask_mod, "record_question_usages", lambda **_kwargs: None)
+
+    out = ask_mod.ask_question_node(
+        _base_state(
+            runtime_config={
+                "rag_mode": "vector",
+                "question_selector_mode": "structured_primary",
+            }
+        )
+    )  # type: ignore[arg-type]
+
+    assert out["current_contract"]["acceptance_checks"] == [
+        "Answer mentions llm-only."
+    ]
+    diagnostics = captured_trace["contract_diagnostics"]
+    assert diagnostics["contract_acceptance_mode"] == "shadow"
+    assert diagnostics["compiled_acceptance_present"] is True
+    assert diagnostics["compiled_acceptance_applied"] is False
+    assert diagnostics["compiled_acceptance_append_candidates"] == [
+        "Answer explicitly covers seed consistency.",
+        "Answer provides evidence for seed invalidation window.",
+    ]
+    assert diagnostics["compiled_acceptance_missing_from_final"] == [
+        "Answer explicitly covers seed consistency.",
+        "Answer provides evidence for seed invalidation window.",
+    ]
+
+
+def test_compiled_acceptance_append_locked_adds_missing_checks(
+    monkeypatch,
+) -> None:
+    captured_trace = _install_default_patches(
+        monkeypatch,
+        retrieval=_make_retrieval(),
+        strategies=[_make_strategy()],
+        skills=[_make_skill()],
+    )
+
+    def fake_generate_question(**kwargs):
+        return {
+            "question": "请说明一次缓存一致性设计。",
+            "dimension": kwargs["dimension"],
+            "proposed_contract": {
+                "must_cover": ["llm-only"],
+                "acceptance_checks": ["Answer mentions llm-only."],
+                "minimum_bar": "LLM minimum bar.",
+                "bar_level": "standard",
+            },
+        }
+
+    def fake_negotiate(**kwargs):
+        return {**kwargs["proposed_contract"], "signed_by": ["generator", "evaluator"]}
+
+    monkeypatch.setattr(ask_mod, "generate_question", fake_generate_question)
+    monkeypatch.setattr(ask_mod, "negotiate_contract_via_evaluator", fake_negotiate)
+    monkeypatch.setattr(
+        ask_mod,
+        "select_question_candidates",
+        lambda **_kwargs: QuestionSelectionResult(
+            candidates=[_ascii_question_candidate()]
+        ),
+    )
+    monkeypatch.setattr(ask_mod, "record_question_usages", lambda **_kwargs: None)
+
+    out = ask_mod.ask_question_node(
+        _base_state(
+            runtime_config={
+                "rag_mode": "vector",
+                "question_selector_mode": "structured_primary",
+                "contract_acceptance_mode": "append_locked",
+            }
+        )
+    )  # type: ignore[arg-type]
+
+    assert out["current_contract"]["acceptance_checks"] == [
+        "Answer mentions llm-only.",
+        "Answer explicitly covers seed consistency.",
+        "Answer provides evidence for seed invalidation window.",
+    ]
+    diagnostics = captured_trace["contract_diagnostics"]
+    assert diagnostics["contract_acceptance_mode"] == "append_locked"
+    assert diagnostics["compiled_acceptance_applied"] is True
+    assert diagnostics["compiled_acceptance_append_candidates"] == [
+        "Answer explicitly covers seed consistency.",
+        "Answer provides evidence for seed invalidation window.",
+    ]
+
+
+def test_compiled_acceptance_append_locked_supports_generator_only_plan(
+    monkeypatch,
+) -> None:
+    _install_default_patches(
+        monkeypatch,
+        retrieval=_make_retrieval(),
+        strategies=[_make_strategy()],
+        skills=[_make_skill()],
+    )
+
+    def fake_generate_question(**kwargs):
+        return {
+            "question": "请说明一次缓存一致性设计。",
+            "dimension": kwargs["dimension"],
+            "proposed_contract": {
+                "must_cover": ["llm-only"],
+                "acceptance_checks": ["Answer mentions llm-only."],
+                "minimum_bar": "LLM minimum bar.",
+                "bar_level": "standard",
+            },
+        }
+
+    monkeypatch.setattr(ask_mod, "generate_question", fake_generate_question)
+    monkeypatch.setattr(
+        ask_mod,
+        "select_question_candidates",
+        lambda **_kwargs: QuestionSelectionResult(
+            candidates=[_ascii_question_candidate()]
+        ),
+    )
+    monkeypatch.setattr(ask_mod, "record_question_usages", lambda **_kwargs: None)
+
+    out = ask_mod.ask_question_node(
+        _base_state(
+            runtime_config={
+                "rag_mode": "vector",
+                "question_selector_mode": "structured_primary",
+                "contract_acceptance_mode": "append_locked",
+            },
+            selected_action={"id": "give_hint"},
+        )
+    )  # type: ignore[arg-type]
+
+    assert out["current_contract"]["signed_by"] == ["generator"]
+    assert "Answer explicitly covers seed consistency." in out["current_contract"][
+        "acceptance_checks"
+    ]
+    assert "Answer provides evidence for seed invalidation window." in out[
+        "current_contract"
+    ]["acceptance_checks"]
+
+
+def test_compiled_acceptance_mode_off_suppresses_compiled_diagnostics(
+    monkeypatch,
+) -> None:
+    captured_trace = _install_default_patches(
+        monkeypatch,
+        retrieval=_make_retrieval(),
+        strategies=[_make_strategy()],
+        skills=[_make_skill()],
+    )
+    monkeypatch.setattr(
+        ask_mod,
+        "select_question_candidates",
+        lambda **_kwargs: QuestionSelectionResult(
+            candidates=[_ascii_question_candidate()]
+        ),
+    )
+    monkeypatch.setattr(ask_mod, "record_question_usages", lambda **_kwargs: None)
+
+    ask_mod.ask_question_node(
+        _base_state(
+            runtime_config={
+                "rag_mode": "vector",
+                "question_selector_mode": "structured_primary",
+                "contract_acceptance_mode": "off",
+            }
+        )
+    )  # type: ignore[arg-type]
+
+    diagnostics = captured_trace["contract_diagnostics"]
+    assert diagnostics["contract_acceptance_mode"] == "off"
+    assert diagnostics["compiled_acceptance_present"] is False
+    assert diagnostics["compiled_acceptance_checks"] == []
+    assert diagnostics["compiled_acceptance_warnings"] == []
+
+
+def test_compiled_acceptance_invalid_mode_falls_back_in_trace(
+    monkeypatch,
+) -> None:
+    captured_trace = _install_default_patches(
+        monkeypatch,
+        retrieval=_make_retrieval(),
+        strategies=[_make_strategy()],
+        skills=[_make_skill()],
+    )
+    monkeypatch.setattr(
+        ask_mod,
+        "select_question_candidates",
+        lambda **_kwargs: QuestionSelectionResult(
+            candidates=[_ascii_question_candidate()]
+        ),
+    )
+    monkeypatch.setattr(ask_mod, "record_question_usages", lambda **_kwargs: None)
+
+    ask_mod.ask_question_node(
+        _base_state(
+            runtime_config={
+                "rag_mode": "vector",
+                "question_selector_mode": "structured_primary",
+                "contract_acceptance_mode": "surprise",
+            }
+        )
+    )  # type: ignore[arg-type]
+
+    diagnostics = captured_trace["contract_diagnostics"]
+    assert diagnostics["contract_acceptance_mode"] == "shadow"
+    assert (
+        "invalid_acceptance_mode_fallback"
+        in diagnostics["compiled_acceptance_warnings"]
+    )
+
+
+def test_reviewed_acceptance_shadow_keeps_negotiated_checks_and_traces_reviewed(
+    monkeypatch,
+) -> None:
+    captured_trace = _install_default_patches(
+        monkeypatch,
+        retrieval=_make_retrieval(),
+        strategies=[_make_strategy()],
+        skills=[_make_skill()],
+    )
+
+    def fake_generate_question(**kwargs):
+        return {
+            "question": "请说明一次缓存一致性设计。",
+            "dimension": kwargs["dimension"],
+            "proposed_contract": {
+                "must_cover": ["llm-only"],
+                "acceptance_checks": ["Answer mentions llm-only."],
+                "minimum_bar": "LLM minimum bar.",
+                "bar_level": "standard",
+            },
+        }
+
+    def fake_negotiate(**kwargs):
+        return {**kwargs["proposed_contract"], "signed_by": ["generator", "evaluator"]}
+
+    monkeypatch.setattr(ask_mod, "generate_question", fake_generate_question)
+    monkeypatch.setattr(ask_mod, "negotiate_contract_via_evaluator", fake_negotiate)
+    monkeypatch.setattr(
+        ask_mod,
+        "select_question_candidates",
+        lambda **_kwargs: QuestionSelectionResult(
+            candidates=[
+                _ascii_question_candidate(
+                    reviewed_acceptance_checks=_reviewed_acceptance_checks()
+                )
+            ]
+        ),
+    )
+    monkeypatch.setattr(ask_mod, "record_question_usages", lambda **_kwargs: None)
+
+    out = ask_mod.ask_question_node(
+        _base_state(
+            runtime_config={
+                "rag_mode": "vector",
+                "question_selector_mode": "structured_primary",
+                "contract_acceptance_mode": "reviewed_shadow",
+            }
+        )
+    )  # type: ignore[arg-type]
+
+    assert out["current_contract"]["acceptance_checks"] == [
+        "Answer mentions llm-only."
+    ]
+    diagnostics = captured_trace["contract_diagnostics"]
+    assert diagnostics["reviewed_acceptance_mode"] == "reviewed_shadow"
+    assert diagnostics["reviewed_acceptance_present"] is True
+    assert diagnostics["reviewed_acceptance_source"] == "reviewed"
+    assert diagnostics["reviewed_acceptance_applied"] is False
+    assert diagnostics["reviewed_acceptance_missing_from_final"] == [
+        "Answer defines the target consistency level."
+    ]
+    assert diagnostics["reviewed_acceptance_checks"][0]["check_id"] == (
+        "reviewed:cache-consistency:core:v1"
+    )
+    assert "Draft check must stay out of runtime." not in [
+        check["acceptance_check"]
+        for check in diagnostics["reviewed_acceptance_checks"]
+    ]
+
+
+def test_reviewed_acceptance_append_adds_reviewed_checks(
+    monkeypatch,
+) -> None:
+    captured_trace = _install_default_patches(
+        monkeypatch,
+        retrieval=_make_retrieval(),
+        strategies=[_make_strategy()],
+        skills=[_make_skill()],
+    )
+
+    def fake_generate_question(**kwargs):
+        return {
+            "question": "请说明一次缓存一致性设计。",
+            "dimension": kwargs["dimension"],
+            "proposed_contract": {
+                "must_cover": ["llm-only"],
+                "acceptance_checks": ["Answer mentions llm-only."],
+                "minimum_bar": "LLM minimum bar.",
+                "bar_level": "standard",
+            },
+        }
+
+    def fake_negotiate(**kwargs):
+        return {**kwargs["proposed_contract"], "signed_by": ["generator", "evaluator"]}
+
+    monkeypatch.setattr(ask_mod, "generate_question", fake_generate_question)
+    monkeypatch.setattr(ask_mod, "negotiate_contract_via_evaluator", fake_negotiate)
+    monkeypatch.setattr(
+        ask_mod,
+        "select_question_candidates",
+        lambda **_kwargs: QuestionSelectionResult(
+            candidates=[
+                _ascii_question_candidate(
+                    reviewed_acceptance_checks=_reviewed_acceptance_checks()
+                )
+            ]
+        ),
+    )
+    monkeypatch.setattr(ask_mod, "record_question_usages", lambda **_kwargs: None)
+
+    out = ask_mod.ask_question_node(
+        _base_state(
+            runtime_config={
+                "rag_mode": "vector",
+                "question_selector_mode": "structured_primary",
+                "contract_acceptance_mode": "reviewed_append",
+            }
+        )
+    )  # type: ignore[arg-type]
+
+    assert out["current_contract"]["acceptance_checks"] == [
+        "Answer mentions llm-only.",
+        "Answer defines the target consistency level.",
+    ]
+    diagnostics = captured_trace["contract_diagnostics"]
+    assert diagnostics["reviewed_acceptance_source"] == "reviewed"
+    assert diagnostics["reviewed_acceptance_applied"] is True
+    assert diagnostics["reviewed_acceptance_missing_from_final"] == []
+
+
+def test_reviewed_acceptance_modes_fallback_to_compiled_when_reviewed_missing(
+    monkeypatch,
+) -> None:
+    captured_trace = _install_default_patches(
+        monkeypatch,
+        retrieval=_make_retrieval(),
+        strategies=[_make_strategy()],
+        skills=[_make_skill()],
+    )
+    monkeypatch.setattr(
+        ask_mod,
+        "select_question_candidates",
+        lambda **_kwargs: QuestionSelectionResult(
+            candidates=[_ascii_question_candidate()]
+        ),
+    )
+    monkeypatch.setattr(ask_mod, "record_question_usages", lambda **_kwargs: None)
+
+    out = ask_mod.ask_question_node(
+        _base_state(
+            runtime_config={
+                "rag_mode": "vector",
+                "question_selector_mode": "structured_primary",
+                "contract_acceptance_mode": "reviewed_append",
+            },
+            selected_action={"id": "give_hint"},
+        )
+    )  # type: ignore[arg-type]
+
+    assert out["current_contract"]["signed_by"] == ["generator"]
+    assert "Answer explicitly covers seed consistency." in out["current_contract"][
+        "acceptance_checks"
+    ]
+    diagnostics = captured_trace["contract_diagnostics"]
+    assert diagnostics["reviewed_acceptance_source"] == "compiled_fallback"
+    assert (
+        "reviewed_acceptance_missing_fallback_compiled"
+        in diagnostics["reviewed_acceptance_warnings"]
+    )
 
 
 def test_question_selector_structured_primary_covered_tech_role_injects_seed(

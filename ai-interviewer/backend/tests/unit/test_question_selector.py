@@ -44,6 +44,7 @@ def _add_seed(
     direction_tags: list[str] | None = None,
     role_tags: list[str] | None = None,
     variant_role_tags: list[str] | None = None,
+    reviewed_acceptance_checks: list[dict] | None = None,
 ) -> str:
     variant_id = variant_id or f"{seed_id}.{intent}"
     sess.add(
@@ -64,29 +65,117 @@ def _add_seed(
             language="zh-CN",
         )
     )
-    sess.add(
-        QuestionVariant(
-            id=variant_id,
-            seed_id=seed_id,
-            version=1,
-            intent=intent,
-            difficulty=difficulty,
-            scenario_brief=f"scenario for {variant_id}",
-            question_stem=f"question for {variant_id}",
-            prompt_template=f"prompt for {variant_id}",
-            scenario_skill_tags=skill_tags or [],
-            resume_anchor_hints=resume_anchor_hints or [],
-            failure_categories=failure_categories or [],
-            rubric_additions=["addition"],
-            expected_signals=["signal"],
-            anti_patterns=["anti"],
-            good_answer_hints=["hint"],
-            role_tags=variant_role_tags or role_tags or ["java_backend"],
-            priority=variant_priority,
-            status=variant_status,
-        )
-    )
+    variant_values = {
+        "id": variant_id,
+        "seed_id": seed_id,
+        "version": 1,
+        "intent": intent,
+        "difficulty": difficulty,
+        "scenario_brief": f"scenario for {variant_id}",
+        "question_stem": f"question for {variant_id}",
+        "prompt_template": f"prompt for {variant_id}",
+        "scenario_skill_tags": skill_tags or [],
+        "resume_anchor_hints": resume_anchor_hints or [],
+        "failure_categories": failure_categories or [],
+        "rubric_additions": ["addition"],
+        "expected_signals": ["signal"],
+        "anti_patterns": ["anti"],
+        "good_answer_hints": ["hint"],
+        "role_tags": variant_role_tags or role_tags or ["java_backend"],
+        "priority": variant_priority,
+        "status": variant_status,
+    }
+    if reviewed_acceptance_checks is not None:
+        variant_values["reviewed_acceptance_checks"] = reviewed_acceptance_checks
+    sess.add(QuestionVariant(**variant_values))
     return variant_id
+
+
+def test_question_seed_contract_hints_include_seed_and_variant_versions() -> None:
+    candidate = question_selector.QuestionCandidate(
+        seed_id="system_design.cache_consistency",
+        variant_id="system_design.cache_consistency.flash_sale_inventory",
+        seed_version=3,
+        variant_version=7,
+        rank=1,
+        match_score=42.0,
+        match_reasons=["priority"],
+        injected=True,
+        title="Cache consistency",
+        dimension="system_design",
+        seed_priority=30,
+        variant_priority=20,
+        skill_tags=["redis"],
+        direction_tags=["internet_tech"],
+        role_tags=["java_backend"],
+        rubric={"must_cover": ["consistency target"]},
+        intent="opening",
+        difficulty="standard",
+        scenario_brief="Flash-sale inventory reads are cache-heavy.",
+        question_stem="Design a cache consistency approach.",
+        prompt_template="Ask a system design question.",
+        scenario_skill_tags=["redis"],
+        resume_anchor_hints=["cache"],
+        failure_categories=["missing_metrics"],
+        rubric_additions=["mentions invalidation window"],
+        expected_signals=["distinguishes strong and eventual consistency"],
+        anti_patterns=["only says add lock"],
+        good_answer_hints=["define consistency target first"],
+        reviewed_acceptance_checks=[
+            {
+                "check_id": "reviewed:cache-consistency:core:v1",
+                "acceptance_check": "Answer defines the target consistency level.",
+                "review_status": "reviewed",
+            }
+        ],
+    )
+
+    hints = question_selector.build_question_seed_contract_hints(candidate)
+
+    assert hints["question_seed"]["seed_version"] == 3
+    assert hints["question_seed"]["variant_version"] == 7
+    assert hints["question_seed"]["rubric"] == {"must_cover": ["consistency target"]}
+    assert hints["question_seed"]["reviewed_acceptance_checks"][0]["check_id"] == (
+        "reviewed:cache-consistency:core:v1"
+    )
+
+
+def test_select_question_candidates_carries_reviewed_acceptance_checks() -> None:
+    reviewed_checks = [
+        {
+            "check_id": "reviewed:cache-consistency:core:v1",
+            "source": "must_cover",
+            "source_text": "consistency target",
+            "acceptance_check": "Answer defines the target consistency level.",
+            "severity": "core",
+            "review_status": "reviewed",
+            "version": 1,
+            "reviewed_seed_version": 1,
+            "reviewed_variant_version": 1,
+            "reviewed_by": "qa-lead",
+            "reviewed_at": "2026-06-01",
+        }
+    ]
+    session_local = _session_factory()
+    with session_local() as sess:
+        _add_seed(
+            sess,
+            "system_design.reviewed",
+            skill_tags=["redis"],
+            reviewed_acceptance_checks=reviewed_checks,
+        )
+        sess.commit()
+
+        result = select_question_candidates(
+            sess,
+            dimension="system_design",
+            job_level="senior",
+            probe_intent="opening",
+            top_k=1,
+        )
+
+    candidate = result.candidates[0]
+    assert candidate.reviewed_acceptance_checks == reviewed_checks
 
 
 def test_selector_hard_filters_status_scope_dimension_and_job_level() -> None:

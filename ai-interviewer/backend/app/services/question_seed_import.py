@@ -453,6 +453,13 @@ def _parse_variant(
         "good_answer_hints",
     ):
         _validate_list(location, field, raw_variant.get(field), errors)
+    if "reviewed_acceptance_checks" in raw_variant:
+        _validate_list(
+            location,
+            "reviewed_acceptance_checks",
+            raw_variant.get("reviewed_acceptance_checks"),
+            errors,
+        )
     if "role_tags" in raw_variant:
         _validate_list(location, "role_tags", raw_variant.get("role_tags"), errors)
         role_tags = _slug_list(
@@ -482,6 +489,9 @@ def _parse_variant(
         "expected_signals": _string_list(raw_variant.get("expected_signals")),
         "anti_patterns": _string_list(raw_variant.get("anti_patterns")),
         "good_answer_hints": _string_list(raw_variant.get("good_answer_hints")),
+        "reviewed_acceptance_checks": _mapping_list(
+            raw_variant.get("reviewed_acceptance_checks")
+        ),
         "role_tags": role_tags,
         "priority": _int(raw_variant.get("priority")),
         "status": _string(raw_variant.get("status")),
@@ -539,6 +549,12 @@ def _string_list(value: Any) -> list[str]:
     if not isinstance(value, list):
         return []
     return [text for item in value if (text := _string(item))]
+
+
+def _mapping_list(value: Any) -> list[dict[str, Any]]:
+    if not isinstance(value, list):
+        return []
+    return [dict(item) for item in value if isinstance(item, dict)]
 
 
 def _slug_list(

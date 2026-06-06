@@ -146,6 +146,8 @@ _CONTRACT_ACCEPTANCE_MODES = {
     "off",
     "shadow",
     "append_locked",
+    "reviewed_shadow",
+    "reviewed_append",
 }
 _PROMPT_SLOT_TEXT_LIMIT = 2000
 _PROMPT_SLOT_PLACEHOLDER_REASONS = {
@@ -830,6 +832,16 @@ def _step_select_structured_question(
             ctx["compiled_acceptance_checks"] = compile_locked_acceptance_checks(
                 ctx.get("locked_core_contract")
             )
+        if ctx.get("contract_acceptance_mode") in {
+            "reviewed_shadow",
+            "reviewed_append",
+        }:
+            ctx["reviewed_acceptance_checks"] = _reviewed_acceptance_checks_for_runtime(
+                (ctx.get("contract_hints") or {})
+                .get("question_seed", {})
+                .get("reviewed_acceptance_checks")
+            )
+
     if (
         bool(getattr(settings, "enable_question_reranker_shadow", False))
         and len(candidates) >= 2
@@ -2146,6 +2158,26 @@ def _compiled_acceptance_strings(
     ]
 
 
+def _reviewed_acceptance_checks_for_runtime(
+    reviewed_acceptance_checks: Any,
+) -> list[dict[str, Any]]:
+    if not isinstance(reviewed_acceptance_checks, list):
+        return []
+    checks: list[dict[str, Any]] = []
+    for check in reviewed_acceptance_checks:
+        if not isinstance(check, dict):
+            continue
+        acceptance_check = str(check.get("acceptance_check") or "").strip()
+        if not acceptance_check:
+            continue
+        if str(check.get("review_status") or "").strip().lower() != "reviewed":
+            continue
+        item = dict(check)
+        item["acceptance_check"] = acceptance_check
+        checks.append(item)
+    return checks
+
+
 def _compiled_acceptance_append_candidates(
     contract: dict[str, Any] | None,
     compiled_acceptance_checks: list[dict[str, Any]] | None,
@@ -2180,6 +2212,34 @@ def _append_compiled_acceptance_checks(
         contract.get("acceptance_checks")
     ) + append_candidates
     return updated, append_candidates  # type: ignore[return-value]
+
+
+def _reviewed_acceptance_source(
+    *,
+    contract_acceptance_mode: str,
+    reviewed_acceptance_checks: list[dict[str, Any]] | None,
+    compiled_acceptance_checks: list[dict[str, Any]] | None,
+) -> str:
+    if contract_acceptance_mode not in {"reviewed_shadow", "reviewed_append"}:
+        return "none"
+    if reviewed_acceptance_checks:
+        return "reviewed"
+    if compiled_acceptance_checks:
+        return "compiled_fallback"
+    return "none"
+
+
+def _acceptance_checks_for_reviewed_mode(
+    *,
+    reviewed_acceptance_source: str,
+    reviewed_acceptance_checks: list[dict[str, Any]] | None,
+    compiled_acceptance_checks: list[dict[str, Any]] | None,
+) -> list[dict[str, Any]]:
+    if reviewed_acceptance_source == "reviewed":
+        return list(reviewed_acceptance_checks or [])
+    if reviewed_acceptance_source == "compiled_fallback":
+        return list(compiled_acceptance_checks or [])
+    return []
 
 
 def _strings_for_trace(value: Any) -> list[str]:
@@ -2246,6 +2306,9 @@ def _contract_diagnostics_for_trace(
     compiled_acceptance_append_candidates: list[str] | None = None,
     compiled_acceptance_applied: bool = False,
     contract_acceptance_mode_warnings: list[str] | None = None,
+    reviewed_acceptance_checks: list[dict[str, Any]] | None = None,
+    reviewed_acceptance_source: str = "none",
+    reviewed_acceptance_applied: bool = False,
 ) -> dict[str, Any]:
     """Return trace-only contract quality diagnostics without mutating inputs."""
 
@@ -2406,6 +2469,45 @@ def _contract_diagnostics_for_trace(
             "compiled_acceptance_not_applied_after_rewrite"
         )
 
+    reviewed_acceptance_mode_enabled = contract_acceptance_mode in {
+        "reviewed_shadow",
+        "reviewed_append",
+    }
+    reviewed_runtime_checks = (
+        list(reviewed_acceptance_checks or [])
+        if reviewed_acceptance_mode_enabled
+        else []
+    )
+    reviewed_acceptance_present = bool(reviewed_runtime_checks)
+    reviewed_selected_checks = _acceptance_checks_for_reviewed_mode(
+        reviewed_acceptance_source=reviewed_acceptance_source,
+        reviewed_acceptance_checks=reviewed_runtime_checks,
+        compiled_acceptance_checks=compiled_acceptance_checks,
+    )
+    reviewed_acceptance_strings = _compiled_acceptance_strings(
+        reviewed_selected_checks
+    )
+    reviewed_acceptance_missing_from_final = [
+        item
+        for item in reviewed_acceptance_strings
+        if not _contract_item_is_covered(
+            item,
+            checks_text=final_acceptance_text,
+            check_terms=final_acceptance_terms,
+        )
+    ]
+    reviewed_acceptance_warnings: list[str] = []
+    if reviewed_acceptance_mode_enabled and reviewed_acceptance_source == "compiled_fallback":
+        reviewed_acceptance_warnings.append(
+            "reviewed_acceptance_missing_fallback_compiled"
+        )
+    if reviewed_acceptance_source != "none" and reviewed_acceptance_missing_from_final:
+        reviewed_acceptance_warnings.append("reviewed_acceptance_missing_from_final")
+    if reviewed_acceptance_source != "none" and rewrite_fallback:
+        reviewed_acceptance_warnings.append(
+            "reviewed_acceptance_not_applied_after_rewrite"
+        )
+
     return {
         "source": source,
         "signed_status": signed_status,
@@ -2441,6 +2543,21 @@ def _contract_diagnostics_for_trace(
         "compiled_acceptance_append_candidates": append_candidates,
         "compiled_acceptance_applied": bool(compiled_acceptance_applied),
         "compiled_acceptance_warnings": compiled_acceptance_warnings,
+        "reviewed_acceptance_mode": contract_acceptance_mode,
+        "reviewed_acceptance_present": reviewed_acceptance_present,
+        "reviewed_acceptance_source": (
+            reviewed_acceptance_source
+            if reviewed_acceptance_mode_enabled
+            else "none"
+        ),
+        "reviewed_acceptance_checks": reviewed_runtime_checks,
+        "reviewed_acceptance_missing_from_final": (
+            reviewed_acceptance_missing_from_final
+            if reviewed_acceptance_mode_enabled
+            else []
+        ),
+        "reviewed_acceptance_applied": bool(reviewed_acceptance_applied),
+        "reviewed_acceptance_warnings": reviewed_acceptance_warnings,
     }
 
 
@@ -2613,6 +2730,7 @@ def ask_question_node(state: InterviewState) -> dict[str, Any]:
         "contract_acceptance_mode": contract_acceptance_mode,
         "contract_acceptance_mode_warnings": contract_acceptance_mode_warnings,
         "compiled_acceptance_checks": [],
+        "reviewed_acceptance_checks": [],
     }
     if depth_metadata:
         ctx["depth_followup"] = depth_metadata
@@ -2705,6 +2823,12 @@ def ask_question_node(state: InterviewState) -> dict[str, Any]:
         locked_core_applied = True
     compiled_acceptance_applied = False
     compiled_acceptance_append_candidates: list[str] | None = None
+    reviewed_acceptance_source = _reviewed_acceptance_source(
+        contract_acceptance_mode=ctx.get("contract_acceptance_mode", "shadow"),
+        reviewed_acceptance_checks=ctx.get("reviewed_acceptance_checks") or [],
+        compiled_acceptance_checks=ctx.get("compiled_acceptance_checks") or [],
+    )
+    reviewed_acceptance_applied = False
     if (
         ctx.get("contract_acceptance_mode") == "append_locked"
         and ctx.get("compiled_acceptance_checks")
@@ -2716,6 +2840,21 @@ def ask_question_node(state: InterviewState) -> dict[str, Any]:
             )
         )
         compiled_acceptance_applied = bool(compiled_acceptance_append_candidates)
+    if ctx.get("contract_acceptance_mode") == "reviewed_append":
+        reviewed_acceptance_checks = _acceptance_checks_for_reviewed_mode(
+            reviewed_acceptance_source=reviewed_acceptance_source,
+            reviewed_acceptance_checks=ctx.get("reviewed_acceptance_checks") or [],
+            compiled_acceptance_checks=ctx.get("compiled_acceptance_checks") or [],
+        )
+        if reviewed_acceptance_checks:
+            contract, reviewed_append_candidates = _append_compiled_acceptance_checks(
+                contract,
+                reviewed_acceptance_checks,
+            )
+            reviewed_acceptance_applied = bool(reviewed_append_candidates)
+            if reviewed_acceptance_source == "compiled_fallback":
+                compiled_acceptance_append_candidates = reviewed_append_candidates
+                compiled_acceptance_applied = bool(reviewed_append_candidates)
     question_payload["contract"] = contract
     # Rubric_points is kept for backwards compatibility: evaluator_node
     # still tolerates the old shape when the new contract path is off.
@@ -2732,6 +2871,7 @@ def ask_question_node(state: InterviewState) -> dict[str, Any]:
         )
         locked_core_applied = False
         compiled_acceptance_applied = False
+        reviewed_acceptance_applied = False
         question_payload["contract"] = contract
         question_payload["rubric_points"] = list(contract.get("must_cover", []))
 
@@ -2752,6 +2892,9 @@ def ask_question_node(state: InterviewState) -> dict[str, Any]:
         contract_acceptance_mode_warnings=(
             ctx.get("contract_acceptance_mode_warnings") or []
         ),
+        reviewed_acceptance_checks=ctx.get("reviewed_acceptance_checks") or [],
+        reviewed_acceptance_source=reviewed_acceptance_source,
+        reviewed_acceptance_applied=reviewed_acceptance_applied,
     )
 
     if "evaluator" not in (contract.get("signed_by") or []):

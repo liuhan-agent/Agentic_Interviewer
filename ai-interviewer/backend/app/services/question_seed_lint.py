@@ -10,6 +10,23 @@ from app.services.question_seed_import import (
     parse_question_seed_dir,
 )
 
+REVIEWED_CHECK_REQUIRED = {
+    "check_id",
+    "source",
+    "source_text",
+    "acceptance_check",
+    "severity",
+    "review_status",
+    "version",
+    "reviewed_seed_version",
+    "reviewed_variant_version",
+    "reviewed_by",
+    "reviewed_at",
+}
+REVIEWED_CHECK_SOURCES = {"must_cover", "rubric_addition", "manual"}
+REVIEWED_CHECK_SEVERITIES = {"core", "supporting"}
+REVIEWED_CHECK_STATUSES = {"draft", "reviewed", "deprecated"}
+
 JAVA_BACKEND_ROLE_REQUIREMENTS = {
     "java_backend": {
         "min_seeds": 19,
@@ -444,6 +461,7 @@ def lint_question_seed_dir(
     variants_by_seed: dict[str, list[dict[str, Any]]] = {}
     for parsed in variants:
         variants_by_seed.setdefault(parsed.values["seed_id"], []).append(parsed.values)
+    seed_versions = {parsed.values["id"]: int(parsed.values.get("version") or 0) for parsed in seeds}
 
     role_seed_ids: dict[str, set[str]] = {}
     role_dimensions: dict[str, set[str]] = {}
@@ -595,6 +613,14 @@ def lint_question_seed_dir(
                         f"{variant_id}: internal hint leakage risk in {field}",
                     )
                 )
+        issues.extend(
+            _reviewed_acceptance_check_issues(
+                strict=strict,
+                seed_id=seed_id,
+                seed_version=seed_versions.get(seed_id, 0),
+                variant=variant,
+            )
+        )
 
     warning_count = sum(1 for issue in issues if issue.severity == "warning")
     error_count = sum(1 for issue in issues if issue.severity == "error")
@@ -649,6 +675,144 @@ def _leaks_internal_hint(value: Any) -> bool:
             "failure trigger",
         )
     )
+
+
+def _reviewed_acceptance_check_issues(
+    *,
+    strict: bool,
+    seed_id: str,
+    seed_version: int,
+    variant: dict[str, Any],
+) -> list[QuestionSeedLintIssue]:
+    variant_id = str(variant.get("id") or "")
+    variant_version = _safe_int(variant.get("version"))
+    checks = variant.get("reviewed_acceptance_checks") or []
+    if not isinstance(checks, list) or not checks:
+        return []
+
+    issues: list[QuestionSeedLintIssue] = []
+    seen_ids: set[str] = set()
+    duplicate_ids: set[str] = set()
+    for idx, check in enumerate(checks):
+        if not isinstance(check, dict):
+            issues.append(
+                _issue(
+                    strict,
+                    "reviewed_check_schema",
+                    seed_id,
+                    variant_id,
+                    f"{variant_id}: reviewed_acceptance_checks[{idx}] must be a mapping",
+                )
+            )
+            continue
+        check_id = str(check.get("check_id") or "").strip()
+        review_status = str(check.get("review_status") or "")
+        missing = [
+            field
+            for field in sorted(REVIEWED_CHECK_REQUIRED)
+            if _reviewed_check_field_missing(
+                check,
+                field=field,
+                review_status=review_status,
+            )
+        ]
+        invalid_enum = (
+            str(check.get("source") or "") not in REVIEWED_CHECK_SOURCES
+            or str(check.get("severity") or "") not in REVIEWED_CHECK_SEVERITIES
+            or review_status not in REVIEWED_CHECK_STATUSES
+        )
+        if missing or invalid_enum:
+            issues.append(
+                _issue(
+                    strict,
+                    "reviewed_check_schema",
+                    seed_id,
+                    variant_id,
+                    (
+                        f"{variant_id}: invalid reviewed_acceptance_checks[{idx}] "
+                        f"schema"
+                    ),
+                )
+            )
+        if check_id:
+            if check_id in seen_ids:
+                duplicate_ids.add(check_id)
+            seen_ids.add(check_id)
+        if _is_generic_acceptance_check(check.get("acceptance_check")):
+            issues.append(
+                _issue(
+                    strict,
+                    "generic_reviewed_acceptance_check",
+                    seed_id,
+                    variant_id,
+                    f"{variant_id}: generic reviewed acceptance check {check_id or idx}",
+                )
+            )
+        reviewed_seed_version = _safe_int(check.get("reviewed_seed_version"))
+        reviewed_variant_version = _safe_int(check.get("reviewed_variant_version"))
+        if (
+            reviewed_seed_version < seed_version
+            or reviewed_variant_version < variant_version
+        ):
+            issues.append(
+                _issue(
+                    strict,
+                    "review_stale",
+                    seed_id,
+                    variant_id,
+                    f"{variant_id}: reviewed acceptance check is stale",
+                )
+            )
+    for duplicate_id in sorted(duplicate_ids):
+        issues.append(
+            _issue(
+                strict,
+                "reviewed_check_duplicate_id",
+                seed_id,
+                variant_id,
+                f"{variant_id}: duplicate reviewed check_id {duplicate_id}",
+            )
+        )
+    return issues
+
+
+def _reviewed_check_field_missing(
+    check: dict[str, Any],
+    *,
+    field: str,
+    review_status: str,
+) -> bool:
+    if field not in check or check.get(field) is None:
+        return True
+    if (
+        review_status == "draft"
+        and field in {"reviewed_by", "reviewed_at"}
+        and check.get(field) == ""
+    ):
+        return False
+    return check.get(field) == ""
+
+
+def _is_generic_acceptance_check(value: Any) -> bool:
+    text = str(value or "").strip().lower()
+    if not text:
+        return False
+    generic_checks = {
+        "answer is clear.",
+        "answer is correct.",
+        "answer is reasonable.",
+        "answer has enough depth.",
+        "回答清楚即可",
+        "回答合理即可",
+    }
+    return text in generic_checks
+
+
+def _safe_int(value: Any) -> int:
+    try:
+        return int(value)
+    except Exception:
+        return 0
 
 
 def _has_role_stem_mismatch(seed: dict[str, Any], variants: list[dict[str, Any]]) -> bool:
