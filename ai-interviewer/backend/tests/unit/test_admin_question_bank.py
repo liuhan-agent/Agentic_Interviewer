@@ -288,6 +288,13 @@ def test_admin_question_seed_detail_returns_reviewed_acceptance_checks() -> None
     assert detail.json()["variants"][0]["reviewed_acceptance_checks"] == (
         reviewed_checks
     )
+    assert detail.json()["variants"][0]["reviewed_acceptance_coverage"] == {
+        "reviewed_count": 1,
+        "draft_count": 0,
+        "deprecated_count": 0,
+        "stale_count": 0,
+        "db_sync_status": "unknown",
+    }
 
 
 def test_admin_question_usage_stats_refresh_and_reward_readiness() -> None:

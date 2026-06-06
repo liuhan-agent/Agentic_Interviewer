@@ -3328,6 +3328,17 @@ def _question_variant_payload(row: Any, *, seed_version: int | None = None) -> d
         "created_at": row.created_at.isoformat() if row.created_at else None,
         "updated_at": row.updated_at.isoformat() if row.updated_at else None,
     }
+    if seed_version is not None:
+        from app.services.question_reviewed_acceptance_report import (
+            reviewed_acceptance_variant_summary,
+        )
+
+        payload["reviewed_acceptance_coverage"] = (
+            reviewed_acceptance_variant_summary(
+                seed_version=int(seed_version or 0),
+                variant=row,
+            )
+        )
     return payload
 
 
