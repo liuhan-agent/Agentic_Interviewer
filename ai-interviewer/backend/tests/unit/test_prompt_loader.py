@@ -243,6 +243,9 @@ def test_render_generator_task_end_to_end() -> None:
     assert "CANDIDATE_RESUME_RAG =" in out
     assert "SELF_INTRO_RAG =" in out
     assert "[resume] Redis Lua coupon guard" in out
+    assert "History grounding rules" in out
+    assert "Do not reveal" in out
+    assert "evaluation_brief" in out
     assert "简体中文" in out
     assert "Do not output English" in out
 

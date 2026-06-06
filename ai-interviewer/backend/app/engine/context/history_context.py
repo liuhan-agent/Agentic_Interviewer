@@ -12,13 +12,19 @@ import re
 from typing import Any
 
 DEFAULT_RECENT_QA_WINDOW = 3
-DEFAULT_HISTORY_BUDGET_CHARS = 8000
+DEFAULT_HISTORY_BUDGET_CHARS = 12000
 DEFAULT_RECENT_ANSWER_SOFT_LIMIT_CHARS = 1400
 DEFAULT_RECENT_QUESTION_LIMIT_CHARS = 500
 FIELD_TEXT_LIMIT = 240
 LIST_ITEM_LIMIT = 5
 COMPACT_LIST_ITEM_LIMIT = 3
 COMPACT_FIELD_TEXT_LIMIT = 120
+RECENT_STRENGTH_LIMIT = 2
+RECENT_WEAKNESS_LIMIT = 3
+RECENT_FAILURE_CATEGORY_LIMIT = 3
+RECENT_ANCHOR_TEXT_LIMIT = 120
+RECENT_SIGNAL_TEXT_LIMIT = 160
+RECENT_SHORT_TEXT_LIMIT = 80
 
 __all__ = ["build_history_context"]
 
@@ -545,6 +551,67 @@ def _build_prompt_projection(
     }
 
 
+def _recent_anchor_view(turn: dict[str, Any]) -> dict[str, Any]:
+    anchor = _record(turn.get("resume_anchor"))
+    result: dict[str, Any] = {}
+    for key in ("anchor_key", "label", "project_name"):
+        text = _text(anchor.get(key), limit=RECENT_ANCHOR_TEXT_LIMIT)
+        if text:
+            result[key] = text
+    return result
+
+
+def _recent_evaluation_brief(evaluation: dict[str, Any]) -> dict[str, Any]:
+    result: dict[str, Any] = {}
+    strengths = _compact_text_list(
+        evaluation.get("strengths"),
+        limit=RECENT_STRENGTH_LIMIT,
+        text_limit=RECENT_SIGNAL_TEXT_LIMIT,
+    )
+    weaknesses = _compact_text_list(
+        evaluation.get("weaknesses"),
+        limit=RECENT_WEAKNESS_LIMIT,
+        text_limit=RECENT_SIGNAL_TEXT_LIMIT,
+    )
+    failure_categories = _compact_text_list(
+        evaluation.get("failure_categories"),
+        limit=RECENT_FAILURE_CATEGORY_LIMIT,
+        text_limit=RECENT_SHORT_TEXT_LIMIT,
+    )
+    if strengths:
+        result["strengths"] = strengths
+    if weaknesses:
+        result["weaknesses"] = weaknesses
+    for key in (
+        "recommended_next",
+        "recommended_next_plan",
+        "recommended_probe_intent",
+    ):
+        text = _text(evaluation.get(key), limit=RECENT_SIGNAL_TEXT_LIMIT)
+        if text:
+            result[key] = text
+    failure_reason = _text(
+        evaluation.get("failure_reason"),
+        limit=RECENT_SIGNAL_TEXT_LIMIT,
+    )
+    if failure_reason:
+        result["failure_reason"] = failure_reason
+    if failure_categories:
+        result["failure_categories"] = failure_categories
+    return result
+
+
+def _depth_followup_source_turn_idx(turn: dict[str, Any]) -> int | None:
+    value = turn.get("depth_followup_source_turn_idx")
+    if value is None:
+        depth_followup = _record(turn.get("depth_followup"))
+        value = depth_followup.get("source_turn_idx")
+    try:
+        return int(value) if value is not None else None
+    except (TypeError, ValueError):
+        return None
+
+
 def _truncate_recent_turn(
     turn: dict[str, Any],
     *,
@@ -562,7 +629,7 @@ def _truncate_recent_turn(
     if answer_limit is not None and len(answer) > answer_limit:
         answer_view = _text(answer, limit=answer_limit)
         answer_truncated = True
-    return {
+    view: dict[str, Any] = {
         "turn_idx": _turn_idx(turn, -1),
         "dimension": _text(turn.get("dimension"), limit=80),
         "question": question_view,
@@ -573,6 +640,29 @@ def _truncate_recent_turn(
         "passed": evaluation.get("passed") if "passed" in evaluation else None,
         "selected_action": _text(turn.get("selected_action"), limit=80),
     }
+    anchor = _recent_anchor_view(turn)
+    target_skills = _compact_text_list(
+        turn.get("target_skills"),
+        limit=LIST_ITEM_LIMIT,
+        text_limit=RECENT_SHORT_TEXT_LIMIT,
+    )
+    evaluation_brief = _recent_evaluation_brief(evaluation)
+    answer_intent = _text(turn.get("answer_intent"), limit=RECENT_SHORT_TEXT_LIMIT)
+    phase = _text(turn.get("phase"), limit=RECENT_SHORT_TEXT_LIMIT)
+    source_turn_idx = _depth_followup_source_turn_idx(turn)
+    if anchor:
+        view["anchor"] = anchor
+    if target_skills:
+        view["target_skills"] = target_skills
+    if evaluation_brief:
+        view["evaluation_brief"] = evaluation_brief
+    if answer_intent:
+        view["answer_intent"] = answer_intent
+    if phase:
+        view["phase"] = phase
+    if source_turn_idx is not None:
+        view["depth_followup_source_turn_idx"] = source_turn_idx
+    return view
 
 
 def _recent_prompt_view(
@@ -591,6 +681,59 @@ def _recent_prompt_view(
         )
         for turn in turns[-max(0, recent_window) :]
     ]
+
+
+def _omit_older_recent_answers(
+    recent_view: list[dict[str, Any]],
+) -> tuple[list[dict[str, Any]], int]:
+    if len(recent_view) <= 1:
+        return recent_view, 0
+    omitted = 0
+    result: list[dict[str, Any]] = []
+    for index, turn in enumerate(recent_view):
+        if index >= len(recent_view) - 1 or not turn.get("answer"):
+            result.append(turn)
+            continue
+        omitted += 1
+        result.append(
+            {
+                **turn,
+                "answer": "",
+                "answer_truncated": True,
+                "answer_omitted_reason": "older_recent_budget",
+            }
+        )
+    return result, omitted
+
+
+def _omit_latest_recent_answer(
+    recent_view: list[dict[str, Any]],
+) -> tuple[list[dict[str, Any]], int]:
+    if not recent_view or not recent_view[-1].get("answer"):
+        return recent_view, 0
+    return [
+        *recent_view[:-1],
+        {
+            **recent_view[-1],
+            "answer": "",
+            "answer_truncated": True,
+            "answer_omitted_reason": "latest_recent_budget",
+        },
+    ], 1
+
+
+def _recent_turn_has_enhanced_signal(turn: dict[str, Any]) -> bool:
+    return any(
+        key in turn
+        for key in (
+            "anchor",
+            "target_skills",
+            "evaluation_brief",
+            "answer_intent",
+            "phase",
+            "depth_followup_source_turn_idx",
+        )
+    )
 
 
 def _render_history_section(
@@ -709,7 +852,10 @@ def build_history_context(
             question_limit=recent_question_limit_chars,
             answer_limit=recent_answer_soft_limit_chars,
         )
-        truncated_recent = any(turn.get("answer_truncated") for turn in recent_view)
+        truncated_recent = any(
+            turn.get("answer_truncated") or turn.get("question_truncated")
+            for turn in recent_view
+        )
         history_section = _render_history_section(
             projection=projection,
             recent_view=recent_view,
@@ -738,6 +884,16 @@ def build_history_context(
             if len(history_section) <= history_budget_chars:
                 break
 
+    if len(history_section) > history_budget_chars and len(recent_view) > 1:
+        recent_view, omitted_count = _omit_older_recent_answers(recent_view)
+        if omitted_count:
+            truncated_recent = True
+            history_section = _render_history_section(
+                projection=projection,
+                recent_view=recent_view,
+                current_gaps=current_gaps,
+            )
+
     while len(history_section) > history_budget_chars and active_window > 1:
         active_window -= 1
         recent_view = _recent_prompt_view(
@@ -746,6 +902,7 @@ def build_history_context(
             question_limit=recent_question_limit_chars,
             answer_limit=recent_answer_soft_limit_chars,
         )
+        recent_view, _omitted_count = _omit_older_recent_answers(recent_view)
         truncated_recent = True
         history_section = _render_history_section(
             projection=projection,
@@ -754,10 +911,9 @@ def build_history_context(
         )
 
     if len(history_section) > history_budget_chars:
-        clipped_recent = recent_view
-        if clipped_recent:
-            clipped_recent = [{**clipped_recent[-1], "answer": "", "answer_truncated": True}]
-        truncated_recent = True
+        clipped_recent, omitted_count = _omit_latest_recent_answer(recent_view)
+        if omitted_count:
+            truncated_recent = True
         history_section = _render_history_section(
             projection=projection,
             recent_view=clipped_recent,
@@ -825,6 +981,14 @@ def build_history_context(
             "rendered_chars": len(history_section),
             "projection_compacted": projection_compacted,
             "history_budget_exceeded": len(history_section) > history_budget_chars,
+            "recent_enhanced_turn_count": sum(
+                1 for turn in recent_view if _recent_turn_has_enhanced_signal(turn)
+            ),
+            "older_recent_answers_omitted_count": sum(
+                1
+                for turn in recent_view
+                if turn.get("answer_omitted_reason") == "older_recent_budget"
+            ),
             "truncated_recent_answers_count": sum(
                 1 for turn in recent_view if turn.get("answer_truncated")
             ),
