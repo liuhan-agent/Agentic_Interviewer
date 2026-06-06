@@ -688,6 +688,8 @@ def build_question_seed_contract_hints(
         "question_seed": {
             "seed_id": candidate.seed_id,
             "variant_id": candidate.variant_id,
+            "seed_version": candidate.seed_version,
+            "variant_version": candidate.variant_version,
             "rubric": candidate.rubric,
             "rubric_additions": list(candidate.rubric_additions),
             "expected_signals": list(candidate.expected_signals),

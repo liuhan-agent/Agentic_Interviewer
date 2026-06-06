@@ -262,6 +262,101 @@ def test_contract_diagnostics_marks_rewrite_fallback_source():
     assert "rewrite_fallback" in diagnostics["warnings"]
 
 
+def test_contract_diagnostics_reports_locked_core_shadow_drift():
+    from app.engine.workflow.nodes import ask_question as ask_mod
+
+    contract = {
+        "must_cover": ["consistency target"],
+        "acceptance_checks": ["Answer explains consistency target."],
+        "bar_level": "standard",
+        "signed_by": ["generator", "evaluator"],
+    }
+    locked_core = {
+        "must_cover": ["consistency target", "failure window"],
+        "minimum_bar": "Explains cache consistency.",
+        "locked_rubric_additions": ["mentions invalidation window"],
+        "bar_level": "standard",
+        "seed_ref": {
+            "seed_id": "system_design.cache_consistency",
+            "variant_id": "system_design.cache_consistency.flash_sale_inventory",
+        },
+    }
+
+    diagnostics = ask_mod._contract_diagnostics_for_trace(
+        contract,
+        proposed_contract=contract,
+        plan={"template": "adaptive"},
+        target_difficulty="medium",
+        rewrite_fallback=False,
+        contract_core_mode="shadow",
+        locked_core_contract=locked_core,
+        locked_core_applied=False,
+    )
+
+    assert diagnostics["contract_core_mode"] == "shadow"
+    assert diagnostics["locked_core_present"] is True
+    assert diagnostics["locked_core_applied"] is False
+    assert diagnostics["locked_core_seed_ref"] == locked_core["seed_ref"]
+    assert diagnostics["locked_core_missing_from_final"] == ["failure window"]
+    assert diagnostics["locked_rubric_additions_missing_from_acceptance_checks"] == [
+        "mentions invalidation window"
+    ]
+    assert "locked_core_missing_from_final" in diagnostics["locked_core_warnings"]
+    assert (
+        "locked_core_without_acceptance_check"
+        in diagnostics["locked_core_warnings"]
+    )
+    assert (
+        "locked_rubric_additions_without_acceptance_check"
+        in diagnostics["locked_core_warnings"]
+    )
+
+
+def test_contract_diagnostics_omits_locked_core_details_when_mode_off():
+    from app.engine.workflow.nodes import ask_question as ask_mod
+
+    diagnostics = ask_mod._contract_diagnostics_for_trace(
+        {
+            "must_cover": ["consistency target"],
+            "acceptance_checks": ["Answer explains consistency target."],
+            "bar_level": "standard",
+            "signed_by": ["generator", "evaluator"],
+        },
+        proposed_contract={},
+        plan={"template": "adaptive"},
+        target_difficulty="medium",
+        rewrite_fallback=False,
+        contract_core_mode="off",
+        locked_core_contract={
+            "must_cover": ["consistency target", "failure window"],
+            "minimum_bar": "Explains cache consistency.",
+            "locked_rubric_additions": ["mentions invalidation window"],
+            "bar_level": "standard",
+            "seed_ref": {"seed_id": "seed", "variant_id": "variant"},
+        },
+        locked_core_applied=False,
+    )
+
+    assert diagnostics["contract_core_mode"] == "off"
+    assert diagnostics["locked_core_present"] is False
+    assert diagnostics["locked_core_missing_from_final"] == []
+    assert diagnostics["locked_core_warnings"] == []
+
+
+def test_contract_core_mode_invalid_runtime_value_falls_back_to_shadow():
+    from types import SimpleNamespace
+
+    from app.engine.workflow.nodes import ask_question as ask_mod
+
+    mode, warnings = ask_mod._resolve_contract_core_mode(
+        runtime_config={"contract_core_mode": "surprise"},
+        settings=SimpleNamespace(contract_core_mode="locked"),
+    )
+
+    assert mode == "shadow"
+    assert warnings == ["invalid_mode_fallback"]
+
+
 def test_contract_negotiator_enforces_target_difficulty_bar_level(monkeypatch):
     from app.engine.agents import contract as contract_mod
 
