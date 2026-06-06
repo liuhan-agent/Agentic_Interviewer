@@ -73,6 +73,9 @@ interviewer-demo = "app.scripts.run_demo:main"
 interviewer-seed = "app.scripts.seed_kb:main"
 interviewer-prod-smoke = "app.scripts.production_smoke:main"
 interviewer-import-question-seeds = "app.scripts.import_question_seeds:main"
+interviewer-author-reviewed-acceptance = "app.scripts.author_reviewed_acceptance_checks:main"
+interviewer-report-reviewed-acceptance = "app.scripts.report_reviewed_acceptance_coverage:main"
+interviewer-evaluate-reviewed-acceptance-grey = "app.scripts.evaluate_reviewed_acceptance_grey:main"
 
 [tool.hatch.build.targets.wheel]
 packages = ["app"]

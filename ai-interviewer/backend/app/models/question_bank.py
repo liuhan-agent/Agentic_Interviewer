@@ -65,6 +65,7 @@ class QuestionVariant(Base):
     expected_signals: Mapped[list] = mapped_column(JSON, default=list)
     anti_patterns: Mapped[list] = mapped_column(JSON, default=list)
     good_answer_hints: Mapped[list] = mapped_column(JSON, default=list)
+    reviewed_acceptance_checks: Mapped[list] = mapped_column(JSON, default=list)
     role_tags: Mapped[list] = mapped_column(JSON, default=list)
     priority: Mapped[int] = mapped_column(Integer, default=0, index=True)
     status: Mapped[str] = mapped_column(String(32), default="active", index=True)

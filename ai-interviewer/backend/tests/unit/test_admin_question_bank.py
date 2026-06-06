@@ -256,6 +256,47 @@ def test_admin_question_seed_list_detail_usage_and_status_actions() -> None:
     assert archived_variant.json()["status"] == "archived"
 
 
+def test_admin_question_seed_detail_returns_reviewed_acceptance_checks() -> None:
+    session_local = _session_factory()
+    reviewed_checks = [
+        {
+            "check_id": "reviewed:cache-consistency:core:v1",
+            "source": "must_cover",
+            "source_text": "consistency target",
+            "acceptance_check": "Answer defines the target consistency level.",
+            "severity": "core",
+            "review_status": "reviewed",
+            "version": 1,
+            "reviewed_seed_version": 1,
+            "reviewed_variant_version": 1,
+            "reviewed_by": "qa-lead",
+            "reviewed_at": "2026-06-01",
+        }
+    ]
+    with session_local() as sess:
+        variant = sess.get(
+            QuestionVariant,
+            "system_design.cache_consistency.flash_sale_inventory",
+        )
+        variant.reviewed_acceptance_checks = reviewed_checks
+        sess.commit()
+
+    client = _client(session_local)
+    detail = client.get("/admin/question-seeds/system_design.cache_consistency")
+
+    assert detail.status_code == 200
+    assert detail.json()["variants"][0]["reviewed_acceptance_checks"] == (
+        reviewed_checks
+    )
+    assert detail.json()["variants"][0]["reviewed_acceptance_coverage"] == {
+        "reviewed_count": 1,
+        "draft_count": 0,
+        "deprecated_count": 0,
+        "stale_count": 0,
+        "db_sync_status": "unknown",
+    }
+
+
 def test_admin_question_usage_stats_refresh_and_reward_readiness() -> None:
     session_local = _session_factory()
     with session_local() as sess:
