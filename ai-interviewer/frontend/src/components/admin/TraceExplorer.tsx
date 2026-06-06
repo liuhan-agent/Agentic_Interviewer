@@ -1510,7 +1510,7 @@ function OpeningPreparationPanel({
               </div>
             </div>
             <OpeningStatusCard
-              title="简历向量"
+              heading="简历向量"
               status={resumeVectorStatus}
               modeLabel="source_type"
               showDetails={showAdminControls}
@@ -1593,7 +1593,7 @@ function OpeningPreparationPanel({
               </div>
             </div>
             <OpeningStatusCard
-              title="自我介绍向量"
+              heading="自我介绍向量"
               status={selfIntroVectorStatus}
               modeLabel="mode"
               showDetails={showAdminControls}
@@ -1682,19 +1682,19 @@ function SelfIntroAnchorDetails({ cards }: { cards: Record<string, unknown>[] })
 }
 
 function OpeningStatusCard({
-  title,
+  heading,
   status,
   modeLabel,
   showDetails = true,
 }: {
-  title: string;
+  heading: string;
   status: Record<string, unknown>;
   modeLabel: string;
   showDetails?: boolean;
 }) {
   return (
     <div className="rounded-md border bg-background/50 p-3">
-      <p className="font-medium">{title}</p>
+      <p className="font-medium">{heading}</p>
       <div className="mt-2 grid gap-2">
         <NodeFact label="状态" value={stringValue(status.status) || "—"} />
         {showDetails && (
