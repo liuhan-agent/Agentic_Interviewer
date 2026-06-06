@@ -37,6 +37,7 @@ from app.core.tracer import get_tracer
 from app.engine.agents.contract import negotiate_contract_via_evaluator
 from app.engine.agents.generator import generate_question
 from app.engine.agents.security import check_question
+from app.engine.contracts.seed_contract import build_locked_core_contract
 from app.engine.context.history_context import build_history_context
 from app.engine.context.prompt_budget import (
     estimate_auxiliary_prompt_budget,
@@ -139,6 +140,7 @@ def _render_skill_material(entries: list[Any], **kwargs: Any) -> Any:
     return render_skills_block(entries, **kwargs)
 
 _QUESTION_SELECTOR_MODES = {"vector", "structured_shadow", "structured_primary"}
+_CONTRACT_CORE_MODES = {"off", "shadow", "locked"}
 _PROMPT_SLOT_TEXT_LIMIT = 2000
 _PROMPT_SLOT_PLACEHOLDER_REASONS = {
     "(no relevant knowledge retrieved)": "no_relevant_knowledge",
@@ -564,6 +566,21 @@ def _resolve_question_selector_mode(state: InterviewState) -> str:
     return mode if mode in _QUESTION_SELECTOR_MODES else "structured_shadow"
 
 
+def _resolve_contract_core_mode(
+    *,
+    runtime_config: dict[str, Any] | None,
+    settings: Any,
+) -> tuple[str, list[str]]:
+    runtime = runtime_config or {}
+    raw = runtime.get("contract_core_mode")
+    if raw is None:
+        raw = getattr(settings, "contract_core_mode", "shadow")
+    mode = str(raw or "shadow").strip().lower()
+    if mode not in _CONTRACT_CORE_MODES:
+        return "shadow", ["invalid_mode_fallback"]
+    return mode, []
+
+
 def _question_variant_intent(
     *,
     state: InterviewState,
@@ -653,6 +670,21 @@ def _merge_contract_hints(
         else:
             merged[key] = value
     return merged
+
+
+def _contract_hints_for_llm(
+    contract_hints: dict[str, Any] | None,
+) -> dict[str, Any]:
+    """Strip internal-only seed metadata before sending hints to LLM agents."""
+
+    hints = dict(contract_hints or {})
+    seed = hints.get("question_seed")
+    if isinstance(seed, dict):
+        prompt_seed = dict(seed)
+        prompt_seed.pop("seed_version", None)
+        prompt_seed.pop("variant_version", None)
+        hints["question_seed"] = prompt_seed
+    return hints
 
 
 def _step_select_structured_question(
@@ -764,6 +796,11 @@ def _step_select_structured_question(
             ctx.get("contract_hints"),
             ctx.get("question_seed_contract_hints"),
         )
+        if ctx.get("contract_core_mode") != "off":
+            ctx["locked_core_contract"] = build_locked_core_contract(
+                contract_hints=ctx.get("contract_hints"),
+                target_difficulty=state.get("target_difficulty", "medium"),
+            )
 
     if (
         bool(getattr(settings, "enable_question_reranker_shadow", False))
@@ -1520,7 +1557,7 @@ def _step_draft_question(state: InterviewState, ctx: dict[str, Any]) -> None:
         self_intro_profile=state.get("self_intro_profile") or {},
         qa_summary=state.get("qa_summary", ""),
         refine_mode=refine_mode,
-        contract_hints=ctx.get("contract_hints"),
+        contract_hints=_contract_hints_for_llm(ctx.get("contract_hints")),
         target_difficulty=state.get("target_difficulty", "medium"),
         target_skills=ctx.get("target_skills") or [],
         probe_intent=ctx.get("probe_intent"),
@@ -1545,7 +1582,7 @@ def _step_negotiate_contract(state: InterviewState, ctx: dict[str, Any]) -> None
         job_level=job_level,
         question=question,
         proposed_contract=ctx.get("proposed_contract") or {},
-        contract_hints=ctx.get("contract_hints"),
+        contract_hints=_contract_hints_for_llm(ctx.get("contract_hints")),
         target_difficulty=state.get("target_difficulty", "medium"),
     )
     ctx["contract"] = contract
@@ -2058,6 +2095,19 @@ def _finalise_contract(
     }
 
 
+def _apply_locked_core_contract(
+    contract: PlanContract,
+    locked_core_contract: dict[str, Any] | None,
+) -> PlanContract:
+    if not locked_core_contract:
+        return contract
+    locked = dict(contract)
+    locked["must_cover"] = list(locked_core_contract.get("must_cover") or [])
+    locked["minimum_bar"] = str(locked_core_contract.get("minimum_bar") or "")
+    locked["bar_level"] = locked_core_contract.get("bar_level", "standard")
+    return locked  # type: ignore[return-value]
+
+
 def _strings_for_trace(value: Any) -> list[str]:
     if isinstance(value, list):
         return [str(item).strip() for item in value if str(item).strip()]
@@ -2113,6 +2163,10 @@ def _contract_diagnostics_for_trace(
     plan: AskPlan | dict[str, Any] | None,
     target_difficulty: str | None,
     rewrite_fallback: bool,
+    contract_core_mode: str = "shadow",
+    locked_core_contract: dict[str, Any] | None = None,
+    locked_core_applied: bool = False,
+    contract_core_mode_warnings: list[str] | None = None,
 ) -> dict[str, Any]:
     """Return trace-only contract quality diagnostics without mutating inputs."""
 
@@ -2180,6 +2234,60 @@ def _contract_diagnostics_for_trace(
     if generic_items:
         warnings.append("generic_contract_item")
 
+    locked_core_enabled = contract_core_mode != "off"
+    locked_core = locked_core_contract or {}
+    locked_core_present = bool(locked_core_enabled and locked_core)
+    locked_core_must_cover = (
+        _strings_for_trace(locked_core.get("must_cover"))
+        if locked_core_present
+        else []
+    )
+    locked_rubric_additions = (
+        _strings_for_trace(locked_core.get("locked_rubric_additions"))
+        if locked_core_present
+        else []
+    )
+    final_must_cover_text = "\n".join(must_cover)
+    final_must_cover_terms = _contract_coverage_terms(final_must_cover_text)
+    locked_core_missing_from_final = [
+        item
+        for item in locked_core_must_cover
+        if not _contract_item_is_covered(
+            item,
+            checks_text=final_must_cover_text,
+            check_terms=final_must_cover_terms,
+        )
+    ]
+    locked_core_missing_from_acceptance_checks = [
+        item
+        for item in locked_core_must_cover
+        if not _contract_item_is_covered(
+            item,
+            checks_text=checks_text,
+            check_terms=check_terms,
+        )
+    ]
+    locked_rubric_additions_missing = [
+        item
+        for item in locked_rubric_additions
+        if not _contract_item_is_covered(
+            item,
+            checks_text=checks_text,
+            check_terms=check_terms,
+        )
+    ]
+    locked_core_warnings = list(contract_core_mode_warnings or [])
+    if locked_core_present and locked_core_missing_from_final:
+        locked_core_warnings.append("locked_core_missing_from_final")
+    if locked_core_present and locked_core_missing_from_acceptance_checks:
+        locked_core_warnings.append("locked_core_without_acceptance_check")
+    if locked_core_present and locked_rubric_additions_missing:
+        locked_core_warnings.append(
+            "locked_rubric_additions_without_acceptance_check"
+        )
+    if locked_core_present and rewrite_fallback:
+        locked_core_warnings.append("locked_core_not_applied_after_rewrite")
+
     return {
         "source": source,
         "signed_status": signed_status,
@@ -2191,6 +2299,19 @@ def _contract_diagnostics_for_trace(
         "uncovered_must_cover_items": uncovered_must_cover_items,
         "generic_items": generic_items,
         "warnings": warnings,
+        "contract_core_mode": contract_core_mode,
+        "locked_core_present": locked_core_present,
+        "locked_core_seed_ref": dict(locked_core.get("seed_ref") or {})
+        if locked_core_present
+        else {},
+        "locked_core_must_cover": locked_core_must_cover,
+        "locked_rubric_additions": locked_rubric_additions,
+        "locked_core_missing_from_final": locked_core_missing_from_final,
+        "locked_rubric_additions_missing_from_acceptance_checks": (
+            locked_rubric_additions_missing
+        ),
+        "locked_core_applied": bool(locked_core_applied),
+        "locked_core_warnings": locked_core_warnings,
     }
 
 
@@ -2272,6 +2393,11 @@ def ask_question_node(state: InterviewState) -> dict[str, Any]:
     node_started_at = time.perf_counter()
     state, refreshed_candidate = _state_with_refreshed_resume_vector_status(state)
     runtime_config = state.get("runtime_config") or {}
+    settings = get_settings()
+    contract_core_mode, contract_core_mode_warnings = _resolve_contract_core_mode(
+        runtime_config=runtime_config,
+        settings=settings,
+    )
     dimension = (
         state.get("current_dimension")
         or (state.get("dimensions") or ["general"])[0]
@@ -2345,6 +2471,9 @@ def ask_question_node(state: InterviewState) -> dict[str, Any]:
         "proposed_contract": {},
         "contract": None,
         "contract_hints": contract_hints,
+        "contract_core_mode": contract_core_mode,
+        "contract_core_mode_warnings": contract_core_mode_warnings,
+        "locked_core_contract": None,
     }
     if depth_metadata:
         ctx["depth_followup"] = depth_metadata
@@ -2431,6 +2560,10 @@ def ask_question_node(state: InterviewState) -> dict[str, Any]:
     selection_artifacts = _build_selection_artifacts(ctx)
     question_payload["selection_artifacts"] = selection_artifacts
     contract = _finalise_contract(plan, ctx)
+    locked_core_applied = False
+    if ctx.get("contract_core_mode") == "locked" and ctx.get("locked_core_contract"):
+        contract = _apply_locked_core_contract(contract, ctx.get("locked_core_contract"))
+        locked_core_applied = True
     question_payload["contract"] = contract
     # Rubric_points is kept for backwards compatibility: evaluator_node
     # still tolerates the old shape when the new contract path is off.
@@ -2445,6 +2578,7 @@ def ask_question_node(state: InterviewState) -> dict[str, Any]:
             target_skills=ctx.get("target_skills") or [],
             target_difficulty=state.get("target_difficulty", "medium"),
         )
+        locked_core_applied = False
         question_payload["contract"] = contract
         question_payload["rubric_points"] = list(contract.get("must_cover", []))
 
@@ -2454,6 +2588,10 @@ def ask_question_node(state: InterviewState) -> dict[str, Any]:
         plan=plan,
         target_difficulty=state.get("target_difficulty", "medium"),
         rewrite_fallback=rewrite_contract_fallback,
+        contract_core_mode=ctx.get("contract_core_mode", "shadow"),
+        locked_core_contract=ctx.get("locked_core_contract"),
+        locked_core_applied=locked_core_applied,
+        contract_core_mode_warnings=ctx.get("contract_core_mode_warnings") or [],
     )
 
     if "evaluator" not in (contract.get("signed_by") or []):
