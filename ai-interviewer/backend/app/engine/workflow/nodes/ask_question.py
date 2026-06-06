@@ -37,6 +37,7 @@ from app.core.tracer import get_tracer
 from app.engine.agents.contract import negotiate_contract_via_evaluator
 from app.engine.agents.generator import generate_question
 from app.engine.agents.security import check_question
+from app.engine.contracts.acceptance_compiler import compile_locked_acceptance_checks
 from app.engine.contracts.seed_contract import build_locked_core_contract
 from app.engine.context.history_context import build_history_context
 from app.engine.context.prompt_budget import (
@@ -141,6 +142,11 @@ def _render_skill_material(entries: list[Any], **kwargs: Any) -> Any:
 
 _QUESTION_SELECTOR_MODES = {"vector", "structured_shadow", "structured_primary"}
 _CONTRACT_CORE_MODES = {"off", "shadow", "locked"}
+_CONTRACT_ACCEPTANCE_MODES = {
+    "off",
+    "shadow",
+    "append_locked",
+}
 _PROMPT_SLOT_TEXT_LIMIT = 2000
 _PROMPT_SLOT_PLACEHOLDER_REASONS = {
     "(no relevant knowledge retrieved)": "no_relevant_knowledge",
@@ -581,6 +587,21 @@ def _resolve_contract_core_mode(
     return mode, []
 
 
+def _resolve_contract_acceptance_mode(
+    *,
+    runtime_config: dict[str, Any] | None,
+    settings: Any,
+) -> tuple[str, list[str]]:
+    runtime = runtime_config or {}
+    raw = runtime.get("contract_acceptance_mode")
+    if raw is None:
+        raw = getattr(settings, "contract_acceptance_mode", "shadow")
+    mode = str(raw or "shadow").strip().lower()
+    if mode not in _CONTRACT_ACCEPTANCE_MODES:
+        return "shadow", ["invalid_acceptance_mode_fallback"]
+    return mode, []
+
+
 def _question_variant_intent(
     *,
     state: InterviewState,
@@ -683,6 +704,7 @@ def _contract_hints_for_llm(
         prompt_seed = dict(seed)
         prompt_seed.pop("seed_version", None)
         prompt_seed.pop("variant_version", None)
+        prompt_seed.pop("reviewed_acceptance_checks", None)
         hints["question_seed"] = prompt_seed
     return hints
 
@@ -801,7 +823,13 @@ def _step_select_structured_question(
                 contract_hints=ctx.get("contract_hints"),
                 target_difficulty=state.get("target_difficulty", "medium"),
             )
-
+        if (
+            ctx.get("contract_acceptance_mode") != "off"
+            and ctx.get("locked_core_contract")
+        ):
+            ctx["compiled_acceptance_checks"] = compile_locked_acceptance_checks(
+                ctx.get("locked_core_contract")
+            )
     if (
         bool(getattr(settings, "enable_question_reranker_shadow", False))
         and len(candidates) >= 2
@@ -2108,6 +2136,52 @@ def _apply_locked_core_contract(
     return locked  # type: ignore[return-value]
 
 
+def _compiled_acceptance_strings(
+    compiled_acceptance_checks: list[dict[str, Any]] | None,
+) -> list[str]:
+    return [
+        str(check.get("acceptance_check") or "").strip()
+        for check in (compiled_acceptance_checks or [])
+        if isinstance(check, dict) and str(check.get("acceptance_check") or "").strip()
+    ]
+
+
+def _compiled_acceptance_append_candidates(
+    contract: dict[str, Any] | None,
+    compiled_acceptance_checks: list[dict[str, Any]] | None,
+) -> list[str]:
+    existing_checks = _strings_for_trace((contract or {}).get("acceptance_checks"))
+    checks_text = "\n".join(existing_checks)
+    check_terms = _contract_coverage_terms(checks_text)
+    candidates: list[str] = []
+    for acceptance_check in _compiled_acceptance_strings(compiled_acceptance_checks):
+        if _contract_item_is_covered(
+            acceptance_check,
+            checks_text=checks_text,
+            check_terms=check_terms,
+        ):
+            continue
+        candidates.append(acceptance_check)
+    return candidates
+
+
+def _append_compiled_acceptance_checks(
+    contract: PlanContract,
+    compiled_acceptance_checks: list[dict[str, Any]] | None,
+) -> tuple[PlanContract, list[str]]:
+    append_candidates = _compiled_acceptance_append_candidates(
+        contract,
+        compiled_acceptance_checks,
+    )
+    if not append_candidates:
+        return contract, []
+    updated = dict(contract)
+    updated["acceptance_checks"] = _strings_for_trace(
+        contract.get("acceptance_checks")
+    ) + append_candidates
+    return updated, append_candidates  # type: ignore[return-value]
+
+
 def _strings_for_trace(value: Any) -> list[str]:
     if isinstance(value, list):
         return [str(item).strip() for item in value if str(item).strip()]
@@ -2167,6 +2241,11 @@ def _contract_diagnostics_for_trace(
     locked_core_contract: dict[str, Any] | None = None,
     locked_core_applied: bool = False,
     contract_core_mode_warnings: list[str] | None = None,
+    contract_acceptance_mode: str = "shadow",
+    compiled_acceptance_checks: list[dict[str, Any]] | None = None,
+    compiled_acceptance_append_candidates: list[str] | None = None,
+    compiled_acceptance_applied: bool = False,
+    contract_acceptance_mode_warnings: list[str] | None = None,
 ) -> dict[str, Any]:
     """Return trace-only contract quality diagnostics without mutating inputs."""
 
@@ -2288,6 +2367,45 @@ def _contract_diagnostics_for_trace(
     if locked_core_present and rewrite_fallback:
         locked_core_warnings.append("locked_core_not_applied_after_rewrite")
 
+    compiled_acceptance_enabled = contract_acceptance_mode != "off"
+    compiled_acceptance_present = bool(
+        compiled_acceptance_enabled and compiled_acceptance_checks
+    )
+    compiled_acceptance_strings = (
+        _compiled_acceptance_strings(compiled_acceptance_checks)
+        if compiled_acceptance_present
+        else []
+    )
+    final_acceptance_text = "\n".join(acceptance_checks)
+    final_acceptance_terms = _contract_coverage_terms(final_acceptance_text)
+    compiled_acceptance_missing_from_final = [
+        item
+        for item in compiled_acceptance_strings
+        if not _contract_item_is_covered(
+            item,
+            checks_text=final_acceptance_text,
+            check_terms=final_acceptance_terms,
+        )
+    ]
+    if compiled_acceptance_present:
+        append_candidates = list(
+            compiled_acceptance_append_candidates
+            if compiled_acceptance_append_candidates is not None
+            else _compiled_acceptance_append_candidates(
+                final_contract,
+                compiled_acceptance_checks,
+            )
+        )
+    else:
+        append_candidates = []
+    compiled_acceptance_warnings = list(contract_acceptance_mode_warnings or [])
+    if compiled_acceptance_present and compiled_acceptance_missing_from_final:
+        compiled_acceptance_warnings.append("compiled_acceptance_missing_from_final")
+    if compiled_acceptance_present and rewrite_fallback:
+        compiled_acceptance_warnings.append(
+            "compiled_acceptance_not_applied_after_rewrite"
+        )
+
     return {
         "source": source,
         "signed_status": signed_status,
@@ -2312,6 +2430,17 @@ def _contract_diagnostics_for_trace(
         ),
         "locked_core_applied": bool(locked_core_applied),
         "locked_core_warnings": locked_core_warnings,
+        "contract_acceptance_mode": contract_acceptance_mode,
+        "compiled_acceptance_present": compiled_acceptance_present,
+        "compiled_acceptance_checks": list(compiled_acceptance_checks or [])
+        if compiled_acceptance_present
+        else [],
+        "compiled_acceptance_missing_from_final": (
+            compiled_acceptance_missing_from_final
+        ),
+        "compiled_acceptance_append_candidates": append_candidates,
+        "compiled_acceptance_applied": bool(compiled_acceptance_applied),
+        "compiled_acceptance_warnings": compiled_acceptance_warnings,
     }
 
 
@@ -2398,6 +2527,13 @@ def ask_question_node(state: InterviewState) -> dict[str, Any]:
         runtime_config=runtime_config,
         settings=settings,
     )
+    (
+        contract_acceptance_mode,
+        contract_acceptance_mode_warnings,
+    ) = _resolve_contract_acceptance_mode(
+        runtime_config=runtime_config,
+        settings=settings,
+    )
     dimension = (
         state.get("current_dimension")
         or (state.get("dimensions") or ["general"])[0]
@@ -2474,6 +2610,9 @@ def ask_question_node(state: InterviewState) -> dict[str, Any]:
         "contract_core_mode": contract_core_mode,
         "contract_core_mode_warnings": contract_core_mode_warnings,
         "locked_core_contract": None,
+        "contract_acceptance_mode": contract_acceptance_mode,
+        "contract_acceptance_mode_warnings": contract_acceptance_mode_warnings,
+        "compiled_acceptance_checks": [],
     }
     if depth_metadata:
         ctx["depth_followup"] = depth_metadata
@@ -2564,6 +2703,19 @@ def ask_question_node(state: InterviewState) -> dict[str, Any]:
     if ctx.get("contract_core_mode") == "locked" and ctx.get("locked_core_contract"):
         contract = _apply_locked_core_contract(contract, ctx.get("locked_core_contract"))
         locked_core_applied = True
+    compiled_acceptance_applied = False
+    compiled_acceptance_append_candidates: list[str] | None = None
+    if (
+        ctx.get("contract_acceptance_mode") == "append_locked"
+        and ctx.get("compiled_acceptance_checks")
+    ):
+        contract, compiled_acceptance_append_candidates = (
+            _append_compiled_acceptance_checks(
+                contract,
+                ctx.get("compiled_acceptance_checks"),
+            )
+        )
+        compiled_acceptance_applied = bool(compiled_acceptance_append_candidates)
     question_payload["contract"] = contract
     # Rubric_points is kept for backwards compatibility: evaluator_node
     # still tolerates the old shape when the new contract path is off.
@@ -2579,6 +2731,7 @@ def ask_question_node(state: InterviewState) -> dict[str, Any]:
             target_difficulty=state.get("target_difficulty", "medium"),
         )
         locked_core_applied = False
+        compiled_acceptance_applied = False
         question_payload["contract"] = contract
         question_payload["rubric_points"] = list(contract.get("must_cover", []))
 
@@ -2592,6 +2745,13 @@ def ask_question_node(state: InterviewState) -> dict[str, Any]:
         locked_core_contract=ctx.get("locked_core_contract"),
         locked_core_applied=locked_core_applied,
         contract_core_mode_warnings=ctx.get("contract_core_mode_warnings") or [],
+        contract_acceptance_mode=ctx.get("contract_acceptance_mode", "shadow"),
+        compiled_acceptance_checks=ctx.get("compiled_acceptance_checks") or [],
+        compiled_acceptance_append_candidates=compiled_acceptance_append_candidates,
+        compiled_acceptance_applied=compiled_acceptance_applied,
+        contract_acceptance_mode_warnings=(
+            ctx.get("contract_acceptance_mode_warnings") or []
+        ),
     )
 
     if "evaluator" not in (contract.get("signed_by") or []):

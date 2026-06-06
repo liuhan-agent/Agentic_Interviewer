@@ -357,6 +357,20 @@ def test_contract_core_mode_invalid_runtime_value_falls_back_to_shadow():
     assert warnings == ["invalid_mode_fallback"]
 
 
+def test_contract_acceptance_mode_invalid_runtime_value_falls_back_to_shadow():
+    from types import SimpleNamespace
+
+    from app.engine.workflow.nodes import ask_question as ask_mod
+
+    mode, warnings = ask_mod._resolve_contract_acceptance_mode(
+        runtime_config={"contract_acceptance_mode": "surprise"},
+        settings=SimpleNamespace(contract_acceptance_mode="append_locked"),
+    )
+
+    assert mode == "shadow"
+    assert warnings == ["invalid_acceptance_mode_fallback"]
+
+
 def test_contract_negotiator_enforces_target_difficulty_bar_level(monkeypatch):
     from app.engine.agents import contract as contract_mod
 

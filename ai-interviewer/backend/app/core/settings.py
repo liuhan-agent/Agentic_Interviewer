@@ -591,6 +591,11 @@ class Settings(BaseSettings):
         "structured_primary",
     ] = "structured_primary"
     contract_core_mode: Literal["off", "shadow", "locked"] = "shadow"
+    contract_acceptance_mode: Literal[
+        "off",
+        "shadow",
+        "append_locked",
+    ] = "shadow"
     enable_question_fit_profile: bool = True
     enable_question_reranker_shadow: bool = False
     question_reranker_timeout_ms: int = 4000
