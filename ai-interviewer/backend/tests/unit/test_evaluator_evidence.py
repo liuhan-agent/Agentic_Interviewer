@@ -24,6 +24,7 @@ What this file pins down:
 """
 from __future__ import annotations
 
+from types import SimpleNamespace
 from typing import Any
 
 from app.engine.agents import evaluator_agent as eval_mod
@@ -247,6 +248,49 @@ def test_evaluate_answer_preserves_new_shape_evidence(monkeypatch) -> None:
     # downstream consumers untouched.
     assert result["rubric_coverage"]["CAP"] == "covered"
     assert result["rubric_coverage"]["failure mode"] == "partial"
+
+
+def test_evaluate_answer_uses_evaluator_output_token_budget(monkeypatch) -> None:
+    """Evaluator emits evidence-heavy JSON, so it needs its own output budget."""
+
+    captured: dict[str, Any] = {}
+
+    def fake_call(messages, *, json_mode=False, **kwargs):  # type: ignore[no-untyped-def]
+        captured.update(kwargs)
+        return (
+            '{"score": 8.0, "passed": true, '
+            '"strengths": [], "weaknesses": [], '
+            '"acceptance_check_results": {"Names metrics.": '
+            '{"verdict": "yes", "evidence": ["p95 latency"]}}, '
+            '"recommended_next": "advance", '
+            '"rationale": "ok"}'
+        )
+
+    monkeypatch.setattr(eval_mod, "call_chat", fake_call)
+    monkeypatch.setattr(
+        eval_mod,
+        "get_settings",
+        lambda: SimpleNamespace(
+            evaluator_llm_max_tokens=4096,
+            use_context_builder=True,
+            evidence_span_alignment=False,
+            evidence_span_fuzzy_threshold=0.6,
+        ),
+    )
+
+    eval_mod.evaluate_answer(
+        dimension="technical_depth",
+        question="How did you tune it?",
+        rubric_points=["metrics"],
+        answer="We tracked p95 latency before changing the batch size.",
+        quality_threshold=7.0,
+        contract={
+            "must_cover": ["metrics"],
+            "acceptance_checks": ["Names metrics."],
+        },
+    )
+
+    assert captured.get("max_tokens") == 4096
 
 
 def test_evaluate_answer_upgrades_legacy_string_shape(monkeypatch) -> None:

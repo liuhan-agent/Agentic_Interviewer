@@ -97,6 +97,11 @@ class Settings(BaseSettings):
     # BYOK routing. Keep it role-scoped so guardrails and small utility
     # calls remain responsive.
     evaluator_llm_timeout_seconds: float = 45.0
+    # Evaluator responses include per-check evidence quotes in JSON.
+    # Keep the output budget role-scoped so long answers with several
+    # acceptance checks do not hit the generic 2048-token cap and get
+    # parsed as low-confidence partial results.
+    evaluator_llm_max_tokens: int = 4096
     # Verifier is conditional rather than every turn, and recent traces
     # show borderline review calls can exceed the generic 20s budget.
     verifier_llm_timeout_seconds: float = 30.0
