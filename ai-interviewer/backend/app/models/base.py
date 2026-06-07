@@ -165,6 +165,9 @@ _SQLITE_UPGRADES: dict[str, dict[str, str]] = {
         "job_level": "VARCHAR(64)",
         "dimension": "VARCHAR(64)",
     },
+    "question_variants": {
+        "reviewed_acceptance_checks": "JSON DEFAULT '[]'",
+    },
 }
 
 _POSTGRES_UPGRADES: dict[str, dict[str, str]] = {
@@ -230,6 +233,9 @@ _POSTGRES_UPGRADES: dict[str, dict[str, str]] = {
         "role_tag": "VARCHAR(64)",
         "job_level": "VARCHAR(64)",
         "dimension": "VARCHAR(64)",
+    },
+    "question_variants": {
+        "reviewed_acceptance_checks": "JSON DEFAULT '[]'",
     },
 }
 
