@@ -37,6 +37,12 @@ def _install_fake_openai(monkeypatch: pytest.MonkeyPatch) -> dict[str, Any]:
         def __init__(self, **kwargs: Any) -> None:
             state["count"] += 1
             state["last_kwargs"] = kwargs
+            self._http_client = kwargs.get("http_client")
+
+        def close(self) -> None:
+            close = getattr(self._http_client, "close", None)
+            if callable(close):
+                close()
 
     fake_module = ModuleType("openai")
     fake_module.OpenAI = _FakeClient
@@ -51,6 +57,12 @@ def _install_fake_anthropic(monkeypatch: pytest.MonkeyPatch) -> dict[str, Any]:
         def __init__(self, **kwargs: Any) -> None:
             state["count"] += 1
             state["last_kwargs"] = kwargs
+            self._http_client = kwargs.get("http_client")
+
+        def close(self) -> None:
+            close = getattr(self._http_client, "close", None)
+            if callable(close):
+                close()
 
     fake_module = ModuleType("anthropic")
     fake_module.Anthropic = _FakeClient
@@ -135,12 +147,30 @@ def test_openai_client_constructor_kwargs_forwarded(
         timeout=12.5,
         max_retries=2,
     )
+    http_client = state["last_kwargs"].pop("http_client")
+    assert getattr(http_client, "_trust_env", None) is False
     assert state["last_kwargs"] == {
         "api_key": "my-key",
         "base_url": "https://example.test/v1",
         "timeout": 12.5,
         "max_retries": 2,
     }
+
+
+def test_openai_client_ignores_invalid_no_proxy_env(monkeypatch: pytest.MonkeyPatch) -> None:
+    pytest.importorskip("openai")
+    monkeypatch.setenv("no_proxy", "127.0.0.1,localhost,::1,127.0.0.0/8,::1/128")
+    monkeypatch.setenv("NO_PROXY", "127.0.0.1,localhost,::1,127.0.0.0/8,::1/128")
+
+    client = llm_client._get_openai_client(
+        api_key="test-key",
+        base_url="https://example.test/v1",
+        timeout=10.0,
+        max_retries=0,
+    )
+    close = getattr(client, "close", None)
+    if callable(close):
+        close()
 
 
 def test_openai_compatible_transient_failure_evicts_cached_client(
@@ -233,6 +263,22 @@ def test_anthropic_client_distinct_per_base_url(
         api_key="key-1", base_url="https://api.proxy.test"
     )
     assert state["count"] == 2
+
+
+def test_anthropic_client_ignores_invalid_no_proxy_env(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    pytest.importorskip("anthropic")
+    monkeypatch.setenv("no_proxy", "127.0.0.1,localhost,::1,127.0.0.0/8,::1/128")
+    monkeypatch.setenv("NO_PROXY", "127.0.0.1,localhost,::1,127.0.0.0/8,::1/128")
+
+    client = llm_client._get_anthropic_client(
+        api_key="test-key",
+        base_url="https://example.test",
+    )
+    close = getattr(client, "close", None)
+    if callable(close):
+        close()
 
 
 # ---------------------------------------------------------------------------

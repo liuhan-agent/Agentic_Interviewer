@@ -915,12 +915,19 @@ def test_call_openai_compatible_sets_base_url_and_json_mode(
             base_url: str | None = None,
             timeout: float | None = None,
             max_retries: int | None = None,
+            http_client: Any | None = None,
         ) -> None:
             captured["api_key"] = api_key
             captured["base_url"] = base_url
             captured["timeout"] = timeout
             captured["max_retries"] = max_retries
+            captured["http_client"] = http_client
             self.chat = SimpleNamespace(completions=_FakeCompletions())
+
+        def close(self) -> None:
+            close = getattr(captured.get("http_client"), "close", None)
+            if callable(close):
+                close()
 
     monkeypatch.setitem(sys.modules, "openai", SimpleNamespace(OpenAI=_FakeOpenAI))
 
@@ -945,6 +952,7 @@ def test_call_openai_compatible_sets_base_url_and_json_mode(
     assert captured["base_url"] == "https://llm.example.test/v1"
     assert captured["timeout"] == 20.0
     assert captured["max_retries"] == 0
+    assert getattr(captured["http_client"], "_trust_env", None) is False
     assert captured["kwargs"]["response_format"] == {"type": "json_object"}
 
 
@@ -968,12 +976,19 @@ def test_call_openai_honors_override_base_url(
             base_url: str | None = None,
             timeout: float | None = None,
             max_retries: int | None = None,
+            http_client: Any | None = None,
         ) -> None:
             captured["api_key"] = api_key
             captured["base_url"] = base_url
             captured["timeout"] = timeout
             captured["max_retries"] = max_retries
+            captured["http_client"] = http_client
             self.chat = SimpleNamespace(completions=_FakeCompletions())
+
+        def close(self) -> None:
+            close = getattr(captured.get("http_client"), "close", None)
+            if callable(close):
+                close()
 
     monkeypatch.setitem(sys.modules, "openai", SimpleNamespace(OpenAI=_FakeOpenAI))
 
@@ -995,6 +1010,7 @@ def test_call_openai_honors_override_base_url(
     assert captured["base_url"] == "https://openai-proxy.example.test/v1"
     assert captured["timeout"] == 20.0
     assert captured["max_retries"] == 0
+    assert getattr(captured["http_client"], "_trust_env", None) is False
     assert captured["kwargs"]["response_format"] == {"type": "json_object"}
 
 
@@ -1004,14 +1020,26 @@ def test_call_anthropic_honors_override_base_url(
     captured: dict[str, Any] = {}
 
     class _FakeAnthropic:
-        def __init__(self, *, api_key: str, base_url: str | None = None) -> None:
+        def __init__(
+            self,
+            *,
+            api_key: str,
+            base_url: str | None = None,
+            http_client: Any | None = None,
+        ) -> None:
             captured["api_key"] = api_key
             captured["base_url"] = base_url
+            captured["http_client"] = http_client
             self.messages = self
 
         def create(self, **kwargs: Any) -> Any:
             captured["kwargs"] = kwargs
             return SimpleNamespace(content=[SimpleNamespace(text="pong")])
+
+        def close(self) -> None:
+            close = getattr(captured.get("http_client"), "close", None)
+            if callable(close):
+                close()
 
     monkeypatch.setitem(
         sys.modules,
@@ -1042,6 +1070,7 @@ def test_call_anthropic_honors_override_base_url(
     assert usage["usage_estimated"] is True
     assert captured["api_key"] == "secret"
     assert captured["base_url"] == "https://anthropic-proxy.example.test"
+    assert getattr(captured["http_client"], "_trust_env", None) is False
     assert captured["kwargs"]["model"] == "test-model"
 
 
