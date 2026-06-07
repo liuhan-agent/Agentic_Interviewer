@@ -151,6 +151,20 @@ test("interview room shows loading card after resuming with submitted history", 
   assert.match(source, /answerInsight=\{latestSubmittedAnswerInsight\}/);
 });
 
+test("status bar keeps submitted formal turn count while next question is loading", () => {
+  assert.match(
+    source,
+    /state\.phase === "loading"\s*\?\s*latestAnsweredFormalTurnIdx\(history\)/,
+  );
+  assert.match(source, /function latestAnsweredFormalTurnIdx\(history: QaEntry\[\]\)/);
+  assert.match(source, /entry\.answer === null/);
+  assert.match(source, /entry\.questionType === "self_intro"/);
+  assert.match(
+    source,
+    /state\.phase !== "loading" && state\.turnIdx !== null\s*\?\s*state\.turnIdx \+ 1/,
+  );
+});
+
 test("interview room loads waiting tips once and tracks shown tips in memory", () => {
   assert.match(source, /import[\s\S]*listInterviewWaitingTips[\s\S]*from "@\/lib\/api\/interview"/);
   assert.match(source, /InterviewWaitingTipsResponse/);

@@ -1333,6 +1333,9 @@ class SessionManager:
     def _checkpoint_waiting_question(self, session_id: str) -> dict[str, Any] | None:
         return self._session_recovery().checkpoint_waiting_question(session_id)
 
+    def _checkpoint_values(self, session_id: str) -> dict[str, Any] | None:
+        return self._session_recovery().checkpoint_values(session_id)
+
     def recover_waiting_session(self, session_id: str) -> SessionHandle | None:
         """Rebuild an in-memory handle from a waiting-for-answer checkpoint.
 

@@ -154,8 +154,10 @@ export function InterviewRoom({
       ? extractQuestionType(state.question)
       : undefined;
   const currentDisplayTurnIdx =
-    state.phase === "waiting_for_answer" && history.length > 0
-      ? visibleTurnIdx(history[history.length - 1])
+    state.phase === "loading"
+      ? latestAnsweredFormalTurnIdx(history)
+      : state.phase === "waiting_for_answer" && history.length > 0
+        ? visibleTurnIdx(history[history.length - 1])
       : null;
   const latestSubmittedAnswerInsight = useMemo(
     () => answerInsightFromHistory(history),
@@ -861,7 +863,7 @@ function StatusBar({
         ? currentDisplayTurnIdx + 1
         : formalTurnIdx !== null
           ? formalTurnIdx + 1
-          : state.turnIdx !== null
+          : state.phase !== "loading" && state.turnIdx !== null
             ? state.turnIdx + 1
             : 0;
   const currentFormalTurn = clampVisibleFormalTurn(rawFormalTurn, maxTurns);
@@ -1995,6 +1997,17 @@ function visibleTurnIdx(entry: QaEntry): number | null {
   if (typeof entry.displayTurnIdx === "number") return entry.displayTurnIdx;
   if (typeof entry.formalTurnIdx === "number") return entry.formalTurnIdx;
   return typeof entry.turnIdx === "number" ? entry.turnIdx : null;
+}
+
+function latestAnsweredFormalTurnIdx(history: QaEntry[]): number | null {
+  for (let index = history.length - 1; index >= 0; index -= 1) {
+    const entry = history[index];
+    if (entry.answer === null) continue;
+    if (entry.questionType === "self_intro") continue;
+    const idx = visibleTurnIdx(entry);
+    if (typeof idx === "number") return idx;
+  }
+  return null;
 }
 
 function clampVisibleFormalTurn(turn: number, maxTurns: number | null): number {
