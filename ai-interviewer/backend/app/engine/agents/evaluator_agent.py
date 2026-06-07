@@ -381,8 +381,21 @@ def evaluate_answer(
         context_flags=context_flags,
     )
     messages = frame_to_evaluator_messages(frame)
+    evaluator_max_tokens = int(
+        getattr(
+            settings,
+            "evaluator_llm_max_tokens",
+            getattr(settings, "llm_max_tokens", 2048),
+        )
+        or getattr(settings, "llm_max_tokens", 2048)
+    )
     try:
-        raw = call_chat(messages, json_mode=True, agent_role="evaluator")
+        raw = call_chat(
+            messages,
+            json_mode=True,
+            agent_role="evaluator",
+            max_tokens=evaluator_max_tokens,
+        )
     except Exception as e:
         enable_spans = bool(getattr(settings, "evidence_span_alignment", False))
         log.warning(
