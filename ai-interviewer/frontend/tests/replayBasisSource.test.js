@@ -15,10 +15,12 @@ const apiTypesSource = fs.readFileSync(
 test("Replay API types expose context and question basis", () => {
   assert.match(apiTypesSource, /export interface ReplayContextBasis/);
   assert.match(apiTypesSource, /export interface ReplayQuestionBasis/);
+  assert.match(apiTypesSource, /export interface ReplayQuestionDecisionBasis/);
   assert.match(apiTypesSource, /export interface ReplayAnchorFollowup/);
   assert.match(apiTypesSource, /dimension_source_label\?:\s*string/);
   assert.match(apiTypesSource, /context_basis\?:\s*ReplayContextBasis\s*\|\s*null/);
   assert.match(apiTypesSource, /question_basis\?:\s*ReplayQuestionBasis\s*\|\s*null/);
+  assert.match(apiTypesSource, /question_decision_basis\?:\s*ReplayQuestionDecisionBasis\s*\|\s*null/);
   assert.match(apiTypesSource, /anchor_followup\?:\s*ReplayAnchorFollowup\s*\|\s*null/);
   assert.match(apiTypesSource, /resume_anchor_label\?:\s*string\s*\|\s*null/);
 });
@@ -31,19 +33,33 @@ test("Replay API types expose grouped priority items", () => {
   assert.match(apiTypesSource, /priority_items\?:\s*ReplayPriorityItem\[\]/);
 });
 
+test("API types expose resume parse audit as candidate sidecar", () => {
+  assert.match(apiTypesSource, /export interface ResumeParseAudit/);
+  assert.match(apiTypesSource, /resume_parse_audit\?:\s*ResumeParseAudit/);
+  assert.match(apiTypesSource, /field_sources:\s*Record<string,\s*string>/);
+  assert.match(apiTypesSource, /skills_summary:\s*Record<string,\s*unknown>/);
+  assert.match(apiTypesSource, /merge_summary:\s*Record<string,\s*unknown>/);
+});
+
 test("ReplayView renders the two-layer basis UI", () => {
   assert.match(replaySource, /<ContextBasisCard basis=\{replay\.context_basis\}/);
   assert.match(replaySource, /function ContextBasisCard/);
   assert.match(replaySource, /<details/);
   assert.match(
     replaySource,
-    /<QuestionBasisBlock\s+basis=\{turn\.question_basis\}\s+resumeAnchorLabel=\{turn\.resume_anchor_label\}/,
+    /<QuestionBasisBlock\s+basis=\{turn\.question_basis\}\s+decisionBasis=\{turn\.question_decision_basis\}\s+resumeAnchorLabel=\{turn\.resume_anchor_label\}/,
   );
   assert.match(
     replaySource,
     /<AnchorFollowupNotice\s+followup=\{turn\.anchor_followup\}\s+resumeAnchorLabel=\{turn\.resume_anchor_label\}/,
   );
   assert.match(replaySource, /function QuestionBasisBlock/);
+  assert.match(replaySource, /decisionBasis\?:\s*ReplayTurn\["question_decision_basis"\]/);
+  assert.match(replaySource, /function QuestionDecisionBasisDetails/);
+  assert.match(replaySource, /decisionBasis\.sources/);
+  assert.match(replaySource, /decisionBasis\.target_skills/);
+  assert.match(replaySource, /decisionBasis\.reason_codes/);
+  assert.match(replaySource, /<QuestionDecisionBasisDetails basis=\{decisionBasis\}/);
   assert.match(replaySource, /resumeAnchorLabel\?:\s*ReplayTurn\["resume_anchor_label"\]/);
   assert.match(replaySource, /<QuestionBasisChipGroup label="关联经历" chips=\{anchorChips\}/);
   assert.match(replaySource, /function AnchorFollowupNotice/);

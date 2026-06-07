@@ -11,6 +11,7 @@ from app.engine.workflow.depth_followup import (
 from app.engine.workflow.followup_reason import sanitize_replay_followup_reason
 from app.engine.workflow.replay_basis import (
     build_replay_context_basis,
+    sanitize_replay_question_decision_basis,
     sanitize_replay_question_basis,
 )
 from app.models.generation_trace import GenerationTrace
@@ -280,6 +281,13 @@ def _turn_payload(trace: GenerationTrace) -> dict[str, Any]:
     question_basis = sanitize_replay_question_basis(qa_turn.get("question_basis"))
     if question_basis is not None:
         payload["question_basis"] = question_basis
+    question_decision_basis = sanitize_replay_question_decision_basis(
+        (qa_turn.get("selection_artifacts") or {}).get("question_decision_basis")
+        if isinstance(qa_turn.get("selection_artifacts"), dict)
+        else qa_turn.get("question_decision_basis")
+    )
+    if question_decision_basis is not None:
+        payload["question_decision_basis"] = question_decision_basis
     return payload
 
 
@@ -329,6 +337,11 @@ def _turn_payload_from_fact(row: InterviewTurn) -> dict[str, Any]:
     )
     if question_basis is not None:
         payload["question_basis"] = question_basis
+    question_decision_basis = sanitize_replay_question_decision_basis(
+        artifacts.get("question_decision_basis")
+    )
+    if question_decision_basis is not None:
+        payload["question_decision_basis"] = question_decision_basis
     return payload
 
 
@@ -376,6 +389,11 @@ def _timeline_from_report(report: dict[str, Any]) -> list[dict[str, Any]]:
             )
             if question_basis is not None:
                 payload["question_basis"] = question_basis
+            question_decision_basis = sanitize_replay_question_decision_basis(
+                evidence.get("question_decision_basis")
+            )
+            if question_decision_basis is not None:
+                payload["question_decision_basis"] = question_decision_basis
             timeline.append(payload)
 
     return _annotate_anchor_followups(

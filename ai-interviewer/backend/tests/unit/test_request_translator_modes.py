@@ -90,6 +90,42 @@ def test_translate_request_preserves_user_material_context_flags() -> None:
     }
 
 
+def test_translate_request_preserves_sanitized_resume_parse_audit() -> None:
+    req = _base_request(None)
+    req["candidate"] = {
+        "name": "Alex",
+        "resume_parsed": {"summary": "x"},
+        "resume_parse_audit": {
+            "version": "v1",
+            "mode": "ai_refined",
+            "text_sha256_16": "abc123def4567890",
+            "field_sources": {"summary": "llm", "skills": "mixed"},
+            "skills_summary": {
+                "rule_count": 2,
+                "llm_count": 2,
+                "both": ["python"],
+                "llm_only": ["rust"],
+                "raw_text": "must not survive",
+            },
+            "merge_summary": {
+                "llm_overrode": ["summary"],
+                "rule_fallback": ["highlights"],
+                "conflict_count": 0,
+            },
+            "raw_text": "must not survive",
+        },
+    }
+
+    _, _, state = translate_request(req)
+
+    audit = state["candidate"]["resume_parse_audit"]
+    assert audit["version"] == "v1"
+    assert audit["mode"] == "ai_refined"
+    assert audit["field_sources"] == {"summary": "llm", "skills": "mixed"}
+    assert audit["skills_summary"]["llm_only"] == ["rust"]
+    assert "raw_text" not in str(audit)
+
+
 def test_translate_request_filters_focus_dimensions_to_rubric() -> None:
     req = _base_request(None)
     req["job_spec"] = {

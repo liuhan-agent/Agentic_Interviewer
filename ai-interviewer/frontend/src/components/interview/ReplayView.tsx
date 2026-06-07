@@ -575,6 +575,7 @@ function TimelineCard({ turns }: { turns: ReplayTurn[] }) {
             <Block title="问题" value={turn.question} />
             <QuestionBasisBlock
               basis={turn.question_basis}
+              decisionBasis={turn.question_decision_basis}
               resumeAnchorLabel={turn.resume_anchor_label}
             />
             <AnchorFollowupNotice
@@ -641,20 +642,33 @@ function AnchorFollowupNotice({
 
 function QuestionBasisBlock({
   basis,
+  decisionBasis,
   resumeAnchorLabel,
 }: {
   basis?: ReplayTurn["question_basis"];
+  decisionBasis?: ReplayTurn["question_decision_basis"];
   resumeAnchorLabel?: ReplayTurn["resume_anchor_label"];
 }) {
-  if (!basis) return null;
-  const chipGroups = splitQuestionBasisChips(basis.chips);
+  if (!basis && !decisionBasis) return null;
+  const chipGroups = splitQuestionBasisChips(basis?.chips ?? []);
   const anchorLabel = String(resumeAnchorLabel || "").trim();
   const anchorChips = anchorLabel ? [anchorLabel] : [];
-  const hasGroups = basis.chips.length > 0 || anchorChips.length > 0;
+  const hasGroups = (basis?.chips.length ?? 0) > 0 || anchorChips.length > 0;
+  const hasDecisionBasis = decisionBasis
+    ? Boolean(
+        decisionBasis.sources?.length ||
+          decisionBasis.target_skills?.length ||
+          decisionBasis.reason_codes?.length,
+      )
+    : false;
   return (
     <div className="rounded-md border border-sky-500/20 bg-sky-500/5 p-3">
-      <p className="mb-1 text-xs font-medium text-sky-400">{basis.title}</p>
-      <p className="text-muted-foreground">{basis.summary}</p>
+      {basis && (
+        <>
+          <p className="mb-1 text-xs font-medium text-sky-400">{basis.title}</p>
+          <p className="text-muted-foreground">{basis.summary}</p>
+        </>
+      )}
       {hasGroups && (
         <div className="mt-3 grid gap-2 sm:grid-cols-4">
           <QuestionBasisChipGroup label="依据来源" chips={chipGroups.sources} />
@@ -666,8 +680,73 @@ function QuestionBasisBlock({
           <QuestionBasisChipGroup label="具体线索" chips={chipGroups.details} />
         </div>
       )}
+      {hasDecisionBasis && decisionBasis && (
+        <QuestionDecisionBasisDetails basis={decisionBasis} />
+      )}
     </div>
   );
+}
+
+function QuestionDecisionBasisDetails({
+  basis,
+}: {
+  basis: NonNullable<ReplayTurn["question_decision_basis"]>;
+}) {
+  const sourceChips = (basis.sources ?? []).map(formatDecisionSource);
+  const skillChips = (basis.target_skills ?? []).map((skill) =>
+    `${skill.value} · ${formatTargetSkillSource(skill.source)}`,
+  );
+  const reasonChips = (basis.reason_codes ?? []).map(formatReasonCode);
+  const rows = [
+    { label: "来源", values: sourceChips },
+    { label: "技能依据", values: skillChips },
+    { label: "触发原因", values: reasonChips },
+  ].filter((row) => row.values.length > 0);
+  if (rows.length === 0) return null;
+  return (
+    <details className="mt-3 rounded-md border border-sky-500/15 bg-background/35 px-3 py-2">
+      <summary className="cursor-pointer text-xs font-medium text-sky-300">
+        依据明细
+      </summary>
+      <div className="mt-2 grid gap-2 sm:grid-cols-3">
+        {rows.map((row) => (
+          <QuestionBasisChipGroup
+            key={row.label}
+            label={row.label}
+            chips={row.values}
+          />
+        ))}
+      </div>
+    </details>
+  );
+}
+
+function formatDecisionSource(source: string): string {
+  if (source === "resume") return "简历";
+  if (source === "self_intro") return "自我介绍";
+  if (source === "job") return "岗位要求";
+  if (source === "followup") return "上一轮追问";
+  if (source === "question_seed") return "题库模板";
+  if (source === "rag") return "知识检索";
+  return "技能聚焦";
+}
+
+function formatTargetSkillSource(source: string): string {
+  if (source === "job_spec") return "岗位要求";
+  if (source === "resume_parse_audit") return "简历解析";
+  if (source === ["resume", "anchor"].join("_")) return "关联经历";
+  if (source === "self_intro") return "自我介绍";
+  return "选题策略";
+}
+
+function formatReasonCode(code: string): string {
+  if (code === "covers_target_skills") return "覆盖目标技能";
+  if (code === "uses_resume_anchor") return "追问关联经历";
+  if (code === "uses_self_intro_anchor") return "承接自我介绍";
+  if (code === "followup_context") return "承接上一轮";
+  if (code === "uses_question_seed") return "匹配题库模板";
+  if (code === "uses_job_requirement") return "匹配岗位要求";
+  return code;
 }
 
 function QuestionBasisChipGroup({

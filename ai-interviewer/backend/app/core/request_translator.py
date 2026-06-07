@@ -14,7 +14,10 @@ from typing import Any
 from app.core.request_context import current_traceparent_trace_id
 from app.core.settings import get_settings
 from app.engine.workflow.state import InterviewState, build_initial_state
-from app.services.resume_parser import normalise_resume_parsed_focus_areas
+from app.services.resume_parser import (
+    normalise_resume_parsed_focus_areas,
+    sanitize_resume_parse_audit,
+)
 
 _ALLOWED_MODES = {"tech", "behavioral", "mixed"}
 _ALLOWED_INTERVIEW_DEPTHS = {"short", "standard", "deep"}
@@ -197,6 +200,11 @@ def _candidate_with_normalised_focus_areas(candidate: Any) -> dict[str, Any]:
     out["resume_parsed"] = normalise_resume_parsed_focus_areas(
         out.get("resume_parsed") or {}
     )
+    audit = sanitize_resume_parse_audit(out.get("resume_parse_audit"))
+    if audit:
+        out["resume_parse_audit"] = audit
+    else:
+        out.pop("resume_parse_audit", None)
     return out
 
 

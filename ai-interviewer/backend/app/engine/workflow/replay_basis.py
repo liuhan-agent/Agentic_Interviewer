@@ -121,6 +121,252 @@ def _has_job_source(
     return bool(jd_skills and any(skill.lower() in jd_skills for skill in target_skills))
 
 
+_DECISION_SOURCE_VALUES = {
+    "resume",
+    "self_intro",
+    "job",
+    "followup",
+    "rag",
+    "question_seed",
+    "skill_focus",
+}
+_TARGET_SKILL_SOURCE_VALUES = {
+    "job_spec",
+    "resume_parse_audit",
+    "resume_anchor",
+    "self_intro",
+    "skill_focus",
+}
+_REASON_CODE_VALUES = {
+    "covers_target_skills",
+    "uses_resume_anchor",
+    "uses_self_intro_anchor",
+    "followup_context",
+    "uses_question_seed",
+    "uses_job_requirement",
+}
+
+
+def _injected_question_seed_selected(question_items: Any) -> bool:
+    if not isinstance(question_items, list):
+        return False
+    for item in question_items:
+        if not isinstance(item, dict):
+            continue
+        if item.get("injected") is not True:
+            continue
+        if str(item.get("seed_id") or item.get("variant_id") or "").strip():
+            return True
+    return False
+
+
+def _resume_audit_skill_sets(resume_parse_audit: Any) -> dict[str, set[str]]:
+    if not isinstance(resume_parse_audit, dict):
+        return {"llm_only": set(), "rule_only": set(), "both": set()}
+    summary = resume_parse_audit.get("skills_summary")
+    if not isinstance(summary, dict):
+        return {"llm_only": set(), "rule_only": set(), "both": set()}
+    return {
+        "llm_only": {item.lower() for item in _string_list(summary.get("llm_only"))},
+        "rule_only": {item.lower() for item in _string_list(summary.get("rule_only"))},
+        "both": {item.lower() for item in _string_list(summary.get("both"))},
+    }
+
+
+def _target_skill_source(
+    skill: str,
+    *,
+    resume_anchor: dict[str, Any],
+    job_spec: dict[str, Any],
+    skill_focus: dict[str, Any],
+    resume_parse_audit: Any,
+) -> str:
+    skill_key = skill.lower()
+    jd_skills = {
+        item.lower() for item in _string_list(job_spec.get("required_skills"))
+    }
+    if skill_key in jd_skills:
+        return "job_spec"
+    audit_sets = _resume_audit_skill_sets(resume_parse_audit)
+    if any(skill_key in values for values in audit_sets.values()):
+        return "resume_parse_audit"
+    anchor_skill_values: list[Any] = []
+    for key in ("skills", "tech_stack"):
+        value = resume_anchor.get(key)
+        if isinstance(value, list):
+            anchor_skill_values.extend(value)
+    anchor_skills = {
+        item.lower()
+        for item in _string_list(anchor_skill_values)
+    }
+    if skill_key in anchor_skills:
+        return "resume_anchor"
+    if _clean_text(skill_focus.get("focus_source")) == "self_intro":
+        return "self_intro"
+    return "skill_focus"
+
+
+def build_question_decision_basis(
+    *,
+    dimension: Any,
+    resume_anchor: dict[str, Any] | None,
+    target_skills: Any,
+    skill_focus: dict[str, Any] | None,
+    job_spec: dict[str, Any] | None,
+    refine_mode: bool,
+    contract_hints: dict[str, Any] | None,
+    question_items: Any = None,
+    resume_parse_audit: Any = None,
+) -> dict[str, Any] | None:
+    anchor = resume_anchor if isinstance(resume_anchor, dict) else {}
+    focus = skill_focus if isinstance(skill_focus, dict) else {}
+    spec = job_spec if isinstance(job_spec, dict) else {}
+    skills = _target_skills(target_skills, anchor)
+    anchor_label = _anchor_label(anchor)
+    focus_source = _clean_text(focus.get("focus_source"))
+    from_self_intro = (
+        anchor.get("knowledge_source") == "self_intro" or focus_source == "self_intro"
+    )
+    from_resume = bool(anchor_label and not from_self_intro)
+    from_job = _has_job_source(
+        target_skills=skills,
+        skill_focus=focus,
+        job_spec=spec,
+    )
+    from_followup = bool(refine_mode or (contract_hints or {}))
+    from_seed = _injected_question_seed_selected(question_items)
+
+    sources: list[str] = []
+    if from_resume:
+        sources.append("resume")
+    if from_self_intro:
+        sources.append("self_intro")
+    if from_job:
+        sources.append("job")
+    if from_followup:
+        sources.append("followup")
+    if from_seed:
+        sources.append("question_seed")
+    if skills and not sources:
+        sources.append("skill_focus")
+    sources = _dedupe(sources, limit=6)
+
+    reason_codes: list[str] = []
+    if skills:
+        reason_codes.append("covers_target_skills")
+    if from_resume:
+        reason_codes.append("uses_resume_anchor")
+    if from_self_intro:
+        reason_codes.append("uses_self_intro_anchor")
+    if from_job:
+        reason_codes.append("uses_job_requirement")
+    if from_followup:
+        reason_codes.append("followup_context")
+    if from_seed:
+        reason_codes.append("uses_question_seed")
+
+    target_skill_items = [
+        {
+            "value": skill,
+            "source": _target_skill_source(
+                skill,
+                resume_anchor=anchor,
+                job_spec=spec,
+                skill_focus=focus,
+                resume_parse_audit=resume_parse_audit,
+            ),
+        }
+        for skill in skills[:6]
+    ]
+    anchor_payload: dict[str, str] = {}
+    if anchor_label:
+        anchor_payload["label"] = anchor_label
+    project_id = _clean_text(anchor.get("project_id"))
+    if project_id:
+        anchor_payload["project_id"] = project_id
+    if anchor_payload:
+        anchor_payload["source"] = "self_intro" if from_self_intro else "resume"
+
+    if not any([sources, target_skill_items, anchor_payload, _clean_text(dimension)]):
+        return None
+
+    return sanitize_replay_question_decision_basis(
+        {
+            "version": "v1",
+            "sources": sources,
+            "dimension": _clean_text(dimension),
+            "resume_anchor": anchor_payload,
+            "target_skills": target_skill_items,
+            "reason_codes": reason_codes,
+        }
+    )
+
+
+def sanitize_replay_question_decision_basis(value: Any) -> dict[str, Any] | None:
+    if not isinstance(value, dict):
+        return None
+    if _clean_text(value.get("version")) != "v1":
+        return None
+    sources = [
+        source
+        for source in _string_list(value.get("sources"), limit=6)
+        if source in _DECISION_SOURCE_VALUES
+    ]
+    dimension = _clean_text(value.get("dimension"))[:80]
+    anchor_raw = (
+        value.get("resume_anchor")
+        if isinstance(value.get("resume_anchor"), dict)
+        else {}
+    )
+    resume_anchor: dict[str, str] = {}
+    label = _clean_text(anchor_raw.get("label"))[:120]
+    if label:
+        resume_anchor["label"] = label
+    project_id = _clean_text(anchor_raw.get("project_id"))[:80]
+    if project_id:
+        resume_anchor["project_id"] = project_id
+    anchor_source = _clean_text(anchor_raw.get("source"))
+    if anchor_source in {"resume", "self_intro"} and resume_anchor:
+        resume_anchor["source"] = anchor_source
+
+    target_skills: list[dict[str, str]] = []
+    raw_skills = value.get("target_skills")
+    if isinstance(raw_skills, list):
+        seen: set[str] = set()
+        for item in raw_skills:
+            if not isinstance(item, dict):
+                continue
+            skill = _clean_text(item.get("value"))[:80]
+            source = _clean_text(item.get("source"))
+            key = skill.lower()
+            if not skill or key in seen or source not in _TARGET_SKILL_SOURCE_VALUES:
+                continue
+            seen.add(key)
+            target_skills.append({"value": skill, "source": source})
+            if len(target_skills) >= 6:
+                break
+
+    reason_codes = [
+        code
+        for code in _string_list(value.get("reason_codes"), limit=8)
+        if code in _REASON_CODE_VALUES
+    ]
+    if not any([sources, dimension, resume_anchor, target_skills, reason_codes]):
+        return None
+    out: dict[str, Any] = {"version": "v1"}
+    if sources:
+        out["sources"] = sources
+    if dimension:
+        out["dimension"] = dimension
+    if resume_anchor:
+        out["resume_anchor"] = resume_anchor
+    if target_skills:
+        out["target_skills"] = target_skills
+    if reason_codes:
+        out["reason_codes"] = reason_codes
+    return out
+
+
 def build_replay_question_basis(
     *,
     dimension: Any,

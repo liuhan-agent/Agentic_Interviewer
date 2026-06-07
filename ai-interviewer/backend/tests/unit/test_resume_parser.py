@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import io
 import json
+import hashlib
 import sys
 import threading
 import time
@@ -403,6 +404,58 @@ def test_llm_refine_repairs_truncated_json_prefix(
     assert parsed["candidate_name"] == "刘韩"
     assert parsed["summary"].startswith("Java 后端")
     assert parsed["skills"] == ["java", "spring"]
+
+
+def test_parse_resume_attaches_basic_audit_without_raw_outputs() -> None:
+    parsed = rp.parse_resume(SAMPLE_RESUME, llm_timeout_seconds=0)
+
+    audit = parsed.parse_audit
+
+    assert audit["version"] == "v1"
+    assert audit["mode"] == "basic"
+    assert audit["text_sha256_16"] == hashlib.sha256(
+        SAMPLE_RESUME.encode("utf-8")
+    ).hexdigest()[:16]
+    assert audit["field_sources"]["summary"] == "rule"
+    assert audit["field_sources"]["projects"] == "rule"
+    assert audit["skills_summary"]["rule_count"] >= 6
+    audit_json = json.dumps(audit)
+    assert "raw_text" not in audit_json
+    assert "heuristic_result" not in audit_json
+    assert "llm_result" not in audit_json
+
+
+def test_parse_resume_audit_marks_llm_overrides_and_skill_sources(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def fake_llm_refine(*_args: object, **_kwargs: object) -> dict[str, object]:
+        return {
+            "summary": "AI summary",
+            "skills": ["python", "rust"],
+            "projects": [
+                {
+                    "id": "ai-proj",
+                    "name": "AI Rebuilt Platform",
+                    "tech_stack": ["Rust"],
+                    "question_anchors": ["ownership"],
+                }
+            ],
+            "concerns": ["Need clearer metrics."],
+        }
+
+    monkeypatch.setattr(rp, "_llm_refine", fake_llm_refine)
+
+    parsed = rp.parse_resume(SAMPLE_RESUME, force_llm=True, llm_timeout_seconds=1)
+    audit = parsed.parse_audit
+
+    assert audit["mode"] == "ai_refined"
+    assert audit["field_sources"]["summary"] == "llm"
+    assert audit["field_sources"]["projects"] == "llm"
+    assert "summary" in audit["merge_summary"]["llm_overrode"]
+    assert "projects" in audit["merge_summary"]["llm_overrode"]
+    assert "rust" in audit["skills_summary"]["llm_only"]
+    assert "python" in audit["skills_summary"]["both"]
+    assert audit["skills_summary"]["rule_only_count"] >= 1
 
 
 # ---------------------------------------------------------------------------

@@ -18,6 +18,7 @@ from app.services.resume_parser import (
     ResumeParseError,
     extract_text_with_timeout,
     parse_resume,
+    sanitize_resume_parse_audit,
 )
 from app.services.session_manager import temporary_llm_override
 
@@ -49,6 +50,9 @@ def resume_parse_payload(parsed: Any, text: str) -> dict[str, Any]:
         "concerns": parsed.concerns,
         "raw_text_preview": text[:2000],
         "parse_status": parsed.parse_status,
+        "resume_parse_audit": sanitize_resume_parse_audit(
+            getattr(parsed, "parse_audit", {})
+        ),
         "context_flags": check_user_context(text, source="resume").categories,
     }
 

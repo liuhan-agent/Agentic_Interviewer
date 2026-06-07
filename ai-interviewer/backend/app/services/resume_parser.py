@@ -116,6 +116,7 @@ class ParsedResume:
     focus_areas: list[dict[str, Any]] = field(default_factory=list)
     concerns: list[str] = field(default_factory=list)
     parse_status: dict[str, Any] = field(default_factory=_basic_parse_status)
+    parse_audit: dict[str, Any] = field(default_factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -129,6 +130,7 @@ class ParsedResume:
             "concerns": list(self.concerns),
             "raw_text": self.raw_text,
             "parse_status": dict(self.parse_status),
+            "parse_audit": dict(self.parse_audit),
         }
 
 
@@ -1874,6 +1876,299 @@ def _normalise_focus_areas(
     return focus
 
 
+_AUDIT_SOURCE_VALUES = {"rule", "llm", "both", "mixed", "empty"}
+_AUDIT_LIST_LIMIT = 8
+_AUDIT_TEXT_LIMIT = 80
+
+
+def _audit_clip(value: Any, *, limit: int = _AUDIT_TEXT_LIMIT) -> str:
+    text = re.sub(r"\s+", " ", str(value or "").strip())
+    return text[:limit]
+
+
+def _audit_string_list(value: Any, *, limit: int = _AUDIT_LIST_LIMIT) -> list[str]:
+    if not isinstance(value, list):
+        return []
+    out: list[str] = []
+    seen: set[str] = set()
+    for item in value:
+        text = _audit_clip(item)
+        if not text:
+            continue
+        key = text.lower()
+        if key in seen:
+            continue
+        seen.add(key)
+        out.append(text)
+        if len(out) >= limit:
+            break
+    return out
+
+
+def _audit_skill_list(value: Any) -> list[str]:
+    if not isinstance(value, list):
+        return []
+    out: list[str] = []
+    seen: set[str] = set()
+    for item in value:
+        skill = _normalise_skill(item)
+        if not skill or skill in seen:
+            continue
+        seen.add(skill)
+        out.append(skill)
+    return out
+
+
+def _audit_field_source(
+    *,
+    rule_has: bool,
+    llm_has: bool,
+    llm_applied: bool,
+    mixed: bool = False,
+) -> str:
+    if mixed:
+        return "mixed"
+    if llm_applied and rule_has:
+        return "llm"
+    if llm_applied:
+        return "llm"
+    if rule_has and llm_has:
+        return "both"
+    if rule_has:
+        return "rule"
+    if llm_has:
+        return "llm"
+    return "empty"
+
+
+def _audit_has_text(value: Any) -> bool:
+    return isinstance(value, str) and bool(value.strip())
+
+
+def _audit_source_for_scalar(
+    heuristic_value: Any,
+    llm_value: Any,
+    merged_value: Any,
+) -> str:
+    rule_has = bool(heuristic_value)
+    llm_has = bool(llm_value)
+    llm_applied = llm_has and merged_value == llm_value
+    if rule_has and llm_has and heuristic_value == llm_value:
+        return "both"
+    return _audit_field_source(
+        rule_has=rule_has,
+        llm_has=llm_has,
+        llm_applied=llm_applied,
+    )
+
+
+def _build_resume_parse_audit(
+    *,
+    heuristic: ParsedResume,
+    llm: dict[str, Any],
+    merged: ParsedResume,
+    mode: str,
+) -> dict[str, Any]:
+    llm_candidate_name = _normalise_candidate_name(llm.get("candidate_name"))
+    llm_candidate_profile = _normalise_candidate_profile(llm.get("candidate_profile"))
+    llm_skills = _audit_skill_list(llm.get("skills"))
+    rule_skills = _audit_skill_list(heuristic.skills)
+    merged_skills = _audit_skill_list(merged.skills)
+    rule_skill_set = set(rule_skills)
+    llm_skill_set = set(llm_skills)
+    both = [
+        skill
+        for skill in merged_skills
+        if skill in rule_skill_set and skill in llm_skill_set
+    ]
+    rule_only = [
+        skill
+        for skill in merged_skills
+        if skill in rule_skill_set and skill not in llm_skill_set
+    ]
+    llm_only = [
+        skill
+        for skill in merged_skills
+        if skill in llm_skill_set and skill not in rule_skill_set
+    ]
+
+    llm_summary = (
+        llm.get("summary").strip() if _audit_has_text(llm.get("summary")) else ""
+    )
+    llm_highlights = _normalise_list(llm.get("highlights"), limit=6)
+    llm_projects = _normalise_projects(llm.get("projects"))
+    llm_focus_areas = _normalise_focus_areas(
+        llm.get("focus_areas"),
+        projects=merged.projects,
+    )
+    llm_concerns = _normalise_list(llm.get("concerns"), limit=5)
+
+    focus_mixed = (
+        bool(merged.focus_areas)
+        and not llm_focus_areas
+        and (
+            merged.projects != heuristic.projects
+            or merged.highlights != heuristic.highlights
+            or merged.skills != heuristic.skills
+        )
+    )
+    field_sources = {
+        "candidate_name": _audit_source_for_scalar(
+            heuristic.candidate_name,
+            llm_candidate_name,
+            merged.candidate_name,
+        ),
+        "candidate_profile": (
+            "mixed"
+            if heuristic.candidate_profile and llm_candidate_profile
+            else _audit_field_source(
+                rule_has=bool(heuristic.candidate_profile),
+                llm_has=bool(llm_candidate_profile),
+                llm_applied=bool(llm_candidate_profile),
+            )
+        ),
+        "summary": _audit_source_for_scalar(
+            heuristic.summary,
+            llm_summary,
+            merged.summary,
+        ),
+        "skills": (
+            "mixed"
+            if rule_skills and llm_skills
+            else "llm"
+            if llm_skills
+            else "rule"
+            if rule_skills
+            else "empty"
+        ),
+        "highlights": _audit_field_source(
+            rule_has=bool(heuristic.highlights),
+            llm_has=bool(llm_highlights),
+            llm_applied=bool(llm_highlights and merged.highlights == llm_highlights),
+        ),
+        "projects": _audit_field_source(
+            rule_has=bool(heuristic.projects),
+            llm_has=bool(llm_projects),
+            llm_applied=bool(llm_projects and merged.projects == llm_projects),
+        ),
+        "focus_areas": _audit_field_source(
+            rule_has=bool(heuristic.focus_areas),
+            llm_has=bool(llm_focus_areas),
+            llm_applied=bool(llm_focus_areas and merged.focus_areas == llm_focus_areas),
+            mixed=focus_mixed,
+        ),
+        "concerns": _audit_field_source(
+            rule_has=bool(heuristic.concerns),
+            llm_has=bool(llm_concerns),
+            llm_applied=bool(llm_concerns and merged.concerns == llm_concerns),
+        ),
+    }
+    llm_overrode = [
+        field
+        for field, source in field_sources.items()
+        if source == "llm" and field != "skills"
+    ]
+    rule_fallback = [
+        field
+        for field, source in field_sources.items()
+        if source == "rule" and field != "skills"
+    ]
+    conflict_count = sum(
+        1
+        for field in ("candidate_name", "summary", "highlights", "projects", "concerns")
+        if field_sources.get(field) == "llm"
+    )
+    return sanitize_resume_parse_audit(
+        {
+            "version": "v1",
+            "mode": mode,
+            "text_sha256_16": hashlib.sha256(
+                heuristic.raw_text.encode("utf-8")
+            ).hexdigest()[:16],
+            "field_sources": field_sources,
+            "skills_summary": {
+                "rule_count": len(rule_skills),
+                "llm_count": len(llm_skills),
+                "both_count": len(both),
+                "rule_only_count": len(rule_only),
+                "llm_only_count": len(llm_only),
+                "both": both[:_AUDIT_LIST_LIMIT],
+                "rule_only": rule_only[:_AUDIT_LIST_LIMIT],
+                "llm_only": llm_only[:_AUDIT_LIST_LIMIT],
+            },
+            "merge_summary": {
+                "llm_overrode": llm_overrode,
+                "rule_fallback": rule_fallback,
+                "conflict_count": conflict_count,
+            },
+        }
+    )
+
+
+def sanitize_resume_parse_audit(value: Any) -> dict[str, Any]:
+    if not isinstance(value, dict):
+        return {}
+    out: dict[str, Any] = {"version": "v1"}
+    mode = _audit_clip(value.get("mode"), limit=20)
+    if mode in {"basic", "ai_refined"}:
+        out["mode"] = mode
+    text_hash = _audit_clip(value.get("text_sha256_16"), limit=16)
+    if text_hash:
+        out["text_sha256_16"] = text_hash
+
+    field_sources = value.get("field_sources")
+    if isinstance(field_sources, dict):
+        clean_sources: dict[str, str] = {}
+        for key, source in field_sources.items():
+            field = _audit_clip(key, limit=40)
+            source_text = _audit_clip(source, limit=20)
+            if field and source_text in _AUDIT_SOURCE_VALUES:
+                clean_sources[field] = source_text
+            if len(clean_sources) >= 20:
+                break
+        if clean_sources:
+            out["field_sources"] = clean_sources
+
+    skills_summary = value.get("skills_summary")
+    if isinstance(skills_summary, dict):
+        clean_skills: dict[str, Any] = {}
+        for key in (
+            "rule_count",
+            "llm_count",
+            "both_count",
+            "rule_only_count",
+            "llm_only_count",
+        ):
+            raw = skills_summary.get(key)
+            if isinstance(raw, bool):
+                continue
+            if isinstance(raw, (int, float)):
+                clean_skills[key] = max(0, int(raw))
+        for key in ("both", "rule_only", "llm_only"):
+            values = _audit_string_list(skills_summary.get(key))
+            if values:
+                clean_skills[key] = values
+        if clean_skills:
+            out["skills_summary"] = clean_skills
+
+    merge_summary = value.get("merge_summary")
+    if isinstance(merge_summary, dict):
+        clean_merge: dict[str, Any] = {}
+        for key in ("llm_overrode", "rule_fallback"):
+            values = _audit_string_list(merge_summary.get(key))
+            if values:
+                clean_merge[key] = values
+        conflict_count = merge_summary.get("conflict_count")
+        if isinstance(conflict_count, (int, float)) and not isinstance(
+            conflict_count,
+            bool,
+        ):
+            clean_merge["conflict_count"] = max(0, int(conflict_count))
+        if clean_merge:
+            out["merge_summary"] = clean_merge
+    return out if len(out) > 1 else {}
+
+
 def _merge(heuristic: ParsedResume, llm: dict[str, Any]) -> ParsedResume:
     """Layer LLM output over the heuristic baseline.
 
@@ -1970,6 +2265,7 @@ def _with_parse_status(
     mode: str,
     reason: str,
     started_at: float,
+    parse_audit: dict[str, Any] | None = None,
 ) -> ParsedResume:
     return replace(
         parsed,
@@ -1979,6 +2275,7 @@ def _with_parse_status(
             elapsed_ms=max(0, int((time.perf_counter() - started_at) * 1000)),
             text_chars=len(parsed.raw_text),
         ),
+        parse_audit=sanitize_resume_parse_audit(parse_audit),
     )
 
 
@@ -1997,12 +2294,22 @@ def parse_resume(
     """
     started_at = time.perf_counter()
     baseline = heuristic_parse(text, filename=filename)
+
+    def basic_audit() -> dict[str, Any]:
+        return _build_resume_parse_audit(
+            heuristic=baseline,
+            llm={},
+            merged=baseline,
+            mode="basic",
+        )
+
     if get_settings().use_stub_llm and not force_llm:
         return _with_parse_status(
             baseline,
             mode="basic",
             reason="stub_mode",
             started_at=started_at,
+            parse_audit=basic_audit(),
         )
     configured_timeout = (
         get_settings().resume_parser_llm_timeout_seconds
@@ -2020,6 +2327,7 @@ def parse_resume(
             mode="basic",
             reason="disabled",
             started_at=started_at,
+            parse_audit=basic_audit(),
         )
     ctx = contextvars.copy_context()
     future = _LLM_REFINE_EXECUTOR.submit(
@@ -2041,6 +2349,7 @@ def parse_resume(
             mode="basic",
             reason="timeout",
             started_at=started_at,
+            parse_audit=basic_audit(),
         )
     if not refined:
         return _with_parse_status(
@@ -2048,10 +2357,18 @@ def parse_resume(
             mode="basic",
             reason="llm_failed",
             started_at=started_at,
+            parse_audit=basic_audit(),
         )
+    merged = _merge(baseline, refined)
     return _with_parse_status(
-        _merge(baseline, refined),
+        merged,
         mode="ai_refined",
         reason="ai_completed",
         started_at=started_at,
+        parse_audit=_build_resume_parse_audit(
+            heuristic=baseline,
+            llm=refined,
+            merged=merged,
+            mode="ai_refined",
+        ),
     )

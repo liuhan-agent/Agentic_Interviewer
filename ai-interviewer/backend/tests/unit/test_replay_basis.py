@@ -1,8 +1,10 @@
 from __future__ import annotations
 
 from app.engine.workflow.replay_basis import (
+    build_question_decision_basis,
     build_replay_context_basis,
     build_replay_question_basis,
+    sanitize_replay_question_decision_basis,
     sanitize_replay_question_basis,
 )
 
@@ -71,6 +73,59 @@ def test_question_basis_marks_job_spec_and_followup_sources() -> None:
     assert "来自岗位要求" in basis["chips"]
     assert "上一轮追问" in basis["chips"]
     assert "系统设计" in basis["chips"]
+
+
+def test_question_decision_basis_exposes_safe_source_summary() -> None:
+    basis = build_question_decision_basis(
+        dimension="system_design",
+        resume_anchor={
+            "anchor_key": "focus-coupon-consistency",
+            "label": "Coupon consistency",
+            "project_id": "proj-coupon",
+            "skills": ["Redis"],
+            "knowledge_source": "local",
+        },
+        target_skills=["Redis", "Kafka"],
+        skill_focus={"focus_source": "jd_resume_overlap"},
+        job_spec={"required_skills": ["Redis"]},
+        refine_mode=True,
+        contract_hints={"failure_reason": "thin metrics"},
+        question_items=[
+            {
+                "seed_id": "internal-seed",
+                "variant_id": "internal-variant",
+                "rank": 1,
+                "injected": True,
+            }
+        ],
+        resume_parse_audit={
+            "field_sources": {"skills": "mixed"},
+            "skills_summary": {"llm_only": ["Kafka"], "both": ["Redis"]},
+        },
+    )
+
+    assert basis is not None
+    assert {"resume", "job", "followup", "question_seed"}.issubset(
+        set(basis["sources"])
+    )
+    assert basis["dimension"] == "system_design"
+    assert basis["resume_anchor"] == {
+        "label": "Coupon consistency",
+        "project_id": "proj-coupon",
+        "source": "resume",
+    }
+    assert {"value": "Redis", "source": "job_spec"} in basis["target_skills"]
+    assert {"value": "Kafka", "source": "resume_parse_audit"} in basis["target_skills"]
+    assert "covers_target_skills" in basis["reason_codes"]
+
+    public = sanitize_replay_question_decision_basis(
+        {**basis, "seed_id": "must-not-survive", "prompt_slot": "secret"}
+    )
+
+    assert public == basis
+    assert "must-not-survive" not in str(public)
+    assert "internal-seed" not in str(public)
+    assert "prompt" not in str(public).lower()
 
 
 def test_context_basis_aggregates_self_intro_resume_and_job_spec() -> None:

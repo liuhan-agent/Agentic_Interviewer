@@ -85,6 +85,7 @@ import type {
   ParseJobSpecResponse,
   ParseResumeStatus,
   ParseResumeResponse,
+  ResumeParseAudit,
   ResumeParseJobResponse,
   ResumeCandidateProfile,
   ResumeFocusArea,
@@ -674,6 +675,9 @@ function resumeSetupSnapshotFromSession(
       string,
       unknown
     >,
+    resumeParseAudit: response.candidate.resume_parse_audit as unknown as
+      | Record<string, unknown>
+      | undefined,
   };
 }
 
@@ -782,6 +786,7 @@ export function SetupForm() {
   const [resumeConcerns, setResumeConcerns] = useState<string[]>([]);
   const [resumeCandidateProfile, setResumeCandidateProfile] =
     useState<ResumeCandidateProfile>({});
+  const [resumeParseAudit, setResumeParseAudit] = useState<ResumeParseAudit | null>(null);
   const [resumeSource, setResumeSource] = useState<ResumeSourceRef | null>(null);
   const [candidateNameFromResume, setCandidateNameFromResume] = useState(false);
   const [jobTitleFromResume, setJobTitleFromResume] = useState(false);
@@ -814,6 +819,7 @@ export function SetupForm() {
       if (draft.resumeProjects) setResumeProjects(draft.resumeProjects);
       if (draft.resumeFocusAreas) setResumeFocusAreas(draft.resumeFocusAreas);
       if (draft.resumeCandidateProfile) setResumeCandidateProfile(draft.resumeCandidateProfile);
+      if (draft.resumeParseAudit) setResumeParseAudit(draft.resumeParseAudit);
       const resumeSourceId =
         typeof draft.resumeSourceId === "string" ? draft.resumeSourceId.trim() : "";
       if (resumeSourceId) {
@@ -945,6 +951,9 @@ export function SetupForm() {
         (snapshot.resumeCandidateProfile as ResumeCandidateProfile | undefined) ??
           {},
       );
+      setResumeParseAudit(
+        (snapshot.resumeParseAudit as ResumeParseAudit | undefined) ?? null,
+      );
       setUpload({
         kind: "success",
         filename: "已沿用上一场简历解析结果",
@@ -1024,13 +1033,14 @@ export function SetupForm() {
           resumeProjects,
           resumeFocusAreas,
           resumeCandidateProfile,
+          resumeParseAudit,
           resumeSourceId: resumeSource?.id,
           resumeSourceExpiresAt: resumeSource?.expiresAt,
         }));
       }
     }, 1000);
     return () => clearTimeout(timer);
-  }, [resumeProjects, resumeFocusAreas, resumeCandidateProfile, resumeSource, watchedSummary, watchedSkills, watchedHighlights, hasDraft]);
+  }, [resumeProjects, resumeFocusAreas, resumeCandidateProfile, resumeParseAudit, resumeSource, watchedSummary, watchedSkills, watchedHighlights, hasDraft]);
 
   useEffect(() => {
     function refreshLlmStatus() {
@@ -1267,6 +1277,7 @@ export function SetupForm() {
         setCandidateNameFromResume(false);
       }
       setResumeCandidateProfile(result.candidate_profile ?? {});
+      setResumeParseAudit(result.resume_parse_audit ?? null);
       setResumeSource(resumeSourceRefFromParseResult(result));
       const jobSuggestion = resumeJobAutofillValues({
         profile: result.candidate_profile,
@@ -1490,6 +1501,7 @@ export function SetupForm() {
     uploadRequestRef.current += 1;
     setUpload({ kind: "idle" });
     setResumeCandidateProfile({});
+    setResumeParseAudit(null);
     setResumeSource(null);
     setCandidateNameFromResume(false);
     setJobTitleFromResume(false);
@@ -1685,6 +1697,9 @@ export function SetupForm() {
         resumeFocusAreas: focusAreas as unknown as Record<string, unknown>[],
         resumeConcerns: concerns,
         resumeCandidateProfile: resumeCandidateProfile as Record<string, unknown>,
+        ...(resumeParseAudit
+          ? { resumeParseAudit: resumeParseAudit as unknown as Record<string, unknown> }
+          : {}),
       };
       const resumeSourceId = resumeSourceIdForSession(resumeSource);
 
@@ -1700,6 +1715,7 @@ export function SetupForm() {
             concerns,
             candidate_profile: resumeCandidateProfile,
           }),
+          ...(resumeParseAudit ? { resume_parse_audit: resumeParseAudit } : {}),
         },
         job_spec: {
           title: values.job_title,

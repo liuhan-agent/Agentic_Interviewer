@@ -86,6 +86,18 @@ test("setup form restores resume snapshot for report practice links", () => {
   assert.match(source, /已沿用上一场简历解析结果/);
 });
 
+test("setup form carries resume parse audit into session payload", () => {
+  const source = fs.readFileSync(
+    path.join(__dirname, "..", "src", "components", "interview", "SetupForm.tsx"),
+    "utf8",
+  );
+
+  assert.match(source, /ResumeParseAudit/);
+  assert.match(source, /useState<ResumeParseAudit\s*\|\s*null>\(null\)/);
+  assert.match(source, /setResumeParseAudit\(result\.resume_parse_audit\s*\?\?\s*null\)/);
+  assert.match(source, /resume_parse_audit:\s*resumeParseAudit/);
+});
+
 test("setup form does not show the legacy resume polish draft prompt", () => {
   const source = fs.readFileSync(
     path.join(__dirname, "..", "src", "components", "interview", "SetupForm.tsx"),

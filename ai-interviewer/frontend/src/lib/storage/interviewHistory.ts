@@ -56,6 +56,7 @@ export interface ResumeSetupSnapshot {
   resumeFocusAreas?: Record<string, unknown>[];
   resumeConcerns?: string[];
   resumeCandidateProfile?: Record<string, unknown>;
+  resumeParseAudit?: Record<string, unknown>;
 }
 
 interface StoredShape {
@@ -306,7 +307,8 @@ function isResumeSetupSnapshot(
     isRecordList(value.resumeFocusAreas) &&
     isResumeConcernList(value.resumeConcerns) &&
     (value.resumeCandidateProfile === undefined ||
-      isPlainObject(value.resumeCandidateProfile))
+      isPlainObject(value.resumeCandidateProfile)) &&
+    (value.resumeParseAudit === undefined || isPlainObject(value.resumeParseAudit))
   );
 }
 
