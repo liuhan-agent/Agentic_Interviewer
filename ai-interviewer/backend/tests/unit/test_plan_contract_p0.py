@@ -237,6 +237,33 @@ def test_contract_diagnostics_accepts_semantically_aligned_chinese_checks():
     assert "must_cover_without_acceptance_check" not in diagnostics["warnings"]
 
 
+def test_acceptance_append_coverage_uses_source_text_not_generic_chinese_prefix():
+    from app.engine.workflow.nodes import ask_question as ask_mod
+
+    contract = {
+        "acceptance_checks": [
+            "候选人能按技术栈组件（如Redis扣减、MQ投递、DB落库）顺序列出验证步骤",
+            "候选人能描述一个包含根因修复和复发预防的方案",
+        ]
+    }
+    reviewed_checks = [
+        {
+            "source": "must_cover",
+            "source_text": "幂等控制",
+            "acceptance_check": (
+                "候选人说明重复支付、重复回调或客户端重试时，服务端通过"
+                "业务幂等键、唯一约束或状态机保证请求只生效一次。"
+            ),
+            "severity": "core",
+        }
+    ]
+
+    assert ask_mod._compiled_acceptance_append_candidates(
+        contract,
+        reviewed_checks,
+    ) == [reviewed_checks[0]["acceptance_check"]]
+
+
 def test_contract_diagnostics_marks_rewrite_fallback_source():
     from app.engine.workflow.nodes import ask_question as ask_mod
 
@@ -632,7 +659,7 @@ def test_ask_question_simple_plan_is_generator_only_signed(monkeypatch):
     def fake_generate_question(**kwargs):
         captured.update(kwargs)
         return {
-            "question": "Walk me through a recent project.",
+            "question": "\u8bf7\u8bb2\u4e00\u4e2a\u6700\u8fd1\u9879\u76ee\u3002",
             "dimension": kwargs["dimension"],
             "rubric_points": ["depth"],
             "proposed_contract": {
@@ -669,6 +696,12 @@ def test_ask_question_simple_plan_is_generator_only_signed(monkeypatch):
     out = ask_mod.ask_question_node(state)  # type: ignore[arg-type]
     assert out["current_ask_plan"]["template"] == "simple"
     assert out["current_contract"]["signed_by"] == ["generator"]
+    assert [item["text"] for item in out["current_contract"]["acceptance_check_items"]] == (
+        out["current_contract"]["acceptance_checks"]
+    )
+    assert {item["source"] for item in out["current_contract"]["acceptance_check_items"]} == {
+        "adaptive_context"
+    }
     assert captured["skill_block"] == "skill playbook guidance"
 
 
@@ -795,7 +828,8 @@ def test_evaluator_node_attaches_followup_reason_after_consistency(monkeypatch):
 
     captured: dict[str, Any] = {}
 
-    def fake_evaluate_answer(**_kwargs):
+    def fake_evaluate_answer(**kwargs):
+        captured["scoring_contract"] = kwargs.get("contract")
         return {
             "score": 5.0,
             "passed": True,
@@ -806,6 +840,88 @@ def test_evaluator_node_attaches_followup_reason_after_consistency(monkeypatch):
             "recommended_next": "advance",
             "recommended_next_plan": "deep_probe",
             "recommended_probe_intent": "evidence_probe",
+            "acceptance_check_results": {
+                "Names capacity estimate.": {
+                    "verdict": "no",
+                    "evidence": [],
+                }
+            },
+        }
+
+    class _Tracer:
+        def trace_evaluator(self, state, **_kwargs):
+            captured["trace_evaluation"] = state["evaluation"]
+
+    monkeypatch.setattr(eval_node_mod, "evaluate_answer", fake_evaluate_answer)
+    monkeypatch.setattr(eval_node_mod, "get_tracer", lambda: _Tracer())
+
+    state = _base_state()
+    state.update(
+        {
+            "current_question": {
+                "question": "How would you size Redis capacity?",
+                "dimension": "technical_depth",
+                "rubric_points": ["Capacity estimate"],
+            },
+            "current_contract": {
+                "must_cover": ["Capacity estimate"],
+                "acceptance_checks": ["Names capacity estimate."],
+                "acceptance_check_items": [
+                    {
+                        "check_id": "reviewed:capacity",
+                        "text": "Names capacity estimate.",
+                        "source": "reviewed",
+                        "severity": "core",
+                        "source_text": "Capacity estimate",
+                        "origin": "question_variant",
+                        "seed_ref": {"seed_id": "seed"},
+                        "metadata": {"criterion_source": "must_cover"},
+                    }
+                ],
+                "minimum_bar": "Names one capacity estimate.",
+                "bar_level": "standard",
+                "signed_by": ["generator", "evaluator"],
+            },
+            "current_answer": "Use Redis for hot reads.",
+            "selected_action": {"id": "deepen_technical"},
+            "scores_per_dim": {},
+            "turn_budget_remaining": 2,
+            "quality_threshold": 7.5,
+            "runtime_config": {"contract_gate_mode": "shadow"},
+        }
+    )
+
+    out = eval_node_mod.evaluator_node(state)  # type: ignore[arg-type]
+
+    reason = out["evaluation"]["followup_reason"]
+    assert out["evaluation"]["recommended_next"] == "refine"
+    assert reason["title"] == "为什么继续追问"
+    assert "Capacity estimate" in reason["summary"]
+    assert "补充证据" in reason["chips"]
+    assert captured["trace_evaluation"]["followup_reason"] == reason
+    result_items = out["evaluation"]["acceptance_check_result_items"]
+    assert result_items[0]["check_id"] == "reviewed:capacity"
+    assert result_items[0]["source"] == "reviewed"
+    assert result_items[0]["severity"] == "core"
+    assert result_items[0]["verdict"] == "no"
+    assert "acceptance_check_items" not in captured["scoring_contract"]
+
+
+def test_evaluator_node_shadow_gate_does_not_change_passed_or_routing(monkeypatch):
+    from app.engine.workflow.nodes import evaluator as eval_node_mod
+
+    captured: dict[str, Any] = {}
+
+    def fake_evaluate_answer(**kwargs):
+        captured["scoring_contract"] = kwargs.get("contract")
+        return {
+            "score": 8.5,
+            "passed": True,
+            "rationale": "Strong answer.",
+            "strengths": ["Concrete"],
+            "weaknesses": [],
+            "recommended_next": "advance",
+            "recommended_next_plan": None,
             "acceptance_check_results": {},
         }
 
@@ -824,22 +940,38 @@ def test_evaluator_node_attaches_followup_reason_after_consistency(monkeypatch):
                 "dimension": "technical_depth",
                 "rubric_points": ["Capacity estimate"],
             },
-            "current_answer": "Use Redis for hot reads.",
+            "current_contract": {
+                "must_cover": ["Capacity estimate"],
+                "acceptance_checks": ["Names capacity estimate."],
+                "acceptance_check_items": [
+                    {
+                        "check_id": "reviewed:capacity",
+                        "text": "Names capacity estimate.",
+                        "source": "reviewed",
+                        "severity": "core",
+                    }
+                ],
+            },
+            "current_answer": "I would estimate hot keys and value sizes.",
             "selected_action": {"id": "deepen_technical"},
             "scores_per_dim": {},
             "turn_budget_remaining": 2,
             "quality_threshold": 7.5,
+            "runtime_config": {"contract_gate_mode": "shadow"},
         }
     )
 
     out = eval_node_mod.evaluator_node(state)  # type: ignore[arg-type]
 
-    reason = out["evaluation"]["followup_reason"]
-    assert out["evaluation"]["recommended_next"] == "refine"
-    assert reason["title"] == "为什么继续追问"
-    assert "Capacity estimate" in reason["summary"]
-    assert "补充证据" in reason["chips"]
-    assert captured["trace_evaluation"]["followup_reason"] == reason
+    assert out["evaluation"]["passed"] is True
+    assert out["evaluation"]["recommended_next"] == "advance"
+    gate = out["evaluation"]["contract_gate_result"]
+    assert gate["mode"] == "shadow"
+    assert gate["status"] == "failed"
+    assert gate["missing_count"] == 1
+    assert gate["failed_items"][0]["check_id"] == "reviewed:capacity"
+    assert captured["trace_evaluation"]["contract_gate_result"] == gate
+    assert "acceptance_check_items" not in captured["scoring_contract"]
 
 
 def test_evaluator_node_persists_question_basis_in_qa_history(monkeypatch):

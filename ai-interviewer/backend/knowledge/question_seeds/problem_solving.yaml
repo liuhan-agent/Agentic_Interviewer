@@ -99,6 +99,84 @@ seeds:
         expected_signals: [能先保护用户权益和数据一致性, 能从消息 key 和消费日志定位重复, 能补充幂等表或唯一约束]
         anti_patterns: [只重启消费者, 直接批量改库无审计, 修复后不补监控]
         good_answer_hints: [先冻结风险写入并圈定影响, 再查幂等缺口, 最后小批量修复和补测试]
+        reviewed_acceptance_checks:
+          - check_id: reviewed:ps_mq_duplicate:core_task_state:v1
+            source: must_cover
+            source_text: 任务状态
+            acceptance_check: 候选人说明消息消费、积分发放或修复任务的关键状态，并能区分待处理、处理中、成功、失败和需人工介入。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: "2026-06-07"
+          - check_id: reviewed:ps_mq_duplicate:core_retry_strategy:v1
+            source: must_cover
+            source_text: 重试策略
+            acceptance_check: 候选人说明重复投递或修复任务的重试节奏、暂停恢复条件和最大重试边界，避免无限重试扩大影响。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: "2026-06-07"
+          - check_id: reviewed:ps_mq_duplicate:core_idempotency:v1
+            source: must_cover
+            source_text: 幂等处理
+            acceptance_check: 候选人指出积分发放必须基于消息 key、业务唯一键、幂等表或唯一约束保证重复消息不产生重复副作用。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: "2026-06-07"
+          - check_id: reviewed:ps_mq_duplicate:core_dead_letter_alert:v1
+            source: must_cover
+            source_text: 死信告警
+            acceptance_check: 候选人说明无法自动修复的消息应进入死信、告警或人工审核队列，并保留可追溯现场。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: "2026-06-07"
+          - check_id: reviewed:ps_mq_duplicate:support_stop_bleeding:v1
+            source: rubric_addition
+            source_text: 说明止血和暂停消费策略
+            acceptance_check: 候选人先保护用户权益和数据一致性，说明冻结风险写入、暂停消费、限流或切换只读的触发条件。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: "2026-06-07"
+          - check_id: reviewed:ps_mq_duplicate:support_idempotency_gap:v1
+            source: rubric_addition
+            source_text: 说明幂等缺口定位
+            acceptance_check: 候选人能从消息 key、消费日志、积分流水和幂等记录定位重复发放发生在哪个环节。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: "2026-06-07"
+          - check_id: reviewed:ps_mq_duplicate:support_repair_regression:v1
+            source: rubric_addition
+            source_text: 说明数据修复与回归验证
+            acceptance_check: 候选人说明小批量、可审计的数据修复方案，并补充回归测试、监控或复盘动作防止复发。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: "2026-06-07"
         priority: 16
         status: active
 
@@ -201,6 +279,84 @@ seeds:
         expected_signals: [能平衡体验与一致性, 能用 lag 和消费耗时判断风险, 能说明恢复后的对账]
         anti_patterns: [盲目扩容消费者不看下游压力, 不提示用户状态延迟, 没有追平验证]
         good_answer_hints: [先量化积压和影响, 再决定降级与扩容, 最后追平校验]
+        reviewed_acceptance_checks:
+          - check_id: reviewed:ps_consumer_lag:core_reproduce:v1
+            source: must_cover
+            source_text: 现象复现
+            acceptance_check: 候选人说明如何复现或确认 MQ lag 导致的缓存与数据库状态延迟，包括影响时间、范围和用户可见现象。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: "2026-06-07"
+          - check_id: reviewed:ps_consumer_lag:core_evidence:v1
+            source: must_cover
+            source_text: 链路证据
+            acceptance_check: 候选人能用消息积压、消费耗时、失败日志、缓存更新时间或数据库写入时间线证明不一致来源。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: "2026-06-07"
+          - check_id: reviewed:ps_consumer_lag:core_consistency_boundary:v1
+            source: must_cover
+            source_text: 一致性边界
+            acceptance_check: 候选人明确哪些用户展示可接受短暂延迟，哪些扣减、支付或库存状态必须以数据库或权威源为准。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: "2026-06-07"
+          - check_id: reviewed:ps_consumer_lag:core_repair_verification:v1
+            source: must_cover
+            source_text: 修复验证
+            acceptance_check: 候选人说明消费追平后如何对账、刷新缓存、抽样校验并确认用户侧状态恢复一致。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: "2026-06-07"
+          - check_id: reviewed:ps_consumer_lag:support_lag_metrics:v1
+            source: rubric_addition
+            source_text: 说明积压指标和消费速率
+            acceptance_check: 候选人给出 lag、消费 TPS、单条耗时、失败率、预计追平时间或下游写入压力等指标。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: "2026-06-07"
+          - check_id: reviewed:ps_consumer_lag:support_user_degrade:v1
+            source: rubric_addition
+            source_text: 说明用户侧降级或提示
+            acceptance_check: 候选人说明用户侧如何提示状态延迟、切换权威查询、限制高风险操作或提供可解释的降级体验。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: "2026-06-07"
+          - check_id: reviewed:ps_consumer_lag:support_catchup_check:v1
+            source: rubric_addition
+            source_text: 说明追平后的校验
+            acceptance_check: 候选人说明追平后按订单、库存或缓存 key 做校验，并把遗漏项进入补偿或人工处理队列。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: "2026-06-07"
         priority: 14
         status: active
 

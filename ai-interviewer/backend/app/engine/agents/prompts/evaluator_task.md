@@ -42,6 +42,18 @@ How to populate ``acceptance_check_results``:
 - There is one key per CONTRACT.acceptance_checks entry. Each value
   is an object ``{{"verdict": "yes|partial|no", "evidence": [...]}}``.
 - If CONTRACT was empty, use RUBRIC_POINTS as the grid instead.
+- If CONTRACT.acceptance_check_items_for_prompt is present, read its
+  source-aware metadata before judging each check:
+  - reviewed/core is an audited core baseline. Judge it independently;
+    do not let a high score, a generally good answer, or other strong
+    checks compensate for partial/no evidence on that item.
+  - reviewed/supporting is audited supporting evidence.
+  - adaptive_context is a resume/JD/question-context supplement.
+  - compiled_fallback and rewrite_fallback are system-generated or
+    fallback checks.
+- Use the check text, not check_id, as the acceptance_check_results key.
+  check_id/source/severity are guidance for judging priority and audit
+  traceability, not output keys.
 
 How to populate ``evidence``:
 - Each verdict should be backed by 1-3 **short verbatim quotes** from

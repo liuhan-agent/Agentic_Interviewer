@@ -1453,9 +1453,24 @@ def test_compiled_acceptance_append_locked_adds_missing_checks(
         "Answer explicitly covers seed consistency.",
         "Answer provides evidence for seed invalidation window.",
     ]
+    items = out["current_contract"]["acceptance_check_items"]
+    assert [item["text"] for item in items] == out["current_contract"][
+        "acceptance_checks"
+    ]
+    assert [item["source"] for item in items] == [
+        "adaptive_context",
+        "compiled_fallback",
+        "compiled_fallback",
+    ]
     diagnostics = captured_trace["contract_diagnostics"]
     assert diagnostics["contract_acceptance_mode"] == "append_locked"
     assert diagnostics["compiled_acceptance_applied"] is True
+    assert diagnostics["acceptance_check_items_present"] is True
+    assert diagnostics["acceptance_check_projection_match"] is True
+    assert diagnostics["acceptance_check_item_source_counts"] == {
+        "adaptive_context": 1,
+        "compiled_fallback": 2,
+    }
     assert diagnostics["compiled_acceptance_append_candidates"] == [
         "Answer explicitly covers seed consistency.",
         "Answer provides evidence for seed invalidation window.",
@@ -1512,6 +1527,15 @@ def test_compiled_acceptance_append_locked_supports_generator_only_plan(
     assert "Answer provides evidence for seed invalidation window." in out[
         "current_contract"
     ]["acceptance_checks"]
+    assert [item["text"] for item in out["current_contract"]["acceptance_check_items"]] == (
+        out["current_contract"]["acceptance_checks"]
+    )
+    assert "adaptive_context" in {
+        item["source"] for item in out["current_contract"]["acceptance_check_items"]
+    }
+    assert "compiled_fallback" in {
+        item["source"] for item in out["current_contract"]["acceptance_check_items"]
+    }
 
 
 def test_compiled_acceptance_mode_off_suppresses_compiled_diagnostics(
@@ -1709,10 +1733,24 @@ def test_reviewed_acceptance_append_adds_reviewed_checks(
         "Answer mentions llm-only.",
         "Answer defines the target consistency level.",
     ]
+    items = out["current_contract"]["acceptance_check_items"]
+    assert [item["text"] for item in items] == out["current_contract"][
+        "acceptance_checks"
+    ]
+    assert [item["source"] for item in items] == [
+        "adaptive_context",
+        "reviewed",
+    ]
+    assert [item["severity"] for item in items] == ["supporting", "core"]
     diagnostics = captured_trace["contract_diagnostics"]
     assert diagnostics["reviewed_acceptance_source"] == "reviewed"
     assert diagnostics["reviewed_acceptance_applied"] is True
     assert diagnostics["reviewed_acceptance_missing_from_final"] == []
+    assert diagnostics["acceptance_check_projection_match"] is True
+    assert diagnostics["acceptance_check_item_source_counts"] == {
+        "adaptive_context": 1,
+        "reviewed": 1,
+    }
 
 
 def test_reviewed_acceptance_modes_fallback_to_compiled_when_reviewed_missing(
@@ -1748,6 +1786,9 @@ def test_reviewed_acceptance_modes_fallback_to_compiled_when_reviewed_missing(
     assert "Answer explicitly covers seed consistency." in out["current_contract"][
         "acceptance_checks"
     ]
+    assert "compiled_fallback" in {
+        item["source"] for item in out["current_contract"]["acceptance_check_items"]
+    }
     diagnostics = captured_trace["contract_diagnostics"]
     assert diagnostics["reviewed_acceptance_source"] == "compiled_fallback"
     assert (

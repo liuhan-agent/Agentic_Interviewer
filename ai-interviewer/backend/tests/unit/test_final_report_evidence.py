@@ -209,6 +209,16 @@ def test_turn_evidence_preserves_full_dict_shape() -> None:
                     "evidence": ["5-min TTL"],
                 },
             },
+            "contract_gate_result": {
+                "gate_id": "reviewed_core_acceptance",
+                "mode": "enforce",
+                "status": "failed",
+                "would_pass": False,
+            },
+            "contract_gate_enforced": True,
+            "contract_gate_enforcement_reason": "reviewed_core_failed",
+            "contract_gate_failed_count": 1,
+            "contract_gate_failed_check_ids": ["reviewed:ttl"],
             "recommended_next": "advance",
             "recommended_next_plan": "adaptive",
         },
@@ -228,6 +238,12 @@ def test_turn_evidence_preserves_full_dict_shape() -> None:
     }
     assert evidence["score"] == 8.5
     assert evidence["selected_action"] == "plan_deep_probe"
+    assert evidence["contract_gate_result"]["status"] == "failed"
+    assert evidence["contract_gate_result"]["mode"] == "enforce"
+    assert evidence["contract_gate_enforced"] is True
+    assert evidence["contract_gate_enforcement_reason"] == "reviewed_core_failed"
+    assert evidence["contract_gate_failed_count"] == 1
+    assert evidence["contract_gate_failed_check_ids"] == ["reviewed:ttl"]
 
 
 def test_turn_evidence_preserves_depth_followup_metadata() -> None:

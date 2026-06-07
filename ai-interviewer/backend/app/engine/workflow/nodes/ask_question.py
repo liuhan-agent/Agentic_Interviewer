@@ -38,6 +38,12 @@ from app.engine.agents.contract import negotiate_contract_via_evaluator
 from app.engine.agents.generator import generate_question
 from app.engine.agents.security import check_question
 from app.engine.contracts.acceptance_compiler import compile_locked_acceptance_checks
+from app.engine.contracts.acceptance_items import (
+    acceptance_check_item_projection_diagnostics,
+    acceptance_check_items_from_structured,
+    append_acceptance_check_items,
+    ensure_contract_acceptance_items,
+)
 from app.engine.contracts.seed_contract import build_locked_core_contract
 from app.engine.context.history_context import build_history_context
 from app.engine.context.prompt_budget import (
@@ -2153,14 +2159,40 @@ def _apply_locked_core_contract(
     return locked  # type: ignore[return-value]
 
 
-def _compiled_acceptance_strings(
-    compiled_acceptance_checks: list[dict[str, Any]] | None,
-) -> list[str]:
-    return [
-        str(check.get("acceptance_check") or "").strip()
-        for check in (compiled_acceptance_checks or [])
-        if isinstance(check, dict) and str(check.get("acceptance_check") or "").strip()
-    ]
+def _acceptance_check_text(check: dict[str, Any]) -> str:
+    return str(check.get("acceptance_check") or "").strip()
+
+
+def _acceptance_check_coverage_text(check: dict[str, Any]) -> str:
+    source_text = str(check.get("source_text") or "").strip()
+    if source_text:
+        return source_text
+    return _acceptance_check_text(check)
+
+
+def _contract_text_contains_item(item: str, *, checks_text: str) -> bool:
+    item_norm = _normalise_contract_coverage_text(item)
+    checks_norm = _normalise_contract_coverage_text(checks_text)
+    return bool(item_norm and item_norm in checks_norm)
+
+
+def _acceptance_check_is_covered(
+    check: dict[str, Any],
+    *,
+    checks_text: str,
+    check_terms: set[str],
+) -> bool:
+    acceptance_check = _acceptance_check_text(check)
+    if acceptance_check and _contract_text_contains_item(
+        acceptance_check,
+        checks_text=checks_text,
+    ):
+        return True
+    return _contract_item_is_covered(
+        _acceptance_check_coverage_text(check),
+        checks_text=checks_text,
+        check_terms=check_terms,
+    )
 
 
 def _reviewed_acceptance_checks_for_runtime(
@@ -2191,9 +2223,14 @@ def _compiled_acceptance_append_candidates(
     checks_text = "\n".join(existing_checks)
     check_terms = _contract_coverage_terms(checks_text)
     candidates: list[str] = []
-    for acceptance_check in _compiled_acceptance_strings(compiled_acceptance_checks):
-        if _contract_item_is_covered(
-            acceptance_check,
+    for check in compiled_acceptance_checks or []:
+        if not isinstance(check, dict):
+            continue
+        acceptance_check = _acceptance_check_text(check)
+        if not acceptance_check:
+            continue
+        if _acceptance_check_is_covered(
+            check,
             checks_text=checks_text,
             check_terms=check_terms,
         ):
@@ -2205,18 +2242,54 @@ def _compiled_acceptance_append_candidates(
 def _append_compiled_acceptance_checks(
     contract: PlanContract,
     compiled_acceptance_checks: list[dict[str, Any]] | None,
+    *,
+    source: str = "compiled_fallback",
+    origin: str = "locked_core_compiler",
+    seed_ref: dict[str, Any] | None = None,
 ) -> tuple[PlanContract, list[str]]:
     append_candidates = _compiled_acceptance_append_candidates(
         contract,
         compiled_acceptance_checks,
     )
     if not append_candidates:
-        return contract, []
-    updated = dict(contract)
-    updated["acceptance_checks"] = _strings_for_trace(
-        contract.get("acceptance_checks")
-    ) + append_candidates
-    return updated, append_candidates  # type: ignore[return-value]
+        updated = ensure_contract_acceptance_items(contract)
+        return updated, []  # type: ignore[return-value]
+    candidate_set = set(append_candidates)
+    incoming_items = [
+        item
+        for item in acceptance_check_items_from_structured(
+            compiled_acceptance_checks or [],
+            source=source,
+            origin=origin,
+            seed_ref=seed_ref,
+        )
+        if item.get("text") in candidate_set
+    ]
+    updated, appended = append_acceptance_check_items(contract, incoming_items)
+    return updated, appended  # type: ignore[return-value]
+
+
+def _acceptance_checks_missing_from_text(
+    acceptance_checks: list[dict[str, Any]] | None,
+    *,
+    checks_text: str,
+    check_terms: set[str],
+) -> list[str]:
+    missing: list[str] = []
+    for check in acceptance_checks or []:
+        if not isinstance(check, dict):
+            continue
+        acceptance_check = _acceptance_check_text(check)
+        if not acceptance_check:
+            continue
+        if _acceptance_check_is_covered(
+            check,
+            checks_text=checks_text,
+            check_terms=check_terms,
+        ):
+            continue
+        missing.append(acceptance_check)
+    return missing
 
 
 def _reviewed_acceptance_source(
@@ -2439,22 +2512,13 @@ def _contract_diagnostics_for_trace(
     compiled_acceptance_present = bool(
         compiled_acceptance_enabled and compiled_acceptance_checks
     )
-    compiled_acceptance_strings = (
-        _compiled_acceptance_strings(compiled_acceptance_checks)
-        if compiled_acceptance_present
-        else []
-    )
     final_acceptance_text = "\n".join(acceptance_checks)
     final_acceptance_terms = _contract_coverage_terms(final_acceptance_text)
-    compiled_acceptance_missing_from_final = [
-        item
-        for item in compiled_acceptance_strings
-        if not _contract_item_is_covered(
-            item,
-            checks_text=final_acceptance_text,
-            check_terms=final_acceptance_terms,
-        )
-    ]
+    compiled_acceptance_missing_from_final = _acceptance_checks_missing_from_text(
+        compiled_acceptance_checks,
+        checks_text=final_acceptance_text,
+        check_terms=final_acceptance_terms,
+    )
     if compiled_acceptance_present:
         append_candidates = list(
             compiled_acceptance_append_candidates
@@ -2489,18 +2553,11 @@ def _contract_diagnostics_for_trace(
         reviewed_acceptance_checks=reviewed_runtime_checks,
         compiled_acceptance_checks=compiled_acceptance_checks,
     )
-    reviewed_acceptance_strings = _compiled_acceptance_strings(
-        reviewed_selected_checks
+    reviewed_acceptance_missing_from_final = _acceptance_checks_missing_from_text(
+        reviewed_selected_checks,
+        checks_text=final_acceptance_text,
+        check_terms=final_acceptance_terms,
     )
-    reviewed_acceptance_missing_from_final = [
-        item
-        for item in reviewed_acceptance_strings
-        if not _contract_item_is_covered(
-            item,
-            checks_text=final_acceptance_text,
-            check_terms=final_acceptance_terms,
-        )
-    ]
     reviewed_acceptance_warnings: list[str] = []
     if reviewed_acceptance_mode_enabled and reviewed_acceptance_source == "compiled_fallback":
         reviewed_acceptance_warnings.append(
@@ -2512,6 +2569,9 @@ def _contract_diagnostics_for_trace(
         reviewed_acceptance_warnings.append(
             "reviewed_acceptance_not_applied_after_rewrite"
         )
+    acceptance_item_diagnostics = acceptance_check_item_projection_diagnostics(
+        final_contract
+    )
 
     return {
         "source": source,
@@ -2524,6 +2584,7 @@ def _contract_diagnostics_for_trace(
         "uncovered_must_cover_items": uncovered_must_cover_items,
         "generic_items": generic_items,
         "warnings": warnings,
+        **acceptance_item_diagnostics,
         "contract_core_mode": contract_core_mode,
         "locked_core_present": locked_core_present,
         "locked_core_seed_ref": dict(locked_core.get("seed_ref") or {})
@@ -2839,6 +2900,11 @@ def ask_question_node(state: InterviewState) -> dict[str, Any]:
     if ctx.get("contract_core_mode") == "locked" and ctx.get("locked_core_contract"):
         contract = _apply_locked_core_contract(contract, ctx.get("locked_core_contract"))
         locked_core_applied = True
+    contract = ensure_contract_acceptance_items(
+        contract,
+        source="adaptive_context",
+        origin="negotiated_contract",
+    )  # type: ignore[assignment]
     compiled_acceptance_applied = False
     compiled_acceptance_append_candidates: list[str] | None = None
     reviewed_acceptance_source = _reviewed_acceptance_source(
@@ -2855,6 +2921,9 @@ def ask_question_node(state: InterviewState) -> dict[str, Any]:
             _append_compiled_acceptance_checks(
                 contract,
                 ctx.get("compiled_acceptance_checks"),
+                source="compiled_fallback",
+                origin="locked_core_compiler",
+                seed_ref=(ctx.get("locked_core_contract") or {}).get("seed_ref"),
             )
         )
         compiled_acceptance_applied = bool(compiled_acceptance_append_candidates)
@@ -2868,6 +2937,17 @@ def ask_question_node(state: InterviewState) -> dict[str, Any]:
             contract, reviewed_append_candidates = _append_compiled_acceptance_checks(
                 contract,
                 reviewed_acceptance_checks,
+                source=(
+                    "reviewed"
+                    if reviewed_acceptance_source == "reviewed"
+                    else "compiled_fallback"
+                ),
+                origin=(
+                    "question_variant"
+                    if reviewed_acceptance_source == "reviewed"
+                    else "locked_core_compiler"
+                ),
+                seed_ref=(ctx.get("locked_core_contract") or {}).get("seed_ref"),
             )
             reviewed_acceptance_applied = bool(reviewed_append_candidates)
             if reviewed_acceptance_source == "compiled_fallback":
@@ -2887,6 +2967,11 @@ def ask_question_node(state: InterviewState) -> dict[str, Any]:
             target_skills=ctx.get("target_skills") or [],
             target_difficulty=state.get("target_difficulty", "medium"),
         )
+        contract = ensure_contract_acceptance_items(
+            contract,
+            source="rewrite_fallback",
+            origin="rewrite_fallback",
+        )  # type: ignore[assignment]
         locked_core_applied = False
         compiled_acceptance_applied = False
         reviewed_acceptance_applied = False

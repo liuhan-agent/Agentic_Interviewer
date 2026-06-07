@@ -32,6 +32,84 @@ seeds:
         expected_signals: [能区分强一致和最终一致, 能讨论写穿/旁路/延迟双删等取舍, 能提出降级补偿]
         anti_patterns: [只说加锁不讨论吞吐, 只说用 Redis 不说明失效, 忽略异常重试和幂等]
         good_answer_hints: [先定义一致性目标, 再拆读写路径, 最后补充失败恢复和观测]
+        reviewed_acceptance_checks:
+          - check_id: reviewed:sd_cache_flash_sale:core_consistency_goal:v1
+            source: must_cover
+            source_text: 一致性目标
+            acceptance_check: 候选人明确区分强一致和最终一致，并说明秒杀库存中不可接受超卖、可权衡少卖或短暂展示延迟的边界。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: "2026-06-07"
+          - check_id: reviewed:sd_cache_flash_sale:core_invalidation:v1
+            source: must_cover
+            source_text: 失效策略
+            acceptance_check: 候选人说明缓存写入、删除、过期或延迟双删等失效策略，并指出可能产生不一致的时间窗口。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: "2026-06-07"
+          - check_id: reviewed:sd_cache_flash_sale:core_write_path:v1
+            source: must_cover
+            source_text: 写路径取舍
+            acceptance_check: 候选人描述 Redis、数据库、消息队列或扣减服务之间的写路径顺序，并解释吞吐、一致性和失败恢复的取舍。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: "2026-06-07"
+          - check_id: reviewed:sd_cache_flash_sale:core_degrade_compensation:v1
+            source: must_cover
+            source_text: 降级补偿
+            acceptance_check: 候选人给出缓存异常、消息失败或库存不一致时的限流、降级、补偿或人工处理方案。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: "2026-06-07"
+          - check_id: reviewed:sd_cache_flash_sale:support_invalidation_window:v1
+            source: rubric_addition
+            source_text: 说明缓存失效窗口
+            acceptance_check: 候选人能指出读旧、击穿、并发更新或双删间隔导致的具体失效窗口，而不是只说清缓存。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: "2026-06-07"
+          - check_id: reviewed:sd_cache_flash_sale:support_oversell_undersell:v1
+            source: rubric_addition
+            source_text: 说明超卖与少卖处理
+            acceptance_check: 候选人说明如何防止超卖，并解释少卖、占用释放或库存回补的处理策略。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: "2026-06-07"
+          - check_id: reviewed:sd_cache_flash_sale:support_metrics:v1
+            source: rubric_addition
+            source_text: 给出监控指标
+            acceptance_check: 候选人给出库存差异、缓存命中率、扣减失败率、MQ 积压或补偿任务失败等可观测指标。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: "2026-06-07"
         priority: 20
         status: active
       - id: system_design.cache_consistency.redis_failover_repair
@@ -48,6 +126,84 @@ seeds:
         expected_signals: [能区分读旧窗口和资金库存不变量, 能提出监控告警和对账任务, 能说明人工兜底边界]
         anti_patterns: [只说重试, 只清缓存不解释对账, 没有业务阻断策略]
         good_answer_hints: [先定义不可破坏的不变量, 再设计检测阻断修复三段流程]
+        reviewed_acceptance_checks:
+          - check_id: reviewed:sd_cache_failover:core_consistency_goal:v1
+            source: must_cover
+            source_text: 一致性目标
+            acceptance_check: 候选人明确故障切换期间库存、订单或资金类不变量，说明哪些场景必须阻断下单，哪些可最终一致修复。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: "2026-06-07"
+          - check_id: reviewed:sd_cache_failover:core_invalidation:v1
+            source: must_cover
+            source_text: 失效策略
+            acceptance_check: 候选人说明 Redis 主从切换、读旧或缓存污染后的失效、刷新、旁路读取或重建策略。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: "2026-06-07"
+          - check_id: reviewed:sd_cache_failover:core_write_path:v1
+            source: must_cover
+            source_text: 写路径取舍
+            acceptance_check: 候选人解释故障期间读缓存、读库、写库、写缓存之间的切换取舍，并说明对吞吐和一致性的影响。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: "2026-06-07"
+          - check_id: reviewed:sd_cache_failover:core_degrade_compensation:v1
+            source: must_cover
+            source_text: 降级补偿
+            acceptance_check: 候选人给出检测到读旧后的降级、阻断、异步对账、修复任务和人工兜底流程。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: "2026-06-07"
+          - check_id: reviewed:sd_cache_failover:support_detection_signal:v1
+            source: rubric_addition
+            source_text: 说明故障检测信号
+            acceptance_check: 候选人给出可触发处置的信号，如 Redis failover 事件、版本号倒退、库存差异、读写延迟或告警指标。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: "2026-06-07"
+          - check_id: reviewed:sd_cache_failover:support_block_or_degrade:v1
+            source: rubric_addition
+            source_text: 说明阻断或降级策略
+            acceptance_check: 候选人说明高风险商品或核心链路如何临时阻断、限流、切只读、回源或提示用户延迟。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: "2026-06-07"
+          - check_id: reviewed:sd_cache_failover:support_reconcile_repair:v1
+            source: rubric_addition
+            source_text: 说明异步对账和修复闭环
+            acceptance_check: 候选人说明故障恢复后如何跑库存对账、修复缓存和数据库差异，并验证修复结果。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: "2026-06-07"
         priority: 16
         status: active
 

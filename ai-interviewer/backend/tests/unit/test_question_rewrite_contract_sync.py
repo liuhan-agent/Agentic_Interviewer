@@ -238,8 +238,18 @@ def test_duplicate_rewrite_takes_precedence_over_locked_core_contract(monkeypatc
     assert out["current_question"]["duplicate_rewrite"] is True
     contract = out["current_contract"]
     assert contract["must_cover"] != ["seed consistency"]
+    assert [item["text"] for item in contract["acceptance_check_items"]] == (
+        contract["acceptance_checks"]
+    )
+    assert {item["source"] for item in contract["acceptance_check_items"]} == {
+        "rewrite_fallback"
+    }
     diagnostics = traced_payloads[-1]["contract_diagnostics"]
     assert diagnostics["source"] == "rewrite_fallback"
+    assert diagnostics["acceptance_check_projection_match"] is True
+    assert diagnostics["acceptance_check_item_source_counts"] == {
+        "rewrite_fallback": len(contract["acceptance_checks"])
+    }
     assert diagnostics["locked_core_present"] is True
     assert diagnostics["locked_core_applied"] is False
     assert "locked_core_not_applied_after_rewrite" in diagnostics["locked_core_warnings"]

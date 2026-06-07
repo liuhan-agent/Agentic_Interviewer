@@ -20,6 +20,7 @@ Tunable knobs live in :mod:`app.core.settings`::
     reward_acceptance_no_rate_threshold    (default 0.5)
     reward_acceptance_no_penalty           (default 0.10)
     reward_verifier_forced_refine_penalty  (default 0.15)
+    reward_contract_gate_enforced_cap      (default 0.50)
 
 Defaults preserve the historic hard-coded behaviour *when no contract
 metadata is present*, so existing bandit checkpoints keep their
@@ -85,6 +86,9 @@ def immediate_reward(
     - ``reward_verifier_forced_refine_penalty`` when the Verifier
       flipped a pass into a refine (the evaluator was overly
       generous).
+    - ``reward_contract_gate_enforced_cap`` caps the reward when a
+      reviewed-core contract gate forced the turn to refine even if the
+      raw score stayed high.
     """
     s = get_settings()
     score = float(evaluation.get("score", 0.0))
@@ -116,4 +120,8 @@ def immediate_reward(
     if evaluation.get("verifier_forced_refine"):
         penalty += float(s.reward_verifier_forced_refine_penalty)
 
-    return max(0.0, min(1.0, base - penalty))
+    reward = max(0.0, min(1.0, base - penalty))
+    if evaluation.get("contract_gate_enforced"):
+        cap = max(0.0, min(1.0, float(s.reward_contract_gate_enforced_cap)))
+        reward = min(reward, cap)
+    return reward

@@ -518,6 +518,18 @@ def _turn_evidence(qa: dict[str, Any]) -> dict[str, Any]:
         "system_warnings": _system_warnings(evaluation),
         "rubric_coverage": evaluation.get("rubric_coverage") or {},
         "acceptance_checks": evaluation.get("acceptance_check_results") or {},
+        "acceptance_check_result_items": (
+            evaluation.get("acceptance_check_result_items") or []
+        ),
+        "contract_gate_result": evaluation.get("contract_gate_result") or {},
+        "contract_gate_enforced": bool(evaluation.get("contract_gate_enforced")),
+        "contract_gate_enforcement_reason": (
+            evaluation.get("contract_gate_enforcement_reason")
+        ),
+        "contract_gate_failed_count": evaluation.get("contract_gate_failed_count"),
+        "contract_gate_failed_check_ids": (
+            evaluation.get("contract_gate_failed_check_ids") or []
+        ),
         "recommended_next": evaluation.get("recommended_next"),
         "recommended_next_plan": evaluation.get("recommended_next_plan"),
         "soft_warnings": evaluation.get("soft_warnings") or [],

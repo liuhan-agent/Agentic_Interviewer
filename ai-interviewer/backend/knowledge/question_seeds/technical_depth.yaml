@@ -32,6 +32,84 @@ seeds:
         expected_signals: [能定义本地事务内必须原子完成的写入, 能设计业务幂等键和唯一约束, 能说明对账和人工修复入口]
         anti_patterns: [把所有下游调用放进同一个事务, 只依赖前端防重, 失败后没有可追踪记录]
         good_answer_hints: [先固定订单和资金不变量, 再拆同步事务与异步副作用, 最后补审计对账]
+        reviewed_acceptance_checks:
+          - check_id: reviewed:td_tx_order_boundary:core_tx_boundary:v1
+            source: must_cover
+            source_text: 事务边界
+            acceptance_check: 候选人明确划分本地事务内的订单、流水或扣款写入与事务外通知等副作用，不把所有下游调用塞进同一个事务。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: "2026-06-07"
+          - check_id: reviewed:td_tx_order_boundary:core_idempotency:v1
+            source: must_cover
+            source_text: 幂等控制
+            acceptance_check: 候选人说明重复支付、重复回调或客户端重试时，服务端通过业务幂等键、唯一约束或状态机保证请求只生效一次。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: "2026-06-07"
+          - check_id: reviewed:td_tx_order_boundary:core_async_compensation:v1
+            source: must_cover
+            source_text: 异步补偿
+            acceptance_check: 候选人给出事务外副作用失败后的异步重试或补偿流程，并区分可重试失败与不可重试失败。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: "2026-06-07"
+          - check_id: reviewed:td_tx_order_boundary:core_reconciliation:v1
+            source: must_cover
+            source_text: 对账修复
+            acceptance_check: 候选人说明通过审计记录、对账任务或人工修复入口发现并修复订单、流水或资金状态不一致。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: "2026-06-07"
+          - check_id: reviewed:td_tx_order_boundary:support_invariant:v1
+            source: rubric_addition
+            source_text: 说明核心不变量
+            acceptance_check: 候选人明确订单状态、资金流水或扣款结果中不可破坏的不变量，并围绕这些不变量设计事务和补偿。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: "2026-06-07"
+          - check_id: reviewed:td_tx_order_boundary:support_side_effect_boundary:v1
+            source: rubric_addition
+            source_text: 说明事务内外副作用边界
+            acceptance_check: 候选人指出哪些写入必须随本地事务原子提交，哪些通知、积分或外部调用应作为事务外副作用处理。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: "2026-06-07"
+          - check_id: reviewed:td_tx_order_boundary:support_retry_repair:v1
+            source: rubric_addition
+            source_text: 说明重复请求和补偿修复
+            acceptance_check: 候选人覆盖重复请求的同结果返回，以及补偿任务执行后的状态校验、回放或人工复核。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: "2026-06-07"
         priority: 20
         status: active
       - id: technical_depth.java_transaction_consistency.outbox_compensation
@@ -48,6 +126,84 @@ seeds:
         expected_signals: [能区分主不变量和副作用, 能说明至少一次投递下的幂等消费, 能给出对账和补偿任务]
         anti_patterns: [同步调用所有下游, 副作用失败无记录, 重放导致重复入账]
         good_answer_hints: [先说明 outbox 记录与业务写入同事务, 再说明投递重试和消费幂等, 最后说明补偿闭环]
+        reviewed_acceptance_checks:
+          - check_id: reviewed:td_tx_outbox:core_tx_boundary:v1
+            source: must_cover
+            source_text: 事务边界
+            acceptance_check: 候选人明确主交易写入与 outbox 记录必须在同一个本地事务中提交，外部投递不应放进主事务。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: "2026-06-07"
+          - check_id: reviewed:td_tx_outbox:core_idempotency:v1
+            source: must_cover
+            source_text: 幂等控制
+            acceptance_check: 候选人说明消息消费者用业务唯一键、消费记录或唯一约束保证至少一次投递下不会重复入账或重复发放。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: "2026-06-07"
+          - check_id: reviewed:td_tx_outbox:core_async_compensation:v1
+            source: must_cover
+            source_text: 异步补偿
+            acceptance_check: 候选人设计 outbox 扫描、投递重试、重放或补偿任务，并说明失败记录如何继续推进。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: "2026-06-07"
+          - check_id: reviewed:td_tx_outbox:core_reconciliation:v1
+            source: must_cover
+            source_text: 对账修复
+            acceptance_check: 候选人说明如何用 outbox 状态、业务流水和下游结果做对账，并提供人工兜底修复路径。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: "2026-06-07"
+          - check_id: reviewed:td_tx_outbox:support_atomic_outbox:v1
+            source: rubric_addition
+            source_text: 说明 outbox 与主事务的原子关系
+            acceptance_check: 候选人明确 outbox 事件和业务状态同库同事务写入，避免主交易成功但事件完全丢失。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: "2026-06-07"
+          - check_id: reviewed:td_tx_outbox:support_replay_idempotency:v1
+            source: rubric_addition
+            source_text: 说明消费者幂等和重放
+            acceptance_check: 候选人说明重放消息时如何避免重复副作用，并给出消费成功、失败、处理中等状态处理。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: "2026-06-07"
+          - check_id: reviewed:td_tx_outbox:support_observe_manual_repair:v1
+            source: rubric_addition
+            source_text: 说明失败可观测与人工修复
+            acceptance_check: 候选人给出失败事件的监控、告警、重试上限和人工处理入口，而不是让失败副作用静默丢失。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: "2026-06-07"
         priority: 17
         status: active
 

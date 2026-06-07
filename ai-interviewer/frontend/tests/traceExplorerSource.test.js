@@ -185,6 +185,8 @@ test("trace explorer detail pane uses Chinese keys for backend evidence fields",
   assert.match(component, /value=\{node\.answer_excerpt\}/);
   assert.match(component, /评估证据/);
   assert.match(component, /EvaluatorScoringBasis/);
+  assert.match(component, /AcceptanceCheckItemsList/);
+  assert.match(component, /acceptance_check_items/);
   assert.match(component, /评分依据/);
   assert.match(component, /展开评分依据明细/);
   assert.match(component, /EvidenceList label="覆盖要求" values=\{mustCover\}/);
@@ -205,6 +207,14 @@ test("trace explorer detail pane uses Chinese keys for backend evidence fields",
   assert.doesNotMatch(component, /EvidenceList label="rubric_coverage"/);
   assert.match(component, /acceptance_check_results/);
   assert.match(component, /AcceptanceCheckResults/);
+  assert.match(component, /acceptance_check_result_items/);
+  assert.match(component, /AcceptanceCheckResultItemsList/);
+  assert.match(component, /contract_gate_result/);
+  assert.match(component, /ContractGateResultPanel/);
+  assert.match(component, /Reviewed core gate/);
+  assert.match(component, /contract_gate_enforced/);
+  assert.match(component, /contract_gate_enforcement_reason/);
+  assert.match(component, /contract_gate_failed_check_ids/);
   assert.match(component, /<AcceptanceCheckResults results=\{acceptanceCheckResults\} \/>/);
   assert.match(component, /yes \/ partial \/ no/);
   assert.match(component, /acceptanceVerdictBadgeClass/);
@@ -873,6 +883,13 @@ test("trace explorer search covers structured ask_question evidence fields", () 
   assert.match(component, /record\.contract_diagnostics/);
   assert.match(component, /record\.contract/);
   assert.match(component, /acceptance_checks/);
+  assert.match(component, /contract\.acceptance_check_items/);
+  assert.match(component, /acceptance_check_result_items/);
+  assert.match(component, /addAcceptanceCheckItemSearchFields/);
+  assert.match(component, /addContractGateResultSearchFields/);
+  assert.match(component, /contract_gate_enforced/);
+  assert.match(component, /contract_gate_enforcement_reason/);
+  assert.match(component, /contract_gate_failed_check_ids/);
   assert.match(component, /review_focus/);
   assert.match(component, /candidate anchor RAG diagnostics/);
   assert.match(component, /candidateAnchorRag\.anchor_terms/);

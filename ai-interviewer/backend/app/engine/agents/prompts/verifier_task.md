@@ -27,6 +27,15 @@ Guidelines:
 - Use CONTRACT as-is; do not invent new criteria.
 - Use "pass" only when the evaluator verdict is supported and every
   must_cover item has at least partial coverage.
+- If CONTRACT.acceptance_check_items_for_prompt is present, use its
+  source/severity/check_id metadata as audit context:
+  - reviewed/core receives highest scrutiny. If evaluator evidence for
+    a reviewed/core item is empty, off-topic, only partial, or not
+    actually supported by CANDIDATE_ANSWER, return "partial" or "fail".
+  - reviewed/supporting is audited supporting evidence.
+  - adaptive_context is a resume/JD/question-context supplement.
+  - compiled_fallback and rewrite_fallback are system-generated or
+    fallback checks.
 - Inspect EVALUATOR_REPORT.acceptance_check_results[*].evidence. If a
   "yes" quote is empty, off-topic, buzzword-only, or contradicted by
   nearby answer context, return "partial" or "fail" and cite it.
