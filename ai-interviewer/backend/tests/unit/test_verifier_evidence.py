@@ -28,6 +28,7 @@ import json
 from typing import Any
 
 from app.engine.agents import verification as verif_mod
+from app.engine.contracts.acceptance_items import contract_for_source_aware_scoring
 from app.engine.agents.verification import should_trigger
 from app.engine.workflow.nodes.verification import _apply_verification
 
@@ -240,6 +241,54 @@ def test_verify_answer_forwards_evidence_into_verifier_prompt(monkeypatch) -> No
     assert "we prefer availability under partitions" in user_text
     # And the verdict label must still be present alongside it.
     assert '"verdict": "yes"' in user_text or '"verdict":"yes"' in user_text
+
+
+def test_verify_answer_includes_source_aware_contract_metadata(
+    monkeypatch,
+) -> None:
+    captured: dict[str, Any] = {}
+
+    def fake_call(messages, *, json_mode=False, **kwargs):  # type: ignore[no-untyped-def]
+        captured["messages"] = messages
+        return json.dumps({"verdict": "pass", "confidence": 0.9})
+
+    monkeypatch.setattr(verif_mod, "call_chat", fake_call)
+    contract = contract_for_source_aware_scoring(
+        _base_contract(
+            acceptance_check_items=[
+                {
+                    "check_id": "reviewed:tradeoff",
+                    "text": "Names a trade-off.",
+                    "source": "reviewed",
+                    "severity": "core",
+                }
+            ],
+        )
+    )
+
+    result = verif_mod.verify_answer(
+        dimension="system_design",
+        question="What's your stance on CAP?",
+        answer="We trade consistency for availability.",
+        contract=contract,
+        evaluator_report=_evaluation(
+            acceptance={
+                "Names a trade-off.": {
+                    "verdict": "yes",
+                    "evidence": ["trade consistency for availability"],
+                }
+            }
+        ),
+    )
+
+    assert result["verdict"] == "pass"
+    user_text = captured["messages"][1].content
+    assert '"acceptance_check_items_for_prompt"' in user_text
+    assert '"check_id": "reviewed:tradeoff"' in user_text
+    assert '"source": "reviewed"' in user_text
+    assert '"severity": "core"' in user_text
+    assert "reviewed/core" in user_text
+    assert "highest scrutiny" in user_text
 
 
 def test_verify_answer_still_works_with_legacy_shape_evaluator_report(

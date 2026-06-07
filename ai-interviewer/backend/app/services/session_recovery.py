@@ -30,6 +30,17 @@ class RecoveryService:
             log.debug("checkpoint probe for %s: %s", session_id, e)
             return False
 
+    def checkpoint_values(self, session_id: str) -> dict[str, Any] | None:
+        """Return checkpoint values without requiring a specific next node."""
+        try:
+            state = self._workflow.get_state(_graph_config_for_session(session_id))
+        except Exception as e:
+            log.warning("checkpoint values lookup failed for %s: %s", session_id, e)
+            return None
+
+        values = getattr(state, "values", None) or {}
+        return values if isinstance(values, dict) and values else None
+
     def checkpoint_retryable_question_failure(self, session_id: str) -> bool:
         """Return whether question generation can be safely retried."""
         try:

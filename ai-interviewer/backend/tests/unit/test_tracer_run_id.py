@@ -249,6 +249,23 @@ def test_trace_evaluator_records_current_contract_payload(
                 "evidence": ["zero downtime"],
             }
         },
+        "acceptance_check_result_items": [
+            {
+                "check_id": "reviewed:zero-downtime",
+                "text": "Answer explains zero-downtime migration.",
+                "source": "reviewed",
+                "severity": "core",
+                "verdict": "yes",
+                "evidence": ["zero downtime"],
+                "result_present": True,
+            }
+        ],
+        "contract_gate_result": {
+            "gate_id": "reviewed_core_acceptance",
+            "mode": "shadow",
+            "status": "passed",
+            "would_pass": True,
+        },
         "recommended_next": "advance",
         "recommended_next_plan": "adaptive",
         "recommended_probe_intent": "evidence_probe",
@@ -273,6 +290,12 @@ def test_trace_evaluator_records_current_contract_payload(
             "evidence": ["zero downtime"],
         }
     }
+    assert payload["acceptance_check_result_items"][0]["check_id"] == (
+        "reviewed:zero-downtime"
+    )
+    assert payload["acceptance_check_result_items"][0]["source"] == "reviewed"
+    assert payload["contract_gate_result"]["status"] == "passed"
+    assert payload["contract_gate_result"]["mode"] == "shadow"
     assert payload["recommended_next_plan"] == "adaptive"
 
 

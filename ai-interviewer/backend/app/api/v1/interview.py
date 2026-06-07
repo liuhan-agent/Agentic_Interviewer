@@ -1147,15 +1147,23 @@ def _public_current_question(current_question: Any) -> Any:
 
 
 def _checkpoint_values_for_resume(manager: Any, session_id: str) -> dict[str, Any]:
-    checkpoint_waiting = getattr(manager, "_checkpoint_waiting_question", None)
-    if not callable(checkpoint_waiting):
-        return {}
-    try:
-        values = checkpoint_waiting(session_id)
-    except Exception as e:
-        log.debug("resume checkpoint lookup failed for %s: %s", session_id, e)
-        return {}
-    return values if isinstance(values, dict) else {}
+    for attr in ("_checkpoint_values", "_checkpoint_waiting_question"):
+        checkpoint_reader = getattr(manager, attr, None)
+        if not callable(checkpoint_reader):
+            continue
+        try:
+            values = checkpoint_reader(session_id)
+        except Exception as e:
+            log.debug(
+                "resume checkpoint lookup via %s failed for %s: %s",
+                attr,
+                session_id,
+                e,
+            )
+            continue
+        if isinstance(values, dict) and values:
+            return values
+    return {}
 
 
 def _self_intro_history_payload(

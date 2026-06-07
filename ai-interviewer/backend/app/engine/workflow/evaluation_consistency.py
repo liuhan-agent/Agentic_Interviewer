@@ -156,7 +156,11 @@ def normalize_evaluation_consistency(
         return out
 
     if hard_gap:
-        if out.get("passed") or out.get("recommended_next") != "refine":
+        if (
+            out.get("passed")
+            or out.get("recommended_next") != "refine"
+            or (score is not None and score >= quality_threshold)
+        ):
             _mark_normalized(out, "required_evidence_missing")
         out["passed"] = False
         out["recommended_next"] = "refine"
@@ -168,13 +172,18 @@ def normalize_evaluation_consistency(
             )
         return out
 
-    if score is not None and score >= quality_threshold and enough_coverage:
+    if score is not None and score >= quality_threshold:
         if (
             not out.get("passed")
             or out.get("recommended_next") != "advance"
             or str(out.get("recommended_next_plan") or "") in _REFINE_NEXT_PLANS
         ):
-            _mark_normalized(out, "score_and_coverage_promoted_pass")
+            reason = (
+                "score_and_coverage_promoted_pass"
+                if enough_coverage
+                else "score_without_hard_blocker_promoted_pass"
+            )
+            _mark_normalized(out, reason)
         out["passed"] = True
         out["recommended_next"] = "advance"
         if str(out.get("recommended_next_plan") or "") in _REFINE_NEXT_PLANS:

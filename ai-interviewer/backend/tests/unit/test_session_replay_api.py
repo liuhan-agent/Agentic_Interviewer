@@ -87,6 +87,20 @@ class _ResumeManagerWithCheckpointIntro(_ResumeManager):
         }
 
 
+class _ResumeManagerWithNonWaitingCheckpointIntro(_ResumeManager):
+    def _checkpoint_waiting_question(self, session_id: str) -> dict | None:
+        return None
+
+    def _checkpoint_values(self, session_id: str) -> dict | None:
+        if session_id != "sess-replay":
+            return None
+        return {
+            "current_question": {},
+            "turn_idx": self.handle.turn_idx,
+            "self_intro_answer": "I am a backend engineer focused on Redis and workflow systems.",
+        }
+
+
 class _ResumeManagerWithCheckpointHistory(_ResumeManager):
     def _checkpoint_waiting_question(self, session_id: str) -> dict | None:
         if session_id != "sess-replay":
@@ -1207,6 +1221,25 @@ def test_resume_history_includes_self_intro_without_counting_it_as_a_question(
     assert history[0]["turn_idx"] is None
     assert history[0]["answer"].startswith("I am a backend engineer")
     assert history[1]["turn_idx"] == 0
+
+
+def test_resume_history_includes_self_intro_while_next_question_is_generating(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    with _isolated_db(monkeypatch) as testing_session_local:
+        _seed_session(testing_session_local, status="interrupted")
+        client = _client_with_manager(
+            monkeypatch,
+            _ResumeManagerWithNonWaitingCheckpointIntro(),
+        )
+
+        resp = client.get("/api/v1/interview/sessions/sess-replay/resume")
+
+    assert resp.status_code == 200
+    history = resp.json()["history"]
+    assert history[0]["question_type"] == "self_intro"
+    assert history[0]["turn_idx"] is None
+    assert history[0]["answer"].startswith("I am a backend engineer")
 
 
 def test_resume_history_uses_formal_turn_indexes_and_skips_current_question(

@@ -27,6 +27,16 @@ def test_checkpoint_exists_treats_empty_values_as_missing() -> None:
     assert service.checkpoint_exists("sess-missing") is False
 
 
+def test_checkpoint_values_returns_state_without_next_node_restriction() -> None:
+    values = {
+        "self_intro_answer": "I build backend systems.",
+        "current_question": {},
+    }
+    service = RecoveryService(_Workflow(values=values, next_nodes=("ask_question",)))
+
+    assert service.checkpoint_values("sess-generating") == values
+
+
 def test_waiting_question_returns_values_only_at_wait_answer() -> None:
     values = {
         "current_question": {"question": "Q?"},
@@ -108,6 +118,7 @@ def test_checkpoint_probe_failures_return_safe_defaults() -> None:
     service = RecoveryService(_ExplodingWorkflow())
 
     assert service.checkpoint_exists("sess") is False
+    assert service.checkpoint_values("sess") is None
     assert service.checkpoint_waiting_question("sess") is None
     assert service.checkpoint_retryable_question_failure("sess") is False
     assert service.checkpoint_retryable_evaluator_failure("sess") is False

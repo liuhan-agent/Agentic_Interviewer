@@ -3080,6 +3080,7 @@ function EvaluatorScoringBasis({ node }: { node: TraceExplorerNode }) {
   const rubricPoints = stringList(payload.rubric_points);
   const mustCover = stringList(contract.must_cover);
   const acceptanceChecks = stringList(contract.acceptance_checks);
+  const acceptanceCheckItems = recordArray(contract.acceptance_check_items);
   const reviewFocus = stringList(contract.review_focus);
   const signedBy = stringList(payload.signed_by);
   const contractSignedBy = stringList(contract.signed_by);
@@ -3144,9 +3145,10 @@ function EvaluatorScoringBasis({ node }: { node: TraceExplorerNode }) {
             </summary>
             <div className="mt-2 grid gap-3 xl:grid-cols-2">
               <EvidenceList label="覆盖要求" values={mustCover} />
-              <EvidenceList
+              <AcceptanceCheckItemsList
                 label="验收检查"
                 values={acceptanceChecks}
+                items={acceptanceCheckItems}
               />
               <EvidenceList
                 label="最低门槛"
@@ -3223,6 +3225,37 @@ function EvaluationEvidence({ node }: { node: TraceExplorerNode }) {
     evaluation.acceptance_check_results,
     payload.acceptance_check_results,
   );
+  const evaluationAcceptanceCheckResultItems = recordArray(
+    evaluation.acceptance_check_result_items,
+  );
+  const payloadAcceptanceCheckResultItems = recordArray(
+    payload.acceptance_check_result_items,
+  );
+  const acceptanceCheckResultItems =
+    evaluationAcceptanceCheckResultItems.length > 0
+      ? evaluationAcceptanceCheckResultItems
+      : payloadAcceptanceCheckResultItems;
+  const evaluationContractGateResult = recordFromUnknown(
+    evaluation.contract_gate_result,
+  );
+  const payloadContractGateResult = recordFromUnknown(payload.contract_gate_result);
+  const contractGateResult =
+    Object.keys(evaluationContractGateResult).length > 0
+      ? evaluationContractGateResult
+      : payloadContractGateResult;
+  const hasContractGateResult = Object.keys(contractGateResult).length > 0;
+  const contractGateEnforcement = {
+    contract_gate_enforced:
+      evaluation.contract_gate_enforced ?? payload.contract_gate_enforced,
+    contract_gate_enforcement_reason:
+      evaluation.contract_gate_enforcement_reason ??
+      payload.contract_gate_enforcement_reason,
+    contract_gate_failed_count:
+      evaluation.contract_gate_failed_count ?? payload.contract_gate_failed_count,
+    contract_gate_failed_check_ids:
+      evaluation.contract_gate_failed_check_ids ??
+      payload.contract_gate_failed_check_ids,
+  };
   const strengths = stringList(evaluation.strengths);
   const weaknesses = stringList(evaluation.weaknesses);
   const rationale =
@@ -3235,6 +3268,8 @@ function EvaluationEvidence({ node }: { node: TraceExplorerNode }) {
     strengths.length === 0 &&
     weaknesses.length === 0 &&
     Object.keys(acceptanceCheckResults).length === 0 &&
+    acceptanceCheckResultItems.length === 0 &&
+    !hasContractGateResult &&
     !rationale &&
     typeof node.immediate_reward_applied !== "boolean"
   ) {
@@ -3263,9 +3298,21 @@ function EvaluationEvidence({ node }: { node: TraceExplorerNode }) {
           <EvidenceList label="不足" values={weaknesses} />
         </div>
       )}
-      {Object.keys(acceptanceCheckResults).length > 0 && (
+      {hasContractGateResult && (
         <div className="mt-3">
-          <AcceptanceCheckResults results={acceptanceCheckResults} />
+          <ContractGateResultPanel
+            result={contractGateResult}
+            enforcement={contractGateEnforcement}
+          />
+        </div>
+      )}
+      {(acceptanceCheckResultItems.length > 0 ||
+        Object.keys(acceptanceCheckResults).length > 0) && (
+        <div className="mt-3">
+          <AcceptanceCheckResultItemsList
+            items={acceptanceCheckResultItems}
+            fallbackResults={acceptanceCheckResults}
+          />
         </div>
       )}
     </section>
@@ -3541,6 +3588,7 @@ function AskQuestionEvidencePanelV2({ node }: { node: TraceExplorerNode }) {
   const contractWarnings = stringList(contractDiagnostics.warnings);
   const contractMustCover = stringList(contract.must_cover);
   const contractAcceptanceChecks = stringList(contract.acceptance_checks);
+  const contractAcceptanceCheckItems = recordArray(contract.acceptance_check_items);
   const contractReviewFocus = stringList(contract.review_focus);
   const contractBarLevel =
     stringValue(contractDiagnostics.bar_level) ||
@@ -3820,9 +3868,10 @@ function AskQuestionEvidencePanelV2({ node }: { node: TraceExplorerNode }) {
             </summary>
             <div className="mt-2 grid gap-3 xl:grid-cols-2">
               <EvidenceList label="must_cover" values={contractMustCover} />
-              <EvidenceList
+              <AcceptanceCheckItemsList
                 label="acceptance_checks"
                 values={contractAcceptanceChecks}
+                items={contractAcceptanceCheckItems}
               />
               <EvidenceList
                 label="minimum_bar"
@@ -5080,6 +5129,66 @@ function EvidenceList({ label, values }: { label: string; values: string[] }) {
   );
 }
 
+function AcceptanceCheckItemsList({
+  label,
+  values,
+  items,
+}: {
+  label: string;
+  values: string[];
+  items: Record<string, unknown>[];
+}) {
+  const visibleItems = items.filter(
+    (item) => stringValue(item.text) || stringValue(item.acceptance_check),
+  );
+  if (visibleItems.length === 0) {
+    return <EvidenceList label={label} values={values} />;
+  }
+
+  return (
+    <div>
+      <p className="font-mono text-[10px] uppercase tracking-wider text-muted-foreground">
+        {label}
+      </p>
+      <div className="mt-1 space-y-2">
+        {visibleItems.map((item, idx) => {
+          const text = stringValue(item.text) || stringValue(item.acceptance_check);
+          const source = stringValue(item.source) || "source -";
+          const severity = stringValue(item.severity) || "supporting";
+          const checkId = stringValue(item.check_id);
+          const sourceText = stringValue(item.source_text);
+          const origin = stringValue(item.origin);
+          return (
+            <div
+              key={`${checkId || text}-${idx}`}
+              className="rounded-md border bg-background/50 p-2"
+            >
+              <div className="flex flex-wrap items-start justify-between gap-2">
+                <p className="min-w-0 flex-1 break-words font-medium">{text}</p>
+                <div className="flex flex-wrap justify-end gap-1">
+                  <Badge variant="outline" className="font-mono text-[10px]">
+                    {source}
+                  </Badge>
+                  <Badge variant="outline" className="font-mono text-[10px]">
+                    {severity}
+                  </Badge>
+                </div>
+              </div>
+              {(checkId || sourceText || origin) && (
+                <div className="mt-1 flex flex-wrap gap-x-3 gap-y-1 font-mono text-[10px] text-muted-foreground">
+                  {checkId && <span>check_id: {checkId}</span>}
+                  {origin && <span>origin: {origin}</span>}
+                  {sourceText && <span>source_text: {sourceText}</span>}
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 function AcceptanceCheckResults({
   results,
 }: {
@@ -5118,6 +5227,200 @@ function AcceptanceCheckResults({
                   <ul className="mt-2 list-disc space-y-1 pl-4">
                     {evidenceQuotes.map((quote, idx) => (
                       <li key={idx} className="break-words">
+                        {quote}
+                      </li>
+                    ))}
+                  </ul>
+                </details>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </details>
+  );
+}
+
+function ContractGateResultPanel({
+  result,
+  enforcement,
+}: {
+  result: Record<string, unknown>;
+  enforcement?: Record<string, unknown>;
+}) {
+  const status = stringValue(result.status);
+  if (!status) return null;
+  const failedItems = recordArray(result.failed_items);
+  const wouldPass = result.would_pass;
+  const enforced = enforcement?.contract_gate_enforced === true;
+  const enforcementReason = stringValue(
+    enforcement?.contract_gate_enforcement_reason,
+  );
+  const failedCheckIds = stringList(enforcement?.contract_gate_failed_check_ids);
+  const badgeVariant =
+    status === "failed" ? "warn" : status === "passed" ? "success" : "outline";
+
+  return (
+    <details className="rounded-md border border-amber-500/25 bg-amber-500/[0.035] p-2">
+      <summary className="cursor-pointer select-none font-medium">
+        Reviewed core gate{" "}
+        <span className="font-mono">contract_gate_result</span>
+      </summary>
+      <div className="mt-2 grid gap-2 md:grid-cols-2 lg:grid-cols-3">
+        <NodeFact label="status" value={status} />
+        <NodeFact
+          label="would_pass"
+          value={
+            typeof wouldPass === "boolean"
+              ? formatBooleanValue(wouldPass)
+              : "not_applicable"
+          }
+        />
+        <NodeFact label="mode" value={stringValue(result.mode) || "shadow"} />
+        <NodeFact
+          label="contract_gate_enforced"
+          value={formatBooleanValue(enforced)}
+        />
+        {enforcementReason && (
+          <NodeFact
+            label="contract_gate_enforcement_reason"
+            value={enforcementReason}
+          />
+        )}
+        <NodeFact
+          label="eligible"
+          value={formatCountValue(result.eligible_count)}
+        />
+        <NodeFact
+          label="satisfied"
+          value={formatCountValue(result.satisfied_count)}
+        />
+        <NodeFact label="failed" value={formatCountValue(result.failed_count)} />
+      </div>
+      <div className="mt-2 flex flex-wrap gap-1.5">
+        <Badge variant={badgeVariant} className="font-mono text-[10px]">
+          {status}
+        </Badge>
+        <Badge variant="outline" className="font-mono text-[10px]">
+          partial {formatCountValue(result.partial_count)}
+        </Badge>
+        <Badge variant="outline" className="font-mono text-[10px]">
+          no {formatCountValue(result.no_count)}
+        </Badge>
+        <Badge variant="outline" className="font-mono text-[10px]">
+          missing {formatCountValue(result.missing_count)}
+        </Badge>
+        {enforced && (
+          <Badge variant="warn" className="font-mono text-[10px]">
+            enforced
+          </Badge>
+        )}
+      </div>
+      {failedCheckIds.length > 0 && (
+        <EvidenceList
+          label="contract_gate_failed_check_ids"
+          values={failedCheckIds}
+        />
+      )}
+      {failedItems.length > 0 && (
+        <div className="mt-2 space-y-2">
+          {failedItems.map((item, idx) => (
+            <div
+              key={`${stringValue(item.check_id) || stringValue(item.text)}-${idx}`}
+              className="rounded-md border bg-background/50 p-2"
+            >
+              <div className="flex flex-wrap items-start justify-between gap-2">
+                <p className="min-w-0 flex-1 break-words font-medium">
+                  {stringValue(item.text) || "gate item"}
+                </p>
+                <Badge variant="warn" className="font-mono text-[10px]">
+                  {stringValue(item.reason) || "failed"}
+                </Badge>
+              </div>
+              <p className="mt-1 break-words font-mono text-[10px] text-muted-foreground">
+                {[
+                  stringValue(item.check_id)
+                    ? `check_id: ${stringValue(item.check_id)}`
+                    : "",
+                  stringValue(item.verdict)
+                    ? `verdict: ${stringValue(item.verdict)}`
+                    : "verdict: missing",
+                  `evidence_count: ${formatCountValue(item.evidence_count)}`,
+                ]
+                  .filter(Boolean)
+                  .join(" | ")}
+              </p>
+            </div>
+          ))}
+        </div>
+      )}
+    </details>
+  );
+}
+
+function AcceptanceCheckResultItemsList({
+  items,
+  fallbackResults,
+}: {
+  items: Record<string, unknown>[];
+  fallbackResults: Record<string, unknown>;
+}) {
+  const visibleItems = items.filter((item) => stringValue(item.text));
+  if (visibleItems.length === 0) {
+    const acceptanceCheckResults = fallbackResults;
+    return <AcceptanceCheckResults results={acceptanceCheckResults} />;
+  }
+
+  return (
+    <details className="rounded-md border bg-background/45 p-2">
+      <summary className="cursor-pointer select-none font-medium">
+        展开验收检查 <span className="font-mono">acceptance_check_result_items</span>
+        <span className="ml-1 text-muted-foreground">yes / partial / no</span>
+      </summary>
+      <div className="mt-2 space-y-2">
+        {visibleItems.map((item, idx) => {
+          const text = stringValue(item.text);
+          const source = stringValue(item.source) || "source -";
+          const severity = stringValue(item.severity) || "supporting";
+          const checkId = stringValue(item.check_id);
+          const verdict = stringValue(item.verdict);
+          const evidenceQuotes = acceptanceEvidenceQuotes(item);
+          const missingResult = item.result_present === false;
+          return (
+            <div
+              key={`${checkId || text}-${idx}`}
+              className="rounded-md border bg-background/50 p-2"
+            >
+              <div className="flex flex-wrap items-start justify-between gap-2">
+                <p className="min-w-0 flex-1 break-words font-medium">{text}</p>
+                <div className="flex flex-wrap justify-end gap-1">
+                  <Badge variant="outline" className="font-mono text-[10px]">
+                    {source}
+                  </Badge>
+                  <Badge variant="outline" className="font-mono text-[10px]">
+                    {severity}
+                  </Badge>
+                  <Badge
+                    variant="outline"
+                    className={`font-mono text-[10px] ${acceptanceVerdictBadgeClass(verdict)}`}
+                  >
+                    {verdict || (missingResult ? "missing" : "verdict -")}
+                  </Badge>
+                </div>
+              </div>
+              {checkId && (
+                <p className="mt-1 break-words font-mono text-[10px] text-muted-foreground">
+                  check_id: {checkId}
+                </p>
+              )}
+              {evidenceQuotes.length > 0 && (
+                <details className="mt-2 rounded-md border bg-background/50 p-2">
+                  <summary className="cursor-pointer select-none text-muted-foreground">
+                    展开 evidence quotes
+                  </summary>
+                  <ul className="mt-2 list-disc space-y-1 pl-4">
+                    {evidenceQuotes.map((quote, quoteIdx) => (
+                      <li key={quoteIdx} className="break-words">
                         {quote}
                       </li>
                     ))}
@@ -6741,6 +7044,67 @@ function verificationChangeSearchFields(
   return fields;
 }
 
+function addAcceptanceCheckItemSearchFields(
+  fields: string[],
+  item: Record<string, unknown>,
+) {
+  const add = (value: unknown) => {
+    if (typeof value === "string" && value.trim()) fields.push(value);
+    else if (typeof value === "number" || typeof value === "boolean") {
+      fields.push(formatDiagnosticScalar(value));
+    }
+  };
+
+  add(item.text);
+  add(item.acceptance_check);
+  add(item.source);
+  add(item.severity);
+  add(item.check_id);
+  add(item.source_text);
+  add(item.origin);
+  add(item.verdict);
+  add(item.result_present);
+  for (const quote of acceptanceEvidenceQuotes(item)) add(quote);
+  const seedRef = recordFromUnknown(item.seed_ref);
+  add(seedRef.seed_id);
+  add(seedRef.variant_id);
+}
+
+function addContractGateResultSearchFields(
+  fields: string[],
+  resultValue: unknown,
+) {
+  const result = recordFromUnknown(resultValue);
+  if (Object.keys(result).length === 0) return;
+  const add = (value: unknown) => {
+    if (typeof value === "string" && value.trim()) fields.push(value);
+    else if (typeof value === "number" || typeof value === "boolean") {
+      fields.push(formatDiagnosticScalar(value));
+    }
+  };
+
+  add(result.gate_id);
+  add(result.mode);
+  add(result.status);
+  add(result.would_pass);
+  for (const warning of stringList(result.warnings)) add(warning);
+  add(result.eligible_count);
+  add(result.satisfied_count);
+  add(result.failed_count);
+  add(result.partial_count);
+  add(result.no_count);
+  add(result.missing_count);
+  const scope = recordFromUnknown(result.scope);
+  for (const source of stringList(scope.sources)) add(source);
+  for (const severity of stringList(scope.severities)) add(severity);
+  add(scope.partial_policy);
+  for (const item of recordArray(result.failed_items)) {
+    addAcceptanceCheckItemSearchFields(fields, item);
+    add(item.reason);
+    add(item.evidence_count);
+  }
+}
+
 function evaluatorScoringSearchFields(
   payload?: Record<string, unknown> | null,
   evaluation?: Record<string, unknown> | null,
@@ -6781,14 +7145,25 @@ function evaluatorScoringSearchFields(
     addList(record.rubric_points);
     addRecord(record.rubric_coverage);
     addRecord(record.acceptance_check_results);
+    for (const item of recordArray(record.acceptance_check_result_items)) {
+      addAcceptanceCheckItemSearchFields(fields, item);
+    }
+    addContractGateResultSearchFields(fields, record.contract_gate_result);
     add(record.recommended_next);
     add(record.recommended_next_plan);
     add(record.recommended_probe_intent);
     add(record.failure_reason);
+    add(record.contract_gate_enforced);
+    add(record.contract_gate_enforcement_reason);
+    add(record.contract_gate_failed_count);
+    addList(record.contract_gate_failed_check_ids);
     addList(record.failure_categories);
     const contract = recordFromUnknown(record.contract);
     addList(contract.must_cover);
     addList(contract.acceptance_checks);
+    for (const item of recordArray(contract.acceptance_check_items)) {
+      addAcceptanceCheckItemSearchFields(fields, item);
+    }
     add(contract.minimum_bar);
     addList(contract.review_focus);
   }
@@ -7111,6 +7486,9 @@ function askQuestionSearchFields(
   const contract = recordFromUnknown(record.contract);
   addList(contract.must_cover);
   addList(contract.acceptance_checks);
+  for (const item of recordArray(contract.acceptance_check_items)) {
+    addAcceptanceCheckItemSearchFields(fields, item);
+  }
   addList(contract.acceptable_if_missing);
   add(contract.minimum_bar);
   addList(contract.review_focus);

@@ -129,6 +129,15 @@ _ANTHROPIC_CLIENT_CACHE: dict[tuple[Any, ...], Any] = {}
 _CLIENT_CACHE_LOCK = threading.Lock()
 
 
+def _new_sdk_http_client(*, timeout: float | None = None) -> Any:
+    import httpx
+
+    kwargs: dict[str, Any] = {"trust_env": False}
+    if timeout is not None:
+        kwargs["timeout"] = timeout
+    return httpx.Client(**kwargs)
+
+
 def _get_openai_client(
     *,
     api_key: str,
@@ -148,12 +157,18 @@ def _get_openai_client(
     with _CLIENT_CACHE_LOCK:
         client = _OPENAI_CLIENT_CACHE.get(key)
         if client is None:
-            client = OpenAI(
-                api_key=api_key,
-                base_url=base_url,
-                timeout=timeout,
-                max_retries=max_retries,
-            )
+            http_client = _new_sdk_http_client(timeout=timeout)
+            try:
+                client = OpenAI(
+                    api_key=api_key,
+                    base_url=base_url,
+                    timeout=timeout,
+                    max_retries=max_retries,
+                    http_client=http_client,
+                )
+            except Exception:
+                http_client.close()
+                raise
             _OPENAI_CLIENT_CACHE[key] = client
         return client
 
@@ -195,7 +210,16 @@ def _get_anthropic_client(
     with _CLIENT_CACHE_LOCK:
         client = _ANTHROPIC_CLIENT_CACHE.get(key)
         if client is None:
-            client = Anthropic(api_key=api_key, base_url=base_url)
+            http_client = _new_sdk_http_client()
+            try:
+                client = Anthropic(
+                    api_key=api_key,
+                    base_url=base_url,
+                    http_client=http_client,
+                )
+            except Exception:
+                http_client.close()
+                raise
             _ANTHROPIC_CLIENT_CACHE[key] = client
         return client
 
@@ -206,8 +230,16 @@ def _reset_client_cache_for_tests() -> None:
     in-flight requests on dropped clients still complete normally but
     their connection pools are abandoned."""
     with _CLIENT_CACHE_LOCK:
+        clients = [*_OPENAI_CLIENT_CACHE.values(), *_ANTHROPIC_CLIENT_CACHE.values()]
         _OPENAI_CLIENT_CACHE.clear()
         _ANTHROPIC_CLIENT_CACHE.clear()
+    for client in clients:
+        close = getattr(client, "close", None)
+        if callable(close):
+            try:
+                close()
+            except Exception:
+                pass
 
 
 def _classify_exception(exc: Exception) -> type[LLMError]:

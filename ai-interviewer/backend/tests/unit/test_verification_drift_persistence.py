@@ -134,6 +134,68 @@ def test_verification_does_not_persist_drift_when_flag_off(monkeypatch) -> None:
     assert events == []
 
 
+def test_verification_rejoins_acceptance_check_result_items(monkeypatch) -> None:
+    from app.engine.workflow.nodes import verification as verification_mod
+
+    Session = _session_factory()
+
+    @contextmanager
+    def get_session():
+        with Session() as sess:
+            yield sess
+            sess.commit()
+
+    _install_common_patches(monkeypatch, persistence=False, get_session=get_session)
+    captured: dict[str, Any] = {}
+
+    def fake_verify_answer(**kwargs) -> dict[str, Any]:
+        captured["scoring_contract"] = kwargs.get("contract")
+        return _verification_payload()
+
+    monkeypatch.setattr(verification_mod, "verify_answer", fake_verify_answer)
+    state = _state_with_overrule(
+        current_contract={
+            "must_cover": ["scale"],
+            "acceptance_checks": ["Mentions concrete failure modes"],
+            "acceptance_check_items": [
+                {
+                    "check_id": "reviewed:failure-modes",
+                    "text": "Mentions concrete failure modes",
+                    "source": "reviewed",
+                    "severity": "core",
+                    "source_text": "failure modes",
+                    "origin": "question_variant",
+                    "seed_ref": {"seed_id": "seed"},
+                    "metadata": {"criterion_source": "must_cover"},
+                }
+            ],
+        }
+    )
+
+    update = verification_mod.verification_node(state)  # type: ignore[arg-type]
+
+    items = update["evaluation"]["acceptance_check_result_items"]
+    assert items[0]["check_id"] == "reviewed:failure-modes"
+    assert items[0]["source"] == "reviewed"
+    assert items[0]["severity"] == "core"
+    assert items[0]["verdict"] == "yes"
+    assert items[0]["result_present"] is True
+    gate = update["evaluation"]["contract_gate_result"]
+    assert gate["status"] == "passed"
+    assert gate["eligible_count"] == 1
+    assert gate["satisfied_count"] == 1
+    assert gate["failed_count"] == 0
+    assert "acceptance_check_items" not in captured["scoring_contract"]
+    assert captured["scoring_contract"]["acceptance_check_items_for_prompt"] == [
+        {
+            "check_id": "reviewed:failure-modes",
+            "text": "Mentions concrete failure modes",
+            "source": "reviewed",
+            "severity": "core",
+        }
+    ]
+
+
 def test_verification_persists_drift_event_when_flag_on(monkeypatch) -> None:
     from app.engine.workflow.nodes import verification as verification_mod
 

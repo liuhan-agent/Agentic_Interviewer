@@ -10,6 +10,15 @@ from app.core.metrics import record_question_fallback
 from app.core.settings import get_settings
 from app.core.tracer import get_tracer
 from app.engine.agents.evaluator_agent import evaluate_answer
+from app.engine.contracts.acceptance_items import (
+    contract_for_source_aware_scoring,
+    join_acceptance_check_results,
+)
+from app.engine.contracts.contract_gate import build_contract_gate_result
+from app.engine.contracts.contract_gate import (
+    apply_contract_gate_enforcement,
+    resolve_contract_gate_mode,
+)
 from app.engine.workflow.depth_followup import (
     DEPTH_FOLLOWUP_PHASE,
     preserve_depth_followup_dimension_status,
@@ -65,6 +74,7 @@ def evaluator_node(state: InterviewState) -> dict[str, Any]:
     # back again to ``None`` so evaluator_agent degrades to the legacy
     # rubric_points path.
     contract = state.get("current_contract") or question.get("contract")
+    scoring_contract = contract_for_source_aware_scoring(contract) if contract else None
 
     # PLAN_DRIFT_FEEDBACK Step 4: optionally splice a Markdown block
     # of "prior evaluator drift" negative examples into the Evaluator's
@@ -74,6 +84,10 @@ def evaluator_node(state: InterviewState) -> dict[str, Any]:
     # — evaluator grading is a hot path and must never fail because of
     # an observability helper.
     settings = get_settings()
+    contract_gate_mode, contract_gate_warnings = resolve_contract_gate_mode(
+        runtime_config=state.get("runtime_config") or {},
+        settings=settings,
+    )
     drift_negatives = ""
     if settings.enable_evaluator_prompt_feedback:
         try:
@@ -96,17 +110,31 @@ def evaluator_node(state: InterviewState) -> dict[str, Any]:
         rubric_points=question.get("rubric_points", []),
         answer=raw_answer,
         quality_threshold=quality_threshold,
-        contract=contract,
+        contract=scoring_contract,
         drift_negatives=drift_negatives,
         video_signals=state.get("video_signals"),
         context_flags=state.get("context_flags") or {},
     )
     evaluation = normalize_evaluation_consistency(
         evaluation,
-        contract=contract,
+        contract=scoring_contract,
         quality_threshold=float(quality_threshold),
     )
     evaluation = attach_replay_followup_reason(evaluation)
+    evaluation["acceptance_check_result_items"] = join_acceptance_check_results(
+        contract or {},
+        evaluation.get("acceptance_check_results") or {},
+    )
+    evaluation["contract_gate_result"] = build_contract_gate_result(
+        evaluation.get("acceptance_check_result_items"),
+        mode=contract_gate_mode,
+        warnings=contract_gate_warnings,
+    )
+    evaluation = apply_contract_gate_enforcement(
+        evaluation,
+        evaluation.get("contract_gate_result"),
+        mode=contract_gate_mode,
+    )
     fallback_turn = is_evaluator_fallback(evaluation)
     if fallback_turn:
         record_question_fallback("evaluator_fallback")

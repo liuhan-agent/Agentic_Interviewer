@@ -48,6 +48,84 @@ seeds:
         expected_signals: [能定义稳定错误语义, 能处理重复提交的同结果返回, 能保留向后兼容字段]
         anti_patterns: [超时后只返回 500, 重试创建新支付单, 随意变更响应字段]
         good_answer_hints: [先列客户端决策需要的信息, 再设计状态和错误语义]
+        reviewed_acceptance_checks:
+          - check_id: reviewed:cq_api_retry_status:core_request_response:v1
+            source: must_cover
+            source_text: 请求响应契约
+            acceptance_check: 候选人定义客户端创建、查询和重试所需的稳定请求字段、响应字段和状态流转，而不是只给模糊成功失败。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: "2026-06-07"
+          - check_id: reviewed:cq_api_retry_status:core_idempotency_key:v1
+            source: must_cover
+            source_text: 幂等键
+            acceptance_check: 候选人说明幂等键的作用域、有效期、缓存记录或业务唯一约束，保证重复提交返回同一业务结果。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: "2026-06-07"
+          - check_id: reviewed:cq_api_retry_status:core_error_semantics:v1
+            source: must_cover
+            source_text: 错误语义
+            acceptance_check: 候选人定义可重试、不可重试、处理中、最终成功、最终失败等错误码或状态码语义，避免超时后一律返回 500。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: "2026-06-07"
+          - check_id: reviewed:cq_api_retry_status:core_backward_compatibility:v1
+            source: must_cover
+            source_text: 向后兼容
+            acceptance_check: 候选人说明新增字段、错误码或状态枚举时如何保留旧客户端可用性，并提供版本或兼容迁移策略。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: "2026-06-07"
+          - check_id: reviewed:cq_api_retry_status:support_processing_success:v1
+            source: rubric_addition
+            source_text: 说明处理中和最终成功的响应
+            acceptance_check: 候选人区分请求已受理但未完成、已成功、已失败等响应，并说明客户端应该如何查询或重试。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: "2026-06-07"
+          - check_id: reviewed:cq_api_retry_status:support_idempotency_store:v1
+            source: rubric_addition
+            source_text: 说明幂等键缓存或业务唯一约束
+            acceptance_check: 候选人说明服务端如何保存幂等结果、处理中状态或唯一约束冲突，并在重复请求时返回可预期结果。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: "2026-06-07"
+          - check_id: reviewed:cq_api_retry_status:support_compatible_evolution:v1
+            source: rubric_addition
+            source_text: 说明兼容演进
+            acceptance_check: 候选人说明字段新增、错误码扩展、废弃旧语义或多版本并行时的灰度、文档和回归验证方式。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: "2026-06-07"
         priority: 15
         status: active
 

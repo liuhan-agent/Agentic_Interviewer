@@ -34,6 +34,15 @@ from app.core.logging import get_logger
 from app.core.settings import get_settings
 from app.core.tracer import get_tracer
 from app.engine.agents.verification import should_trigger, verify_answer
+from app.engine.contracts.acceptance_items import (
+    contract_for_source_aware_scoring,
+    join_acceptance_check_results,
+)
+from app.engine.contracts.contract_gate import (
+    apply_contract_gate_enforcement,
+    build_contract_gate_result,
+    resolve_contract_gate_mode,
+)
 from app.engine.workflow.depth_followup import preserve_depth_followup_dimension_status
 from app.engine.workflow.evaluation_consistency import (
     normalize_evaluation_consistency,
@@ -425,6 +434,35 @@ def _verification_changes(
                 }
             )
 
+    field = "failure_categories"
+    before_items = _string_items(evaluation.get(field))
+    after_items = _string_items(updated_evaluation.get(field))
+    added = [item for item in after_items if item not in before_items]
+    if added:
+        changes.append(
+            {
+                "field": field,
+                "label": "Failure categories",
+                "before": before_items,
+                "after": added,
+                "reason": "contract_gate_reviewed_core_failed",
+            }
+        )
+
+    field = "contract_gate_enforced"
+    before = _verification_change_value(field, evaluation.get(field))
+    after = _verification_change_value(field, updated_evaluation.get(field))
+    if before != after:
+        changes.append(
+            {
+                "field": field,
+                "label": "Contract gate enforced",
+                "before": before,
+                "after": after,
+                "reason": "contract_gate_reviewed_core_failed",
+            }
+        )
+
     field = "verifier_abstained"
     before = _verification_change_value(field, evaluation.get(field))
     after = _verification_change_value(field, updated_evaluation.get(field))
@@ -438,6 +476,18 @@ def _verification_changes(
                 "reason": _verification_change_reason(verification, field),
             }
         )
+
+    if updated_evaluation.get("contract_gate_enforced"):
+        for change in changes:
+            if change.get("field") in {
+                "passed",
+                "recommended_next",
+                "recommended_next_plan",
+                "weaknesses",
+                "failure_categories",
+                "contract_gate_enforced",
+            }:
+                change["reason"] = "contract_gate_reviewed_core_failed"
 
     return changes
 
@@ -458,11 +508,41 @@ def _verification_effect(triggered: bool, changes: list[dict[str, Any]]) -> str:
         "verifier_forced_refine",
     }:
         return "overruled_to_refine"
+    if fields & {"failure_categories", "contract_gate_enforced"}:
+        return "overruled_to_refine"
     return "no_change"
 
 
+_METADATA_ONLY_EVALUATION_FIELDS = {
+    "acceptance_check_result_items",
+    "contract_gate_result",
+}
+
+
+def _verification_verdict_changed(
+    evaluation: dict[str, Any],
+    updated_evaluation: dict[str, Any],
+) -> bool:
+    before = {
+        key: value
+        for key, value in (evaluation or {}).items()
+        if key not in _METADATA_ONLY_EVALUATION_FIELDS
+    }
+    after = {
+        key: value
+        for key, value in (updated_evaluation or {}).items()
+        if key not in _METADATA_ONLY_EVALUATION_FIELDS
+    }
+    return before != after
+
+
 def _verification_change_value(field: str, value: Any) -> Any:
-    if field in {"passed", "verifier_forced_refine", "verifier_abstained"}:
+    if field in {
+        "passed",
+        "verifier_forced_refine",
+        "verifier_abstained",
+        "contract_gate_enforced",
+    }:
         return bool(value)
     return value
 
@@ -508,6 +588,7 @@ def verification_node(state: InterviewState) -> dict[str, Any]:
     contract = state.get("current_contract") or (
         (state.get("current_question") or {}).get("contract")
     )
+    scoring_contract = contract_for_source_aware_scoring(contract) if contract else contract
     job_level = (state.get("job_spec") or {}).get("level", "mid")
     dimension = (
         (state.get("current_question") or {}).get("dimension")
@@ -519,7 +600,7 @@ def verification_node(state: InterviewState) -> dict[str, Any]:
 
     if not should_trigger(
         evaluation=evaluation,
-        contract=contract,
+        contract=scoring_contract,
         quality_threshold=quality_threshold,
         job_level=job_level,
         dimension=dimension,
@@ -558,16 +639,36 @@ def verification_node(state: InterviewState) -> dict[str, Any]:
         dimension=dimension,
         question=question_payload.get("question", ""),
         answer=answer,
-        contract=contract or {},
+        contract=scoring_contract or {},
         evaluator_report=evaluation,
     )
     updated_evaluation = _apply_verification(evaluation, verification)
     updated_evaluation = normalize_evaluation_consistency(
         updated_evaluation,
-        contract=contract or {},
+        contract=scoring_contract or {},
         quality_threshold=quality_threshold,
         verification=verification,
         verifier_min_override_confidence=_min_override_confidence(),
+    )
+    updated_evaluation["acceptance_check_result_items"] = (
+        join_acceptance_check_results(
+            contract or {},
+            updated_evaluation.get("acceptance_check_results") or {},
+        )
+    )
+    contract_gate_mode, contract_gate_warnings = resolve_contract_gate_mode(
+        runtime_config=state.get("runtime_config") or {},
+        settings=get_settings(),
+    )
+    updated_evaluation["contract_gate_result"] = build_contract_gate_result(
+        updated_evaluation.get("acceptance_check_result_items"),
+        mode=contract_gate_mode,
+        warnings=contract_gate_warnings,
+    )
+    updated_evaluation = apply_contract_gate_enforcement(
+        updated_evaluation,
+        updated_evaluation.get("contract_gate_result"),
+        mode=contract_gate_mode,
     )
     dimension_status = sync_dimension_status(
         dict(state.get("dimension_status") or {}),
@@ -675,11 +776,17 @@ def verification_node(state: InterviewState) -> dict[str, Any]:
                 ),
                 "evaluator_passed": evaluator_passed,
                 "updated_passed": updated_passed,
-                "verdict_changed": updated_evaluation != evaluation,
+                "verdict_changed": _verification_verdict_changed(
+                    evaluation,
+                    updated_evaluation,
+                ),
                 "verifier_abstained": bool(updated_evaluation.get("verifier_abstained")),
                 "verification_changes": verification_changes,
                 "verification_change_count": len(verification_changes),
                 "verification_effect": verification_effect,
+                "contract_gate_result": updated_evaluation.get(
+                    "contract_gate_result"
+                ),
                 "elapsed_ms": int((time.perf_counter() - node_started_at) * 1000),
             },
             logical_turn_idx=answer_turn_idx,

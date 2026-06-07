@@ -4,6 +4,9 @@ from types import SimpleNamespace
 from typing import Any
 
 from app.engine.context.history_context import build_history_context
+from app.engine.workflow import routers
+from app.engine.workflow.nodes import evaluator as enode
+from app.engine.workflow.nodes import reward_update as rnode
 from app.engine.workflow.nodes import turn_finalize as tnode
 from app.engine.workflow.nodes import verification as vnode
 
@@ -193,6 +196,399 @@ def test_verification_trace_payload_includes_outcome_metrics(monkeypatch) -> Non
         "weaknesses",
         "verifier_forced_refine",
     }
+
+
+def test_verification_trace_ignores_gate_only_metadata_changes(monkeypatch) -> None:
+    traced_payloads: list[dict[str, Any]] = []
+
+    class _Tracer:
+        def trace_node_event(self, _state, *, node, payload, **_kwargs) -> None:
+            if node == "verification":
+                traced_payloads.append(payload)
+
+    monkeypatch.setattr(vnode, "get_tracer", lambda: _Tracer())
+    monkeypatch.setattr(
+        vnode,
+        "get_settings",
+        lambda: SimpleNamespace(enable_verifier_drift_monitor=False),
+    )
+    monkeypatch.setattr(vnode, "should_trigger", lambda **_kwargs: True)
+    monkeypatch.setattr(
+        vnode,
+        "verify_answer",
+        lambda **_kwargs: {
+            "verifier_available": True,
+            "verdict": "pass",
+            "confidence": 0.95,
+            "reasons_to_doubt": [],
+        },
+    )
+
+    state: dict[str, Any] = {
+        "current_question": {
+            "dimension": "technical_depth",
+            "question": "How would you migrate this safely?",
+        },
+        "current_contract": {
+            "acceptance_checks": ["Mentions rollback."],
+            "acceptance_check_items": [
+                {
+                    "check_id": "reviewed:rollback",
+                    "text": "Mentions rollback.",
+                    "source": "reviewed",
+                    "severity": "core",
+                }
+            ],
+        },
+        "current_answer": "I would use a canary rollout with rollback.",
+        "evaluation": {
+            "score": 8.0,
+            "passed": True,
+            "recommended_next": "advance",
+            "recommended_next_plan": None,
+            "acceptance_check_results": {
+                "Mentions rollback.": {"verdict": "yes", "evidence": ["rollback"]},
+            },
+        },
+        "pending_qa_turn": {
+            "turn_idx": 0,
+            "dimension": "technical_depth",
+            "question": "How would you migrate this safely?",
+            "answer": "I would use a canary rollout with rollback.",
+            "evaluation": {
+                "score": 8.0,
+                "passed": True,
+                "recommended_next": "advance",
+                "recommended_next_plan": None,
+            },
+        },
+        "dimension_status": {"technical_depth": "passed"},
+        "job_spec": {"level": "senior"},
+        "quality_threshold": 7.5,
+    }
+
+    out = vnode.verification_node(state)  # type: ignore[arg-type]
+
+    assert out["evaluation"]["passed"] is True
+    assert out["evaluation"]["contract_gate_result"]["status"] == "passed"
+    assert traced_payloads[-1]["contract_gate_result"]["status"] == "passed"
+    assert traced_payloads[-1]["verdict_changed"] is False
+    assert traced_payloads[-1]["verification_changes"] == []
+    assert traced_payloads[-1]["verification_effect"] == "no_change"
+
+
+def test_evaluator_contract_gate_enforce_updates_state_before_routing(
+    monkeypatch,
+) -> None:
+    traced_states: list[dict[str, Any]] = []
+
+    class _Tracer:
+        def trace_evaluator(self, state, **_kwargs) -> None:
+            traced_states.append(state)
+
+    monkeypatch.setattr(enode, "get_tracer", lambda: _Tracer())
+    monkeypatch.setattr(
+        enode,
+        "get_settings",
+        lambda: SimpleNamespace(
+            enable_evaluator_prompt_feedback=False,
+            contract_gate_mode="shadow",
+        ),
+    )
+    monkeypatch.setattr(enode, "get_raw_answer_for_state", lambda state: None)
+    monkeypatch.setattr(enode, "_persist_interview_turn_fact", lambda **_kwargs: None)
+    monkeypatch.setattr(enode, "immediate_reward", lambda **_kwargs: 0.23)
+    captured: dict[str, Any] = {}
+
+    def fake_evaluate_answer(**kwargs) -> dict[str, Any]:
+        captured["scoring_contract"] = kwargs.get("contract")
+        return {
+            "score": 9.0,
+            "passed": True,
+            "recommended_next": "advance",
+            "recommended_next_plan": None,
+            "acceptance_check_results": {
+                "Mentions rollback.": {
+                    "verdict": "partial",
+                    "evidence": ["rollback"],
+                }
+            },
+        }
+
+    monkeypatch.setattr(enode, "evaluate_answer", fake_evaluate_answer)
+
+    state: dict[str, Any] = {
+        "runtime_config": {"contract_gate_mode": "enforce"},
+        "current_dimension": "technical_depth",
+        "current_question": {
+            "dimension": "technical_depth",
+            "question": "How would you migrate this safely?",
+            "rubric_points": [],
+        },
+        "current_contract": {
+            "acceptance_checks": ["Mentions rollback."],
+            "acceptance_check_items": [
+                {
+                    "check_id": "reviewed:rollback",
+                    "text": "Mentions rollback.",
+                    "source": "reviewed",
+                    "severity": "core",
+                }
+            ],
+        },
+        "current_answer": "I would mention rollback later.",
+        "quality_threshold": 7.5,
+        "scores_per_dim": {},
+        "score_breakdowns": {},
+        "qa_history": [],
+        "turn_idx": 0,
+        "formal_turn_idx": 0,
+        "turn_budget_remaining": 3,
+        "max_turns": 5,
+        "dimensions": ["technical_depth"],
+        "dimension_status": {"technical_depth": "passed"},
+        "selected_action": {"id": "ask_deeper"},
+    }
+
+    out = enode.evaluator_node(state)  # type: ignore[arg-type]
+
+    evaluation = out["evaluation"]
+    assert evaluation["score"] == 9.0
+    assert evaluation["passed"] is False
+    assert evaluation["recommended_next"] == "refine"
+    assert evaluation["recommended_next_plan"] == "deep_probe"
+    assert evaluation["contract_gate_result"]["mode"] == "enforce"
+    assert evaluation["contract_gate_enforced"] is True
+    assert evaluation["contract_gate_failed_check_ids"] == ["reviewed:rollback"]
+    assert "acceptance_check_items" not in captured["scoring_contract"]
+    assert captured["scoring_contract"]["acceptance_check_items_for_prompt"] == [
+        {
+            "check_id": "reviewed:rollback",
+            "text": "Mentions rollback.",
+            "source": "reviewed",
+            "severity": "core",
+        }
+    ]
+    assert out["dimension_status"]["technical_depth"] == "active"
+    assert out["pending_qa_turn"]["evaluation"]["passed"] is False
+    assert traced_states[-1]["evaluation"]["passed"] is False
+
+    route_state = {**state, **out}
+    assert routers.route_after_eval(route_state) == "refine"  # type: ignore[arg-type]
+
+
+def test_verification_contract_gate_enforce_overrides_verifier_pass(
+    monkeypatch,
+) -> None:
+    traced_payloads: list[dict[str, Any]] = []
+
+    class _Tracer:
+        def trace_node_event(self, _state, *, node, payload, **_kwargs) -> None:
+            if node == "verification":
+                traced_payloads.append(payload)
+
+    monkeypatch.setattr(vnode, "get_tracer", lambda: _Tracer())
+    monkeypatch.setattr(
+        vnode,
+        "get_settings",
+        lambda: SimpleNamespace(
+            enable_verifier_drift_monitor=False,
+            enable_verifier_drift_persistence=False,
+            verifier_min_override_confidence=0.6,
+            contract_gate_mode="shadow",
+        ),
+    )
+    monkeypatch.setattr(vnode, "should_trigger", lambda **_kwargs: True)
+    monkeypatch.setattr(
+        vnode,
+        "verify_answer",
+        lambda **_kwargs: {
+            "verifier_available": True,
+            "verdict": "pass",
+            "confidence": 0.95,
+            "reasons_to_doubt": [],
+        },
+    )
+
+    state: dict[str, Any] = {
+        "runtime_config": {"contract_gate_mode": "enforce"},
+        "current_question": {
+            "dimension": "technical_depth",
+            "question": "How would you migrate this safely?",
+        },
+        "current_contract": {
+            "acceptance_checks": ["Mentions rollback."],
+            "acceptance_check_items": [
+                {
+                    "check_id": "reviewed:rollback",
+                    "text": "Mentions rollback.",
+                    "source": "reviewed",
+                    "severity": "core",
+                }
+            ],
+        },
+        "current_answer": "I would use a canary rollout.",
+        "evaluation": {
+            "score": 8.0,
+            "passed": True,
+            "recommended_next": "advance",
+            "recommended_next_plan": None,
+            "acceptance_check_results": {
+                "Mentions rollback.": {"verdict": "no", "evidence": []},
+            },
+        },
+        "pending_qa_turn": {
+            "turn_idx": 0,
+            "dimension": "technical_depth",
+            "question": "How would you migrate this safely?",
+            "answer": "I would use a canary rollout.",
+            "evaluation": {
+                "score": 8.0,
+                "passed": True,
+                "recommended_next": "advance",
+                "recommended_next_plan": None,
+            },
+        },
+        "dimension_status": {"technical_depth": "passed"},
+        "job_spec": {"level": "senior"},
+        "quality_threshold": 7.5,
+    }
+
+    out = vnode.verification_node(state)  # type: ignore[arg-type]
+
+    evaluation = out["evaluation"]
+    assert evaluation["passed"] is False
+    assert evaluation["recommended_next"] == "refine"
+    assert evaluation["recommended_next_plan"] == "deep_probe"
+    assert evaluation["contract_gate_result"]["mode"] == "enforce"
+    assert evaluation["contract_gate_enforced"] is True
+    assert out["dimension_status"]["technical_depth"] == "active"
+    assert out["pending_qa_turn"]["evaluation"]["passed"] is False
+    assert traced_payloads[-1]["updated_passed"] is False
+    assert traced_payloads[-1]["verdict_changed"] is True
+    by_field = {
+        change["field"]: change
+        for change in traced_payloads[-1]["verification_changes"]
+    }
+    assert by_field["passed"]["reason"] == "contract_gate_reviewed_core_failed"
+    assert traced_payloads[-1]["verification_effect"] == "overruled_to_refine"
+
+
+def test_verification_contract_gate_enforce_keeps_existing_forced_refine(
+    monkeypatch,
+) -> None:
+    monkeypatch.setattr(vnode, "get_tracer", lambda: SimpleNamespace(trace_node_event=lambda *a, **k: None))
+    monkeypatch.setattr(
+        vnode,
+        "get_settings",
+        lambda: SimpleNamespace(
+            enable_verifier_drift_monitor=False,
+            enable_verifier_drift_persistence=False,
+            verifier_min_override_confidence=0.6,
+            contract_gate_mode="shadow",
+        ),
+    )
+    monkeypatch.setattr(vnode, "should_trigger", lambda **_kwargs: True)
+    monkeypatch.setattr(
+        vnode,
+        "verify_answer",
+        lambda **_kwargs: {
+            "verifier_available": True,
+            "verdict": "fail",
+            "confidence": 0.95,
+            "reasons_to_doubt": ["missing metrics"],
+        },
+    )
+
+    state: dict[str, Any] = {
+        "runtime_config": {"contract_gate_mode": "enforce"},
+        "current_question": {
+            "dimension": "technical_depth",
+            "question": "How would you migrate this safely?",
+        },
+        "current_contract": {
+            "acceptance_checks": ["Mentions rollback."],
+            "acceptance_check_items": [
+                {
+                    "check_id": "reviewed:rollback",
+                    "text": "Mentions rollback.",
+                    "source": "reviewed",
+                    "severity": "core",
+                }
+            ],
+        },
+        "current_answer": "I would use a canary rollout.",
+        "evaluation": {
+            "score": 8.0,
+            "passed": True,
+            "recommended_next": "advance",
+            "recommended_next_plan": None,
+            "acceptance_check_results": {
+                "Mentions rollback.": {"verdict": "no", "evidence": []},
+            },
+        },
+        "dimension_status": {"technical_depth": "passed"},
+        "job_spec": {"level": "senior"},
+        "quality_threshold": 7.5,
+    }
+
+    out = vnode.verification_node(state)  # type: ignore[arg-type]
+
+    evaluation = out["evaluation"]
+    assert evaluation["passed"] is False
+    assert evaluation["verifier_forced_refine"] is True
+    assert evaluation["contract_gate_enforced"] is True
+    assert "missing metrics" in evaluation["weaknesses"]
+    assert "contract_gate_reviewed_core_failed" in evaluation["failure_categories"]
+
+
+def test_reward_update_uses_gate_enforced_evaluation(monkeypatch) -> None:
+    captured: dict[str, Any] = {}
+
+    class _Bandit:
+        def update(self, context_key, action_id, reward) -> None:
+            captured.setdefault("bandit_updates", []).append(
+                (context_key, action_id, reward)
+            )
+
+    class _Tracer:
+        def trace_node_event(self, _state, *, node, payload, **_kwargs) -> None:
+            if node == "reward_update":
+                captured["payload"] = payload
+
+    monkeypatch.setattr(rnode, "get_bandit", lambda: _Bandit())
+    monkeypatch.setattr(rnode, "get_tracer", lambda: _Tracer())
+    monkeypatch.setattr(rnode, "_record_strategy_learning_reward", lambda **_kwargs: None)
+    monkeypatch.setattr(rnode, "_record_strategy_memory_usage", lambda **_kwargs: {})
+    monkeypatch.setattr(rnode, "_record_skill_usage", lambda **_kwargs: {})
+    monkeypatch.setattr(rnode, "_backfill_question_usage_result", lambda **_kwargs: {})
+
+    def fake_reward(*, evaluation, contract):
+        captured["reward_passed"] = evaluation.get("passed")
+        return 0.12 if not evaluation.get("passed") else 0.99
+
+    monkeypatch.setattr(rnode, "immediate_reward", fake_reward)
+
+    out = rnode.reward_update_node(
+        {
+            "turn_idx": 1,
+            "formal_turn_idx": 1,
+            "selected_action": {"id": "ask_deeper"},
+            "policy_context_keys": ["ctx"],
+            "current_question": {"dimension": "technical_depth"},
+            "current_contract": {"acceptance_checks": ["Mentions rollback."]},
+            "evaluation": {
+                "score": 9.0,
+                "passed": False,
+                "recommended_next": "refine",
+                "contract_gate_enforced": True,
+            },
+        }  # type: ignore[arg-type]
+    )
+
+    assert captured["reward_passed"] is False
+    assert out["messages"][0]["immediate_reward"] == 0.12
+    assert captured["payload"]["reward_summary"]["passed"] is False
 
 
 def test_turn_finalize_traces_route_decision_after_eval(monkeypatch) -> None:

@@ -364,20 +364,38 @@ def _apply_dimension_effect(
     return current_dim, status
 
 
-def _remaining_turns(state: InterviewState) -> int | None:
-    raw_budget = state.get("turn_budget_remaining")
-    if raw_budget is not None:
-        try:
-            return max(0, int(raw_budget))
-        except (TypeError, ValueError):
-            return None
-
-    max_turns = state.get("max_turns")
-    formal_turn_idx = state.get("formal_turn_idx", state.get("turn_idx", 0))
+def _non_negative_int(value: Any) -> int | None:
+    if value is None or isinstance(value, bool):
+        return None
     try:
-        return max(0, int(max_turns) - int(formal_turn_idx))
+        return max(0, int(value))
     except (TypeError, ValueError):
         return None
+
+
+def _remaining_turns(state: InterviewState) -> int | None:
+    candidates: list[int] = []
+    budget_remaining = _non_negative_int(state.get("turn_budget_remaining"))
+    if budget_remaining is not None:
+        candidates.append(budget_remaining)
+
+    max_turns = _non_negative_int(state.get("max_turns"))
+    formal_turn_idx = _non_negative_int(
+        state.get("formal_turn_idx", state.get("turn_idx", 0))
+    )
+    if max_turns is not None and formal_turn_idx is not None:
+        candidates.append(max(0, max_turns - formal_turn_idx))
+
+    if not candidates:
+        return None
+    return min(candidates)
+
+
+def _first_unscored_target(
+    unscored_dimensions: list[str],
+    current_dim: str,
+) -> str | None:
+    return next((d for d in unscored_dimensions if d != current_dim), None)
 
 
 def _coverage_priority_target(
@@ -394,7 +412,7 @@ def _coverage_priority_target(
         return None, unscored
 
     status = state.get("dimension_status", {}) or {}
-    target = next((d for d in unscored if d != current_dim), None)
+    target = _first_unscored_target(unscored, current_dim)
     if target is None:
         return None, unscored
 
@@ -484,6 +502,7 @@ def director_sample_node(state: InterviewState) -> dict[str, Any]:
         state,
         current_dim,
     )
+    coverage_switch_target = coverage_target
     if coverage_target:
         action = PLAN_SWITCH if mode == "template" else SWITCH_DIMENSION
         diagnostics = {
@@ -495,6 +514,12 @@ def director_sample_node(state: InterviewState) -> dict[str, Any]:
             "action_guardrail": guardrail.diagnostics,
         }
     elif should_advance_for_coverage(state):
+        force_target = (
+            None
+            if current_dim in unscored_dimensions
+            else _first_unscored_target(unscored_dimensions, current_dim)
+        )
+        coverage_switch_target = force_target
         action = PLAN_SWITCH if mode == "template" else SWITCH_DIMENSION
         diagnostics = {
             "mode": "coverage_force_switch",
@@ -502,6 +527,9 @@ def director_sample_node(state: InterviewState) -> dict[str, Any]:
             "chosen": action.id,
             "action_guardrail": guardrail.diagnostics,
         }
+        if force_target:
+            diagnostics["target_dimension"] = force_target
+            diagnostics["unscored_dimensions"] = unscored_dimensions
     elif depth_followup_slot:
         action = PLAN_DEEP_PROBE if mode == "template" else DEEPEN_TECHNICAL
         diagnostics = {
@@ -547,12 +575,12 @@ def director_sample_node(state: InterviewState) -> dict[str, Any]:
         state,
         action,
         current_dim,
-        forced_target=coverage_target,
+        forced_target=coverage_switch_target,
     )
-    if anchor_target and not coverage_target:
+    if anchor_target and not coverage_switch_target:
         new_current_dim = anchor_target
         new_status = dict(state.get("dimension_status", {}) or {})
-    if depth_followup_slot and not coverage_target:
+    if depth_followup_slot and not coverage_switch_target:
         new_current_dim = str(depth_followup_slot.get("dimension") or new_current_dim)
         new_status = dict(state.get("dimension_status", {}) or {})
     # If the dimension rotated, update dimension_status for the new

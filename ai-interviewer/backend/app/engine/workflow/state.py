@@ -11,6 +11,8 @@ from __future__ import annotations
 import operator
 from typing import Annotated, Any, Literal, TypedDict
 
+from app.engine.contracts.acceptance_items import AcceptanceCheckItem
+
 MAX_MESSAGES = 30
 
 
@@ -145,6 +147,9 @@ class PlanContract(TypedDict, total=False):
       but do not by themselves fail the answer.
     - ``acceptance_checks``: short imperative/declarative sentences the
       evaluator grades yes/partial/no against.
+    - ``acceptance_check_items``: structured metadata for the same
+      checks; ``acceptance_checks`` remains the evaluator-facing string
+      projection.
     - ``minimum_bar``: one-sentence description of the pass threshold.
     - ``review_focus``: 2-3 high-signal concerns the evaluator should
       zero in on (e.g. "quantification", "trade-off clarity").
@@ -156,6 +161,7 @@ class PlanContract(TypedDict, total=False):
     must_cover: list[str]
     acceptable_if_missing: list[str]
     acceptance_checks: list[str]
+    acceptance_check_items: list[AcceptanceCheckItem]
     minimum_bar: str
     review_focus: list[str]
     bar_level: BarLevel

@@ -472,6 +472,7 @@ class Settings(BaseSettings):
     reward_acceptance_no_rate_threshold: float = 0.5
     reward_acceptance_no_penalty: float = 0.10
     reward_verifier_forced_refine_penalty: float = 0.15
+    reward_contract_gate_enforced_cap: float = 0.50
 
     # ------------------------------------------------------------------
     # Evidence span alignment (see docs/PLAN_EVIDENCE_SPAN_ALIGNMENT.md).
@@ -603,6 +604,7 @@ class Settings(BaseSettings):
         "reviewed_shadow",
         "reviewed_append",
     ] = "shadow"
+    contract_gate_mode: Literal["shadow", "enforce"] = "shadow"
     enable_question_fit_profile: bool = True
     enable_question_reranker_shadow: bool = False
     question_reranker_timeout_ms: int = 4000

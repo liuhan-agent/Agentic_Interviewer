@@ -239,6 +239,12 @@ def _evaluator_trace_payload(
         "acceptance_check_results": copy.deepcopy(
             _record_or_empty(evaluation.get("acceptance_check_results"))
         ),
+        "acceptance_check_result_items": copy.deepcopy(
+            evaluation.get("acceptance_check_result_items") or []
+        ),
+        "contract_gate_result": copy.deepcopy(
+            evaluation.get("contract_gate_result") or {}
+        ),
         "recommended_next": evaluation.get("recommended_next"),
         "recommended_next_plan": evaluation.get("recommended_next_plan"),
         "recommended_probe_intent": evaluation.get("recommended_probe_intent"),
