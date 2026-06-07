@@ -722,7 +722,8 @@ export function InterviewRoom({
             ))}
           </AnimatePresence>
 
-          {state.phase === "loading" && lastSubmittedTurn !== null && (
+          {state.phase === "loading" &&
+            (lastSubmittedTurn !== null || latestSubmittedAnswerInsight !== null) && (
             <NextQuestionLoader
               etaMs={state.lastServerLatencyMs}
               isFinalTurn={finalTurnSubmitted}
