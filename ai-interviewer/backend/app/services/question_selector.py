@@ -722,8 +722,8 @@ def build_question_history_selection_artifacts(
         return {}
     history_artifacts: dict[str, Any] = {}
     items = artifacts.get("question_items")
+    history_items: list[dict[str, Any]] = []
     if isinstance(items, list):
-        history_items: list[dict[str, Any]] = []
         for item in items:
             if not isinstance(item, dict):
                 continue

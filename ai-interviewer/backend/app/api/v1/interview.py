@@ -667,6 +667,8 @@ def _setup_snapshot_from_request(req: StartSessionRequest) -> dict[str, Any]:
     candidate["resume_parsed"] = normalise_resume_parsed_focus_areas(
         candidate.get("resume_parsed") or {}
     )
+    if not candidate.get("resume_parse_audit"):
+        candidate.pop("resume_parse_audit", None)
     return {
         "candidate": candidate,
         "job_spec": req.job_spec.model_dump(exclude_none=False),
