@@ -1152,6 +1152,43 @@ def test_resume_does_not_show_stale_question_while_answer_is_processing(
     assert "Redis" in payload["history"][0]["answer"]
 
 
+def test_resume_includes_submitted_answer_while_evaluation_is_processing(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    with _isolated_db(monkeypatch) as testing_session_local:
+        _seed_session(testing_session_local, status="interrupted")
+        manager = _ResumeManager()
+        manager.handle.question_event = threading.Event()
+        manager.handle.current_question = {
+            "question": "Explain how you would repair Redis cache state.",
+            "dimension": "system_design",
+            "formal_turn_idx": 1,
+        }
+        manager.handle.turn_idx = 2
+        manager.handle.pending_submitted_question = dict(manager.handle.current_question)
+        manager.handle.pending_submitted_turn_idx = manager.handle.turn_idx
+        manager.handle.pending_submitted_answer = (
+            "I would compare Redis with the database source of truth and rebuild keys."
+        )
+        client = _client_with_manager(monkeypatch, manager)
+
+        resp = client.get("/api/v1/interview/sessions/sess-replay/resume")
+
+    assert resp.status_code == 200
+    payload = resp.json()
+    assert payload["status"] == "running"
+    assert payload["question"] is None
+    assert [turn["turn_idx"] for turn in payload["history"]] == [0, 1]
+    pending = payload["history"][-1]
+    assert pending["dimension"] == "system_design"
+    assert pending["question"] == "Explain how you would repair Redis cache state."
+    assert pending["answer"].startswith("I would compare Redis")
+    assert pending["score"] is None
+    assert pending["passed"] is None
+    assert pending["strengths"] == []
+    assert pending["weaknesses"] == []
+
+
 def test_resume_history_includes_self_intro_without_counting_it_as_a_question(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

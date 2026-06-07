@@ -143,6 +143,14 @@ test("interview room passes stable local answer insight while loading", () => {
   assert.match(source, /return null/);
 });
 
+test("interview room shows loading card after resuming with submitted history", () => {
+  assert.match(
+    source,
+    /state\.phase === "loading" &&\s*\(lastSubmittedTurn !== null \|\| latestSubmittedAnswerInsight !== null\)/,
+  );
+  assert.match(source, /answerInsight=\{latestSubmittedAnswerInsight\}/);
+});
+
 test("interview room loads waiting tips once and tracks shown tips in memory", () => {
   assert.match(source, /import[\s\S]*listInterviewWaitingTips[\s\S]*from "@\/lib\/api\/interview"/);
   assert.match(source, /InterviewWaitingTipsResponse/);

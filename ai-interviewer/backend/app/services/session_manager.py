@@ -378,6 +378,15 @@ class SessionHandle:
     # cannot re-derive it from the checkpoint.
     last_turn_evaluation: dict[str, Any] | None = None
 
+    # Process-local bridge for the brief interval after the client submits an
+    # answer and before the evaluator/finalizer has produced durable QA
+    # history. If the browser leaves and resumes during that interval, the
+    # resume API can still show the just-submitted turn instead of making the
+    # page look like it disappeared until the next question is ready.
+    pending_submitted_question: dict[str, Any] | None = None
+    pending_submitted_turn_idx: int | None = None
+    pending_submitted_answer: str | None = None
+
     # End-to-end wall-clock duration of the most recent ``_run_segment``
     # in milliseconds (#11). Captured via ``time.monotonic`` deltas in
     # ``_run_segment.finally`` so all paths (interrupt / END / cancelled
@@ -754,6 +763,9 @@ class SessionManager:
 
                 handle.current_question = question
                 handle.turn_idx = turn_idx
+                handle.pending_submitted_question = None
+                handle.pending_submitted_turn_idx = None
+                handle.pending_submitted_answer = None
                 if last_state.get("max_turns") is not None:
                     handle.max_turns = int(last_state.get("max_turns") or 0) or None
                 handle.last_turn_evaluation = _extract_last_turn_evaluation(
@@ -770,6 +782,9 @@ class SessionManager:
             else:
                 # Graph reached END
                 handle.final_state = last_state
+                handle.pending_submitted_question = None
+                handle.pending_submitted_turn_idx = None
+                handle.pending_submitted_answer = None
                 handle.done_event.set()
                 _sync_setup_snapshot_vector_status(handle, last_state)
                 self._persist_completed(handle, last_state)
@@ -1085,9 +1100,19 @@ class SessionManager:
             resume_payload = {"answer": answer, "video_signals": video_signals}
         previous_asked_turn = handle.asked_turn
         handle.asked_turn = handle.turn_idx
+        handle.pending_submitted_question = (
+            dict(handle.current_question)
+            if isinstance(handle.current_question, dict)
+            else None
+        )
+        handle.pending_submitted_turn_idx = handle.turn_idx
+        handle.pending_submitted_answer = answer
         handle.question_event.clear()
         if self._start_segment(handle, Command(resume=resume_payload)) is False:
             handle.asked_turn = previous_asked_turn
+            handle.pending_submitted_question = None
+            handle.pending_submitted_turn_idx = None
+            handle.pending_submitted_answer = None
             handle.question_event.set()
             raise ValueError("resume segment did not start")
 
@@ -1125,12 +1150,22 @@ class SessionManager:
             raise ValueError("prior segment still running before skip")
         previous_asked_turn = handle.asked_turn
         handle.asked_turn = handle.turn_idx
+        handle.pending_submitted_question = (
+            dict(handle.current_question)
+            if isinstance(handle.current_question, dict)
+            else None
+        )
+        handle.pending_submitted_turn_idx = handle.turn_idx
+        handle.pending_submitted_answer = "已跳过本题"
         handle.question_event.clear()
         payload = {"__skipped__": True}
         if reason:
             payload["reason"] = reason
         if self._start_segment(handle, Command(resume=payload)) is False:
             handle.asked_turn = previous_asked_turn
+            handle.pending_submitted_question = None
+            handle.pending_submitted_turn_idx = None
+            handle.pending_submitted_answer = None
             handle.question_event.set()
             raise ValueError("skip segment did not start")
 

@@ -1282,6 +1282,33 @@ def _checkpoint_qa_history_payload(
     return history
 
 
+def _pending_submitted_history_payload(handle: Any) -> dict[str, Any] | None:
+    """Return the in-memory submitted turn while evaluation is still running."""
+
+    answer = str(getattr(handle, "pending_submitted_answer", "") or "").strip()
+    question = getattr(handle, "pending_submitted_question", None)
+    if not answer or not isinstance(question, dict):
+        return None
+
+    turn_idx = _current_formal_turn_idx(
+        question,
+        getattr(handle, "pending_submitted_turn_idx", None),
+    )
+    return {
+        "turn_idx": turn_idx,
+        "question_type": question.get("question_type") or "technical",
+        "dimension": question.get("dimension"),
+        "question": str(question.get("question") or "").strip(),
+        "answer": answer,
+        "score": None,
+        "passed": None,
+        "rationale": "",
+        "strengths": [],
+        "weaknesses": [],
+        "next_step": "",
+    }
+
+
 def _resume_history_key(turn: dict[str, Any]) -> tuple[Any, ...]:
     turn_idx = _turn_idx_or_none(turn.get("turn_idx"))
     if turn_idx is not None:
@@ -2445,6 +2472,9 @@ def resume_session(
             before_formal_turn_idx=history_cutoff,
         ),
     )
+    pending_turn = _pending_submitted_history_payload(handle)
+    if pending_turn is not None:
+        history = _merge_resume_history(history, [pending_turn])
     history = _prepend_self_intro_history(
         history,
         _self_intro_history_payload(
