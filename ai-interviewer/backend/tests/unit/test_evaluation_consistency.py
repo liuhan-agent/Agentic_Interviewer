@@ -56,6 +56,29 @@ def test_high_score_with_complete_checks_is_promoted_to_passed() -> None:
     assert normal["recommended_next"] == "advance"
 
 
+def test_high_score_without_hard_blocker_is_promoted_to_consistent_pass() -> None:
+    evaluation = _evaluation(
+        score=9.0,
+        passed=False,
+        checks={},
+        coverage={},
+    )
+    evaluation["recommended_next"] = "refine"
+    evaluation["recommended_next_plan"] = "deep_probe"
+
+    normal = normalize_evaluation_consistency(
+        evaluation,
+        contract=_contract(),
+        quality_threshold=7.5,
+    )
+
+    assert normal["passed"] is True
+    assert normal["recommended_next"] == "advance"
+    assert normal["recommended_next_plan"] is None
+    assert normal["consistency_normalized"] is True
+    assert normal["normalization_reason"] == "score_without_hard_blocker_promoted_pass"
+
+
 def test_perfect_score_with_missing_required_evidence_is_not_passed() -> None:
     evaluation = _evaluation(
         score=10.0,
@@ -79,6 +102,8 @@ def test_perfect_score_with_missing_required_evidence_is_not_passed() -> None:
     assert normal["score"] == 10.0
     assert normal["passed"] is False
     assert normal["recommended_next"] == "refine"
+    assert normal["consistency_normalized"] is True
+    assert normal["normalization_reason"] == "required_evidence_missing"
     assert "score is high but required evidence is missing" in normal["consistency_warnings"]
 
 
@@ -134,6 +159,8 @@ def test_below_threshold_is_never_passed() -> None:
 
     assert normal["passed"] is False
     assert normal["recommended_next"] == "refine"
+    assert normal["consistency_normalized"] is True
+    assert normal["normalization_reason"] == "score_below_threshold"
 
 
 def test_evaluator_fallback_is_not_normalized() -> None:

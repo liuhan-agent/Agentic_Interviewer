@@ -472,6 +472,72 @@ def test_director_forces_switch_when_refine_cap_reached(monkeypatch) -> None:
     assert out["current_dimension"] == "system_design"
 
 
+def test_director_force_switch_prefers_unscored_dimension_over_scored_pending(
+    monkeypatch,
+) -> None:
+    from app.engine.workflow.nodes import director_sample as director_mod
+
+    class _Bandit:
+        def observation_count(self, *_args: Any, **_kwargs: Any) -> int:
+            return 10
+
+        def select(self, *_args: Any, **_kwargs: Any):
+            return PLAN_DEEP_PROBE, {"mode": "test_prefers_current_dimension"}
+
+    monkeypatch.setattr(director_mod, "get_bandit", lambda: _Bandit())
+
+    state = {
+        "session_id": "sess-force-switch-unscored",
+        "trace_id": "trace-force-switch-unscored",
+        "job_spec": {"level": "senior"},
+        "dimensions": [
+            "technical_depth",
+            "system_design",
+            "problem_solving",
+            "coding_quality",
+            "project_experience",
+        ],
+        "dimension_status": {
+            "technical_depth": "passed",
+            "system_design": "pending",
+            "problem_solving": "active",
+            "coding_quality": "pending",
+            "project_experience": "pending",
+        },
+        "current_dimension": "problem_solving",
+        "turn_idx": 7,
+        "formal_turn_idx": 7,
+        "turn_budget_remaining": 4,
+        "evaluation": {"passed": False},
+        "qa_history": [
+            _scored_turn(0, "technical_depth", passed=True),
+            _failed_turn(1, "system_design"),
+            _failed_turn(2, "problem_solving"),
+            _failed_turn(3, "problem_solving"),
+        ],
+        "runtime_config": {
+            "policy_mode": "template",
+            "max_refines_per_dimension": 2,
+        },
+        "refine_mode": False,
+    }
+
+    out = director_mod.director_sample_node(state)  # type: ignore[arg-type]
+
+    diagnostics = out["selected_action"]["diagnostics"]
+    assert out["selected_action"]["id"] == PLAN_SWITCH.id
+    assert diagnostics["mode"] == "coverage_force_switch"
+    assert diagnostics["target_dimension"] == "coding_quality"
+    assert diagnostics["unscored_dimensions"] == [
+        "coding_quality",
+        "project_experience",
+    ]
+    assert out["current_dimension"] == "coding_quality"
+    assert out["dimension_status"]["system_design"] == "pending"
+    assert out["dimension_status"]["problem_solving"] == "pending"
+    assert out["dimension_status"]["coding_quality"] == "active"
+
+
 def test_director_prioritizes_unscored_dimension_after_current_passed(
     monkeypatch,
 ) -> None:
@@ -557,6 +623,69 @@ def test_director_forces_unscored_dimension_when_remaining_turns_are_tight(
     assert out["current_dimension"] == "system_design"
     assert out["dimension_status"]["technical_depth"] == "pending"
     assert out["dimension_status"]["system_design"] == "active"
+
+
+def test_director_uses_formal_turns_when_budget_overstates_remaining_coverage(
+    monkeypatch,
+) -> None:
+    from app.engine.workflow.nodes import director_sample as director_mod
+
+    class _Bandit:
+        def observation_count(self, *_args: Any, **_kwargs: Any) -> int:
+            return 10
+
+        def select(self, *_args: Any, **_kwargs: Any):
+            return PLAN_ADAPTIVE, {"mode": "test_prefers_current_dimension"}
+
+    monkeypatch.setattr(director_mod, "get_bandit", lambda: _Bandit())
+
+    state = {
+        "session_id": "sess-formal-tight-coverage",
+        "trace_id": "trace-formal-tight-coverage",
+        "job_spec": {"level": "junior"},
+        "dimensions": [
+            "technical_depth",
+            "system_design",
+            "problem_solving",
+            "coding_quality",
+            "project_experience",
+        ],
+        "dimension_status": {
+            "technical_depth": "passed",
+            "system_design": "pending",
+            "problem_solving": "active",
+            "coding_quality": "pending",
+            "project_experience": "pending",
+        },
+        "current_dimension": "problem_solving",
+        "turn_idx": 4,
+        "formal_turn_idx": 4,
+        "max_turns": 5,
+        "turn_budget_remaining": 3,
+        "evaluation": {"passed": False},
+        "qa_history": [
+            _scored_turn(0, "technical_depth", passed=True),
+            _failed_turn(1, "system_design"),
+            _failed_turn(2, "system_design"),
+            _failed_turn(3, "problem_solving"),
+        ],
+        "runtime_config": {"policy_mode": "template"},
+        "refine_mode": True,
+    }
+
+    out = director_mod.director_sample_node(state)  # type: ignore[arg-type]
+
+    diagnostics = out["selected_action"]["diagnostics"]
+    assert out["selected_action"]["id"] == PLAN_SWITCH.id
+    assert diagnostics["mode"] == "coverage_priority_switch"
+    assert diagnostics["target_dimension"] == "coding_quality"
+    assert diagnostics["unscored_dimensions"] == [
+        "coding_quality",
+        "project_experience",
+    ]
+    assert out["current_dimension"] == "coding_quality"
+    assert out["dimension_status"]["problem_solving"] == "pending"
+    assert out["dimension_status"]["coding_quality"] == "active"
 
 
 def test_director_keeps_current_dimension_when_it_has_no_valid_score(

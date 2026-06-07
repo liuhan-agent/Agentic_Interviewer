@@ -225,6 +225,36 @@ def test_real_high_score_with_complete_checks_promotes_status_to_passed(
     assert update["dimension_status"]["system_design"] == "passed"
 
 
+def test_real_high_score_without_hard_blocker_cannot_enter_mainline_as_failed(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    real = _fake_evaluation(fallback=False, score=9.0, passed=False)
+    real["recommended_next"] = "refine"
+    real["recommended_next_plan"] = "deep_probe"
+    real["acceptance_check_results"] = {}
+    real["rubric_coverage"] = {}
+    monkeypatch.setattr(evaluator_node_mod, "evaluate_answer", lambda **_: real)
+    monkeypatch.setattr(
+        evaluator_node_mod,
+        "_persist_interview_turn_fact",
+        lambda **_: None,
+    )
+
+    state = _state_with_dim("system_design", prev_score=None, prev_status="pending")
+    update = evaluator_node_mod.evaluator_node(state)
+
+    evaluation = update["pending_qa_turn"]["evaluation"]
+    assert evaluation["passed"] is True
+    assert evaluation["recommended_next"] == "advance"
+    assert evaluation["recommended_next_plan"] is None
+    assert evaluation["consistency_normalized"] is True
+    assert (
+        evaluation["normalization_reason"]
+        == "score_without_hard_blocker_promoted_pass"
+    )
+    assert update["dimension_status"]["system_design"] == "passed"
+
+
 def test_real_high_score_with_missing_check_does_not_promote_status(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
