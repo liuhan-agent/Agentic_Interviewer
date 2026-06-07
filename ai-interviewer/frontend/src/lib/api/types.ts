@@ -33,6 +33,15 @@ export interface ResumeCandidateProfile {
   suggested_job_level_basis?: string[];
 }
 
+export interface ResumeParseAudit {
+  version: "v1" | string;
+  mode?: "basic" | "ai_refined" | string;
+  text_sha256_16?: string;
+  field_sources: Record<string, string>;
+  skills_summary: Record<string, unknown>;
+  merge_summary: Record<string, unknown>;
+}
+
 export interface ResumeAnchor {
   focus_id?: string | null;
   anchor_key?: string;
@@ -86,6 +95,7 @@ export interface Candidate {
     concerns?: string[];
     candidate_profile?: ResumeCandidateProfile;
   };
+  resume_parse_audit?: ResumeParseAudit;
 }
 
 export type LLMErrorKind =
@@ -579,6 +589,22 @@ export interface ReplayQuestionBasis {
   chips: string[];
 }
 
+export interface ReplayQuestionDecisionBasis {
+  version: "v1" | string;
+  sources?: string[];
+  dimension?: string | null;
+  resume_anchor?: {
+    label?: string;
+    project_id?: string;
+    source?: "resume" | "self_intro" | string;
+  } | null;
+  target_skills?: Array<{
+    value: string;
+    source: string;
+  }>;
+  reason_codes?: string[];
+}
+
 export interface ReplayAnchorFollowup {
   attempt: number;
   max_attempts: number;
@@ -608,6 +634,7 @@ export interface ReplayTurn {
   next_step?: string;
   followup_reason?: ReplayFollowupReason | null;
   question_basis?: ReplayQuestionBasis | null;
+  question_decision_basis?: ReplayQuestionDecisionBasis | null;
   anchor_followup?: ReplayAnchorFollowup | null;
   phase?: "depth_followup" | string | null;
   depth_followup?: DepthFollowupMetadata | null;
@@ -785,6 +812,7 @@ export interface ParseResumeResponse {
   concerns?: string[];
   raw_text_preview: string;
   parse_status?: ParseResumeStatus;
+  resume_parse_audit?: ResumeParseAudit;
   resume_source_id?: string;
   resume_source_expires_at?: string;
 }

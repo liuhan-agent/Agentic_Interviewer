@@ -171,6 +171,10 @@ def _coverage_limited_verdict(
     return verdict
 
 
+def _report_coverage_status(coverage_warnings: list[dict[str, Any]]) -> str:
+    return "incomplete" if coverage_warnings else "complete"
+
+
 def _build_dimension_scores(
     scores_per_dim: dict[str, float | None],
     dimension_status: dict[str, str],
@@ -858,8 +862,10 @@ def final_report_node(state: InterviewState) -> dict[str, Any]:
         verdict = "unknown"
     else:
         verdict = _verdict(overall, threshold)
-        verdict = _coverage_limited_verdict(verdict, coverage_warnings)
+    coverage_limited_verdict = _coverage_limited_verdict(verdict, coverage_warnings)
     growth_signal = _growth_signal(verdict)
+    coverage_limited = coverage_limited_verdict != verdict
+    coverage_status = _report_coverage_status(coverage_warnings)
 
     # Surface evaluator fallback rate so the report UI can warn when
     # too much of the session was scored on the conservative path
@@ -889,6 +895,10 @@ def final_report_node(state: InterviewState) -> dict[str, Any]:
         "verdict": verdict,
         "growth_signal": growth_signal,
         "overall_verdict": growth_signal,
+        "coverage_status": coverage_status,
+        "coverage_limited": coverage_limited,
+        "coverage_limited_verdict": coverage_limited_verdict,
+        "coverage_limited_growth_signal": _growth_signal(coverage_limited_verdict),
         "scores_per_dim": scores,
         "dimension_status": dimension_status,
         "dimension_summaries": dimension_summaries,

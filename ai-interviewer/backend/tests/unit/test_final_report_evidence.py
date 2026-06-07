@@ -959,7 +959,7 @@ def test_final_report_node_cancelled_verdict_passes_through(monkeypatch) -> None
     assert report["cancelled"] is True
 
 
-def test_final_report_caps_positive_verdict_when_dimension_uncovered(monkeypatch) -> None:
+def test_final_report_separates_positive_verdict_from_coverage_risk(monkeypatch) -> None:
     monkeypatch.setattr(fr, "get_tracer", lambda: _NoopTracer())
 
     qa_history = [
@@ -986,9 +986,13 @@ def test_final_report_caps_positive_verdict_when_dimension_uncovered(monkeypatch
     report = out["final_report"]
 
     assert report["overall_score"] == 8.8
-    assert report["verdict"] == "borderline"
-    assert report["growth_signal"] == "near_target"
-    assert report["overall_verdict"] == "near_target"
+    assert report["verdict"] == "strong_pass"
+    assert report["growth_signal"] == "excellent"
+    assert report["overall_verdict"] == "excellent"
+    assert report["coverage_status"] == "incomplete"
+    assert report["coverage_limited"] is True
+    assert report["coverage_limited_verdict"] == "borderline"
+    assert report["coverage_limited_growth_signal"] == "near_target"
     assert report["coverage_warnings"] == [
             {
                 "dimension": "communication",

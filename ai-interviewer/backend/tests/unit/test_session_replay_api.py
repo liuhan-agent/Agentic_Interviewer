@@ -18,6 +18,7 @@ from app.models.base import Base
 from app.models.generation_trace import GenerationTrace
 from app.models.interview_session import InterviewSession
 from app.models.strategy_learning import InterviewTurn
+from app.services import session_replay as replay_mod
 
 SESSION_CREATED_AT = datetime(2026, 5, 1, 10, 0, tzinfo=UTC)
 SESSION_UPDATED_AT = datetime(2026, 5, 1, 10, 30, tzinfo=UTC)
@@ -1636,6 +1637,58 @@ def test_replay_trace_projects_display_question_basis(
 
     assert resp.status_code == 200
     assert resp.json()["timeline"][0]["question_basis"] == QUESTION_BASIS
+
+
+def test_replay_turn_fact_projects_question_decision_basis() -> None:
+    row = SimpleNamespace(
+        turn_idx=0,
+        dimension="system_design",
+        question="How would you design Redis consistency?",
+        answer="I would use versioned writes.",
+        score=8.0,
+        passed=True,
+        resume_anchor_key="focus-coupon-consistency",
+        resume_anchor_label="Coupon consistency",
+        resume_project_id="proj-coupon",
+        evaluation={
+            "score": 8.0,
+            "passed": True,
+            "recommended_next": "advance",
+        },
+        selection_artifacts={
+            "question_decision_basis": {
+                "version": "v1",
+                "sources": ["resume", "job"],
+                "dimension": "system_design",
+                "resume_anchor": {
+                    "label": "Coupon consistency",
+                    "project_id": "proj-coupon",
+                    "source": "resume",
+                },
+                "target_skills": [
+                    {"value": "Redis", "source": "job_spec"},
+                ],
+                "reason_codes": ["covers_target_skills"],
+                "prompt_slot": "must-not-survive",
+            }
+        },
+    )
+
+    payload = replay_mod._turn_payload_from_fact(row)
+
+    assert payload["question_decision_basis"] == {
+        "version": "v1",
+        "sources": ["resume", "job"],
+        "dimension": "system_design",
+        "resume_anchor": {
+            "label": "Coupon consistency",
+            "project_id": "proj-coupon",
+            "source": "resume",
+        },
+        "target_skills": [{"value": "Redis", "source": "job_spec"}],
+        "reason_codes": ["covers_target_skills"],
+    }
+    assert "prompt_slot" not in str(payload)
 
 
 def test_replay_trace_projects_depth_followup_metadata(

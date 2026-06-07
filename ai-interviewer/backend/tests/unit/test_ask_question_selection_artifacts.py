@@ -17,7 +17,11 @@ from app.memory.skill_store import SkillEntry
 from app.memory.strategy_store import StrategyEntry
 from app.models.base import Base
 from app.models.skill_playbook import SkillPlaybookCard
-from app.services.question_selector import QuestionCandidate, QuestionSelectionResult
+from app.services.question_selector import (
+    QuestionCandidate,
+    QuestionSelectionResult,
+    build_question_history_selection_artifacts,
+)
 from app.services.session_anchor_retriever import CandidateAnchorRagResult
 
 _COVERED_PRIMARY_ROLE_TAGS = [
@@ -3132,6 +3136,59 @@ def test_selection_artifacts_exposes_resume_anchor_query_subject() -> None:
     assert artifacts["candidate_anchor_rag"]["hits"][0]["project_name"] == "Coupon Guard"
 
 
+def test_history_selection_artifacts_preserves_question_decision_basis() -> None:
+    history_artifacts = build_question_history_selection_artifacts(
+        {
+            "selection_artifacts": {
+                "question_decision_basis": {
+                    "version": "v1",
+                    "sources": ["resume", "job"],
+                    "dimension": "system_design",
+                    "resume_anchor": {
+                        "label": "Coupon consistency",
+                        "project_id": "proj-coupon",
+                        "source": "resume",
+                    },
+                    "target_skills": [
+                        {"value": "Redis", "source": "job_spec"},
+                    ],
+                    "reason_codes": ["covers_target_skills"],
+                    "prompt_slot": "must-not-survive",
+                },
+                "question_items": [
+                    {
+                        "seed_id": "seed-1",
+                        "variant_id": "variant-1",
+                        "rank": 1,
+                        "injected": True,
+                    }
+                ],
+            }
+        }
+    )
+
+    assert history_artifacts["question_decision_basis"] == {
+        "version": "v1",
+        "sources": ["resume", "job"],
+        "dimension": "system_design",
+        "resume_anchor": {
+            "label": "Coupon consistency",
+            "project_id": "proj-coupon",
+            "source": "resume",
+        },
+        "target_skills": [{"value": "Redis", "source": "job_spec"}],
+        "reason_codes": ["covers_target_skills"],
+    }
+    assert history_artifacts["question_items"] == [
+        {
+            "seed_id": "seed-1",
+            "variant_id": "variant-1",
+            "rank": 1,
+            "injected": True,
+        }
+    ]
+
+
 def test_ask_question_applies_depth_followup_slot(monkeypatch) -> None:
     retrieval = RetrievalContext(docs=[], as_prompt_block="")
     captured_trace = _install_default_patches(
@@ -3193,4 +3250,81 @@ def test_ask_question_applies_depth_followup_slot(monkeypatch) -> None:
     assert artifacts["depth_followup"]["depth_reason"] == "recent_refine_then_passed"
     assert artifacts["depth_followup"]["depth_slot_rank"] == 1
     assert artifacts["resume_anchor"] == resume_anchor
+    assert captured_trace["selection_artifacts"] == artifacts
+
+
+def test_ask_question_records_question_decision_basis(monkeypatch) -> None:
+    retrieval = RetrievalContext(docs=[], as_prompt_block="")
+    captured_trace = _install_default_patches(
+        monkeypatch,
+        retrieval=retrieval,
+        strategies=[],
+        skills=[],
+    )
+    resume_anchor = {
+        "anchor_key": "focus-coupon-consistency",
+        "label": "Coupon consistency",
+        "project_id": "proj-coupon",
+        "skills": ["Redis"],
+        "knowledge_source": "local",
+    }
+
+    monkeypatch.setattr(
+        ask_mod,
+        "select_resume_anchor_with_schedule",
+        lambda **_kwargs: {
+            "resume_anchor": resume_anchor,
+            "scheduler": {
+                "available": True,
+                "anchor_key": "focus-coupon-consistency",
+                "anchor_attempt": 1,
+                "max_anchor_attempts": 2,
+                "expansion_reason": "first_pass",
+            },
+        },
+    )
+    monkeypatch.setattr(
+        ask_mod,
+        "select_target_skills",
+        lambda **_kwargs: {
+            "target_skills": ["Redis", "Kafka"],
+            "focus_source": "jd_resume_overlap",
+        },
+    )
+
+    out = ask_mod.ask_question_node(
+        _base_state(
+            current_dimension="system_design",
+            candidate={
+                "resume_parsed": {"skills": ["Redis", "Kafka"]},
+                "resume_parse_audit": {
+                    "version": "v1",
+                    "mode": "ai_refined",
+                    "field_sources": {"skills": "mixed"},
+                    "skills_summary": {
+                        "both": ["Redis"],
+                        "llm_only": ["Kafka"],
+                    },
+                },
+            },
+            job_spec={
+                "title": "Backend Engineer",
+                "level": "senior",
+                "required_skills": ["Redis"],
+                "interview_direction": "java_backend",
+            },
+            refine_mode=True,
+            pending_contract_hints={"failure_reason": "thin metrics"},
+        )
+    )
+
+    artifacts = out["current_question"]["selection_artifacts"]
+    basis = artifacts["question_decision_basis"]
+
+    assert {"resume", "job", "followup"}.issubset(set(basis["sources"]))
+    assert basis["dimension"] == "system_design"
+    assert basis["resume_anchor"]["label"] == "Coupon consistency"
+    assert {"value": "Redis", "source": "job_spec"} in basis["target_skills"]
+    assert {"value": "Kafka", "source": "resume_parse_audit"} in basis["target_skills"]
+    assert "covers_target_skills" in basis["reason_codes"]
     assert captured_trace["selection_artifacts"] == artifacts

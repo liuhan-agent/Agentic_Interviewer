@@ -61,6 +61,14 @@ def test_resume_parse_upload_response_contract(monkeypatch) -> None:
                 }
             ],
             concerns=["Needs more capacity detail."],
+            parse_audit={
+                "version": "v1",
+                "mode": "basic",
+                "text_sha256_16": "audit1234",
+                "field_sources": {"summary": "rule"},
+                "skills_summary": {"rule_count": 3},
+                "merge_summary": {"rule_fallback": ["summary"]},
+            },
             parse_status={
                 "mode": "basic",
                 "reason": "heuristic",
@@ -128,6 +136,14 @@ def test_resume_parse_upload_response_contract(monkeypatch) -> None:
             "reason": "heuristic",
             "elapsed_ms": 12,
             "text_chars": 29,
+        },
+        "resume_parse_audit": {
+            "version": "v1",
+            "mode": "basic",
+            "text_sha256_16": "audit1234",
+            "field_sources": {"summary": "rule"},
+            "skills_summary": {"rule_count": 3},
+            "merge_summary": {"rule_fallback": ["summary"]},
         },
         "context_flags": [],
         "resume_source_id": "artifact-resume-1",

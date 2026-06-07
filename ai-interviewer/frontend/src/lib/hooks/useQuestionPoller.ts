@@ -385,14 +385,14 @@ export function useQuestionPoller(sessionId: string) {
   }, [begin]);
 
   const afterAnswerSubmitted = useCallback(() => {
-    // Caller just POSTed /answer; discard current question and
-    // re-enter the polling loop to fetch the next one.
+    // Caller just POSTed /answer; discard current question, resync
+    // durable history via /resume, then continue waiting for the next one.
     dispatch({ type: "SUBMITTING" });
     abortRef.current?.abort();
     const ctrl = new AbortController();
     abortRef.current = ctrl;
-    void pollLoop(ctrl);
-  }, [pollLoop]);
+    void begin(ctrl);
+  }, [begin]);
 
   const afterQuestionRetryRequested = useCallback(() => {
     dispatch({ type: "START" });

@@ -56,7 +56,10 @@ from app.engine.workflow.difficulty_adapter import difficulty_to_bar_level
 from app.engine.workflow.plans import build_llm_ask_plan, resolve_ask_plan
 from app.engine.workflow.policy_context import policy_context_keys
 from app.engine.workflow.probe_intent import resolve_probe_intent
-from app.engine.workflow.replay_basis import build_replay_question_basis
+from app.engine.workflow.replay_basis import (
+    build_question_decision_basis,
+    build_replay_question_basis,
+)
 from app.engine.workflow.skill_focus import select_target_skills
 from app.engine.workflow.state import (
     AskPlan,
@@ -536,6 +539,8 @@ def _build_selection_artifacts(ctx: dict[str, Any]) -> dict[str, Any]:
         artifacts["question_reranker"] = ctx["question_reranker_artifact"]
     if ctx.get("candidate_anchor_artifact") is not None:
         artifacts["candidate_anchor"] = ctx["candidate_anchor_artifact"]
+    if ctx.get("question_decision_basis") is not None:
+        artifacts["question_decision_basis"] = ctx["question_decision_basis"]
     depth_followup = ctx.get("depth_followup")
     if isinstance(depth_followup, dict) and depth_followup:
         artifacts["depth_followup"] = dict(depth_followup)
@@ -2814,6 +2819,19 @@ def ask_question_node(state: InterviewState) -> dict[str, Any]:
     )
     if question_basis is not None:
         question_payload["question_basis"] = question_basis
+    question_decision_basis = build_question_decision_basis(
+        dimension=dimension,
+        resume_anchor=ctx.get("resume_anchor"),
+        target_skills=ctx.get("target_skills") or [],
+        skill_focus=ctx.get("skill_focus") or {},
+        job_spec=state.get("job_spec") or {},
+        refine_mode=bool(state.get("refine_mode")),
+        contract_hints=contract_hints,
+        question_items=ctx.get("question_items") or [],
+        resume_parse_audit=(state.get("candidate") or {}).get("resume_parse_audit"),
+    )
+    if question_decision_basis is not None:
+        ctx["question_decision_basis"] = question_decision_basis
     selection_artifacts = _build_selection_artifacts(ctx)
     question_payload["selection_artifacts"] = selection_artifacts
     contract = _finalise_contract(plan, ctx)

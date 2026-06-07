@@ -16,6 +16,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.engine.workflow.depth_followup import sanitize_depth_followup_metadata
+from app.engine.workflow.replay_basis import sanitize_replay_question_decision_basis
 from app.models.base import get_session
 from app.models.question_bank import (
     QuestionRewardRollout,
@@ -721,8 +722,8 @@ def build_question_history_selection_artifacts(
         return {}
     history_artifacts: dict[str, Any] = {}
     items = artifacts.get("question_items")
+    history_items: list[dict[str, Any]] = []
     if isinstance(items, list):
-        history_items: list[dict[str, Any]] = []
         for item in items:
             if not isinstance(item, dict):
                 continue
@@ -742,8 +743,13 @@ def build_question_history_selection_artifacts(
                     "injected": True,
                 }
             )
-        if history_items:
-            history_artifacts["question_items"] = history_items
+    if history_items:
+        history_artifacts["question_items"] = history_items
+    question_decision_basis = sanitize_replay_question_decision_basis(
+        artifacts.get("question_decision_basis")
+    )
+    if question_decision_basis:
+        history_artifacts["question_decision_basis"] = question_decision_basis
     depth_followup = sanitize_depth_followup_metadata(artifacts.get("depth_followup"))
     if depth_followup:
         history_artifacts["depth_followup"] = depth_followup

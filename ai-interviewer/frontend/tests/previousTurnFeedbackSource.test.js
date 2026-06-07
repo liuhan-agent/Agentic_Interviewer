@@ -97,6 +97,22 @@ test("useQuestionPoller restores prior turns from resume response", () => {
   assert.match(source, /history:\s*r\.history\s*\?\?\s*\[\]/);
 });
 
+test("useQuestionPoller resyncs resume history after answer submission", () => {
+  const source = read("src/lib/hooks/useQuestionPoller.ts");
+  const match = source.match(
+    /const afterAnswerSubmitted = useCallback\(\(\) => \{([\s\S]*?)\n  \}, \[(begin|pollLoop)\]\);/,
+  );
+
+  assert.ok(match, "afterAnswerSubmitted callback should be present");
+  const [, body, dependency] = match;
+  assert.match(
+    body,
+    /const ctrl = new AbortController\(\);[\s\S]*abortRef\.current = ctrl;[\s\S]*void begin\(ctrl\);/,
+  );
+  assert.doesNotMatch(body, /void pollLoop\(ctrl\);/);
+  assert.equal(dependency, "begin");
+});
+
 test("InterviewRoom attaches previous turn feedback to the matching answered bubble only", () => {
   const source = read("src/components/interview/InterviewRoom.tsx");
 

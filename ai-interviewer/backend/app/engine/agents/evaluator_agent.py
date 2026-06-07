@@ -31,6 +31,7 @@ treat either a string OR a dict as valid.
 from __future__ import annotations
 
 import difflib
+import re
 from typing import Any
 
 from app.core.logging import get_logger
@@ -46,6 +47,8 @@ log = get_logger(__name__)
 
 
 _VALID_FAILURE_CATEGORIES: set[str] = set()
+_ELLIPSIS_RE = re.compile(r"(?:\.{3,}|…+|⋯+)")
+_QUOTE_EDGE_CHARS = " \t\r\n，。；;、:：,.!?！？"
 
 
 def _failure_category_vocabulary() -> set[str]:
@@ -145,6 +148,12 @@ def _with_spans(
     non-opt-in call site (``rg`` covers: legacy tests, other agents
     reading the dict shape, final_report snapshot equality).
     """
+    if enable_spans and answer is not None:
+        evidence = _repair_ellipsis_evidence(
+            evidence,
+            answer,
+            fuzzy_threshold=fuzzy_threshold,
+        )
     result: dict[str, Any] = {"verdict": verdict, "evidence": evidence}
     if enable_spans and answer is not None:
         result["evidence_spans"] = [
@@ -152,6 +161,53 @@ def _with_spans(
             for q in evidence
         ]
     return result
+
+
+def _repair_ellipsis_evidence(
+    evidence: list[str],
+    answer: str,
+    *,
+    fuzzy_threshold: float,
+) -> list[str]:
+    """Replace model-composed ellipsis quotes with traceable source pieces."""
+    repaired: list[str] = []
+    seen: set[str] = set()
+    for quote in evidence:
+        text = str(quote or "").strip()
+        if not text:
+            continue
+        if not _ELLIPSIS_RE.search(text):
+            _append_quote_once(repaired, seen, text)
+            continue
+
+        pieces = [
+            piece.strip(_QUOTE_EDGE_CHARS)
+            for piece in _ELLIPSIS_RE.split(text)
+            if piece.strip(_QUOTE_EDGE_CHARS)
+        ]
+        matched = [
+            piece
+            for piece in pieces
+            if _align_one_span(
+                piece,
+                answer,
+                fuzzy_threshold=fuzzy_threshold,
+            ).get("match")
+            != "none"
+        ]
+        if not matched:
+            _append_quote_once(repaired, seen, text)
+            continue
+        for piece in matched:
+            _append_quote_once(repaired, seen, piece)
+    return repaired
+
+
+def _append_quote_once(out: list[str], seen: set[str], quote: str) -> None:
+    if quote in seen:
+        return
+    out.append(quote)
+    seen.add(quote)
 
 
 def _verdict_of(value: Any) -> str:

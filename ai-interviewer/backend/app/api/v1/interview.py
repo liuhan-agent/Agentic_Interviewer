@@ -158,6 +158,7 @@ from app.services.resume_parser import (
     extract_text_with_timeout,
     normalise_resume_parsed_focus_areas,
     parse_resume,
+    sanitize_resume_parse_audit,
 )
 from app.services.resume_parser import (
     MAX_FILE_BYTES as MAX_RESUME_UPLOAD_BYTES,
@@ -421,6 +422,12 @@ class CandidateInput(BaseModel):
     name: str = Field(min_length=1, description="Candidate display name")
     email_hash: str | None = None
     resume_parsed: ResumeParsed = Field(default_factory=ResumeParsed)
+    resume_parse_audit: dict[str, Any] = Field(default_factory=dict)
+
+    @field_validator("resume_parse_audit", mode="before")
+    @classmethod
+    def _sanitize_resume_parse_audit(cls, value: Any) -> dict[str, Any]:
+        return sanitize_resume_parse_audit(value)
 
 
 class JobSpecInput(BaseModel):
@@ -660,6 +667,8 @@ def _setup_snapshot_from_request(req: StartSessionRequest) -> dict[str, Any]:
     candidate["resume_parsed"] = normalise_resume_parsed_focus_areas(
         candidate.get("resume_parsed") or {}
     )
+    if not candidate.get("resume_parse_audit"):
+        candidate.pop("resume_parse_audit", None)
     return {
         "candidate": candidate,
         "job_spec": req.job_spec.model_dump(exclude_none=False),
