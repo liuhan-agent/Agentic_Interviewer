@@ -114,6 +114,36 @@ def test_normalize_check_result_filters_empty_evidence_items() -> None:
     assert out == {"verdict": "partial", "evidence": ["only real quote"]}
 
 
+def test_normalize_check_result_splits_ellipsis_quotes_into_traceable_spans() -> None:
+    answer = (
+        "我会启动一个XXL-JOB补偿任务，按业务维度分批扫描最近一段时间发生变化的数据。"
+        "然后对比Redis里的状态、version和updateTime。"
+        "如果Redis缺失或者比DB旧，就用DB重新回填缓存。"
+    )
+
+    out = _normalize_check_result(
+        {
+            "verdict": "yes",
+            "evidence": [
+                "我会启动一个XXL-JOB补偿任务...对比Redis里的状态...用DB重新回填缓存"
+            ],
+        },
+        answer=answer,
+        enable_spans=True,
+    )
+
+    assert out["evidence"] == [
+        "我会启动一个XXL-JOB补偿任务",
+        "对比Redis里的状态",
+        "用DB重新回填缓存",
+    ]
+    assert [span["match"] for span in out["evidence_spans"]] == [
+        "exact",
+        "exact",
+        "exact",
+    ]
+
+
 def test_normalize_check_result_garbage_input_is_safe() -> None:
     """Integers / None / list inputs should not raise."""
     assert _normalize_check_result(None) == {"verdict": "no", "evidence": []}
