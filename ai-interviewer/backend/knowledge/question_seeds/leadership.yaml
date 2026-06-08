@@ -32,6 +32,84 @@ seeds:
         expected_signals: [能制定轻量模板, 能推动关键风险前置, 能跟踪评审结果]
         anti_patterns: [只凭个人拍板, 评审没有标准, 评审后没人跟进]
         good_answer_hints: [先定义评审目标, 再建立标准和流程, 最后跟踪结果]
+        reviewed_acceptance_checks:
+          - check_id: reviewed:leadership.architect_technical_governance.arch_review:must_cover:technical_standard:v1
+            source: must_cover
+            source_text: 技术标准
+            acceptance_check: 候选人说明架构评审需要明确质量标准，如可靠性、扩展性、安全、成本、可维护性和业务适配。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-09'
+          - check_id: reviewed:leadership.architect_technical_governance.arch_review:must_cover:review_mechanism:v1
+            source: must_cover
+            source_text: 评审机制
+            acceptance_check: 候选人建立架构评审流程、模板、参与角色、准入时机、决策规则和记录机制。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-09'
+          - check_id: reviewed:leadership.architect_technical_governance.arch_review:must_cover:influence:v1
+            source: must_cover
+            source_text: 影响力
+            acceptance_check: 候选人说明如何用事实、风险、收益、案例和协作方式推动多个团队接受评审机制。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-09'
+          - check_id: reviewed:leadership.architect_technical_governance.arch_review:must_cover:implementation_tracking:v1
+            source: must_cover
+            source_text: 落地跟踪
+            acceptance_check: 候选人说明评审结论、风险项、owner、整改时间、验收和复盘如何持续跟踪。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-09'
+          - check_id: reviewed:leadership.architect_technical_governance.arch_review:rubric_addition:review_standard:v1
+            source: rubric_addition
+            source_text: 说明评审标准
+            acceptance_check: 候选人说明轻量评审模板、风险检查项、非功能要求和关键技术决策标准。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-09'
+          - check_id: reviewed:leadership.architect_technical_governance.arch_review:rubric_addition:decision_record:v1
+            source: rubric_addition
+            source_text: 说明决策和记录机制
+            acceptance_check: 候选人说明如何记录评审结论、决策依据、风险接受、例外项和责任人。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-09'
+          - check_id: reviewed:leadership.architect_technical_governance.arch_review:rubric_addition:tracking_review:v1
+            source: rubric_addition
+            source_text: 说明后续跟踪和复盘
+            acceptance_check: 候选人说明评审后如何跟踪整改、验证效果、复盘质量问题和迭代标准。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-09'
         priority: 15
         status: active
       - id: leadership.architect_technical_governance.cross_team_standard
@@ -48,5 +126,83 @@ seeds:
         expected_signals: [能先找高收益场景, 能用工具降低接入成本, 能允许合理例外]
         anti_patterns: [一刀切强推, 不考虑团队成本, 没有反馈机制]
         good_answer_hints: [先选择治理优先级, 再用试点证明价值, 最后形成标准和例外机制]
+        reviewed_acceptance_checks:
+          - check_id: reviewed:leadership.architect_technical_governance.cross_team_standard:must_cover:technical_standard:v1
+            source: must_cover
+            source_text: 技术标准
+            acceptance_check: 候选人说明跨团队技术标准的目标、适用范围、收益、约束和不应一刀切的边界。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-09'
+          - check_id: reviewed:leadership.architect_technical_governance.cross_team_standard:must_cover:review_mechanism:v1
+            source: must_cover
+            source_text: 评审机制
+            acceptance_check: 候选人建立标准制定、试点验证、评审准入、例外申请和版本迭代机制。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-09'
+          - check_id: reviewed:leadership.architect_technical_governance.cross_team_standard:must_cover:influence:v1
+            source: must_cover
+            source_text: 影响力
+            acceptance_check: 候选人说明如何通过高收益场景、工具支持、试点成功和团队反馈推动标准被接受。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-09'
+          - check_id: reviewed:leadership.architect_technical_governance.cross_team_standard:must_cover:implementation_tracking:v1
+            source: must_cover
+            source_text: 落地跟踪
+            acceptance_check: 候选人说明标准推广后的接入率、例外项、问题反馈、效果指标和持续治理跟踪方式。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-09'
+          - check_id: reviewed:leadership.architect_technical_governance.cross_team_standard:rubric_addition:standard_boundary:v1
+            source: rubric_addition
+            source_text: 说明标准适用边界
+            acceptance_check: 候选人说明哪些团队、系统、场景必须遵守标准，哪些历史包袱或特殊场景允许例外。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-09'
+          - check_id: reviewed:leadership.architect_technical_governance.cross_team_standard:rubric_addition:pilot_rollout:v1
+            source: rubric_addition
+            source_text: 说明试点和推广
+            acceptance_check: 候选人说明如何选择高收益试点、验证价值、沉淀工具和逐步推广。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-09'
+          - check_id: reviewed:leadership.architect_technical_governance.cross_team_standard:rubric_addition:exception_feedback:v1
+            source: rubric_addition
+            source_text: 说明例外处理和反馈机制
+            acceptance_check: 候选人说明例外申请、风险接受、反馈收集、标准迭代和避免过度管控的机制。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-09'
         priority: 14
         status: active

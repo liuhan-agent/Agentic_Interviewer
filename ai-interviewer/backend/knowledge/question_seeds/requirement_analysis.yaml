@@ -32,6 +32,84 @@ seeds:
         expected_signals: [能把诉求拆成问题定义, 能识别约束和边界, 能把结果转成验收标准]
         anti_patterns: [直接写功能清单, 不追问业务目标, 没有衡量方式]
         good_answer_hints: [先澄清目标, 再定义边界, 最后对齐验收]
+        reviewed_acceptance_checks:
+          - check_id: reviewed:requirement_analysis.prd_scope_boundary.one_sentence_request:must_cover:39d9c83a:v1
+            source: must_cover
+            source_text: 业务目标
+            acceptance_check: 候选人围绕「业务目标」说明目标或问题背景、关键约束、涉及对象和本人澄清/拆解动作。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:requirement_analysis.prd_scope_boundary.one_sentence_request:must_cover:3db8e849:v1
+            source: must_cover
+            source_text: 用户场景
+            acceptance_check: 候选人围绕「用户场景」说明对象分层、真实诉求、证据来源和后续业务动作。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:requirement_analysis.prd_scope_boundary.one_sentence_request:must_cover:4847db7c:v1
+            source: must_cover
+            source_text: 需求边界
+            acceptance_check: 候选人围绕「需求边界」说明目标或问题背景、关键约束、涉及对象和本人澄清/拆解动作。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:requirement_analysis.prd_scope_boundary.one_sentence_request:must_cover:eefebfd2:v1
+            source: must_cover
+            source_text: 验收标准
+            acceptance_check: 候选人围绕「验收标准」说明需求背景、用户或业务价值、优先级判断和本人澄清/推进动作。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:requirement_analysis.prd_scope_boundary.one_sentence_request:rubric_addition:d3503341:v1
+            source: rubric_addition
+            source_text: 说明澄清问题清单
+            acceptance_check: 候选人补充说明「说明澄清问题清单」，并落到数据、案例、客户/用户反馈、流程证据、协作动作或验证方式中的至少一类具体证据。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:requirement_analysis.prd_scope_boundary.one_sentence_request:rubric_addition:31d67936:v1
+            source: rubric_addition
+            source_text: 说明目标和非目标
+            acceptance_check: 候选人补充说明「说明目标和非目标」，并落到数据、案例、客户/用户反馈、流程证据、协作动作或验证方式中的至少一类具体证据。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:requirement_analysis.prd_scope_boundary.one_sentence_request:rubric_addition:43a91b6d:v1
+            source: rubric_addition
+            source_text: 说明验收指标
+            acceptance_check: 候选人补充说明「说明验收指标」，并落到数据、案例、客户/用户反馈、流程证据、协作动作或验证方式中的至少一类具体证据。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
         priority: 17
         status: active
       - id: requirement_analysis.prd_scope_boundary.mvp_boundary
@@ -48,5 +126,83 @@ seeds:
         expected_signals: [能围绕核心假设划范围, 能把取舍讲成业务语言, 能保留后续扩展空间]
         anti_patterns: [平均砍功能, 只用研发没时间解释, 没有风险兜底]
         good_answer_hints: [先锁定核心假设, 再划 MVP, 最后对齐风险和后续版本]
+        reviewed_acceptance_checks:
+          - check_id: reviewed:requirement_analysis.prd_scope_boundary.mvp_boundary:must_cover:f09f7053:v1
+            source: must_cover
+            source_text: 业务目标
+            acceptance_check: 候选人围绕「业务目标」说明目标或问题背景、关键约束、涉及对象和本人澄清/拆解动作。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:requirement_analysis.prd_scope_boundary.mvp_boundary:must_cover:9ace2e21:v1
+            source: must_cover
+            source_text: 用户场景
+            acceptance_check: 候选人围绕「用户场景」说明对象分层、真实诉求、证据来源和后续业务动作。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:requirement_analysis.prd_scope_boundary.mvp_boundary:must_cover:4e26f4b7:v1
+            source: must_cover
+            source_text: 需求边界
+            acceptance_check: 候选人围绕「需求边界」说明目标或问题背景、关键约束、涉及对象和本人澄清/拆解动作。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:requirement_analysis.prd_scope_boundary.mvp_boundary:must_cover:57edd467:v1
+            source: must_cover
+            source_text: 验收标准
+            acceptance_check: 候选人围绕「验收标准」说明需求背景、用户或业务价值、优先级判断和本人澄清/推进动作。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:requirement_analysis.prd_scope_boundary.mvp_boundary:rubric_addition:e5d4e608:v1
+            source: rubric_addition
+            source_text: 说明最小可验证范围
+            acceptance_check: 候选人补充说明「说明最小可验证范围」，并落到数据、案例、客户/用户反馈、流程证据、协作动作或验证方式中的至少一类具体证据。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:requirement_analysis.prd_scope_boundary.mvp_boundary:rubric_addition:d72bfd5e:v1
+            source: rubric_addition
+            source_text: 说明被砍需求的理由
+            acceptance_check: 候选人补充说明「说明被砍需求的理由」，并落到数据、案例、客户/用户反馈、流程证据、协作动作或验证方式中的至少一类具体证据。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:requirement_analysis.prd_scope_boundary.mvp_boundary:rubric_addition:1557d248:v1
+            source: rubric_addition
+            source_text: 说明后续演进路径
+            acceptance_check: 候选人补充说明「说明后续演进路径」，并落到数据、案例、客户/用户反馈、流程证据、协作动作或验证方式中的至少一类具体证据。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
         priority: 16
         status: active

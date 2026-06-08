@@ -32,6 +32,84 @@ seeds:
         expected_signals: [能拆 CTR CVR CPA, 能看线索质量, 能定位素材人群或落地页问题]
         anti_patterns: [只优化点击率, 全部变量一起改, 不看下游成交]
         good_answer_hints: [先拆漏斗, 再定位瓶颈, 最后一次只改关键变量]
+        reviewed_acceptance_checks:
+          - check_id: reviewed:channel_growth.roi_lead_optimization.paid_channel_bottleneck:must_cover:fc6c1e00:v1
+            source: must_cover
+            source_text: 渠道选择
+            acceptance_check: 候选人围绕「渠道选择」说明渠道目标、增长假设、资源投入、风险边界和复盘指标。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:channel_growth.roi_lead_optimization.paid_channel_bottleneck:must_cover:f50b5c84:v1
+            source: must_cover
+            source_text: 线索质量
+            acceptance_check: 候选人围绕「线索质量」说明渠道目标、增长假设、资源投入、风险边界和复盘指标。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:channel_growth.roi_lead_optimization.paid_channel_bottleneck:must_cover:4a44c50a:v1
+            source: must_cover
+            source_text: ROI 归因
+            acceptance_check: 候选人围绕「ROI 归因」说明渠道目标、增长假设、资源投入、风险边界和复盘指标。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:channel_growth.roi_lead_optimization.paid_channel_bottleneck:must_cover:7a378983:v1
+            source: must_cover
+            source_text: 优化动作
+            acceptance_check: 候选人围绕「优化动作」说明渠道目标、增长假设、资源投入、风险边界和复盘指标。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:channel_growth.roi_lead_optimization.paid_channel_bottleneck:rubric_addition:3da3c67a:v1
+            source: rubric_addition
+            source_text: 说明漏斗指标拆解
+            acceptance_check: 候选人补充说明「说明漏斗指标拆解」，并落到数据、案例、客户/用户反馈、流程证据、协作动作或验证方式中的至少一类具体证据。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:channel_growth.roi_lead_optimization.paid_channel_bottleneck:rubric_addition:0b198c5e:v1
+            source: rubric_addition
+            source_text: 说明瓶颈定位
+            acceptance_check: 候选人补充说明「说明瓶颈定位」，并落到数据、案例、客户/用户反馈、流程证据、协作动作或验证方式中的至少一类具体证据。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:channel_growth.roi_lead_optimization.paid_channel_bottleneck:rubric_addition:9c959295:v1
+            source: rubric_addition
+            source_text: 说明下一轮实验变量
+            acceptance_check: 候选人补充说明「说明下一轮实验变量」，并落到数据、案例、客户/用户反馈、流程证据、协作动作或验证方式中的至少一类具体证据。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
         priority: 17
         status: active
       - id: channel_growth.roi_lead_optimization.ltv_roi_tradeoff
@@ -48,5 +126,83 @@ seeds:
         expected_signals: [能区分短期和长期价值, 能处理归因不确定性, 能分阶段调整预算]
         anti_patterns: [只看当期 ROI, 忽略留存, 一次性砍掉高 CPA 渠道]
         good_answer_hints: [先统一归因窗口, 再估算 LTV, 最后灰度调预算]
+        reviewed_acceptance_checks:
+          - check_id: reviewed:channel_growth.roi_lead_optimization.ltv_roi_tradeoff:must_cover:065ff7ca:v1
+            source: must_cover
+            source_text: 渠道选择
+            acceptance_check: 候选人围绕「渠道选择」说明渠道目标、增长假设、资源投入、风险边界和复盘指标。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:channel_growth.roi_lead_optimization.ltv_roi_tradeoff:must_cover:2983f16d:v1
+            source: must_cover
+            source_text: 线索质量
+            acceptance_check: 候选人围绕「线索质量」说明渠道目标、增长假设、资源投入、风险边界和复盘指标。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:channel_growth.roi_lead_optimization.ltv_roi_tradeoff:must_cover:fa5235b5:v1
+            source: must_cover
+            source_text: ROI 归因
+            acceptance_check: 候选人围绕「ROI 归因」说明渠道目标、增长假设、资源投入、风险边界和复盘指标。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:channel_growth.roi_lead_optimization.ltv_roi_tradeoff:must_cover:a5826f54:v1
+            source: must_cover
+            source_text: 优化动作
+            acceptance_check: 候选人围绕「优化动作」说明渠道目标、增长假设、资源投入、风险边界和复盘指标。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:channel_growth.roi_lead_optimization.ltv_roi_tradeoff:rubric_addition:7de2dc36:v1
+            source: rubric_addition
+            source_text: 说明归因窗口
+            acceptance_check: 候选人补充说明「说明归因窗口」，并落到数据、案例、客户/用户反馈、流程证据、协作动作或验证方式中的至少一类具体证据。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:channel_growth.roi_lead_optimization.ltv_roi_tradeoff:rubric_addition:3a573ce1:v1
+            source: rubric_addition
+            source_text: 说明 LTV 与 CPA 比较
+            acceptance_check: 候选人补充说明「说明 LTV 与 CPA 比较」，并落到数据、案例、客户/用户反馈、流程证据、协作动作或验证方式中的至少一类具体证据。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:channel_growth.roi_lead_optimization.ltv_roi_tradeoff:rubric_addition:d625cca3:v1
+            source: rubric_addition
+            source_text: 说明预算灰度调整
+            acceptance_check: 候选人补充说明「说明预算灰度调整」，并落到数据、案例、客户/用户反馈、流程证据、协作动作或验证方式中的至少一类具体证据。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
         priority: 16
         status: active

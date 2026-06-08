@@ -32,6 +32,84 @@ seeds:
         expected_signals: [能按频率和错误成本排序, 能设计渐进自动化, 能定义效率指标]
         anti_patterns: [所有流程都做系统, 只买工具不改流程, 不验证使用率]
         good_answer_hints: [先算成本, 再挑高频高错环节, 最后灰度落地]
+        reviewed_acceptance_checks:
+          - check_id: reviewed:process_optimization.operations_workflow_efficiency.manual_to_system:must_cover:b9441f20:v1
+            source: must_cover
+            source_text: 低效环节
+            acceptance_check: 候选人围绕「低效环节」说明流程现状、瓶颈证据、优化动作、影响范围和复盘结果。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:process_optimization.operations_workflow_efficiency.manual_to_system:must_cover:74cf9b98:v1
+            source: must_cover
+            source_text: 人工成本
+            acceptance_check: 候选人围绕「人工成本」说明流程现状、瓶颈证据、优化动作、影响范围和复盘结果。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:process_optimization.operations_workflow_efficiency.manual_to_system:must_cover:019f1a52:v1
+            source: must_cover
+            source_text: 机制设计
+            acceptance_check: 候选人围绕「机制设计」说明流程现状、瓶颈证据、优化动作、影响范围和复盘结果。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:process_optimization.operations_workflow_efficiency.manual_to_system:must_cover:0c680cdc:v1
+            source: must_cover
+            source_text: 落地验证
+            acceptance_check: 候选人围绕「落地验证」说明验证方式、反馈来源、复盘结论和下一步改进动作。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:process_optimization.operations_workflow_efficiency.manual_to_system:rubric_addition:7363592d:v1
+            source: rubric_addition
+            source_text: 说明人工成本和错误成本
+            acceptance_check: 候选人补充说明「说明人工成本和错误成本」，并落到数据、案例、客户/用户反馈、流程证据、协作动作或验证方式中的至少一类具体证据。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:process_optimization.operations_workflow_efficiency.manual_to_system:rubric_addition:e9526098:v1
+            source: rubric_addition
+            source_text: 说明系统化范围
+            acceptance_check: 候选人补充说明「说明系统化范围」，并落到数据、案例、客户/用户反馈、流程证据、协作动作或验证方式中的至少一类具体证据。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:process_optimization.operations_workflow_efficiency.manual_to_system:rubric_addition:5deab239:v1
+            source: rubric_addition
+            source_text: 说明落地和验证
+            acceptance_check: 候选人补充说明「说明落地和验证」，并落到数据、案例、客户/用户反馈、流程证据、协作动作或验证方式中的至少一类具体证据。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
         priority: 16
         status: active
       - id: process_optimization.operations_workflow_efficiency.sop_adoption
@@ -48,5 +126,83 @@ seeds:
         expected_signals: [能观察真实执行场景, 能区分设计和执行, 能设置 adoption 指标]
         anti_patterns: [只要求大家执行, 不看实际阻力, 不更新 SOP]
         good_answer_hints: [先看现场, 再判断阻力类型, 最后改机制和指标]
+        reviewed_acceptance_checks:
+          - check_id: reviewed:process_optimization.operations_workflow_efficiency.sop_adoption:must_cover:d494bc20:v1
+            source: must_cover
+            source_text: 低效环节
+            acceptance_check: 候选人围绕「低效环节」说明流程现状、瓶颈证据、优化动作、影响范围和复盘结果。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:process_optimization.operations_workflow_efficiency.sop_adoption:must_cover:8428ea3a:v1
+            source: must_cover
+            source_text: 人工成本
+            acceptance_check: 候选人围绕「人工成本」说明流程现状、瓶颈证据、优化动作、影响范围和复盘结果。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:process_optimization.operations_workflow_efficiency.sop_adoption:must_cover:99c3e0fb:v1
+            source: must_cover
+            source_text: 机制设计
+            acceptance_check: 候选人围绕「机制设计」说明流程现状、瓶颈证据、优化动作、影响范围和复盘结果。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:process_optimization.operations_workflow_efficiency.sop_adoption:must_cover:3cba8cc6:v1
+            source: must_cover
+            source_text: 落地验证
+            acceptance_check: 候选人围绕「落地验证」说明验证方式、反馈来源、复盘结论和下一步改进动作。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:process_optimization.operations_workflow_efficiency.sop_adoption:rubric_addition:3aa0c4f0:v1
+            source: rubric_addition
+            source_text: 说明一线反馈收集
+            acceptance_check: 候选人补充说明「说明一线反馈收集」，并落到数据、案例、客户/用户反馈、流程证据、协作动作或验证方式中的至少一类具体证据。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:process_optimization.operations_workflow_efficiency.sop_adoption:rubric_addition:8d5c8989:v1
+            source: rubric_addition
+            source_text: 说明流程与激励问题区分
+            acceptance_check: 候选人补充说明「说明流程与激励问题区分」，并落到数据、案例、客户/用户反馈、流程证据、协作动作或验证方式中的至少一类具体证据。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:process_optimization.operations_workflow_efficiency.sop_adoption:rubric_addition:a0c19e36:v1
+            source: rubric_addition
+            source_text: 说明改版和跟踪
+            acceptance_check: 候选人补充说明「说明改版和跟踪」，并落到数据、案例、客户/用户反馈、流程证据、协作动作或验证方式中的至少一类具体证据。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
         priority: 15
         status: active

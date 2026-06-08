@@ -266,6 +266,15 @@ def test_trace_evaluator_records_current_contract_payload(
             "status": "passed",
             "would_pass": True,
         },
+        "evaluation_quality_warning": True,
+        "evaluation_quality_warning_reason": (
+            "empty_evidence_all_reviewed_core_partial"
+        ),
+        "evaluation_quality_warning_check_ids": ["reviewed:zero-downtime"],
+        "evaluation_quality_invalid": True,
+        "evaluation_quality_invalid_reason": "quality_guard_retry_exhausted",
+        "evaluation_retry_applied": True,
+        "evaluation_retry_reason": "quality_guard",
         "recommended_next": "advance",
         "recommended_next_plan": "adaptive",
         "recommended_probe_intent": "evidence_probe",
@@ -296,6 +305,19 @@ def test_trace_evaluator_records_current_contract_payload(
     assert payload["acceptance_check_result_items"][0]["source"] == "reviewed"
     assert payload["contract_gate_result"]["status"] == "passed"
     assert payload["contract_gate_result"]["mode"] == "shadow"
+    assert payload["evaluation_quality_warning"] is True
+    assert payload["evaluation_quality_warning_reason"] == (
+        "empty_evidence_all_reviewed_core_partial"
+    )
+    assert payload["evaluation_quality_warning_check_ids"] == [
+        "reviewed:zero-downtime"
+    ]
+    assert payload["evaluation_quality_invalid"] is True
+    assert payload["evaluation_quality_invalid_reason"] == (
+        "quality_guard_retry_exhausted"
+    )
+    assert payload["evaluation_retry_applied"] is True
+    assert payload["evaluation_retry_reason"] == "quality_guard"
     assert payload["recommended_next_plan"] == "adaptive"
 
 

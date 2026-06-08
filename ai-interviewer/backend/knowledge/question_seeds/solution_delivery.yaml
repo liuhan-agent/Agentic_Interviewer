@@ -32,6 +32,84 @@ seeds:
         expected_signals: [Distinguishes workaround and root fix, sets owner, defines closure confirmation]
         anti_patterns: [Calls workaround final fix, hides limitation, forgets follow up]
         good_answer_hints: [Be explicit, confirm customer acceptance, keep root fix visible]
+        reviewed_acceptance_checks:
+          - check_id: reviewed:solution_delivery.customer_solution_closure.partial_workaround:must_cover:198e49d5:v1
+            source: must_cover
+            source_text: solution_options
+            acceptance_check: 候选人围绕「solution_options」说明交付目标、关键里程碑、协作动作、风险兜底和验收反馈。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:solution_delivery.customer_solution_closure.partial_workaround:must_cover:a52eac90:v1
+            source: must_cover
+            source_text: execution_owner
+            acceptance_check: 候选人围绕「execution_owner」说明交付目标、关键里程碑、协作动作、风险兜底和验收反馈。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:solution_delivery.customer_solution_closure.partial_workaround:must_cover:6896feab:v1
+            source: must_cover
+            source_text: customer_confirmation
+            acceptance_check: 候选人围绕「customer_confirmation」说明交付目标、关键里程碑、协作动作、风险兜底和验收反馈。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:solution_delivery.customer_solution_closure.partial_workaround:must_cover:cfa75781:v1
+            source: must_cover
+            source_text: closure_standard
+            acceptance_check: 候选人围绕「closure_standard」说明交付目标、关键里程碑、协作动作、风险兜底和验收反馈。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:solution_delivery.customer_solution_closure.partial_workaround:rubric_addition:23af8e93:v1
+            source: rubric_addition
+            source_text: Explain limitation honestly
+            acceptance_check: 候选人补充说明「Explain limitation honestly」，并落到数据、案例、客户/用户反馈、流程证据、协作动作或验证方式中的至少一类具体证据。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:solution_delivery.customer_solution_closure.partial_workaround:rubric_addition:02ecf11d:v1
+            source: rubric_addition
+            source_text: confirm acceptance
+            acceptance_check: 候选人补充说明「confirm acceptance」，并落到数据、案例、客户/用户反馈、流程证据、协作动作或验证方式中的至少一类具体证据。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:solution_delivery.customer_solution_closure.partial_workaround:rubric_addition:4fd02486:v1
+            source: rubric_addition
+            source_text: track permanent fix
+            acceptance_check: 候选人补充说明「track permanent fix」，并落到数据、案例、客户/用户反馈、流程证据、协作动作或验证方式中的至少一类具体证据。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
         priority: 17
         status: active
       - id: solution_delivery.customer_solution_closure.customer_training_gap
@@ -48,5 +126,83 @@ seeds:
         expected_signals: [Segments customer users, designs training or guide, tracks repeat tickets]
         anti_patterns: [Only sends documentation link, blames customer, ignores adoption signal]
         good_answer_hints: [Solve now, teach by scenario, monitor repeat behavior]
+        reviewed_acceptance_checks:
+          - check_id: reviewed:solution_delivery.customer_solution_closure.customer_training_gap:must_cover:45474a78:v1
+            source: must_cover
+            source_text: solution_options
+            acceptance_check: 候选人围绕「solution_options」说明交付目标、关键里程碑、协作动作、风险兜底和验收反馈。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:solution_delivery.customer_solution_closure.customer_training_gap:must_cover:cd013c87:v1
+            source: must_cover
+            source_text: execution_owner
+            acceptance_check: 候选人围绕「execution_owner」说明交付目标、关键里程碑、协作动作、风险兜底和验收反馈。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:solution_delivery.customer_solution_closure.customer_training_gap:must_cover:dab5a2f8:v1
+            source: must_cover
+            source_text: customer_confirmation
+            acceptance_check: 候选人围绕「customer_confirmation」说明交付目标、关键里程碑、协作动作、风险兜底和验收反馈。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:solution_delivery.customer_solution_closure.customer_training_gap:must_cover:9efc960d:v1
+            source: must_cover
+            source_text: closure_standard
+            acceptance_check: 候选人围绕「closure_standard」说明交付目标、关键里程碑、协作动作、风险兜底和验收反馈。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:solution_delivery.customer_solution_closure.customer_training_gap:rubric_addition:406f24df:v1
+            source: rubric_addition
+            source_text: Address current case
+            acceptance_check: 候选人补充说明「Address current case」，并落到数据、案例、客户/用户反馈、流程证据、协作动作或验证方式中的至少一类具体证据。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:solution_delivery.customer_solution_closure.customer_training_gap:rubric_addition:98bdd4f2:v1
+            source: rubric_addition
+            source_text: create enablement asset
+            acceptance_check: 候选人补充说明「create enablement asset」，并落到数据、案例、客户/用户反馈、流程证据、协作动作或验证方式中的至少一类具体证据。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:solution_delivery.customer_solution_closure.customer_training_gap:rubric_addition:b4853b32:v1
+            source: rubric_addition
+            source_text: measure recurrence
+            acceptance_check: 候选人补充说明「measure recurrence」，并落到数据、案例、客户/用户反馈、流程证据、协作动作或验证方式中的至少一类具体证据。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
         priority: 15
         status: active

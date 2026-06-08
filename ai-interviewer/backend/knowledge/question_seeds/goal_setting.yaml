@@ -32,6 +32,84 @@ seeds:
         expected_signals: [Translates goal into measurable outcomes, names tradeoffs, sets review cadence]
         anti_patterns: [Copies leadership slogan, accepts all requests, lacks measurement]
         good_answer_hints: [Clarify outcome, decide priority, communicate tradeoff and cadence]
+        reviewed_acceptance_checks:
+          - check_id: reviewed:goal_setting.management_goal_alignment.ambiguous_quarter_target:must_cover:33112462:v1
+            source: must_cover
+            source_text: business_goal
+            acceptance_check: 候选人围绕「business_goal」说明目标来源、拆解逻辑、约束条件、对齐过程和跟踪复盘方式。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:goal_setting.management_goal_alignment.ambiguous_quarter_target:must_cover:7229434c:v1
+            source: must_cover
+            source_text: priority_tradeoff
+            acceptance_check: 候选人围绕「priority_tradeoff」说明目标来源、拆解逻辑、约束条件、对齐过程和跟踪复盘方式。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:goal_setting.management_goal_alignment.ambiguous_quarter_target:must_cover:a0e21e6f:v1
+            source: must_cover
+            source_text: team_alignment
+            acceptance_check: 候选人围绕「team_alignment」说明目标来源、拆解逻辑、约束条件、对齐过程和跟踪复盘方式。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:goal_setting.management_goal_alignment.ambiguous_quarter_target:must_cover:18259b31:v1
+            source: must_cover
+            source_text: measurement
+            acceptance_check: 候选人围绕「measurement」说明目标来源、拆解逻辑、约束条件、对齐过程和跟踪复盘方式。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:goal_setting.management_goal_alignment.ambiguous_quarter_target:rubric_addition:10f99f28:v1
+            source: rubric_addition
+            source_text: Clarify success metric
+            acceptance_check: 候选人补充说明「Clarify success metric」，并落到数据、案例、客户/用户反馈、流程证据、协作动作或验证方式中的至少一类具体证据。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:goal_setting.management_goal_alignment.ambiguous_quarter_target:rubric_addition:4b4435cf:v1
+            source: rubric_addition
+            source_text: define priority order
+            acceptance_check: 候选人补充说明「define priority order」，并落到数据、案例、客户/用户反馈、流程证据、协作动作或验证方式中的至少一类具体证据。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:goal_setting.management_goal_alignment.ambiguous_quarter_target:rubric_addition:2f26b9d6:v1
+            source: rubric_addition
+            source_text: align stakeholders
+            acceptance_check: 候选人补充说明「align stakeholders」，并落到数据、案例、客户/用户反馈、流程证据、协作动作或验证方式中的至少一类具体证据。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
         priority: 18
         status: active
       - id: goal_setting.management_goal_alignment.resource_constraint
@@ -48,5 +126,83 @@ seeds:
         expected_signals: [Uses capacity evidence, proposes focused scope, escalates decision clearly]
         anti_patterns: [Pushes team overtime by default, hides risk, cuts scope randomly]
         good_answer_hints: [Show capacity math, identify must win outcome, renegotiate scope with evidence]
+        reviewed_acceptance_checks:
+          - check_id: reviewed:goal_setting.management_goal_alignment.resource_constraint:must_cover:85de7a43:v1
+            source: must_cover
+            source_text: business_goal
+            acceptance_check: 候选人围绕「business_goal」说明目标来源、拆解逻辑、约束条件、对齐过程和跟踪复盘方式。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:goal_setting.management_goal_alignment.resource_constraint:must_cover:d194630c:v1
+            source: must_cover
+            source_text: priority_tradeoff
+            acceptance_check: 候选人围绕「priority_tradeoff」说明目标来源、拆解逻辑、约束条件、对齐过程和跟踪复盘方式。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:goal_setting.management_goal_alignment.resource_constraint:must_cover:e99d115c:v1
+            source: must_cover
+            source_text: team_alignment
+            acceptance_check: 候选人围绕「team_alignment」说明目标来源、拆解逻辑、约束条件、对齐过程和跟踪复盘方式。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:goal_setting.management_goal_alignment.resource_constraint:must_cover:e4b26e72:v1
+            source: must_cover
+            source_text: measurement
+            acceptance_check: 候选人围绕「measurement」说明目标来源、拆解逻辑、约束条件、对齐过程和跟踪复盘方式。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:goal_setting.management_goal_alignment.resource_constraint:rubric_addition:e1309233:v1
+            source: rubric_addition
+            source_text: Quantify resource gap
+            acceptance_check: 候选人补充说明「Quantify resource gap」，并落到数据、案例、客户/用户反馈、流程证据、协作动作或验证方式中的至少一类具体证据。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:goal_setting.management_goal_alignment.resource_constraint:rubric_addition:37ee088c:v1
+            source: rubric_addition
+            source_text: protect critical outcome
+            acceptance_check: 候选人补充说明「protect critical outcome」，并落到数据、案例、客户/用户反馈、流程证据、协作动作或验证方式中的至少一类具体证据。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:goal_setting.management_goal_alignment.resource_constraint:rubric_addition:ff6ebb80:v1
+            source: rubric_addition
+            source_text: communicate scope tradeoff
+            acceptance_check: 候选人补充说明「communicate scope tradeoff」，并落到数据、案例、客户/用户反馈、流程证据、协作动作或验证方式中的至少一类具体证据。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
         priority: 16
         status: active

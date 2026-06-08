@@ -32,6 +32,84 @@ seeds:
         expected_signals: [能看客户侧推进证据, 能判断停留风险, 能设置下一步验证]
         anti_patterns: [金额大就一直投入, CRM 阶段不更新, 不敢清理漏斗]
         good_answer_hints: [先看阶段信号, 再验证关键人动作, 最后决定投入强度]
+        reviewed_acceptance_checks:
+          - check_id: reviewed:pipeline_management.sales_forecast_risk.stalled_big_deal:must_cover:b792c6e3:v1
+            source: must_cover
+            source_text: 阶段分布
+            acceptance_check: 候选人围绕「阶段分布」说明商机阶段、优先级依据、推进动作、风险预警和结果复盘。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:pipeline_management.sales_forecast_risk.stalled_big_deal:must_cover:842a1f79:v1
+            source: must_cover
+            source_text: 停留时间
+            acceptance_check: 候选人围绕「停留时间」说明商机阶段、优先级依据、推进动作、风险预警和结果复盘。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:pipeline_management.sales_forecast_risk.stalled_big_deal:must_cover:197d7860:v1
+            source: must_cover
+            source_text: 预测依据
+            acceptance_check: 候选人围绕「预测依据」说明商机阶段、优先级依据、推进动作、风险预警和结果复盘。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:pipeline_management.sales_forecast_risk.stalled_big_deal:must_cover:bb239214:v1
+            source: must_cover
+            source_text: 清理标准
+            acceptance_check: 候选人围绕「清理标准」说明商机阶段、优先级依据、推进动作、风险预警和结果复盘。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:pipeline_management.sales_forecast_risk.stalled_big_deal:rubric_addition:216ea759:v1
+            source: rubric_addition
+            source_text: 说明阶段健康信号
+            acceptance_check: 候选人补充说明「说明阶段健康信号」，并落到数据、案例、客户/用户反馈、流程证据、协作动作或验证方式中的至少一类具体证据。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:pipeline_management.sales_forecast_risk.stalled_big_deal:rubric_addition:94f01f93:v1
+            source: rubric_addition
+            source_text: 说明客户真实动作
+            acceptance_check: 候选人补充说明「说明客户真实动作」，并落到数据、案例、客户/用户反馈、流程证据、协作动作或验证方式中的至少一类具体证据。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:pipeline_management.sales_forecast_risk.stalled_big_deal:rubric_addition:a21059a5:v1
+            source: rubric_addition
+            source_text: 说明资源取舍
+            acceptance_check: 候选人补充说明「说明资源取舍」，并落到数据、案例、客户/用户反馈、流程证据、协作动作或验证方式中的至少一类具体证据。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
         priority: 16
         status: active
       - id: pipeline_management.sales_forecast_risk.crm_hygiene
@@ -48,5 +126,83 @@ seeds:
         expected_signals: [能把 CRM 看成管理资产, 能校准阶段概率, 能建立复盘节奏]
         anti_patterns: [只责怪销售填得差, 不定义阶段, 不复盘预测偏差]
         good_answer_hints: [先定义数据标准, 再校准阶段概率, 最后固定预测复盘]
+        reviewed_acceptance_checks:
+          - check_id: reviewed:pipeline_management.sales_forecast_risk.crm_hygiene:must_cover:d53cfcdd:v1
+            source: must_cover
+            source_text: 阶段分布
+            acceptance_check: 候选人围绕「阶段分布」说明商机阶段、优先级依据、推进动作、风险预警和结果复盘。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:pipeline_management.sales_forecast_risk.crm_hygiene:must_cover:541a25b3:v1
+            source: must_cover
+            source_text: 停留时间
+            acceptance_check: 候选人围绕「停留时间」说明商机阶段、优先级依据、推进动作、风险预警和结果复盘。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:pipeline_management.sales_forecast_risk.crm_hygiene:must_cover:09f14f60:v1
+            source: must_cover
+            source_text: 预测依据
+            acceptance_check: 候选人围绕「预测依据」说明商机阶段、优先级依据、推进动作、风险预警和结果复盘。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:pipeline_management.sales_forecast_risk.crm_hygiene:must_cover:0f03e7a8:v1
+            source: must_cover
+            source_text: 清理标准
+            acceptance_check: 候选人围绕「清理标准」说明商机阶段、优先级依据、推进动作、风险预警和结果复盘。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:pipeline_management.sales_forecast_risk.crm_hygiene:rubric_addition:4a404f35:v1
+            source: rubric_addition
+            source_text: 说明 CRM 字段和阶段标准
+            acceptance_check: 候选人补充说明「说明 CRM 字段和阶段标准」，并落到数据、案例、客户/用户反馈、流程证据、协作动作或验证方式中的至少一类具体证据。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:pipeline_management.sales_forecast_risk.crm_hygiene:rubric_addition:de63c04f:v1
+            source: rubric_addition
+            source_text: 说明预测偏差复盘
+            acceptance_check: 候选人补充说明「说明预测偏差复盘」，并落到数据、案例、客户/用户反馈、流程证据、协作动作或验证方式中的至少一类具体证据。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:pipeline_management.sales_forecast_risk.crm_hygiene:rubric_addition:ba2e1472:v1
+            source: rubric_addition
+            source_text: 说明机制改进
+            acceptance_check: 候选人补充说明「说明机制改进」，并落到数据、案例、客户/用户反馈、流程证据、协作动作或验证方式中的至少一类具体证据。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
         priority: 15
         status: active

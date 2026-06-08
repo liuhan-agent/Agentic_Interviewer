@@ -292,6 +292,34 @@ class TestFallbackTrainingPlan:
         assert any("覆盖" in task or "证据" in task for task in tasks)
 
 
+    def test_gate_enforcement_weakness_is_candidate_readable(self) -> None:
+        raw = (
+            "Reviewed core acceptance failed (no): "
+            "候选人说明消息消费、积分发放或修复任务的关键状态。"
+        )
+        qa = [
+            _make_qa(
+                0,
+                dimension="problem_solving",
+                score=6.0,
+                passed=False,
+                weaknesses=[raw],
+            )
+        ]
+
+        plan = _fallback_training_plan(
+            final_report={"overall_score": 6.0, "verdict": "borderline"},
+            qa_history=qa,
+        )
+
+        rendered = str(plan)
+        assert "Reviewed core acceptance failed" not in rendered
+        assert plan["priority_weaknesses"][0]["focus"] == (
+            "核心判定条款未满足：候选人说明消息消费、积分发放或修复任务的关键状态。"
+        )
+        assert "核心判定条款未满足" in plan["practice_plan"][0]["task"]
+
+
 class TestNormalizeLLMPlan:
     def test_missing_diagnosis_added(self) -> None:
         data = {"practice_plan": []}
@@ -336,6 +364,38 @@ class TestNormalizeLLMPlan:
         assert result["diagnosis"]["top_patterns"] == ["A"]
         assert result["practice_plan"][0]["steps"] == ["1"]
         assert result["signal_summary"] == "test"
+
+    def test_llm_plan_text_is_cleaned_of_gate_machine_prefixes(self) -> None:
+        data = {
+            "priority_weaknesses": [
+                {
+                    "dimension": "problem_solving",
+                    "focus": "Reviewed core acceptance failed (partial): 说明修复后的校验闭环。",
+                }
+            ],
+            "practice_plan": [
+                {
+                    "task": "Reviewed core acceptance failed (no): 描述补偿任务状态。",
+                    "steps": [
+                        "Reviewed core acceptance failed (missing_result): 补充监控证据。"
+                    ],
+                    "success_criteria": [
+                        "Reviewed core acceptance failed (no): 能说明如何避免重复修复。"
+                    ],
+                }
+            ],
+        }
+
+        result = _normalize_llm_plan(data)
+
+        rendered = str(result)
+        assert "Reviewed core acceptance failed" not in rendered
+        assert result["priority_weaknesses"][0]["focus"] == (
+            "核心判定条款未满足：说明修复后的校验闭环。"
+        )
+        assert result["practice_plan"][0]["task"] == (
+            "核心判定条款未满足：描述补偿任务状态。"
+        )
 
 
 class TestBuildTrainingPlan:
@@ -420,6 +480,37 @@ class TestBuildTrainingPlan:
         assert plan["source"] == "fallback"
         assert plan["fallback_reason"] == "empty_output"
 
+    def test_empty_llm_output_retries_once_before_fallback(self) -> None:
+        valid = (
+            '{"diagnosis":{"overall_readiness":"ready"},'
+            '"priority_weaknesses":[],"practice_plan":[],'
+            '"goals_30_60_90":{"30_days":[],"60_days":[],"90_days":[]},'
+            '"signal_summary":"ok"}'
+        )
+        with (
+            patch(
+                "app.engine.agents.coach.call_chat",
+                side_effect=["   ", valid],
+            ) as mock_call,
+            patch(
+                "app.engine.agents.coach.build_context_frame_for_coach",
+            ),
+            patch(
+                "app.engine.agents.coach.frame_to_coach_messages",
+                return_value=[],
+            ),
+        ):
+            plan = build_training_plan(
+                job_spec={},
+                candidate={},
+                final_report={"overall_score": 5.0, "verdict": "fail"},
+                qa_history=[_make_qa(0, score=5.0, weaknesses=["瀵京鍋?"])],
+            )
+
+        assert mock_call.call_count == 2
+        assert plan["source"] == "llm"
+        assert plan["signal_summary"] == "ok"
+
     def test_json_parse_failure_records_fallback_reason(self) -> None:
         with (
             patch(
@@ -443,6 +534,37 @@ class TestBuildTrainingPlan:
 
         assert plan["source"] == "fallback"
         assert plan["fallback_reason"] == "json_parse_failed"
+
+    def test_json_parse_failure_retries_once_before_fallback(self) -> None:
+        valid = (
+            '{"diagnosis":{"overall_readiness":"ready"},'
+            '"priority_weaknesses":[],"practice_plan":[],'
+            '"goals_30_60_90":{"30_days":[],"60_days":[],"90_days":[]},'
+            '"signal_summary":"ok"}'
+        )
+        with (
+            patch(
+                "app.engine.agents.coach.call_chat",
+                side_effect=["not json at all", valid],
+            ) as mock_call,
+            patch(
+                "app.engine.agents.coach.build_context_frame_for_coach",
+            ),
+            patch(
+                "app.engine.agents.coach.frame_to_coach_messages",
+                return_value=[],
+            ),
+        ):
+            plan = build_training_plan(
+                job_spec={},
+                candidate={},
+                final_report={"overall_score": 5.0, "verdict": "fail"},
+                qa_history=[_make_qa(0, score=5.0, weaknesses=["瀵京鍋?"])],
+            )
+
+        assert mock_call.call_count == 2
+        assert plan["source"] == "llm"
+        assert plan["signal_summary"] == "ok"
 
     def test_invalid_llm_structure_records_fallback_reason(self) -> None:
         with (
@@ -549,4 +671,58 @@ class TestBuildTrainingPlan:
         assert summaries["system_design"]["weaknesses"] == []
         assert coach_report["coach_generation_policy"]["coverage_limited_dimensions"] == [
             "system_design"
+        ]
+
+    def test_llm_context_sanitizes_gate_machine_prefixes(self) -> None:
+        raw = (
+            "Reviewed core acceptance failed (no): "
+            "候选人需要补充修复后的校验闭环。"
+        )
+        final_report = {
+            "overall_score": 6.0,
+            "verdict": "borderline",
+            "dimension_scores": {
+                "problem_solving": {
+                    "score": 6.0,
+                    "score_status": "scored",
+                    "coverage_status": "below_threshold",
+                },
+            },
+            "dimension_summaries": {
+                "problem_solving": {"weaknesses": [raw], "strengths": []},
+            },
+        }
+        with (
+            patch(
+                "app.engine.agents.coach.call_chat",
+                side_effect=RuntimeError("skip"),
+            ),
+            patch(
+                "app.engine.agents.coach.build_context_frame_for_coach",
+            ) as mock_build,
+            patch(
+                "app.engine.agents.coach.frame_to_coach_messages",
+                return_value=[],
+            ),
+        ):
+            build_training_plan(
+                job_spec={},
+                candidate={},
+                final_report=final_report,
+                qa_history=[
+                    _make_qa(
+                        0,
+                        dimension="problem_solving",
+                        score=6.0,
+                        passed=False,
+                        weaknesses=[raw],
+                    ),
+                ],
+            )
+
+        coach_report = mock_build.call_args.kwargs["final_report"]
+        rendered = str(coach_report)
+        assert "Reviewed core acceptance failed" not in rendered
+        assert coach_report["dimension_summaries"]["problem_solving"]["weaknesses"] == [
+            "核心判定条款未满足：候选人需要补充修复后的校验闭环。"
         ]

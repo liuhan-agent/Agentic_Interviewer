@@ -1,7 +1,147 @@
 """Generator fallback quality guards for the interview mainline."""
 from __future__ import annotations
 
+import json
+
 from app.engine.agents import generator
+
+
+def test_generate_question_rejects_model_question_drifted_from_structured_seed(
+    monkeypatch,
+) -> None:
+    monkeypatch.setattr(
+        generator,
+        "call_chat",
+        lambda *_args, **_kwargs: (
+            '{"question":"In the device monitoring project, Redis and XXL-JOB '
+            'caused status update delays. How would you debug it?",'
+            '"rubric_points":["debugging depth"],'
+            '"proposed_contract":{'
+            '"must_cover":["debugging signals","root cause"],'
+            '"acceptance_checks":["mentions logs"],'
+            '"minimum_bar":"debugging baseline",'
+            '"bar_level":"standard"}}'
+        ),
+    )
+
+    question = generator.generate_question(
+        dimension="technical_depth",
+        action={"id": "plan_adaptive"},
+        job_spec={"title": "Java backend engineer", "level": "junior"},
+        candidate={},
+        recent_qa=[],
+        retrieval_block="",
+        question_seed_block="\n".join(
+            [
+                "Seed: Order payment transaction consistency",
+                "Dimension: technical_depth",
+                "Intent: deep_probe",
+                "Difficulty: deep_probe",
+                "Scenario: Order payment includes charge, order status, "
+                "ledger and notification side effects.",
+                "Question stem: How would you split the order payment "
+                "transaction boundary and design compensation plus "
+                "reconciliation?",
+                "Prompt template: Ask for Spring transaction boundary, "
+                "idempotency key, async compensation and reconciliation.",
+                "Skill tags: java, transaction, consistency, compensation, "
+                "idempotency",
+            ]
+        ),
+        resume_anchor={"project_name": "Device monitoring"},
+        self_intro_profile={},
+        target_difficulty="hard",
+        target_skills=["Redis", "XXL-JOB"],
+        contract_hints={
+            "question_seed": {
+                "rubric": {
+                    "must_cover": [
+                        "transaction boundary",
+                        "idempotency",
+                        "async compensation",
+                        "reconciliation",
+                    ],
+                    "minimum_bar": (
+                        "Explains the transaction boundary and compensation loop."
+                    ),
+                },
+                "rubric_additions": ["side effect boundary"],
+            }
+        },
+    )
+
+    assert question["seed_backed_fallback"] is True
+    assert question["seed_backed_fallback_reason"] == "structured_seed_alignment"
+    assert "transaction boundary" in question["question"].lower()
+    assert "compensation" in question["question"].lower()
+    assert "device monitoring project" not in question["question"].lower()
+    assert question["proposed_contract"]["must_cover"] == [
+        "transaction boundary",
+        "idempotency",
+        "async compensation",
+        "reconciliation",
+    ]
+    assert question["proposed_contract"]["minimum_bar"] == (
+        "Explains the transaction boundary and compensation loop."
+    )
+    assert question["proposed_contract"]["acceptance_checks"] == [
+        "Answer must cover transaction boundary.",
+        "Answer must cover idempotency.",
+        "Answer must cover async compensation.",
+        "Answer must cover reconciliation.",
+        "Answer should address side effect boundary.",
+    ]
+
+
+def test_generate_question_keeps_model_question_when_it_matches_structured_seed(
+    monkeypatch,
+) -> None:
+    model_question = (
+        "How would you split the transaction boundary and design async "
+        "compensation for an order payment flow?"
+    )
+    monkeypatch.setattr(
+        generator,
+        "call_chat",
+        lambda *_args, **_kwargs: (
+            '{"question":'
+            + json.dumps(model_question)
+            + ',"rubric_points":["transaction boundary"]}'
+        ),
+    )
+
+    question = generator.generate_question(
+        dimension="technical_depth",
+        action={"id": "plan_adaptive"},
+        job_spec={"title": "Java backend engineer", "level": "junior"},
+        candidate={},
+        recent_qa=[],
+        retrieval_block="",
+        question_seed_block="\n".join(
+            [
+                "Seed: Order payment transaction consistency",
+                "Dimension: technical_depth",
+                "Intent: deep_probe",
+                "Difficulty: deep_probe",
+                "Scenario: Order payment includes charge, order status, "
+                "ledger and notification side effects.",
+                "Question stem: How would you split the order payment "
+                "transaction boundary and design compensation plus "
+                "reconciliation?",
+                "Prompt template: Ask for Spring transaction boundary, "
+                "idempotency key, async compensation and reconciliation.",
+                "Skill tags: java, transaction, consistency, compensation, "
+                "idempotency",
+            ]
+        ),
+        resume_anchor={"project_name": "Order service"},
+        self_intro_profile={},
+        target_difficulty="hard",
+        target_skills=["Spring"],
+    )
+
+    assert question["question"] == model_question
+    assert question.get("seed_backed_fallback") is not True
 
 
 def test_generate_question_uses_seed_backed_fallback_when_model_omits_question(

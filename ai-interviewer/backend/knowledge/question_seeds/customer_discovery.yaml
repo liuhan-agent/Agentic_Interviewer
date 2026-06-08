@@ -32,6 +32,84 @@ seeds:
         expected_signals: [能判断客户质量而非只看金额, 能识别决策链风险, 能说明推进策略]
         anti_patterns: [金额大就优先, 不问预算权限, 不敢放弃低质客户]
         good_answer_hints: [先定义 ICP, 再比较客户信号, 最后决定推进节奏]
+        reviewed_acceptance_checks:
+          - check_id: reviewed:customer_discovery.icp_qualification.midmarket_saas:must_cover:7db99e74:v1
+            source: must_cover
+            source_text: 客户画像
+            acceptance_check: 候选人围绕「客户画像」说明对象分层、真实诉求、证据来源和后续业务动作。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:customer_discovery.icp_qualification.midmarket_saas:must_cover:cc213a75:v1
+            source: must_cover
+            source_text: 需求信号
+            acceptance_check: 候选人围绕「需求信号」说明目标或问题背景、关键约束、涉及对象和本人澄清/拆解动作。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:customer_discovery.icp_qualification.midmarket_saas:must_cover:fad273f3:v1
+            source: must_cover
+            source_text: 预算权限
+            acceptance_check: 候选人围绕「预算权限」说明客户发现过程中的目标对象、关键信息来源、本人提问或验证动作，以及如何把结论用于下一步判断。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:customer_discovery.icp_qualification.midmarket_saas:must_cover:4ab07058:v1
+            source: must_cover
+            source_text: 放弃标准
+            acceptance_check: 候选人围绕「放弃标准」说明客户发现过程中的目标对象、关键信息来源、本人提问或验证动作，以及如何把结论用于下一步判断。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:customer_discovery.icp_qualification.midmarket_saas:rubric_addition:56bd115b:v1
+            source: rubric_addition
+            source_text: 说明 ICP 维度
+            acceptance_check: 候选人补充说明「说明 ICP 维度」，并落到数据、案例、客户/用户反馈、流程证据、协作动作或验证方式中的至少一类具体证据。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:customer_discovery.icp_qualification.midmarket_saas:rubric_addition:71ff065c:v1
+            source: rubric_addition
+            source_text: 说明预算和决策链
+            acceptance_check: 候选人补充说明「说明预算和决策链」，并落到数据、案例、客户/用户反馈、流程证据、协作动作或验证方式中的至少一类具体证据。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:customer_discovery.icp_qualification.midmarket_saas:rubric_addition:dd0c8d04:v1
+            source: rubric_addition
+            source_text: 说明放弃或降优先级标准
+            acceptance_check: 候选人补充说明「说明放弃或降优先级标准」，并落到数据、案例、客户/用户反馈、流程证据、协作动作或验证方式中的至少一类具体证据。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
         priority: 18
         status: active
       - id: customer_discovery.icp_qualification.wrong_fit_deal
@@ -48,5 +126,83 @@ seeds:
         expected_signals: [能看到签约后的客户健康度, 能与交付或 CSM 对齐, 能承担放弃短期机会]
         anti_patterns: [为了 KPI 强签, 忽略交付成本, 没有风险同步]
         good_answer_hints: [先评估匹配度, 再量化后续成本, 最后选择推进或放弃]
+        reviewed_acceptance_checks:
+          - check_id: reviewed:customer_discovery.icp_qualification.wrong_fit_deal:must_cover:af75e81d:v1
+            source: must_cover
+            source_text: 客户画像
+            acceptance_check: 候选人围绕「客户画像」说明对象分层、真实诉求、证据来源和后续业务动作。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:customer_discovery.icp_qualification.wrong_fit_deal:must_cover:d68a111d:v1
+            source: must_cover
+            source_text: 需求信号
+            acceptance_check: 候选人围绕「需求信号」说明目标或问题背景、关键约束、涉及对象和本人澄清/拆解动作。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:customer_discovery.icp_qualification.wrong_fit_deal:must_cover:1e78c85e:v1
+            source: must_cover
+            source_text: 预算权限
+            acceptance_check: 候选人围绕「预算权限」说明客户发现过程中的目标对象、关键信息来源、本人提问或验证动作，以及如何把结论用于下一步判断。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:customer_discovery.icp_qualification.wrong_fit_deal:must_cover:45e58e0b:v1
+            source: must_cover
+            source_text: 放弃标准
+            acceptance_check: 候选人围绕「放弃标准」说明客户发现过程中的目标对象、关键信息来源、本人提问或验证动作，以及如何把结论用于下一步判断。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:customer_discovery.icp_qualification.wrong_fit_deal:rubric_addition:184e20f1:v1
+            source: rubric_addition
+            source_text: 说明错配风险
+            acceptance_check: 候选人补充说明「说明错配风险」，并落到数据、案例、客户/用户反馈、流程证据、协作动作或验证方式中的至少一类具体证据。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:customer_discovery.icp_qualification.wrong_fit_deal:rubric_addition:cd066af4:v1
+            source: rubric_addition
+            source_text: 说明内部交付成本
+            acceptance_check: 候选人补充说明「说明内部交付成本」，并落到数据、案例、客户/用户反馈、流程证据、协作动作或验证方式中的至少一类具体证据。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:customer_discovery.icp_qualification.wrong_fit_deal:rubric_addition:749d8504:v1
+            source: rubric_addition
+            source_text: 说明是否推进和替代方案
+            acceptance_check: 候选人补充说明「说明是否推进和替代方案」，并落到数据、案例、客户/用户反馈、流程证据、协作动作或验证方式中的至少一类具体证据。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
         priority: 16
         status: active

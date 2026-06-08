@@ -32,6 +32,84 @@ seeds:
         expected_signals: [能先澄清异议, 能避免直接降价, 能把讨论拉回价值]
         anti_patterns: [立刻打折, 贬低竞品, 不问客户预算和决策标准]
         good_answer_hints: [先澄清异议类型, 再重构价值, 最后谈交换条件]
+        reviewed_acceptance_checks:
+          - check_id: reviewed:objection_handling.price_competitor_budget.price_pushback:must_cover:497044a5:v1
+            source: must_cover
+            source_text: 异议类型
+            acceptance_check: 候选人围绕「异议类型」说明异议来源、判断依据、回应动作和后续验证，避免只给话术。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:objection_handling.price_competitor_budget.price_pushback:must_cover:46b9f9f5:v1
+            source: must_cover
+            source_text: 真实原因
+            acceptance_check: 候选人围绕「真实原因」说明异议来源、判断依据、回应动作和后续验证，避免只给话术。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:objection_handling.price_competitor_budget.price_pushback:must_cover:14f37e89:v1
+            source: must_cover
+            source_text: 价值重构
+            acceptance_check: 候选人围绕「价值重构」说明异议来源、判断依据、回应动作和后续验证，避免只给话术。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:objection_handling.price_competitor_budget.price_pushback:must_cover:b8882b08:v1
+            source: must_cover
+            source_text: 推进动作
+            acceptance_check: 候选人围绕「推进动作」说明异议来源、判断依据、回应动作和后续验证，避免只给话术。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:objection_handling.price_competitor_budget.price_pushback:rubric_addition:a1fe10fe:v1
+            source: rubric_addition
+            source_text: 说明价格异议背后的真实原因
+            acceptance_check: 候选人补充说明「说明价格异议背后的真实原因」，并落到数据、案例、客户/用户反馈、流程证据、协作动作或验证方式中的至少一类具体证据。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:objection_handling.price_competitor_budget.price_pushback:rubric_addition:587feb6f:v1
+            source: rubric_addition
+            source_text: 说明价值和竞品差异
+            acceptance_check: 候选人补充说明「说明价值和竞品差异」，并落到数据、案例、客户/用户反馈、流程证据、协作动作或验证方式中的至少一类具体证据。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:objection_handling.price_competitor_budget.price_pushback:rubric_addition:37b764bc:v1
+            source: rubric_addition
+            source_text: 说明是否让步
+            acceptance_check: 候选人补充说明「说明是否让步」，并落到数据、案例、客户/用户反馈、流程证据、协作动作或验证方式中的至少一类具体证据。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
         priority: 17
         status: active
       - id: objection_handling.price_competitor_budget.budget_timing
@@ -48,5 +126,83 @@ seeds:
         expected_signals: [能区分真预算约束和优先级低, 能找到触发事件, 能设计持续跟进]
         anti_patterns: [听到没预算就结束, 一味催单, 不理解客户采购流程]
         good_answer_hints: [先判断痛点强度, 再找预算路径, 最后设置下一触点]
+        reviewed_acceptance_checks:
+          - check_id: reviewed:objection_handling.price_competitor_budget.budget_timing:must_cover:33e9a0a1:v1
+            source: must_cover
+            source_text: 异议类型
+            acceptance_check: 候选人围绕「异议类型」说明异议来源、判断依据、回应动作和后续验证，避免只给话术。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:objection_handling.price_competitor_budget.budget_timing:must_cover:6b2e0934:v1
+            source: must_cover
+            source_text: 真实原因
+            acceptance_check: 候选人围绕「真实原因」说明异议来源、判断依据、回应动作和后续验证，避免只给话术。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:objection_handling.price_competitor_budget.budget_timing:must_cover:e412664f:v1
+            source: must_cover
+            source_text: 价值重构
+            acceptance_check: 候选人围绕「价值重构」说明异议来源、判断依据、回应动作和后续验证，避免只给话术。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:objection_handling.price_competitor_budget.budget_timing:must_cover:da5517d0:v1
+            source: must_cover
+            source_text: 推进动作
+            acceptance_check: 候选人围绕「推进动作」说明异议来源、判断依据、回应动作和后续验证，避免只给话术。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:objection_handling.price_competitor_budget.budget_timing:rubric_addition:6985d67a:v1
+            source: rubric_addition
+            source_text: 说明真实优先级判断
+            acceptance_check: 候选人补充说明「说明真实优先级判断」，并落到数据、案例、客户/用户反馈、流程证据、协作动作或验证方式中的至少一类具体证据。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:objection_handling.price_competitor_budget.budget_timing:rubric_addition:aeef6363:v1
+            source: rubric_addition
+            source_text: 说明事件或损失量化
+            acceptance_check: 候选人补充说明「说明事件或损失量化」，并落到数据、案例、客户/用户反馈、流程证据、协作动作或验证方式中的至少一类具体证据。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:objection_handling.price_competitor_budget.budget_timing:rubric_addition:5ec4c689:v1
+            source: rubric_addition
+            source_text: 说明预算路径和下一步
+            acceptance_check: 候选人补充说明「说明预算路径和下一步」，并落到数据、案例、客户/用户反馈、流程证据、协作动作或验证方式中的至少一类具体证据。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
         priority: 16
         status: active

@@ -14,10 +14,21 @@ from app.engine.contracts.acceptance_items import (
     contract_for_source_aware_scoring,
     join_acceptance_check_results,
 )
+from app.engine.contracts.acceptance_summary import build_contract_semantics_summary
 from app.engine.contracts.contract_gate import build_contract_gate_result
 from app.engine.contracts.contract_gate import (
     apply_contract_gate_enforcement,
     resolve_contract_gate_mode,
+)
+from app.engine.contracts.evaluation_quality import (
+    QUALITY_INVALID_GATE_WARNING,
+    build_evaluation_quality_warning,
+    mark_evaluation_quality_invalid,
+)
+from app.engine.contracts.followup_hints import build_soft_followup_hints
+from app.engine.contracts.gate_calibration import build_gate_calibration_summary
+from app.engine.contracts.training_suggestions import (
+    build_soft_gap_training_suggestions,
 )
 from app.engine.workflow.depth_followup import (
     DEPTH_FOLLOWUP_PHASE,
@@ -58,6 +69,42 @@ def _failure_categories_for_drift_feedback(
     if not isinstance(raw, list):
         return []
     return [str(value) for value in raw if isinstance(value, str) and value.strip()]
+
+
+def _evaluate_answer_once(
+    *,
+    dimension: Any,
+    question: dict[str, Any],
+    answer: str,
+    quality_threshold: Any,
+    scoring_contract: dict[str, Any] | None,
+    runtime_contract: Any,
+    drift_negatives: str,
+    video_signals: Any,
+    context_flags: dict[str, Any],
+) -> dict[str, Any]:
+    evaluation = evaluate_answer(
+        dimension=dimension,
+        question=question.get("question", ""),
+        rubric_points=question.get("rubric_points", []),
+        answer=answer,
+        quality_threshold=quality_threshold,
+        contract=scoring_contract,
+        drift_negatives=drift_negatives,
+        video_signals=video_signals,
+        context_flags=context_flags,
+    )
+    evaluation = normalize_evaluation_consistency(
+        evaluation,
+        contract=scoring_contract,
+        quality_threshold=float(quality_threshold),
+    )
+    evaluation = attach_replay_followup_reason(evaluation)
+    evaluation["acceptance_check_result_items"] = join_acceptance_check_results(
+        runtime_contract or {},
+        evaluation.get("acceptance_check_results") or {},
+    )
+    return evaluation
 
 
 def evaluator_node(state: InterviewState) -> dict[str, Any]:
@@ -104,36 +151,76 @@ def evaluator_node(state: InterviewState) -> dict[str, Any]:
             log.debug("drift feedback render failed: %s", e)
 
     quality_threshold = state.get("quality_threshold", 7.5)
-    evaluation = evaluate_answer(
+    evaluation = _evaluate_answer_once(
         dimension=dimension,
-        question=question.get("question", ""),
-        rubric_points=question.get("rubric_points", []),
+        question=question,
         answer=raw_answer,
         quality_threshold=quality_threshold,
-        contract=scoring_contract,
+        scoring_contract=scoring_contract,
+        runtime_contract=contract,
         drift_negatives=drift_negatives,
         video_signals=state.get("video_signals"),
         context_flags=state.get("context_flags") or {},
     )
-    evaluation = normalize_evaluation_consistency(
+    quality_warning = build_evaluation_quality_warning(
         evaluation,
-        contract=scoring_contract,
-        quality_threshold=float(quality_threshold),
+        contract=contract if isinstance(contract, dict) else {},
+        answer=raw_answer,
     )
-    evaluation = attach_replay_followup_reason(evaluation)
-    evaluation["acceptance_check_result_items"] = join_acceptance_check_results(
-        contract or {},
-        evaluation.get("acceptance_check_results") or {},
-    )
+    if quality_warning:
+        retry_evaluation = _evaluate_answer_once(
+            dimension=dimension,
+            question=question,
+            answer=raw_answer,
+            quality_threshold=quality_threshold,
+            scoring_contract=scoring_contract,
+            runtime_contract=contract,
+            drift_negatives=drift_negatives,
+            video_signals=state.get("video_signals"),
+            context_flags=state.get("context_flags") or {},
+        )
+        retry_warning = build_evaluation_quality_warning(
+            retry_evaluation,
+            contract=contract if isinstance(contract, dict) else {},
+            answer=raw_answer,
+        )
+        evaluation = retry_evaluation
+        evaluation["evaluation_retry_applied"] = True
+        evaluation["evaluation_retry_reason"] = "quality_guard"
+        if retry_warning:
+            evaluation = mark_evaluation_quality_invalid(evaluation, retry_warning)
+    gate_warnings = list(contract_gate_warnings)
+    gate_items = evaluation.get("acceptance_check_result_items")
+    if evaluation.get("evaluation_quality_invalid"):
+        gate_items = []
+        if QUALITY_INVALID_GATE_WARNING not in gate_warnings:
+            gate_warnings.append(QUALITY_INVALID_GATE_WARNING)
     evaluation["contract_gate_result"] = build_contract_gate_result(
-        evaluation.get("acceptance_check_result_items"),
+        gate_items,
         mode=contract_gate_mode,
-        warnings=contract_gate_warnings,
+        warnings=gate_warnings,
     )
     evaluation = apply_contract_gate_enforcement(
         evaluation,
         evaluation.get("contract_gate_result"),
         mode=contract_gate_mode,
+    )
+    evaluation["gate_calibration_summary"] = build_gate_calibration_summary(
+        score=evaluation.get("score"),
+        passed=evaluation.get("passed"),
+        contract_gate_result=evaluation.get("contract_gate_result"),
+        gate_enforced=evaluation.get("contract_gate_enforced"),
+    )
+    evaluation["contract_semantics_summary"] = build_contract_semantics_summary(
+        evaluation.get("acceptance_check_result_items")
+    )
+    evaluation["soft_gap_training_suggestions"] = (
+        build_soft_gap_training_suggestions(
+            evaluation.get("contract_semantics_summary")
+        )
+    )
+    evaluation["soft_followup_hints"] = build_soft_followup_hints(
+        evaluation.get("soft_gap_training_suggestions")
     )
     fallback_turn = is_evaluator_fallback(evaluation)
     if fallback_turn:

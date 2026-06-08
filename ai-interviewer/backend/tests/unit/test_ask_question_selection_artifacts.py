@@ -1753,6 +1753,85 @@ def test_reviewed_acceptance_append_adds_reviewed_checks(
     }
 
 
+def test_reviewed_acceptance_append_preserves_reviewed_metadata_when_text_covered(
+    monkeypatch,
+) -> None:
+    captured_trace = _install_default_patches(
+        monkeypatch,
+        retrieval=_make_retrieval(),
+        strategies=[_make_strategy()],
+        skills=[_make_skill()],
+    )
+
+    def fake_generate_question(**kwargs):
+        return {
+            "question": "璇疯鏄庝竴娆＄紦瀛樹竴鑷存€ц璁°€?",
+            "dimension": kwargs["dimension"],
+            "proposed_contract": {
+                "must_cover": ["llm consistency"],
+                "acceptance_checks": ["Answer defines the target consistency level."],
+                "minimum_bar": "LLM minimum bar.",
+                "bar_level": "standard",
+            },
+        }
+
+    def fake_negotiate(**kwargs):
+        return {**kwargs["proposed_contract"], "signed_by": ["generator", "evaluator"]}
+
+    monkeypatch.setattr(ask_mod, "generate_question", fake_generate_question)
+    monkeypatch.setattr(ask_mod, "negotiate_contract_via_evaluator", fake_negotiate)
+    monkeypatch.setattr(
+        ask_mod,
+        "select_question_candidates",
+        lambda **_kwargs: QuestionSelectionResult(
+            candidates=[
+                _ascii_question_candidate(
+                    reviewed_acceptance_checks=_reviewed_acceptance_checks()
+                )
+            ]
+        ),
+    )
+    monkeypatch.setattr(ask_mod, "record_question_usages", lambda **_kwargs: None)
+
+    out = ask_mod.ask_question_node(
+        _base_state(
+            runtime_config={
+                "rag_mode": "vector",
+                "question_selector_mode": "structured_primary",
+                "contract_acceptance_mode": "reviewed_append",
+            }
+        )
+    )  # type: ignore[arg-type]
+
+    assert out["current_contract"]["acceptance_checks"] == [
+        "Answer defines the target consistency level."
+    ]
+    item = out["current_contract"]["acceptance_check_items"][0]
+    assert item["check_id"] == "reviewed:cache-consistency:core:v1"
+    assert item["text"] == "Answer defines the target consistency level."
+    assert item["source"] == "reviewed"
+    assert item["severity"] == "core"
+    assert item["source_text"] == "seed consistency"
+    assert item["seed_ref"] == {
+        "seed_id": "system_design.cache_consistency",
+        "variant_id": "system_design.cache_consistency.flash_sale_inventory",
+        "seed_version": 2,
+        "variant_version": 5,
+    }
+    assert item["origin"] == "question_variant"
+    assert item["metadata"]["criterion_source"] == "must_cover"
+    assert item["metadata"]["review_status"] == "reviewed"
+    assert item["metadata"]["reviewed_seed_version"] == 2
+    assert item["metadata"]["reviewed_variant_version"] == 5
+    diagnostics = captured_trace["contract_diagnostics"]
+    assert diagnostics["reviewed_acceptance_source"] == "reviewed"
+    assert diagnostics["reviewed_acceptance_applied"] is True
+    assert diagnostics["reviewed_acceptance_missing_from_final"] == []
+    assert diagnostics["reviewed_acceptance_missing_source_metadata"] == []
+    assert diagnostics["acceptance_check_item_source_counts"] == {"reviewed": 1}
+    assert diagnostics["acceptance_check_item_severity_counts"] == {"core": 1}
+
+
 def test_reviewed_acceptance_modes_fallback_to_compiled_when_reviewed_missing(
     monkeypatch,
 ) -> None:

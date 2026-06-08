@@ -461,6 +461,7 @@ def lint_question_seed_dir(
     variants_by_seed: dict[str, list[dict[str, Any]]] = {}
     for parsed in variants:
         variants_by_seed.setdefault(parsed.values["seed_id"], []).append(parsed.values)
+    seeds_by_id = {parsed.values["id"]: parsed.values for parsed in seeds}
     seed_versions = {parsed.values["id"]: int(parsed.values.get("version") or 0) for parsed in seeds}
 
     role_seed_ids: dict[str, set[str]] = {}
@@ -618,6 +619,7 @@ def lint_question_seed_dir(
                 strict=strict,
                 seed_id=seed_id,
                 seed_version=seed_versions.get(seed_id, 0),
+                seed=seeds_by_id.get(seed_id, {}),
                 variant=variant,
             )
         )
@@ -682,6 +684,7 @@ def _reviewed_acceptance_check_issues(
     strict: bool,
     seed_id: str,
     seed_version: int,
+    seed: dict[str, Any],
     variant: dict[str, Any],
 ) -> list[QuestionSeedLintIssue]:
     variant_id = str(variant.get("id") or "")
@@ -771,6 +774,90 @@ def _reviewed_acceptance_check_issues(
                 seed_id,
                 variant_id,
                 f"{variant_id}: duplicate reviewed check_id {duplicate_id}",
+            )
+        )
+    issues.extend(
+        _reviewed_contract_alignment_issues(
+            strict=strict,
+            seed_id=seed_id,
+            variant_id=variant_id,
+            seed=seed,
+            variant=variant,
+            checks=checks,
+        )
+    )
+    return issues
+
+
+def _reviewed_contract_alignment_issues(
+    *,
+    strict: bool,
+    seed_id: str,
+    variant_id: str,
+    seed: dict[str, Any],
+    variant: dict[str, Any],
+    checks: list[Any],
+) -> list[QuestionSeedLintIssue]:
+    reviewed_checks = [
+        check
+        for check in checks
+        if isinstance(check, dict)
+        and str(check.get("review_status") or "") == "reviewed"
+    ]
+    if not reviewed_checks:
+        return []
+
+    must_cover = [
+        str(item).strip()
+        for item in (seed.get("rubric") or {}).get("must_cover") or []
+        if str(item).strip()
+    ]
+    rubric_additions = [
+        str(item).strip()
+        for item in variant.get("rubric_additions") or []
+        if str(item).strip()
+    ]
+    reviewed_core = [
+        str(check.get("source_text") or "").strip()
+        for check in reviewed_checks
+        if str(check.get("source") or "") == "must_cover"
+        and str(check.get("severity") or "") == "core"
+        and str(check.get("source_text") or "").strip()
+    ]
+    reviewed_supporting = [
+        str(check.get("source_text") or "").strip()
+        for check in reviewed_checks
+        if str(check.get("source") or "") == "rubric_addition"
+        and str(check.get("severity") or "") == "supporting"
+        and str(check.get("source_text") or "").strip()
+    ]
+
+    issues: list[QuestionSeedLintIssue] = []
+    if sorted(reviewed_core) != sorted(must_cover):
+        issues.append(
+            _issue(
+                strict,
+                "reviewed_contract_alignment",
+                seed_id,
+                variant_id,
+                (
+                    f"{variant_id}: reviewed core source_text must match "
+                    f"must_cover (expected={must_cover}, actual={reviewed_core})"
+                ),
+            )
+        )
+    if sorted(reviewed_supporting) != sorted(rubric_additions):
+        issues.append(
+            _issue(
+                strict,
+                "reviewed_contract_alignment",
+                seed_id,
+                variant_id,
+                (
+                    f"{variant_id}: reviewed supporting source_text must match "
+                    f"rubric_additions (expected={rubric_additions}, "
+                    f"actual={reviewed_supporting})"
+                ),
             )
         )
     return issues

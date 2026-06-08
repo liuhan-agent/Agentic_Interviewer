@@ -237,6 +237,49 @@ def test_contract_diagnostics_accepts_semantically_aligned_chinese_checks():
     assert "must_cover_without_acceptance_check" not in diagnostics["warnings"]
 
 
+def test_contract_diagnostics_warns_when_ai_contract_uses_generic_reviewed_checks():
+    from app.engine.workflow.nodes import ask_question as ask_mod
+
+    contract = {
+        "must_cover": ["AI集成应用的具体技术方案（涉及LangChainJ/Spring-AI/RAG）"],
+        "acceptance_checks": [
+            "候选人说明 LangChainJ/Spring-AI/RAG 的调用链路和结果校验。"
+        ],
+        "bar_level": "deep_probe",
+        "signed_by": ["generator", "evaluator"],
+    }
+    reviewed_checks = [
+        {
+            "check_id": (
+                "reviewed:project_experience.java_backend_project_delivery."
+                "eldercare_workflow:must_cover:37fe9ca5:v1"
+            ),
+            "source": "must_cover",
+            "source_text": "技术方案",
+            "acceptance_check": "候选人说明关键技术方案、架构取舍、数据流或接口设计。",
+            "severity": "core",
+            "review_status": "reviewed",
+        }
+    ]
+
+    diagnostics = ask_mod._contract_diagnostics_for_trace(
+        contract,
+        proposed_contract=contract,
+        plan={"template": "deep_probe"},
+        target_difficulty="hard",
+        rewrite_fallback=False,
+        contract_acceptance_mode="reviewed_append",
+        reviewed_acceptance_checks=reviewed_checks,
+        reviewed_acceptance_source="reviewed",
+    )
+
+    assert diagnostics["reviewed_acceptance_topic_mismatch"] is True
+    assert (
+        "reviewed_acceptance_topic_mismatch"
+        in diagnostics["reviewed_acceptance_warnings"]
+    )
+
+
 def test_acceptance_append_coverage_uses_source_text_not_generic_chinese_prefix():
     from app.engine.workflow.nodes import ask_question as ask_mod
 

@@ -52,14 +52,45 @@ def _mark_normalized(out: dict[str, Any], reason: str) -> None:
     out["normalization_reason"] = reason
 
 
-def _coverage_signals(evaluation: dict[str, Any]) -> tuple[list[str], list[str]]:
+def _is_hard_acceptance_item(item: dict[str, Any]) -> bool:
+    source = str(item.get("source") or "").strip().lower()
+    severity = str(item.get("severity") or "").strip().lower()
+    return source == "reviewed" and severity == "core"
+
+
+def _structured_acceptance_verdicts(evaluation: dict[str, Any]) -> list[str] | None:
+    items = evaluation.get("acceptance_check_result_items")
+    if not isinstance(items, list) or not items:
+        return None
+
+    verdicts: list[str] = []
+    for raw in items:
+        if not isinstance(raw, dict) or not _is_hard_acceptance_item(raw):
+            continue
+        verdict = _verdict_of(raw)
+        if verdict:
+            verdicts.append(verdict)
+    return verdicts
+
+
+def _legacy_acceptance_verdicts(evaluation: dict[str, Any]) -> list[str]:
     acceptance = evaluation.get("acceptance_check_results") or {}
-    acceptance_verdicts: list[str] = []
+    verdicts: list[str] = []
     if isinstance(acceptance, dict):
         for raw in acceptance.values():
             verdict = _verdict_of(raw)
             if verdict:
-                acceptance_verdicts.append(verdict)
+                verdicts.append(verdict)
+    return verdicts
+
+
+def _coverage_signals(evaluation: dict[str, Any]) -> tuple[list[str], list[str]]:
+    structured_verdicts = _structured_acceptance_verdicts(evaluation)
+    acceptance_verdicts = (
+        structured_verdicts
+        if structured_verdicts is not None
+        else _legacy_acceptance_verdicts(evaluation)
+    )
 
     rubric = evaluation.get("rubric_coverage") or {}
     rubric_values: list[str] = []

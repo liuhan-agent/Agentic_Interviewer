@@ -32,6 +32,84 @@ seeds:
         expected_signals: [Creates command rhythm, aligns internal owner, manages executive expectation]
         anti_patterns: [Only pushes engineering, gives unverified ETA, leaves customer without updates]
         good_answer_hints: [Name owner, set cadence, communicate facts and next milestones]
+        reviewed_acceptance_checks:
+          - check_id: reviewed:escalation_management.customer_escalation_coordination.executive_complaint:must_cover:7884ecbe:v1
+            source: must_cover
+            source_text: escalation_trigger
+            acceptance_check: 候选人围绕「escalation_trigger」说明升级背景、影响判断、沟通节奏、解决路径和复盘改进。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:escalation_management.customer_escalation_coordination.executive_complaint:must_cover:5b46e1cc:v1
+            source: must_cover
+            source_text: internal_owner
+            acceptance_check: 候选人围绕「internal_owner」说明升级背景、影响判断、沟通节奏、解决路径和复盘改进。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:escalation_management.customer_escalation_coordination.executive_complaint:must_cover:d9058e0a:v1
+            source: must_cover
+            source_text: customer_update
+            acceptance_check: 候选人围绕「customer_update」说明升级背景、影响判断、沟通节奏、解决路径和复盘改进。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:escalation_management.customer_escalation_coordination.executive_complaint:must_cover:1966d28e:v1
+            source: must_cover
+            source_text: risk_control
+            acceptance_check: 候选人围绕「risk_control」说明升级背景、影响判断、沟通节奏、解决路径和复盘改进。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:escalation_management.customer_escalation_coordination.executive_complaint:rubric_addition:2b7015e6:v1
+            source: rubric_addition
+            source_text: Define escalation owner
+            acceptance_check: 候选人补充说明「Define escalation owner」，并落到数据、案例、客户/用户反馈、流程证据、协作动作或验证方式中的至少一类具体证据。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:escalation_management.customer_escalation_coordination.executive_complaint:rubric_addition:9d82859b:v1
+            source: rubric_addition
+            source_text: set update cadence
+            acceptance_check: 候选人补充说明「set update cadence」，并落到数据、案例、客户/用户反馈、流程证据、协作动作或验证方式中的至少一类具体证据。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:escalation_management.customer_escalation_coordination.executive_complaint:rubric_addition:a31492a4:v1
+            source: rubric_addition
+            source_text: separate facts from commitments
+            acceptance_check: 候选人补充说明「separate facts from commitments」，并落到数据、案例、客户/用户反馈、流程证据、协作动作或验证方式中的至少一类具体证据。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
         priority: 18
         status: active
       - id: escalation_management.customer_escalation_coordination.repeated_sla_breach
@@ -48,5 +126,83 @@ seeds:
         expected_signals: [Combines customer repair with internal corrective action, defines risk owner, tracks SLA trend]
         anti_patterns: [Offers apology only, discounts contract risk, treats breaches independently]
         good_answer_hints: [Repair trust now, show prevention plan, review SLA evidence over time]
+        reviewed_acceptance_checks:
+          - check_id: reviewed:escalation_management.customer_escalation_coordination.repeated_sla_breach:must_cover:8fe172a9:v1
+            source: must_cover
+            source_text: escalation_trigger
+            acceptance_check: 候选人围绕「escalation_trigger」说明升级背景、影响判断、沟通节奏、解决路径和复盘改进。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:escalation_management.customer_escalation_coordination.repeated_sla_breach:must_cover:e48624bf:v1
+            source: must_cover
+            source_text: internal_owner
+            acceptance_check: 候选人围绕「internal_owner」说明升级背景、影响判断、沟通节奏、解决路径和复盘改进。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:escalation_management.customer_escalation_coordination.repeated_sla_breach:must_cover:bb7986ee:v1
+            source: must_cover
+            source_text: customer_update
+            acceptance_check: 候选人围绕「customer_update」说明升级背景、影响判断、沟通节奏、解决路径和复盘改进。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:escalation_management.customer_escalation_coordination.repeated_sla_breach:must_cover:e2c1e21f:v1
+            source: must_cover
+            source_text: risk_control
+            acceptance_check: 候选人围绕「risk_control」说明升级背景、影响判断、沟通节奏、解决路径和复盘改进。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:escalation_management.customer_escalation_coordination.repeated_sla_breach:rubric_addition:759c945a:v1
+            source: rubric_addition
+            source_text: Acknowledge breach impact
+            acceptance_check: 候选人补充说明「Acknowledge breach impact」，并落到数据、案例、客户/用户反馈、流程证据、协作动作或验证方式中的至少一类具体证据。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:escalation_management.customer_escalation_coordination.repeated_sla_breach:rubric_addition:0baa2eef:v1
+            source: rubric_addition
+            source_text: build recovery plan
+            acceptance_check: 候选人补充说明「build recovery plan」，并落到数据、案例、客户/用户反馈、流程证据、协作动作或验证方式中的至少一类具体证据。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:escalation_management.customer_escalation_coordination.repeated_sla_breach:rubric_addition:fe5257e2:v1
+            source: rubric_addition
+            source_text: track recurrence prevention
+            acceptance_check: 候选人补充说明「track recurrence prevention」，并落到数据、案例、客户/用户反馈、流程证据、协作动作或验证方式中的至少一类具体证据。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
         priority: 16
         status: active

@@ -158,6 +158,208 @@ def test_completed_session_emits_final_report_node_event(
     assert payload["workflow_artifacts"]["target_skill_coverage"] == {}
 
 
+def test_final_report_trace_dimension_evidence_carries_contract_gate_items(
+    fake_tracer: _RecordingTracer,
+) -> None:
+    state = _state_for_completed_session()
+    state["qa_history"][0]["evaluation"].update(
+        {
+            "passed": False,
+            "acceptance_check_result_items": [
+                {
+                    "check_id": "reviewed:rate_limit:core_algorithm:v1",
+                    "text": "Explains the rate-limit algorithm.",
+                    "source": "reviewed",
+                    "severity": "core",
+                    "verdict": "partial",
+                    "evidence": ["token bucket"],
+                    "result_present": True,
+                }
+            ],
+            "contract_gate_result": {
+                "gate_id": "reviewed_core_acceptance",
+                "mode": "enforce",
+                "status": "failed",
+                "failed_count": 1,
+                "failed_items": [
+                    {
+                        "check_id": "reviewed:rate_limit:core_algorithm:v1",
+                        "text": "Explains the rate-limit algorithm.",
+                        "source": "reviewed",
+                        "severity": "core",
+                        "verdict": "partial",
+                        "result_present": True,
+                        "reason": "partial",
+                    }
+                ],
+            },
+            "contract_gate_enforced": True,
+            "contract_gate_enforcement_reason": "reviewed_core_failed",
+            "gate_calibration_summary": {
+                "present": True,
+                "mode": "audit",
+                "source": "contract_gate_result",
+                "score": 7.4,
+                "score_band": "standard",
+                "passed": False,
+                "gate_mode": "enforce",
+                "gate_status": "failed",
+                "gate_enforced": True,
+                "high_score_gate_failed": False,
+                "standard_score_gate_failed": True,
+                "partial_only_gate_failed": True,
+                "hard_failure_gate_failed": False,
+                "signals": ["partial_only_gate_failed"],
+                "reviewed_core": {
+                    "eligible": 1,
+                    "yes": 0,
+                    "partial": 1,
+                    "no": 0,
+                    "missing": 0,
+                    "failed": 1,
+                },
+                "failed_check_ids": ["reviewed:rate_limit:core_algorithm:v1"],
+                "partial_check_ids": ["reviewed:rate_limit:core_algorithm:v1"],
+                "no_check_ids": [],
+                "missing_check_ids": [],
+                "failed_items": [
+                    {
+                        "check_id": "reviewed:rate_limit:core_algorithm:v1",
+                        "text": "Explains the rate-limit algorithm.",
+                        "verdict": "partial",
+                        "reason": "partial",
+                    }
+                ],
+            },
+            "contract_semantics_summary": {
+                "reviewed_core": {
+                    "total": 1,
+                    "yes": 0,
+                    "partial": 1,
+                    "no": 0,
+                    "missing": 0,
+                    "failed_items": [
+                        {
+                            "check_id": "reviewed:rate_limit:core_algorithm:v1",
+                            "text": "Explains the rate-limit algorithm.",
+                            "source": "reviewed",
+                            "severity": "core",
+                            "verdict": "partial",
+                            "reason": "partial",
+                        }
+                    ],
+                },
+                "reviewed_supporting": {
+                    "total": 0,
+                    "yes": 0,
+                    "partial": 0,
+                    "no": 0,
+                    "missing": 0,
+                    "gap_items": [],
+                },
+                "adaptive_context": {
+                    "total": 0,
+                    "yes": 0,
+                    "partial": 0,
+                    "no": 0,
+                    "missing": 0,
+                    "gap_items": [],
+                },
+                "evaluator_extra": {"total": 0, "items": []},
+                "hard_gap_count": 1,
+                "soft_quality_gap_count": 0,
+                "context_gap_count": 0,
+            },
+            "soft_gap_training_suggestions": {
+                "present": True,
+                "source": "contract_semantics_summary",
+                "quality_suggestions": [
+                    {
+                        "suggestion_id": "soft_gap:quality",
+                        "source": "reviewed_supporting",
+                        "check_id": "reviewed:support:observability",
+                        "title": "Quality gap: adds observability detail",
+                        "description": "Improve observability detail.",
+                    }
+                ],
+                "context_suggestions": [
+                    {
+                        "suggestion_id": "soft_gap:context",
+                        "source": "adaptive_context",
+                        "check_id": "adaptive:project-scale",
+                        "title": "Context gap: connects project scale",
+                        "description": "Connect the answer to project scale.",
+                    }
+                ],
+                "counts": {"quality": 1, "context": 1, "total": 2},
+            },
+            "soft_followup_hints": {
+                "present": True,
+                "mode": "shadow",
+                "applied": False,
+                "source": "soft_gap_training_suggestions",
+                "quality_hints": [
+                    {
+                        "hint_id": "soft_followup:quality",
+                        "source": "reviewed_supporting",
+                        "intent": "probe_quality_gap",
+                        "check_id": "reviewed:support:observability",
+                        "focus": "Probe quality gap.",
+                    }
+                ],
+                "context_hints": [
+                    {
+                        "hint_id": "soft_followup:context",
+                        "source": "adaptive_context",
+                        "intent": "probe_context_gap",
+                        "check_id": "adaptive:project-scale",
+                        "focus": "Probe context gap.",
+                    }
+                ],
+                "priority_order": [
+                    "soft_followup:quality",
+                    "soft_followup:context",
+                ],
+                "counts": {"quality": 1, "context": 1, "total": 2},
+            },
+        }
+    )
+
+    fr.final_report_node(state)  # type: ignore[arg-type]
+
+    evidence = fake_tracer.node_events[0]["payload"]["dimension_evidence"][0]
+    assert evidence["contract_gate_results"][0]["status"] == "failed"
+    assert evidence["contract_gate_results"][0]["mode"] == "enforce"
+    assert evidence["contract_gate_results"][0]["enforced"] is True
+    assert evidence["contract_gate_results"][0]["failed_check_ids"] == [
+        "reviewed:rate_limit:core_algorithm:v1"
+    ]
+    assert evidence["gate_calibration_summaries"][0]["turn_idx"] == 0
+    assert evidence["gate_calibration_summaries"][0]["mode"] == "audit"
+    assert evidence["gate_calibration_summaries"][0]["partial_only_gate_failed"] is True
+    assert evidence["gate_calibration_summaries"][0]["failed_check_ids"] == [
+        "reviewed:rate_limit:core_algorithm:v1"
+    ]
+    assert evidence["acceptance_check_result_items"][0] == {
+        "turn_idx": 0,
+        "check_id": "reviewed:rate_limit:core_algorithm:v1",
+        "text": "Explains the rate-limit algorithm.",
+        "source": "reviewed",
+        "severity": "core",
+        "verdict": "partial",
+        "evidence": ["token bucket"],
+        "result_present": True,
+    }
+    assert evidence["contract_semantics_summaries"][0]["turn_idx"] == 0
+    assert evidence["contract_semantics_summaries"][0]["hard_gap_count"] == 1
+    assert evidence["soft_gap_training_suggestions"][0]["turn_idx"] == 0
+    assert evidence["soft_gap_training_suggestions"][0]["counts"]["total"] == 2
+    assert evidence["soft_followup_hints"][0]["turn_idx"] == 0
+    assert evidence["soft_followup_hints"][0]["mode"] == "shadow"
+    assert evidence["soft_followup_hints"][0]["applied"] is False
+    assert evidence["soft_followup_hints"][0]["counts"]["total"] == 2
+
+
 def test_cancelled_session_marks_final_status_in_payload(
     fake_tracer: _RecordingTracer,
 ) -> None:

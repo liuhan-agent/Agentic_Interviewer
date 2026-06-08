@@ -32,6 +32,84 @@ seeds:
         expected_signals: [能把技术约束翻译成体验影响, 能提出可选方案, 能推动明确结论]
         anti_patterns: [只说做不了, 不给替代方案, 没有验收口径]
         good_answer_hints: [先对齐目标, 再解释约束和方案, 最后形成行动项]
+        reviewed_acceptance_checks:
+          - check_id: reviewed:communication.frontend_design_backend_alignment.design_tradeoff:must_cover:goal_alignment:v1
+            source: must_cover
+            source_text: 目标对齐
+            acceptance_check: 候选人先对齐设计体验目标、产品目标、用户影响和上线目标，而不是直接否定设计稿。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-09'
+          - check_id: reviewed:communication.frontend_design_backend_alignment.design_tradeoff:must_cover:constraint_explanation:v1
+            source: must_cover
+            source_text: 约束说明
+            acceptance_check: 候选人用性能、实现成本、兼容性、可维护性或交付周期解释前端约束及其体验影响。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-09'
+          - check_id: reviewed:communication.frontend_design_backend_alignment.design_tradeoff:must_cover:disagreement_handling:v1
+            source: must_cover
+            source_text: 分歧处理
+            acceptance_check: 候选人提出替代方案、取舍标准、prototype 或数据验证方式来推动设计、产品和前端分歧收敛。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-09'
+          - check_id: reviewed:communication.frontend_design_backend_alignment.design_tradeoff:must_cover:action_loop:v1
+            source: must_cover
+            source_text: 行动闭环
+            acceptance_check: 候选人明确最终方案、验收标准、责任人、时间点和后续确认动作。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-09'
+          - check_id: reviewed:communication.frontend_design_backend_alignment.design_tradeoff:rubric_addition:role_focus:v1
+            source: rubric_addition
+            source_text: 说明不同角色关注点
+            acceptance_check: 候选人分别说明设计关注体验完整性、产品关注业务目标、前端关注实现成本和风险。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-09'
+          - check_id: reviewed:communication.frontend_design_backend_alignment.design_tradeoff:rubric_addition:alternative_cost:v1
+            source: rubric_addition
+            source_text: 说明替代方案和成本
+            acceptance_check: 候选人给出至少一种替代方案，并说明体验收益、开发成本、性能风险和上线影响。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-09'
+          - check_id: reviewed:communication.frontend_design_backend_alignment.design_tradeoff:rubric_addition:decision_acceptance:v1
+            source: rubric_addition
+            source_text: 说明决策记录和验收
+            acceptance_check: 候选人说明如何记录决策、验收口径、体验确认和后续变更机制。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-09'
         priority: 14
         status: active
       - id: communication.frontend_design_backend_alignment.api_contract
@@ -48,6 +126,84 @@ seeds:
         expected_signals: [能推动接口文档或类型契约, 能覆盖异常状态, 能减少联调返工]
         anti_patterns: [只在群里口头确认, 不处理错误状态, 改字段不通知]
         good_answer_hints: [先固定契约和样例, 再安排联调节奏, 最后补变更机制]
+        reviewed_acceptance_checks:
+          - check_id: reviewed:communication.frontend_design_backend_alignment.api_contract:must_cover:goal_alignment:v1
+            source: must_cover
+            source_text: 目标对齐
+            acceptance_check: 候选人先对齐前后端共同目标，包括页面体验、接口语义、异常状态和减少联调返工。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-09'
+          - check_id: reviewed:communication.frontend_design_backend_alignment.api_contract:must_cover:constraint_explanation:v1
+            source: must_cover
+            source_text: 约束说明
+            acceptance_check: 候选人说明字段类型、错误状态、加载体验、后端兼容和前端状态处理的约束。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-09'
+          - check_id: reviewed:communication.frontend_design_backend_alignment.api_contract:must_cover:disagreement_handling:v1
+            source: must_cover
+            source_text: 分歧处理
+            acceptance_check: 候选人通过接口文档、类型契约、mock 数据、样例 case 和联调会议处理理解不一致。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-09'
+          - check_id: reviewed:communication.frontend_design_backend_alignment.api_contract:must_cover:action_loop:v1
+            source: must_cover
+            source_text: 行动闭环
+            acceptance_check: 候选人明确接口契约、联调节奏、验收样例、变更通知和问题跟踪闭环。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-09'
+          - check_id: reviewed:communication.frontend_design_backend_alignment.api_contract:rubric_addition:field_status_contract:v1
+            source: rubric_addition
+            source_text: 说明字段和状态契约
+            acceptance_check: 候选人说明字段含义、类型、必填性、错误状态、加载状态和兼容策略。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-09'
+          - check_id: reviewed:communication.frontend_design_backend_alignment.api_contract:rubric_addition:mock_debug_sample:v1
+            source: rubric_addition
+            source_text: 说明 mock 与联调样例
+            acceptance_check: 候选人说明 mock 数据、正常/异常样例、联调计划和复现材料如何准备。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-09'
+          - check_id: reviewed:communication.frontend_design_backend_alignment.api_contract:rubric_addition:acceptance_change_notice:v1
+            source: rubric_addition
+            source_text: 说明验收和变更通知
+            acceptance_check: 候选人说明验收标准、接口变更通知、版本兼容和回归确认机制。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-09'
         priority: 12
         status: active
 
@@ -83,6 +239,84 @@ seeds:
         expected_signals: [能稳定同步已知事实, 能避免未经验证结论扩散, 能推动相关方行动]
         anti_patterns: [只在技术群排查, 迟迟不通报影响, 把猜测当结论]
         good_answer_hints: [先同步影响和状态, 再明确正在做什么, 最后定义下一次更新时间]
+        reviewed_acceptance_checks:
+          - check_id: reviewed:communication.sre_incident_stakeholder_alignment.incident_update:must_cover:fact_sync:v1
+            source: must_cover
+            source_text: 事实同步
+            acceptance_check: 候选人同步已知事实、告警时间、当前状态和未确认信息，区分事实与猜测。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-09'
+          - check_id: reviewed:communication.sre_incident_stakeholder_alignment.incident_update:must_cover:impact_scope:v1
+            source: must_cover
+            source_text: 影响范围
+            acceptance_check: 候选人说明受影响服务、用户范围、业务影响、严重程度和预计恢复节奏。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-09'
+          - check_id: reviewed:communication.sre_incident_stakeholder_alignment.incident_update:must_cover:collaboration_split:v1
+            source: must_cover
+            source_text: 协作分工
+            acceptance_check: 候选人明确 SRE、研发、业务和值班团队的排查、恢复、对外同步和决策分工。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-09'
+          - check_id: reviewed:communication.sre_incident_stakeholder_alignment.incident_update:must_cover:postmortem_improvement:v1
+            source: must_cover
+            source_text: 复盘改进
+            acceptance_check: 候选人说明恢复后会组织复盘、沉淀根因、改进监控告警和跟踪行动项。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-09'
+          - check_id: reviewed:communication.sre_incident_stakeholder_alignment.incident_update:rubric_addition:fact_assumption_split:v1
+            source: rubric_addition
+            source_text: 说明事实和假设的区分
+            acceptance_check: 候选人明确标记已确认事实、正在验证假设和暂不能确认的风险。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-09'
+          - check_id: reviewed:communication.sre_incident_stakeholder_alignment.incident_update:rubric_addition:impact_recovery_cadence:v1
+            source: rubric_addition
+            source_text: 说明影响面和恢复节奏
+            acceptance_check: 候选人说明影响面、降级/恢复动作、预计恢复时间和下一次同步时间。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-09'
+          - check_id: reviewed:communication.sre_incident_stakeholder_alignment.incident_update:rubric_addition:cross_team_split:v1
+            source: rubric_addition
+            source_text: 说明跨团队分工
+            acceptance_check: 候选人说明研发定位、SRE 协调、业务通知、客服口径和值班升级的责任分工。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-09'
         priority: 15
         status: active
       - id: communication.sre_incident_stakeholder_alignment.postmortem_alignment
@@ -99,6 +333,84 @@ seeds:
         expected_signals: [能用事实时间线减少争议, 能按风险排序改进项, 能形成闭环跟踪]
         anti_patterns: [复盘变成追责, 没有 owner, 改进项不可验证]
         good_answer_hints: [先对齐证据, 再排序风险, 最后落到 owner 和时间点]
+        reviewed_acceptance_checks:
+          - check_id: reviewed:communication.sre_incident_stakeholder_alignment.postmortem_alignment:must_cover:fact_sync:v1
+            source: must_cover
+            source_text: 事实同步
+            acceptance_check: 候选人基于日志、监控、变更记录和时间线同步故障事实，避免复盘变成立场争论。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-09'
+          - check_id: reviewed:communication.sre_incident_stakeholder_alignment.postmortem_alignment:must_cover:impact_scope:v1
+            source: must_cover
+            source_text: 影响范围
+            acceptance_check: 候选人说明故障影响用户、服务、业务指标、恢复耗时和风险暴露范围。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-09'
+          - check_id: reviewed:communication.sre_incident_stakeholder_alignment.postmortem_alignment:must_cover:collaboration_split:v1
+            source: must_cover
+            source_text: 协作分工
+            acceptance_check: 候选人明确各团队在根因确认、改进项执行、验证和跟踪中的 owner 与协作边界。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-09'
+          - check_id: reviewed:communication.sre_incident_stakeholder_alignment.postmortem_alignment:must_cover:postmortem_improvement:v1
+            source: must_cover
+            source_text: 复盘改进
+            acceptance_check: 候选人按风险和收益排序改进项，并定义验收标准、时间点和跟踪机制。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-09'
+          - check_id: reviewed:communication.sre_incident_stakeholder_alignment.postmortem_alignment:rubric_addition:evidence_timeline:v1
+            source: rubric_addition
+            source_text: 说明证据和时间线
+            acceptance_check: 候选人用证据和时间线还原故障发生、发现、定位、恢复和影响扩大过程。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-09'
+          - check_id: reviewed:communication.sre_incident_stakeholder_alignment.postmortem_alignment:rubric_addition:improvement_priority:v1
+            source: rubric_addition
+            source_text: 说明改进优先级
+            acceptance_check: 候选人按故障风险、发生概率、改进成本和业务收益确定改进优先级。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-09'
+          - check_id: reviewed:communication.sre_incident_stakeholder_alignment.postmortem_alignment:rubric_addition:owner_tracking:v1
+            source: rubric_addition
+            source_text: 说明责任人和跟踪
+            acceptance_check: 候选人明确 owner、截止时间、验收方式和复盘后的跟踪机制。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-09'
         priority: 13
         status: active
 
@@ -134,6 +446,84 @@ seeds:
         expected_signals: [能把模型不确定性转成验收指标, 能设计灰度和兜底, 能推动角色分工]
         anti_patterns: [承诺模型百分百正确, 不定义质量标准, 不考虑成本和回滚]
         good_answer_hints: [先定义成功标准, 再讲风险和兜底, 最后明确上线节奏]
+        reviewed_acceptance_checks:
+          - check_id: reviewed:communication.ai_fullstack_cross_role_alignment.quality_expectation:must_cover:target_language:v1
+            source: must_cover
+            source_text: 目标口径
+            acceptance_check: 候选人把产品期望、算法不确定性和工程上线目标翻译成共同可理解的质量口径，而不是只站在单一角色表态。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-09'
+          - check_id: reviewed:communication.ai_fullstack_cross_role_alignment.quality_expectation:must_cover:technical_boundary:v1
+            source: must_cover
+            source_text: 技术边界
+            acceptance_check: 候选人说明模型能力边界、数据边界、工程约束、成本或时延限制，让相关方知道哪些承诺不能直接给出。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-09'
+          - check_id: reviewed:communication.ai_fullstack_cross_role_alignment.quality_expectation:must_cover:quality_risk:v1
+            source: must_cover
+            source_text: 质量风险
+            acceptance_check: 候选人明确 AI 功能可能出现的失败类型、用户影响、灰度风险或误用风险，并说明如何让风险可见。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-09'
+          - check_id: reviewed:communication.ai_fullstack_cross_role_alignment.quality_expectation:must_cover:execution_action:v1
+            source: must_cover
+            source_text: 推进动作
+            acceptance_check: 候选人给出跨产品、算法和工程的下一步分工、评审、灰度、验收或复盘动作，形成可执行闭环。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-09'
+          - check_id: reviewed:communication.ai_fullstack_cross_role_alignment.quality_expectation:rubric_addition:quality_metric_examples:v1
+            source: rubric_addition
+            source_text: 说明效果指标和失败样例
+            acceptance_check: 候选人说明准确率、满意度、人工接管率、失败 case 分类或人工 review 样本等质量指标与失败样例。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-09'
+          - check_id: reviewed:communication.ai_fullstack_cross_role_alignment.quality_expectation:rubric_addition:launch_boundary_fallback:v1
+            source: rubric_addition
+            source_text: 说明上线边界和兜底
+            acceptance_check: 候选人说明灰度比例、准入门槛、失败兜底、回滚条件或人工确认机制。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-09'
+          - check_id: reviewed:communication.ai_fullstack_cross_role_alignment.quality_expectation:rubric_addition:cross_team_actions:v1
+            source: rubric_addition
+            source_text: 说明跨团队行动项
+            acceptance_check: 候选人明确产品、算法、工程各自 owner、交付物、时间点和验收方式。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-09'
         priority: 14
         status: active
       - id: communication.ai_fullstack_cross_role_alignment.data_permission
@@ -150,6 +540,84 @@ seeds:
         expected_signals: [能识别敏感数据边界, 能推动权限方案评审, 能沉淀可审计记录]
         anti_patterns: [默认所有数据都可用, 只靠口头约定, 不给用户可理解提示]
         good_answer_hints: [先列数据和风险, 再对齐权限方案, 最后形成评审结论]
+        reviewed_acceptance_checks:
+          - check_id: reviewed:communication.ai_fullstack_cross_role_alignment.data_permission:must_cover:target_language:v1
+            source: must_cover
+            source_text: 目标口径
+            acceptance_check: 候选人把产品体验、数据安全、算法效果和工程实现目标统一成清晰的数据使用口径。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-09'
+          - check_id: reviewed:communication.ai_fullstack_cross_role_alignment.data_permission:must_cover:technical_boundary:v1
+            source: must_cover
+            source_text: 技术边界
+            acceptance_check: 候选人说明权限过滤、知识库范围、敏感字段、租户隔离、审计日志或最小权限等技术边界。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-09'
+          - check_id: reviewed:communication.ai_fullstack_cross_role_alignment.data_permission:must_cover:quality_risk:v1
+            source: must_cover
+            source_text: 质量风险
+            acceptance_check: 候选人识别越权召回、隐私泄露、错误引用、用户误解或合规风险，并说明对业务和用户的影响。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-09'
+          - check_id: reviewed:communication.ai_fullstack_cross_role_alignment.data_permission:must_cover:execution_action:v1
+            source: must_cover
+            source_text: 推进动作
+            acceptance_check: 候选人推动安全、产品、工程或法务评审，沉淀决策记录、上线检查和后续复核动作。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-09'
+          - check_id: reviewed:communication.ai_fullstack_cross_role_alignment.data_permission:rubric_addition:data_scope:v1
+            source: rubric_addition
+            source_text: 说明数据使用边界
+            acceptance_check: 候选人列出可用数据、禁止数据、脱敏规则、使用目的和保留周期等边界。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-09'
+          - check_id: reviewed:communication.ai_fullstack_cross_role_alignment.data_permission:rubric_addition:permission_audit:v1
+            source: rubric_addition
+            source_text: 说明权限和审计机制
+            acceptance_check: 候选人说明权限校验链路、审计字段、异常告警、抽查或追责路径。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-09'
+          - check_id: reviewed:communication.ai_fullstack_cross_role_alignment.data_permission:rubric_addition:user_notice_decision:v1
+            source: rubric_addition
+            source_text: 说明用户提示和决策记录
+            acceptance_check: 候选人说明面向用户或业务方的提示文案、风险确认和可追溯决策记录。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-09'
         priority: 12
         status: active
 
@@ -185,6 +653,84 @@ seeds:
         expected_signals: [能把工具风险讲清楚, 能提出分级授权, 能推动安全评审]
         anti_patterns: [只说 prompt 会约束模型, 不做权限隔离, 不记录工具调用]
         good_answer_hints: [先列动作风险, 再设计权限和确认, 最后补审计和评估]
+        reviewed_acceptance_checks:
+          - check_id: reviewed:communication.ai_agent_risk_alignment.tool_permission:must_cover:risk_identification:v1
+            source: must_cover
+            source_text: 风险识别
+            acceptance_check: 候选人识别 Agent 工具调用可能带来的越权、误操作、数据泄露、不可逆动作或责任边界风险。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-09'
+          - check_id: reviewed:communication.ai_agent_risk_alignment.tool_permission:must_cover:capability_boundary:v1
+            source: must_cover
+            source_text: 能力边界
+            acceptance_check: 候选人说明 Agent 能自动做什么、必须人工确认什么、禁止做什么，以及模型判断不能替代权限系统。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-09'
+          - check_id: reviewed:communication.ai_agent_risk_alignment.tool_permission:must_cover:fallback_plan:v1
+            source: must_cover
+            source_text: 兜底方案
+            acceptance_check: 候选人提出权限最小化、沙箱、审批、人审、回滚、暂停工具或降级到人工流程等兜底方案。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-09'
+          - check_id: reviewed:communication.ai_agent_risk_alignment.tool_permission:must_cover:decision_sync:v1
+            source: must_cover
+            source_text: 决策同步
+            acceptance_check: 候选人推动业务、安全、研发对权限分级、上线范围、审计口径和责任人形成明确决策。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-09'
+          - check_id: reviewed:communication.ai_agent_risk_alignment.tool_permission:rubric_addition:risk_level:v1
+            source: rubric_addition
+            source_text: 说明高风险动作分级
+            acceptance_check: 候选人按查询、写入、外部通知、资金/权限变更等动作风险分级，并说明不同级别的控制策略。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-09'
+          - check_id: reviewed:communication.ai_agent_risk_alignment.tool_permission:rubric_addition:least_privilege:v1
+            source: rubric_addition
+            source_text: 说明权限最小化
+            acceptance_check: 候选人说明账号、工具、参数、数据范围和调用频率的最小权限控制。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-09'
+          - check_id: reviewed:communication.ai_agent_risk_alignment.tool_permission:rubric_addition:human_audit:v1
+            source: rubric_addition
+            source_text: 说明人工确认和审计
+            acceptance_check: 候选人说明人工确认节点、审计日志、复核抽样、异常追踪和责任归属。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-09'
         priority: 14
         status: active
       - id: communication.ai_agent_risk_alignment.effect_review
@@ -201,6 +747,84 @@ seeds:
         expected_signals: [能把争议转成可评估样本, 能分类失败原因, 能推动明确决策]
         anti_patterns: [只看调用量, 不看失败成本, 没有灰度退出条件]
         good_answer_hints: [先定义评价口径, 再组织样本 review, 最后给决策阈值]
+        reviewed_acceptance_checks:
+          - check_id: reviewed:communication.ai_agent_risk_alignment.effect_review:must_cover:risk_identification:v1
+            source: must_cover
+            source_text: 风险识别
+            acceptance_check: 候选人识别 Agent 效果争议背后的错误类型、用户损失、客服成本、灰度风险或业务不可接受边界。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-09'
+          - check_id: reviewed:communication.ai_agent_risk_alignment.effect_review:must_cover:capability_boundary:v1
+            source: must_cover
+            source_text: 能力边界
+            acceptance_check: 候选人说明当前 Agent 能力、评估覆盖范围、样本局限和不能仅用效率提升代表成功的边界。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-09'
+          - check_id: reviewed:communication.ai_agent_risk_alignment.effect_review:must_cover:fallback_plan:v1
+            source: must_cover
+            source_text: 兜底方案
+            acceptance_check: 候选人提出继续灰度、缩小范围、加人工 review、回滚或只保留低风险场景的兜底方案。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-09'
+          - check_id: reviewed:communication.ai_agent_risk_alignment.effect_review:must_cover:decision_sync:v1
+            source: must_cover
+            source_text: 决策同步
+            acceptance_check: 候选人推动产品、客服、业务和研发基于指标、样本和风险阈值形成继续、调整或回滚的决策记录。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-09'
+          - check_id: reviewed:communication.ai_agent_risk_alignment.effect_review:rubric_addition:effect_failure_types:v1
+            source: rubric_addition
+            source_text: 说明效果指标和失败类型
+            acceptance_check: 候选人区分效率、准确性、用户满意度、人工接管率和错误成本，并给出失败分类。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-09'
+          - check_id: reviewed:communication.ai_agent_risk_alignment.effect_review:rubric_addition:manual_review_sample:v1
+            source: rubric_addition
+            source_text: 说明人工 review 样本
+            acceptance_check: 候选人说明如何抽样、标注、复核失败 case，并让产品/客服参与共同判定。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-09'
+          - check_id: reviewed:communication.ai_agent_risk_alignment.effect_review:rubric_addition:gray_or_rollback:v1
+            source: rubric_addition
+            source_text: 说明继续灰度或回滚条件
+            acceptance_check: 候选人给出继续扩大、暂停、缩小范围或回滚的阈值和触发条件。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-09'
         priority: 12
         status: active
 
@@ -236,6 +860,84 @@ seeds:
         expected_signals: [能识别端上发布不可逆风险, 能推动测试范围确认, 能准备灰度和回滚兜底]
         anti_patterns: [只等测试提 bug, 不列风险, 不考虑应用商店审核周期]
         good_answer_hints: [先对齐版本范围, 再列风险和验收, 最后安排灰度观察]
+        reviewed_acceptance_checks:
+          - check_id: reviewed:communication.mobile_release_alignment.version_scope:must_cover:version_risk:v1
+            source: must_cover
+            source_text: 版本风险
+            acceptance_check: 候选人识别移动端版本中的权限变更、端能力差异、审核周期、兼容性和线上不可逆风险。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-09'
+          - check_id: reviewed:communication.mobile_release_alignment.version_scope:must_cover:acceptance_scope:v1
+            source: must_cover
+            source_text: 验收范围
+            acceptance_check: 候选人说明产品、测试、后端需要共同确认的功能范围、系统权限、核心路径和异常场景。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-09'
+          - check_id: reviewed:communication.mobile_release_alignment.version_scope:must_cover:release_cadence:v1
+            source: must_cover
+            source_text: 发布节奏
+            acceptance_check: 候选人说明提测、灰度、应用商店审核、放量、观察和问题响应节奏。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-09'
+          - check_id: reviewed:communication.mobile_release_alignment.version_scope:must_cover:rollback_fallback:v1
+            source: must_cover
+            source_text: 回滚兜底
+            acceptance_check: 候选人提出灰度暂停、开关降级、后端兼容、热修、版本回退或客服口径等兜底方案。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-09'
+          - check_id: reviewed:communication.mobile_release_alignment.version_scope:rubric_addition:version_scope_risk:v1
+            source: rubric_addition
+            source_text: 说明版本范围和风险
+            acceptance_check: 候选人列出本次版本包含的需求、权限、接口、端能力和对应风险清单。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-09'
+          - check_id: reviewed:communication.mobile_release_alignment.version_scope:rubric_addition:acceptance_standard:v1
+            source: rubric_addition
+            source_text: 说明验收标准
+            acceptance_check: 候选人说明核心用例、兼容机型、权限路径、后端依赖和异常体验的验收标准。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-09'
+          - check_id: reviewed:communication.mobile_release_alignment.version_scope:rubric_addition:gray_issue_response:v1
+            source: rubric_addition
+            source_text: 说明灰度和问题响应
+            acceptance_check: 候选人说明灰度比例、监控指标、问题分级、响应 owner 和暂停放量条件。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-09'
         priority: 14
         status: active
       - id: communication.mobile_release_alignment.backend_contract
@@ -252,6 +954,84 @@ seeds:
         expected_signals: [能考虑旧版本用户, 能推动接口兼容窗口, 能设计灰度和监控]
         anti_patterns: [强依赖用户立即升级, 后端直接删除字段, 没有版本统计]
         good_answer_hints: [先看版本分布, 再对齐兼容窗口, 最后做灰度和降级]
+        reviewed_acceptance_checks:
+          - check_id: reviewed:communication.mobile_release_alignment.backend_contract:must_cover:version_risk:v1
+            source: must_cover
+            source_text: 版本风险
+            acceptance_check: 候选人识别新旧移动端版本并存、接口变更、字段兼容、旧用户无法立即升级等风险。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-09'
+          - check_id: reviewed:communication.mobile_release_alignment.backend_contract:must_cover:acceptance_scope:v1
+            source: must_cover
+            source_text: 验收范围
+            acceptance_check: 候选人说明需要覆盖新旧版本、接口字段、错误状态、降级路径和关键业务流程的验收范围。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-09'
+          - check_id: reviewed:communication.mobile_release_alignment.backend_contract:must_cover:release_cadence:v1
+            source: must_cover
+            source_text: 发布节奏
+            acceptance_check: 候选人说明移动端发版、后端兼容窗口、灰度放量、版本分布观察和接口下线节奏。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-09'
+          - check_id: reviewed:communication.mobile_release_alignment.backend_contract:must_cover:rollback_fallback:v1
+            source: must_cover
+            source_text: 回滚兜底
+            acceptance_check: 候选人提出后端兼容保留、开关降级、接口回滚、旧版本兜底和监控告警方案。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-09'
+          - check_id: reviewed:communication.mobile_release_alignment.backend_contract:rubric_addition:old_new_compatibility:v1
+            source: rubric_addition
+            source_text: 说明新旧版本兼容
+            acceptance_check: 候选人说明版本分布、兼容字段、默认值、旧接口保留和客户端升级窗口。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-09'
+          - check_id: reviewed:communication.mobile_release_alignment.backend_contract:rubric_addition:api_change_cadence:v1
+            source: rubric_addition
+            source_text: 说明接口变更节奏
+            acceptance_check: 候选人说明接口新增、兼容、废弃、通知和下线的时间表与责任人。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-09'
+          - check_id: reviewed:communication.mobile_release_alignment.backend_contract:rubric_addition:degrade_monitoring:v1
+            source: rubric_addition
+            source_text: 说明降级和监控
+            acceptance_check: 候选人说明接口错误率、旧版本请求量、关键路径成功率、开关降级和告警响应。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-09'
         priority: 12
         status: active
 
@@ -287,6 +1067,84 @@ seeds:
         expected_signals: [能用业务语言解释指标, 能说明离线线上差异, 能给出实验或灰度建议]
         anti_patterns: [只说模型分数更高, 不解释业务价值, 不承认不确定性]
         good_answer_hints: [先解释指标口径, 再讲差异来源, 最后给实验决策]
+        reviewed_acceptance_checks:
+          - check_id: reviewed:communication.ai_algorithm_metric_explanation.offline_online_gap:must_cover:metric_definition:v1
+            source: must_cover
+            source_text: 指标定义
+            acceptance_check: 候选人用业务方能理解的方式定义离线指标、线上指标、统计口径和成功标准，而不是只报模型分数。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-09'
+          - check_id: reviewed:communication.ai_algorithm_metric_explanation.offline_online_gap:must_cover:experiment_evidence:v1
+            source: must_cover
+            source_text: 实验证据
+            acceptance_check: 候选人说明离线评估、线上实验、样本分布、置信度或灰度结果等证据，而不是凭主观判断解释差异。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-09'
+          - check_id: reviewed:communication.ai_algorithm_metric_explanation.offline_online_gap:must_cover:business_impact:v1
+            source: must_cover
+            source_text: 业务影响
+            acceptance_check: 候选人把指标差异映射到用户体验、转化、留存、成本、风险或业务目标影响。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-09'
+          - check_id: reviewed:communication.ai_algorithm_metric_explanation.offline_online_gap:must_cover:decision_advice:v1
+            source: must_cover
+            source_text: 决策建议
+            acceptance_check: 候选人给出继续实验、扩大灰度、暂停上线、补采样本或调整目标的明确建议和条件。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-09'
+          - check_id: reviewed:communication.ai_algorithm_metric_explanation.offline_online_gap:rubric_addition:offline_online_relation:v1
+            source: rubric_addition
+            source_text: 说明离线指标和业务指标关系
+            acceptance_check: 候选人解释 AUC、召回率、准确率等离线指标与点击、转化、留存或投诉等业务指标的对应关系和局限。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-09'
+          - check_id: reviewed:communication.ai_algorithm_metric_explanation.offline_online_gap:rubric_addition:sample_distribution:v1
+            source: rubric_addition
+            source_text: 说明样本和分布差异
+            acceptance_check: 候选人说明训练/验证/线上流量在用户、时间、渠道、长尾或冷启动上的分布差异。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-09'
+          - check_id: reviewed:communication.ai_algorithm_metric_explanation.offline_online_gap:rubric_addition:next_experiment:v1
+            source: rubric_addition
+            source_text: 说明下一步实验建议
+            acceptance_check: 候选人提出补充 AB、分层实验、样本回放、灰度观察或指标校准的下一步实验计划。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-09'
         priority: 14
         status: active
       - id: communication.ai_algorithm_metric_explanation.risk_tradeoff
@@ -303,6 +1161,84 @@ seeds:
         expected_signals: [能平衡模型效果和业务目标, 能提出分层实验, 能推动明确上线条件]
         anti_patterns: [只追求单一模型指标, 不看长期影响, 没有停止条件]
         good_answer_hints: [先对齐业务目标, 再拆指标冲突, 最后设置灰度阈值]
+        reviewed_acceptance_checks:
+          - check_id: reviewed:communication.ai_algorithm_metric_explanation.risk_tradeoff:must_cover:metric_definition:v1
+            source: must_cover
+            source_text: 指标定义
+            acceptance_check: 候选人清楚定义短期点击率、长期留存、风险指标和业务目标的统计口径及优先级。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-09'
+          - check_id: reviewed:communication.ai_algorithm_metric_explanation.risk_tradeoff:must_cover:experiment_evidence:v1
+            source: must_cover
+            source_text: 实验证据
+            acceptance_check: 候选人用 AB 实验、分层分析、留存观察、置信度或反事实样本支撑短期和长期指标冲突判断。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-09'
+          - check_id: reviewed:communication.ai_algorithm_metric_explanation.risk_tradeoff:must_cover:business_impact:v1
+            source: must_cover
+            source_text: 业务影响
+            acceptance_check: 候选人说明短期指标提升可能带来的长期体验、用户信任、商业收益或风险成本影响。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-09'
+          - check_id: reviewed:communication.ai_algorithm_metric_explanation.risk_tradeoff:must_cover:decision_advice:v1
+            source: must_cover
+            source_text: 决策建议
+            acceptance_check: 候选人提出继续灰度、扩大实验、调整模型目标、加保护指标或回滚的决策建议和阈值。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-09'
+          - check_id: reviewed:communication.ai_algorithm_metric_explanation.risk_tradeoff:rubric_addition:short_long_conflict:v1
+            source: rubric_addition
+            source_text: 说明短期和长期指标冲突
+            acceptance_check: 候选人说明 CTR、转化等短期指标与留存、满意度、投诉等长期指标可能冲突的机制。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-09'
+          - check_id: reviewed:communication.ai_algorithm_metric_explanation.risk_tradeoff:rubric_addition:risk_assumption_monitoring:v1
+            source: rubric_addition
+            source_text: 说明风险假设和监控
+            acceptance_check: 候选人列出风险假设、保护指标、监控窗口和触发告警或停止实验的条件。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-09'
+          - check_id: reviewed:communication.ai_algorithm_metric_explanation.risk_tradeoff:rubric_addition:gray_decision_threshold:v1
+            source: rubric_addition
+            source_text: 说明灰度决策阈值
+            acceptance_check: 候选人说明继续、扩大、暂停或回滚灰度的阈值和决策责任人。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-09'
         priority: 12
         status: active
 
@@ -338,6 +1274,84 @@ seeds:
         expected_signals: [能用业务语言解释技术风险, 能给出可验证标准, 能推动形成决策记录]
         anti_patterns: [只讲技术名词, 不说明业务影响, 没有结论和后续动作]
         good_answer_hints: [先对齐目标和听众, 再解释取舍, 最后给验收和兜底]
+        reviewed_acceptance_checks:
+          - check_id: reviewed:communication.java_technical_tradeoff_explanation.consistency_tradeoff:must_cover:background_goal:v1
+            source: must_cover
+            source_text: 背景目标
+            acceptance_check: 候选人先说明订单状态一致性的业务目标、用户影响、测试关注点和当前约束，而不是直接进入技术名词。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-09'
+          - check_id: reviewed:communication.java_technical_tradeoff_explanation.consistency_tradeoff:must_cover:tradeoff_basis:v1
+            source: must_cover
+            source_text: 取舍依据
+            acceptance_check: 候选人解释强一致、最终一致、吞吐、延迟、成本和用户体验之间的取舍依据。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-09'
+          - check_id: reviewed:communication.java_technical_tradeoff_explanation.consistency_tradeoff:must_cover:risk_boundary:v1
+            source: must_cover
+            source_text: 风险边界
+            acceptance_check: 候选人说明哪些状态延迟可接受、哪些订单/资金不变量不能破坏，以及异常时的兜底边界。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-09'
+          - check_id: reviewed:communication.java_technical_tradeoff_explanation.consistency_tradeoff:must_cover:decision_result:v1
+            source: must_cover
+            source_text: 决策结论
+            acceptance_check: 候选人给出推荐方案、验收标准、后续动作和需要产品/测试确认的结论。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-09'
+          - check_id: reviewed:communication.java_technical_tradeoff_explanation.consistency_tradeoff:rubric_addition:business_goal_constraint:v1
+            source: rubric_addition
+            source_text: 说明业务目标和技术约束
+            acceptance_check: 候选人把业务目标、实时性诉求、数据不变量、系统吞吐和现有架构约束放在同一张图景里说明。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-09'
+          - check_id: reviewed:communication.java_technical_tradeoff_explanation.consistency_tradeoff:rubric_addition:strong_vs_eventual:v1
+            source: rubric_addition
+            source_text: 说明强一致与最终一致取舍
+            acceptance_check: 候选人用业务场景解释强一致和最终一致的成本、用户影响、失败窗口和适用边界。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-09'
+          - check_id: reviewed:communication.java_technical_tradeoff_explanation.consistency_tradeoff:rubric_addition:acceptance_fallback:v1
+            source: rubric_addition
+            source_text: 说明验收和兜底动作
+            acceptance_check: 候选人说明验收用例、监控指标、异常提示、对账补偿或回滚兜底动作。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-09'
         priority: 15
         status: active
       - id: communication.java_technical_tradeoff_explanation.performance_risk
@@ -354,6 +1368,84 @@ seeds:
         expected_signals: [能把风险转成影响范围和概率, 能提出分批灰度或回滚方案, 能明确共识和行动项]
         anti_patterns: [直接拒绝业务需求, 只说技术不行, 没有备选方案]
         good_answer_hints: [先量化风险, 再给可选路径, 最后推动负责人确认]
+        reviewed_acceptance_checks:
+          - check_id: reviewed:communication.java_technical_tradeoff_explanation.performance_risk:must_cover:background_goal:v1
+            source: must_cover
+            source_text: 背景目标
+            acceptance_check: 候选人说明业务上线窗口、活动影响、技术变更范围和当前风险来源。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-09'
+          - check_id: reviewed:communication.java_technical_tradeoff_explanation.performance_risk:must_cover:tradeoff_basis:v1
+            source: must_cover
+            source_text: 取舍依据
+            acceptance_check: 候选人用影响范围、故障概率、验证成本、业务收益和交付节奏说明拆分发布或一次发布的取舍。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-09'
+          - check_id: reviewed:communication.java_technical_tradeoff_explanation.performance_risk:must_cover:risk_boundary:v1
+            source: must_cover
+            source_text: 风险边界
+            acceptance_check: 候选人说明性能、稳定性、数据一致性、活动损失或回滚失败等风险边界和触发条件。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-09'
+          - check_id: reviewed:communication.java_technical_tradeoff_explanation.performance_risk:must_cover:decision_result:v1
+            source: must_cover
+            source_text: 决策结论
+            acceptance_check: 候选人给出推荐发布路径、责任人、确认项、时间点和风险接受口径。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-09'
+          - check_id: reviewed:communication.java_technical_tradeoff_explanation.performance_risk:rubric_addition:risk_benefit_quant:v1
+            source: rubric_addition
+            source_text: 说明风险和收益量化
+            acceptance_check: 候选人用流量、影响用户、失败概率、回滚耗时、收益窗口或成本估算量化风险收益。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-09'
+          - check_id: reviewed:communication.java_technical_tradeoff_explanation.performance_risk:rubric_addition:release_options:v1
+            source: rubric_addition
+            source_text: 说明备选发布方案
+            acceptance_check: 候选人提出分批灰度、功能开关、降级、延后非关键项或回滚预案等备选路径。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-09'
+          - check_id: reviewed:communication.java_technical_tradeoff_explanation.performance_risk:rubric_addition:decision_responsibility:v1
+            source: rubric_addition
+            source_text: 说明决策和责任对齐
+            acceptance_check: 候选人说明由谁确认风险、谁执行发布、谁观察指标、谁负责外部沟通和回滚决策。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-09'
         priority: 13
         status: active
 
@@ -389,6 +1481,84 @@ seeds:
         expected_signals: [能清晰同步已知事实, 能控制信息节奏和风险口径, 能推动相关方行动]
         anti_patterns: [把未经验证的猜测当结论, 不同步影响范围, 只在研发群内沟通]
         good_answer_hints: [先同步事实和影响, 再明确正在做什么, 最后分配外部沟通和修复动作]
+        reviewed_acceptance_checks:
+          - check_id: reviewed:communication.java_cross_team_incident_alignment.permission_change_rollout:must_cover:fact_sync:v1
+            source: must_cover
+            source_text: 事实同步
+            acceptance_check: 候选人区分已确认事实、排查假设和未知项，稳定同步故障时间线、当前状态和下一次更新时间。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-09'
+          - check_id: reviewed:communication.java_cross_team_incident_alignment.permission_change_rollout:must_cover:impact_explanation:v1
+            source: must_cover
+            source_text: 影响说明
+            acceptance_check: 候选人说明受影响用户、功能、权限范围、业务损失和客服/产品需要知道的外部口径。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-09'
+          - check_id: reviewed:communication.java_cross_team_incident_alignment.permission_change_rollout:must_cover:collaboration_split:v1
+            source: must_cover
+            source_text: 协作分工
+            acceptance_check: 候选人明确研发定位、产品决策、客服响应、运维监控或业务通知等分工和 owner。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-09'
+          - check_id: reviewed:communication.java_cross_team_incident_alignment.permission_change_rollout:must_cover:postmortem_improvement:v1
+            source: must_cover
+            source_text: 复盘改进
+            acceptance_check: 候选人说明恢复后如何复盘权限变更、发布流程、监控告警、测试覆盖和跨团队协作机制。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-09'
+          - check_id: reviewed:communication.java_cross_team_incident_alignment.permission_change_rollout:rubric_addition:fact_vs_guess:v1
+            source: rubric_addition
+            source_text: 说明事实和猜测的区分
+            acceptance_check: 候选人明确哪些是监控/日志/用户反馈确认的事实，哪些仍需验证，避免错误扩散。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-09'
+          - check_id: reviewed:communication.java_cross_team_incident_alignment.permission_change_rollout:rubric_addition:impact_current_action:v1
+            source: rubric_addition
+            source_text: 说明影响面和当前动作
+            acceptance_check: 候选人同步影响面、止血动作、定位动作、预计恢复时间和风险变化。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-09'
+          - check_id: reviewed:communication.java_cross_team_incident_alignment.permission_change_rollout:rubric_addition:cross_team_roles:v1
+            source: rubric_addition
+            source_text: 说明跨团队分工
+            acceptance_check: 候选人给出产品、客服、研发、测试或运维的明确分工、同步节奏和交付物。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-09'
         priority: 14
         status: active
       - id: communication.java_cross_team_incident_alignment.mq_incident_alignment
@@ -405,6 +1575,84 @@ seeds:
         expected_signals: [能避免技术细节淹没业务沟通, 能用预计恢复时间和影响范围同步, 能沉淀预防措施]
         anti_patterns: [只说系统异常, 不给恢复节奏, 修复后不复盘]
         good_answer_hints: [先给用户可理解事实, 再同步恢复节奏, 最后复盘技术和流程改进]
+        reviewed_acceptance_checks:
+          - check_id: reviewed:communication.java_cross_team_incident_alignment.mq_incident_alignment:must_cover:fact_sync:v1
+            source: must_cover
+            source_text: 事实同步
+            acceptance_check: 候选人同步 MQ 积压、订单延迟、处理进度、已确认影响和仍在排查的假设。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-09'
+          - check_id: reviewed:communication.java_cross_team_incident_alignment.mq_incident_alignment:must_cover:impact_explanation:v1
+            source: must_cover
+            source_text: 影响说明
+            acceptance_check: 候选人用客服和用户能理解的语言说明订单状态延迟、预计恢复、补偿范围和用户感知影响。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-09'
+          - check_id: reviewed:communication.java_cross_team_incident_alignment.mq_incident_alignment:must_cover:collaboration_split:v1
+            source: must_cover
+            source_text: 协作分工
+            acceptance_check: 候选人明确研发恢复消费、客服解释口径、产品决策、运维监控和补偿处理的分工。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-09'
+          - check_id: reviewed:communication.java_cross_team_incident_alignment.mq_incident_alignment:must_cover:postmortem_improvement:v1
+            source: must_cover
+            source_text: 复盘改进
+            acceptance_check: 候选人说明恢复后如何复盘 MQ 积压根因、告警阈值、补偿机制、容量和流程改进。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-09'
+          - check_id: reviewed:communication.java_cross_team_incident_alignment.mq_incident_alignment:rubric_addition:user_language:v1
+            source: rubric_addition
+            source_text: 说明用户侧可理解口径
+            acceptance_check: 候选人给出避免技术黑话的用户/客服沟通口径，解释状态延迟、恢复节奏和补偿方式。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-09'
+          - check_id: reviewed:communication.java_cross_team_incident_alignment.mq_incident_alignment:rubric_addition:recovery_compensation:v1
+            source: rubric_addition
+            source_text: 说明研发恢复和补偿计划
+            acceptance_check: 候选人说明恢复消费、限流扩容、对账、补偿任务、人工处理或预计追平时间。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-09'
+          - check_id: reviewed:communication.java_cross_team_incident_alignment.mq_incident_alignment:rubric_addition:postmortem_items:v1
+            source: rubric_addition
+            source_text: 说明复盘改进项
+            acceptance_check: 候选人提出监控、告警、容量、降级、客服流程或演练等可跟踪改进项。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-09'
         priority: 12
         status: active
 
@@ -440,6 +1688,84 @@ seeds:
         expected_signals: [能用业务语言解释技术风险, 能提供备选方案, 能推动明确决策]
         anti_patterns: [只讲技术细节, 不说业务影响, 没有结论和后续动作]
         good_answer_hints: [先对齐目标和受众, 再解释风险取舍, 最后给推荐和行动]
+        reviewed_acceptance_checks:
+          - check_id: reviewed:communication.architect_review_alignment.risk_explanation:must_cover:solution_expression:v1
+            source: must_cover
+            source_text: 方案表达
+            acceptance_check: 候选人清晰说明架构方案目标、关键设计、影响范围和推荐路径，让业务和研发都能理解。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-09'
+          - check_id: reviewed:communication.architect_review_alignment.risk_explanation:must_cover:risk_communication:v1
+            source: must_cover
+            source_text: 风险沟通
+            acceptance_check: 候选人说明稳定性风险、延期风险、业务影响、发生概率和可控措施，而不是只讲技术细节。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-09'
+          - check_id: reviewed:communication.architect_review_alignment.risk_explanation:must_cover:disagreement_handling:v1
+            source: must_cover
+            source_text: 分歧处理
+            acceptance_check: 候选人识别业务上线诉求和架构风险之间的分歧，并用备选方案、阶段方案或验证标准推动收敛。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-09'
+          - check_id: reviewed:communication.architect_review_alignment.risk_explanation:must_cover:decision_alignment:v1
+            source: must_cover
+            source_text: 决策对齐
+            acceptance_check: 候选人推动形成推荐方案、决策记录、后续动作、责任人和验收标准。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-09'
+          - check_id: reviewed:communication.architect_review_alignment.risk_explanation:rubric_addition:audience_focus:v1
+            source: rubric_addition
+            source_text: 说明不同受众关注点
+            acceptance_check: 候选人区分业务关注上线和影响、研发关注实现和稳定性、管理者关注风险和资源投入。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-09'
+          - check_id: reviewed:communication.architect_review_alignment.risk_explanation:rubric_addition:risk_alternatives:v1
+            source: rubric_addition
+            source_text: 说明风险和备选方案
+            acceptance_check: 候选人说明主方案风险、备选方案、阶段性降险方案和取舍成本。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-09'
+          - check_id: reviewed:communication.architect_review_alignment.risk_explanation:rubric_addition:decision_record_actions:v1
+            source: rubric_addition
+            source_text: 说明决策记录和后续动作
+            acceptance_check: 候选人说明 ADR/会议纪要、风险确认、owner、时间点和跟踪机制。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-09'
         priority: 14
         status: active
       - id: communication.architect_review_alignment.disagreement_resolution
@@ -456,6 +1782,84 @@ seeds:
         expected_signals: [能把立场转成约束和指标, 能组织小范围验证, 能记录决策和责任人]
         anti_patterns: [靠职位压服, 反复争论不收敛, 没有验证方案]
         good_answer_hints: [先拆目标和约束, 再定义决策标准, 最后用试点和记录推进]
+        reviewed_acceptance_checks:
+          - check_id: reviewed:communication.architect_review_alignment.disagreement_resolution:must_cover:solution_expression:v1
+            source: must_cover
+            source_text: 方案表达
+            acceptance_check: 候选人把两个团队的方案、目标、约束、收益和成本表达清楚，避免只复述立场。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-09'
+          - check_id: reviewed:communication.architect_review_alignment.disagreement_resolution:must_cover:risk_communication:v1
+            source: must_cover
+            source_text: 风险沟通
+            acceptance_check: 候选人说明交付速度和长期治理各自的风险、代价、收益和不可接受边界。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-09'
+          - check_id: reviewed:communication.architect_review_alignment.disagreement_resolution:must_cover:disagreement_handling:v1
+            source: must_cover
+            source_text: 分歧处理
+            acceptance_check: 候选人把分歧拆成目标、约束、指标和验证问题，并推动讨论收敛。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-09'
+          - check_id: reviewed:communication.architect_review_alignment.disagreement_resolution:must_cover:decision_alignment:v1
+            source: must_cover
+            source_text: 决策对齐
+            acceptance_check: 候选人形成可执行决策，包括试点范围、阶段目标、owner、验收指标和复盘时间。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-09'
+          - check_id: reviewed:communication.architect_review_alignment.disagreement_resolution:rubric_addition:underlying_goals:v1
+            source: rubric_addition
+            source_text: 说明分歧背后的目标
+            acceptance_check: 候选人说明交付速度、长期治理、稳定性、成本或团队边界等分歧背后的真实目标。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-09'
+          - check_id: reviewed:communication.architect_review_alignment.disagreement_resolution:rubric_addition:decision_criteria:v1
+            source: rubric_addition
+            source_text: 说明决策标准
+            acceptance_check: 候选人给出稳定性、交付周期、维护成本、扩展性、风险阈值或业务影响等决策标准。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-09'
+          - check_id: reviewed:communication.architect_review_alignment.disagreement_resolution:rubric_addition:pilot_phased_plan:v1
+            source: rubric_addition
+            source_text: 说明试点或阶段性方案
+            acceptance_check: 候选人提出小范围试点、阶段性治理、过渡方案或验证计划来降低分歧成本。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-09'
         priority: 13
         status: active
 
@@ -491,6 +1895,84 @@ seeds:
         expected_signals: [能用业务 case 翻成技术指标, 能与业务方共同定义"算失败", 能定期同步双方度量]
         anti_patterns: [只用技术成功率应付, 单方面定义指标, 不做定期对齐]
         good_answer_hints: [先用 case 对齐, 再共同定指标, 最后定期同步]
+        reviewed_acceptance_checks:
+          - check_id: reviewed:communication.ai_agent_failure_alignment.metric_consensus:must_cover:business_failure_view:v1
+            source: must_cover
+            source_text: 业务视角失败
+            acceptance_check: 候选人说明业务方认为 Agent 失败的具体表现，如用户损失、错误退款、服务体验下降或人工补救成本。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-09'
+          - check_id: reviewed:communication.ai_agent_failure_alignment.metric_consensus:must_cover:technical_failure_view:v1
+            source: must_cover
+            source_text: 技术视角失败
+            acceptance_check: 候选人说明技术侧指标的含义和局限，如工具调用成功率、任务完成率、人工接管率、错误类型或样本覆盖。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-09'
+          - check_id: reviewed:communication.ai_agent_failure_alignment.metric_consensus:must_cover:shared_definition:v1
+            source: must_cover
+            source_text: 共识口径
+            acceptance_check: 候选人推动双方把失败定义落成共同口径，包括哪些 case 算失败、如何分级、如何统计和谁来确认。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-09'
+          - check_id: reviewed:communication.ai_agent_failure_alignment.metric_consensus:must_cover:review_mechanism:v1
+            source: must_cover
+            source_text: 复盘机制
+            acceptance_check: 候选人提出定期样本 review、失败分类、指标复盘、责任人同步和口径更新机制。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-09'
+          - check_id: reviewed:communication.ai_agent_failure_alignment.metric_consensus:rubric_addition:alignment_process:v1
+            source: rubric_addition
+            source_text: 说明对齐流程
+            acceptance_check: 候选人说明从收集业务 case、共同看样本、定义失败类型到确认指标口径的对齐流程。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-09'
+          - check_id: reviewed:communication.ai_agent_failure_alignment.metric_consensus:rubric_addition:shared_metric_design:v1
+            source: rubric_addition
+            source_text: 说明共同度量设计
+            acceptance_check: 候选人设计业务可理解、技术可采集的共同指标，如高风险失败率、人工接管率、损失金额或用户投诉率。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-09'
+          - check_id: reviewed:communication.ai_agent_failure_alignment.metric_consensus:rubric_addition:language_translation:v1
+            source: rubric_addition
+            source_text: 说明双方话语翻译
+            acceptance_check: 候选人能把业务反馈翻译成技术指标，也能把技术成功率翻译成业务影响和风险边界。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-09'
         priority: 12
         status: active
       - id: communication.ai_agent_failure_alignment.post_incident
@@ -507,6 +1989,84 @@ seeds:
         expected_signals: [能用事实/数据降低分歧, 能区分立刻止血与长期修复, 能给出可落地的下一步]
         anti_patterns: [带情绪辩论, 不查事实, 没下一步]
         good_answer_hints: [先用事实降温, 再分止血与修复, 最后定下一步]
+        reviewed_acceptance_checks:
+          - check_id: reviewed:communication.ai_agent_failure_alignment.post_incident:must_cover:business_failure_view:v1
+            source: must_cover
+            source_text: 业务视角失败
+            acceptance_check: 候选人说明业务方对错误退款额度事件的失败判断，包括用户损失、品牌风险、补偿成本或业务不可接受边界。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-09'
+          - check_id: reviewed:communication.ai_agent_failure_alignment.post_incident:must_cover:technical_failure_view:v1
+            source: must_cover
+            source_text: 技术视角失败
+            acceptance_check: 候选人说明技术侧对边界 case、触发条件、模型或工具链错误、监控缺口和低概率风险的判断。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-09'
+          - check_id: reviewed:communication.ai_agent_failure_alignment.post_incident:must_cover:shared_definition:v1
+            source: must_cover
+            source_text: 共识口径
+            acceptance_check: 候选人主持双方基于事实、影响和风险阈值对是否关闭、降级或继续灰度形成共同口径。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-09'
+          - check_id: reviewed:communication.ai_agent_failure_alignment.post_incident:must_cover:review_mechanism:v1
+            source: must_cover
+            source_text: 复盘机制
+            acceptance_check: 候选人提出事故复盘、样本复核、根因分类、修复跟踪、阈值更新和跨团队同步节奏。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-09'
+          - check_id: reviewed:communication.ai_agent_failure_alignment.post_incident:rubric_addition:postmortem_process:v1
+            source: rubric_addition
+            source_text: 说明复盘流程
+            acceptance_check: 候选人说明先止血、保留现场、收集样本、还原链路、确认根因、输出行动项的复盘流程。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-09'
+          - check_id: reviewed:communication.ai_agent_failure_alignment.post_incident:rubric_addition:data_consensus:v1
+            source: rubric_addition
+            source_text: 说明数据驱动共识
+            acceptance_check: 候选人用影响范围、错误率、损失金额、复现样本和风险阈值降低双方主观争论。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-09'
+          - check_id: reviewed:communication.ai_agent_failure_alignment.post_incident:rubric_addition:next_decision:v1
+            source: rubric_addition
+            source_text: 说明下一步决策
+            acceptance_check: 候选人明确关闭、降级、限制场景、补规则、加人审或恢复灰度的下一步决策和责任人。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-09'
         priority: 10
         status: active
 
@@ -542,6 +2102,84 @@ seeds:
         expected_signals: [能区分三方核心关注点, 能用对方语言不同侧重表达, 能给出明确下一步]
         anti_patterns: [一份说明给所有人, 全用技术语言, 没下一步]
         good_answer_hints: [先识别关注差异, 再按语言适配, 最后落动作]
+        reviewed_acceptance_checks:
+          - check_id: reviewed:communication.ai_fullstack_failure_explanation.cross_role_briefing:must_cover:failure_abstraction:v1
+            source: must_cover
+            source_text: 失败现象抽象
+            acceptance_check: 候选人把模型失败从单个错误抽象为用户影响、触发场景、链路环节和可复现问题，而不是只描述现象。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-09'
+          - check_id: reviewed:communication.ai_fullstack_failure_explanation.cross_role_briefing:must_cover:audience_language:v1
+            source: must_cover
+            source_text: 多方语言适配
+            acceptance_check: 候选人分别用产品、算法、业务能理解的语言解释原因、影响和关注点，避免一套纯技术话术讲给所有人。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-09'
+          - check_id: reviewed:communication.ai_fullstack_failure_explanation.cross_role_briefing:must_cover:next_actions:v1
+            source: must_cover
+            source_text: 下一步动作
+            acceptance_check: 候选人明确排查、修复、验证、回滚、补偿、监控或复盘动作，并说明负责人和时间点。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-09'
+          - check_id: reviewed:communication.ai_fullstack_failure_explanation.cross_role_briefing:must_cover:expectation_management:v1
+            source: must_cover
+            source_text: 期望管理
+            acceptance_check: 候选人说明当前失败的可控范围、已知不确定性、恢复预期和后续同步节奏，避免过度承诺。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-09'
+          - check_id: reviewed:communication.ai_fullstack_failure_explanation.cross_role_briefing:rubric_addition:role_focus_difference:v1
+            source: rubric_addition
+            source_text: 说明三方关注点差异
+            acceptance_check: 候选人区分产品关注用户体验和节奏、算法关注样本和模型机制、业务关注损失和客户解释。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-09'
+          - check_id: reviewed:communication.ai_fullstack_failure_explanation.cross_role_briefing:rubric_addition:corresponding_language:v1
+            source: rubric_addition
+            source_text: 说明对应语言
+            acceptance_check: 候选人能把同一失败原因转换为产品口径、算法排查口径和业务影响口径。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-09'
+          - check_id: reviewed:communication.ai_fullstack_failure_explanation.cross_role_briefing:rubric_addition:followup_action:v1
+            source: rubric_addition
+            source_text: 说明下一步动作
+            acceptance_check: 候选人给出三方各自需要配合的动作，如样本补充、产品提示、业务安抚、技术修复和验证闭环。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-09'
         priority: 11
         status: active
       - id: communication.ai_fullstack_failure_explanation.expectation_reset
@@ -558,6 +2196,84 @@ seeds:
         expected_signals: [能讲明 AI 必然边界, 能给出可量化保障, 能用机制重建信任]
         anti_patterns: [硬承诺, 完全推卸, 不给保障措施]
         good_answer_hints: [先讲边界, 再给保障, 最后修信任]
+        reviewed_acceptance_checks:
+          - check_id: reviewed:communication.ai_fullstack_failure_explanation.expectation_reset:must_cover:failure_abstraction:v1
+            source: must_cover
+            source_text: 失败现象抽象
+            acceptance_check: 候选人把"AI 永远不出错"的诉求拆成具体失败类型、影响范围、可控因素和不可控因素。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-09'
+          - check_id: reviewed:communication.ai_fullstack_failure_explanation.expectation_reset:must_cover:audience_language:v1
+            source: must_cover
+            source_text: 多方语言适配
+            acceptance_check: 候选人用业务可理解的语言解释模型概率性、数据边界和工程保障，而不是只讲算法术语。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-09'
+          - check_id: reviewed:communication.ai_fullstack_failure_explanation.expectation_reset:must_cover:next_actions:v1
+            source: must_cover
+            source_text: 下一步动作
+            acceptance_check: 候选人提出监控、人工兜底、灰度范围、提示文案、评估样本或修复计划等可执行动作。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-09'
+          - check_id: reviewed:communication.ai_fullstack_failure_explanation.expectation_reset:must_cover:expectation_management:v1
+            source: must_cover
+            source_text: 期望管理
+            acceptance_check: 候选人明确不能承诺 100% 不出错，但能承诺风险阈值、发现机制、响应 SLA 和持续改进。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-09'
+          - check_id: reviewed:communication.ai_fullstack_failure_explanation.expectation_reset:rubric_addition:capability_boundary:v1
+            source: rubric_addition
+            source_text: 说明能力边界
+            acceptance_check: 候选人说明模型能力边界、数据覆盖边界、场景适用边界和需要人工确认的边界。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-09'
+          - check_id: reviewed:communication.ai_fullstack_failure_explanation.expectation_reset:rubric_addition:controllable_guarantee:v1
+            source: rubric_addition
+            source_text: 说明可控保障
+            acceptance_check: 候选人给出可度量保障，如命中率阈值、人工接管、告警、回滚、抽检和风险分级。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-09'
+          - check_id: reviewed:communication.ai_fullstack_failure_explanation.expectation_reset:rubric_addition:trust_repair:v1
+            source: rubric_addition
+            source_text: 说明信任修复
+            acceptance_check: 候选人说明透明同步、复盘记录、阶段性结果、业务参与验收和持续改进如何修复信任。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-09'
         priority: 9
         status: active
 
@@ -593,6 +2309,84 @@ seeds:
         expected_signals: [能区分指标变化与体感变化, 能解释数据漂移/链路变化/体验偏差, 能用业务方语言]
         anti_patterns: [硬怼"指标没变", 不解释体感, 全用技术术语]
         good_answer_hints: [先承认体感, 再分类归因, 最后用业务话术]
+        reviewed_acceptance_checks:
+          - check_id: reviewed:communication.ai_algorithm_dumb_explanation.attribution:must_cover:phenomenon_and_perception:v1
+            source: must_cover
+            source_text: 现象与体感
+            acceptance_check: 候选人先承认业务方的体感，并区分具体用户反馈、线上现象、指标变化和样本偏差。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-09'
+          - check_id: reviewed:communication.ai_algorithm_dumb_explanation.attribution:must_cover:real_attribution:v1
+            source: must_cover
+            source_text: 真实归因
+            acceptance_check: 候选人给出可能真实归因，如数据分布变化、链路策略变化、召回/排序变化、提示词或体验入口变化。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-09'
+          - check_id: reviewed:communication.ai_algorithm_dumb_explanation.attribution:must_cover:next_actions:v1
+            source: must_cover
+            source_text: 下一步动作
+            acceptance_check: 候选人说明要拉取样本、分层对比指标、复现链路、定位变化点、做实验或给出修复跟进。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-09'
+          - check_id: reviewed:communication.ai_algorithm_dumb_explanation.attribution:must_cover:expectation_management:v1
+            source: must_cover
+            source_text: 期望管理
+            acceptance_check: 候选人说明排查时间、当前已知结论、不确定性、后续同步节奏和可接受的恢复目标。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-09'
+          - check_id: reviewed:communication.ai_algorithm_dumb_explanation.attribution:rubric_addition:phenomenon_vs_perception:v1
+            source: rubric_addition
+            source_text: 说明现象 vs 体感差异
+            acceptance_check: 候选人说明为什么业务体感可能和整体指标不一致，如样本集中、头部 case、链路局部变化或用户群变化。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-09'
+          - check_id: reviewed:communication.ai_algorithm_dumb_explanation.attribution:rubric_addition:real_attribution:v1
+            source: rubric_addition
+            source_text: 说明真实归因
+            acceptance_check: 候选人把归因拆到数据、模型、策略、产品入口、用户群和监控口径等可验证维度。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-09'
+          - check_id: reviewed:communication.ai_algorithm_dumb_explanation.attribution:rubric_addition:business_language:v1
+            source: rubric_addition
+            source_text: 说明业务方语言
+            acceptance_check: 候选人用业务影响、用户体验、案例和下一步动作表达，而不是只堆算法指标或模型术语。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-09'
         priority: 9
         status: active
       - id: communication.ai_algorithm_dumb_explanation.expectation_reset
@@ -609,6 +2403,84 @@ seeds:
         expected_signals: [能讲明算法迭代的本质规律, 能给出可量化保障, 能用机制重建信任]
         anti_patterns: [硬承诺, 完全推卸, 不给保障]
         good_answer_hints: [先讲边界, 再给保障, 最后建信任]
+        reviewed_acceptance_checks:
+          - check_id: reviewed:communication.ai_algorithm_dumb_explanation.expectation_reset:must_cover:phenomenon_and_perception:v1
+            source: must_cover
+            source_text: 现象与体感
+            acceptance_check: 候选人承认业务方对"变笨"的体感，并把诉求拆成具体场景、用户影响和可观测现象。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-09'
+          - check_id: reviewed:communication.ai_algorithm_dumb_explanation.expectation_reset:must_cover:real_attribution:v1
+            source: must_cover
+            source_text: 真实归因
+            acceptance_check: 候选人说明算法效果会受数据分布、业务策略、用户行为、模型迭代和链路变化影响，不能承诺永不波动。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-09'
+          - check_id: reviewed:communication.ai_algorithm_dumb_explanation.expectation_reset:must_cover:next_actions:v1
+            source: must_cover
+            source_text: 下一步动作
+            acceptance_check: 候选人提出监控、灰度、回滚、人工兜底、样本复盘、阈值告警或业务验收等后续动作。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-09'
+          - check_id: reviewed:communication.ai_algorithm_dumb_explanation.expectation_reset:must_cover:expectation_management:v1
+            source: must_cover
+            source_text: 期望管理
+            acceptance_check: 候选人重置"不能再变笨"的绝对承诺，改成可度量的风险阈值、响应机制和持续优化承诺。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-09'
+          - check_id: reviewed:communication.ai_algorithm_dumb_explanation.expectation_reset:rubric_addition:capability_boundary:v1
+            source: rubric_addition
+            source_text: 说明能力边界
+            acceptance_check: 候选人说明算法能力、数据覆盖、低频场景、实时变化和业务策略变化带来的边界。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-09'
+          - check_id: reviewed:communication.ai_algorithm_dumb_explanation.expectation_reset:rubric_addition:controllable_guarantee:v1
+            source: rubric_addition
+            source_text: 说明可控保障
+            acceptance_check: 候选人提出可量化保障机制，如核心指标阈值、异常告警、灰度验证、人工兜底和定期复盘。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-09'
+          - check_id: reviewed:communication.ai_algorithm_dumb_explanation.expectation_reset:rubric_addition:trust_building:v1
+            source: rubric_addition
+            source_text: 说明信任建设
+            acceptance_check: 候选人说明通过透明指标、案例复盘、阶段目标、业务参与验收和持续沟通建立信任。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-09'
         priority: 7
         status: active
 
@@ -644,6 +2516,84 @@ seeds:
         expected_signals: [能识别三方核心关注, 能用 prototype / 对照降低分歧, 能给落地动作]
         anti_patterns: [自己定方案不沟通, 全靠会议拉扯, 没落地动作]
         good_answer_hints: [先识别关注, 再用 demo 对齐, 最后定动作]
+        reviewed_acceptance_checks:
+          - check_id: reviewed:communication.frontend_web_cross_role_alignment_round2.shared_consensus:must_cover:alignment_scenario:v1
+            source: must_cover
+            source_text: 对齐场景
+            acceptance_check: 候选人说明新页面中后端、设计、产品和前端分歧出现的具体场景、目标和约束。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-09'
+          - check_id: reviewed:communication.frontend_web_cross_role_alignment_round2.shared_consensus:must_cover:multi_party_focus:v1
+            source: must_cover
+            source_text: 多方关注
+            acceptance_check: 候选人识别后端接口边界、设计体验、产品目标和前端实现风险等多方关注点。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-09'
+          - check_id: reviewed:communication.frontend_web_cross_role_alignment_round2.shared_consensus:must_cover:consensus_mechanism:v1
+            source: must_cover
+            source_text: 共识机制
+            acceptance_check: 候选人提出 prototype、接口契约、验收样例、会议纪要或决策标准来降低分歧。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-09'
+          - check_id: reviewed:communication.frontend_web_cross_role_alignment_round2.shared_consensus:must_cover:implementation_action:v1
+            source: must_cover
+            source_text: 落地动作
+            acceptance_check: 候选人明确方案、owner、接口/设计交付物、时间点、验收和跟踪动作。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-09'
+          - check_id: reviewed:communication.frontend_web_cross_role_alignment_round2.shared_consensus:rubric_addition:party_focus:v1
+            source: rubric_addition
+            source_text: 说明各方关注
+            acceptance_check: 候选人分别说明后端、设计、产品和前端各自关注的问题与约束。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-09'
+          - check_id: reviewed:communication.frontend_web_cross_role_alignment_round2.shared_consensus:rubric_addition:consensus_mechanism:v1
+            source: rubric_addition
+            source_text: 说明共识机制
+            acceptance_check: 候选人说明通过 demo、prototype、接口契约、验收标准或决策记录形成共识。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-09'
+          - check_id: reviewed:communication.frontend_web_cross_role_alignment_round2.shared_consensus:rubric_addition:implementation_action:v1
+            source: rubric_addition
+            source_text: 说明落地动作
+            acceptance_check: 候选人说明具体执行项、责任人、时间点和验收方式。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-09'
         priority: 9
         status: active
       - id: communication.frontend_web_cross_role_alignment_round2.timeline_risk
@@ -660,6 +2610,84 @@ seeds:
         expected_signals: [能提前识别风险, 能给至少 2 个替代方案, 能与对方共识取舍]
         anti_patterns: [硬扛上线, 偷偷阉割, 不沟通]
         good_answer_hints: [先识别风险, 再列替代, 最后共识]
+        reviewed_acceptance_checks:
+          - check_id: reviewed:communication.frontend_web_cross_role_alignment_round2.timeline_risk:must_cover:alignment_scenario:v1
+            source: must_cover
+            source_text: 对齐场景
+            acceptance_check: 候选人说明 deadline 前设计稿无法还原的具体范围、影响页面、用户体验和上线目标。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-09'
+          - check_id: reviewed:communication.frontend_web_cross_role_alignment_round2.timeline_risk:must_cover:multi_party_focus:v1
+            source: must_cover
+            source_text: 多方关注
+            acceptance_check: 候选人说明设计关注视觉还原、产品关注上线目标、前端关注时间和实现风险。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-09'
+          - check_id: reviewed:communication.frontend_web_cross_role_alignment_round2.timeline_risk:must_cover:consensus_mechanism:v1
+            source: must_cover
+            source_text: 共识机制
+            acceptance_check: 候选人通过风险透明、替代方案、取舍标准、demo 或验收确认推动共识。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-09'
+          - check_id: reviewed:communication.frontend_web_cross_role_alignment_round2.timeline_risk:must_cover:implementation_action:v1
+            source: must_cover
+            source_text: 落地动作
+            acceptance_check: 候选人明确调整方案、范围裁剪、时间计划、owner、验收和风险同步动作。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-09'
+          - check_id: reviewed:communication.frontend_web_cross_role_alignment_round2.timeline_risk:rubric_addition:risk_identification:v1
+            source: rubric_addition
+            source_text: 说明风险识别
+            acceptance_check: 候选人说明时间风险、还原风险、性能风险、验收风险和上线影响。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-09'
+          - check_id: reviewed:communication.frontend_web_cross_role_alignment_round2.timeline_risk:rubric_addition:alternative_plan:v1
+            source: rubric_addition
+            source_text: 说明替代方案
+            acceptance_check: 候选人提出至少一种替代方案，如分阶段还原、简化交互、延期局部能力或临时方案。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-09'
+          - check_id: reviewed:communication.frontend_web_cross_role_alignment_round2.timeline_risk:rubric_addition:alignment_communication:v1
+            source: rubric_addition
+            source_text: 说明对齐沟通
+            acceptance_check: 候选人说明如何和设计、产品对齐取舍、验收口径和后续补齐计划。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-09'
         priority: 7
         status: active
 
@@ -695,6 +2723,84 @@ seeds:
         expected_signals: [能用业务损失/成本数据说话, 能用 SLO / EB 推动决策, 能落地具体动作]
         anti_patterns: [只用技术语言, 没数据, 没动作]
         good_answer_hints: [先用数据, 再用机制, 最后落动作]
+        reviewed_acceptance_checks:
+          - check_id: reviewed:communication.sre_stability_governance.alignment:must_cover:alignment_scenario:v1
+            source: must_cover
+            source_text: 对齐场景
+            acceptance_check: 候选人说明业务团队不愿投入稳定性的背景、业务目标、故障成本和资源约束。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-09'
+          - check_id: reviewed:communication.sre_stability_governance.alignment:must_cover:promotion_mechanism:v1
+            source: must_cover
+            source_text: 推动机制
+            acceptance_check: 候选人提出用 SLO、错误预算、稳定性看板、治理例会或风险评审推动投入。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-09'
+          - check_id: reviewed:communication.sre_stability_governance.alignment:must_cover:value_translation:v1
+            source: must_cover
+            source_text: 价值翻译
+            acceptance_check: 候选人把稳定性投入翻译成业务损失减少、用户体验、运维成本、事故风险和交付效率。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-09'
+          - check_id: reviewed:communication.sre_stability_governance.alignment:must_cover:implementation_action:v1
+            source: must_cover
+            source_text: 落地动作
+            acceptance_check: 候选人明确治理项、owner、优先级、验收指标、时间点和跟踪节奏。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-09'
+          - check_id: reviewed:communication.sre_stability_governance.alignment:rubric_addition:alignment_scenario:v1
+            source: rubric_addition
+            source_text: 说明对齐场景
+            acceptance_check: 候选人说明具体业务场景、稳定性痛点、历史故障或潜在风险。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-09'
+          - check_id: reviewed:communication.sre_stability_governance.alignment:rubric_addition:promotion_mechanism:v1
+            source: rubric_addition
+            source_text: 说明推动机制
+            acceptance_check: 候选人说明 SLO、错误预算、稳定性评审、风险清单或治理例会如何推动投入。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-09'
+          - check_id: reviewed:communication.sre_stability_governance.alignment:rubric_addition:value_translation:v1
+            source: rubric_addition
+            source_text: 说明价值翻译
+            acceptance_check: 候选人用业务损失、投诉、转化、效率或风险成本说明稳定性治理价值。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-09'
         priority: 8
         status: active
       - id: communication.sre_stability_governance.escalation
@@ -711,6 +2817,84 @@ seeds:
         expected_signals: [能给升级渠道, 能用数据降低分歧, 能给出可接受方案]
         anti_patterns: [硬扛, 完全妥协, 不升级]
         good_answer_hints: [先升级, 再用数据, 最后共识]
+        reviewed_acceptance_checks:
+          - check_id: reviewed:communication.sre_stability_governance.escalation:must_cover:alignment_scenario:v1
+            source: must_cover
+            source_text: 对齐场景
+            acceptance_check: 候选人说明重大故障后的业务期望、研发资源限制、风险等级和决策背景。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-09'
+          - check_id: reviewed:communication.sre_stability_governance.escalation:must_cover:promotion_mechanism:v1
+            source: must_cover
+            source_text: 推动机制
+            acceptance_check: 候选人提出升级路径、风险评审、资源评估、SLO/错误预算或管理层决策机制。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-09'
+          - check_id: reviewed:communication.sre_stability_governance.escalation:must_cover:value_translation:v1
+            source: must_cover
+            source_text: 价值翻译
+            acceptance_check: 候选人用事故影响、业务损失、修复成本、资源投入和可接受风险说明取舍。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-09'
+          - check_id: reviewed:communication.sre_stability_governance.escalation:must_cover:implementation_action:v1
+            source: must_cover
+            source_text: 落地动作
+            acceptance_check: 候选人明确短期止血、长期治理、资源投入、owner、里程碑和验收指标。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-09'
+          - check_id: reviewed:communication.sre_stability_governance.escalation:rubric_addition:escalation_path:v1
+            source: rubric_addition
+            source_text: 说明升级路径
+            acceptance_check: 候选人说明向技术负责人、业务负责人或管理层升级的时机、材料和决策请求。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-09'
+          - check_id: reviewed:communication.sre_stability_governance.escalation:rubric_addition:data_driven:v1
+            source: rubric_addition
+            source_text: 说明数据驱动
+            acceptance_check: 候选人用故障次数、影响时长、SLO 缺口、用户损失或资源成本支撑决策。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-09'
+          - check_id: reviewed:communication.sre_stability_governance.escalation:rubric_addition:acceptable_compromise:v1
+            source: rubric_addition
+            source_text: 说明可接受妥协
+            acceptance_check: 候选人提出阶段性目标、风险接受、优先级调整或有限资源下的可接受妥协方案。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-09'
         priority: 6
         status: active
 
@@ -746,6 +2930,84 @@ seeds:
         expected_signals: [能识别各方关注点, 能用 demo / 契约降低分歧, 能落地具体动作]
         anti_patterns: [自己定方案, 没契约, 没动作]
         good_answer_hints: [先识别关注, 再用 demo 对齐, 最后定动作]
+        reviewed_acceptance_checks:
+          - check_id: reviewed:communication.mobile_cross_role_coordination.shared_consensus:must_cover:alignment_mechanism:v1
+            source: must_cover
+            source_text: 对齐机制
+            acceptance_check: 候选人说明通过 kickoff、接口契约、demo、验收用例或同步机制对齐多方协作。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-09'
+          - check_id: reviewed:communication.mobile_cross_role_coordination.shared_consensus:must_cover:focus_difference:v1
+            source: must_cover
+            source_text: 关注差异
+            acceptance_check: 候选人识别后端接口、设计体验、测试覆盖、移动端兼容和产品目标的关注差异。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-09'
+          - check_id: reviewed:communication.mobile_cross_role_coordination.shared_consensus:must_cover:consensus_path:v1
+            source: must_cover
+            source_text: 共识路径
+            acceptance_check: 候选人提出用 demo、接口契约、风险清单、验收标准或灰度计划形成共识。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-09'
+          - check_id: reviewed:communication.mobile_cross_role_coordination.shared_consensus:must_cover:implementation_action:v1
+            source: must_cover
+            source_text: 落地动作
+            acceptance_check: 候选人明确需求拆解、接口交付、设计确认、测试计划、owner、时间点和风险跟踪。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-09'
+          - check_id: reviewed:communication.mobile_cross_role_coordination.shared_consensus:rubric_addition:alignment_mechanism:v1
+            source: rubric_addition
+            source_text: 说明对齐机制
+            acceptance_check: 候选人说明接口契约、设计走查、测试用例评审、demo 或例会节奏。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-09'
+          - check_id: reviewed:communication.mobile_cross_role_coordination.shared_consensus:rubric_addition:focus_difference:v1
+            source: rubric_addition
+            source_text: 说明关注差异
+            acceptance_check: 候选人说明各方关注点差异及其对方案取舍的影响。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-09'
+          - check_id: reviewed:communication.mobile_cross_role_coordination.shared_consensus:rubric_addition:implementation_action:v1
+            source: rubric_addition
+            source_text: 说明落地动作
+            acceptance_check: 候选人给出具体 owner、交付物、时间点、验收和风险同步动作。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-09'
         priority: 8
         status: active
       - id: communication.mobile_cross_role_coordination.deadline
@@ -762,5 +3024,83 @@ seeds:
         expected_signals: [能提前识别风险, 能给至少 2 个替代方案, 能与对方共识取舍]
         anti_patterns: [硬扛上线, 偷偷阉割, 不沟通]
         good_answer_hints: [先识别, 再列替代, 最后共识]
+        reviewed_acceptance_checks:
+          - check_id: reviewed:communication.mobile_cross_role_coordination.deadline:must_cover:alignment_mechanism:v1
+            source: must_cover
+            source_text: 对齐机制
+            acceptance_check: 候选人说明如何及时组织后端、设计、产品、测试和移动端同步时间风险。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-09'
+          - check_id: reviewed:communication.mobile_cross_role_coordination.deadline:must_cover:focus_difference:v1
+            source: must_cover
+            source_text: 关注差异
+            acceptance_check: 候选人说明产品关注上线目标、设计关注体验、后端关注接口、测试关注质量、移动端关注交付风险。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-09'
+          - check_id: reviewed:communication.mobile_cross_role_coordination.deadline:must_cover:consensus_path:v1
+            source: must_cover
+            source_text: 共识路径
+            acceptance_check: 候选人通过风险透明、替代方案、范围裁剪、延期/分期方案和验收口径形成共识。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-09'
+          - check_id: reviewed:communication.mobile_cross_role_coordination.deadline:must_cover:implementation_action:v1
+            source: must_cover
+            source_text: 落地动作
+            acceptance_check: 候选人明确调整后的功能范围、替代方案、owner、时间点、验收和后续补齐计划。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-09'
+          - check_id: reviewed:communication.mobile_cross_role_coordination.deadline:rubric_addition:risk_identification:v1
+            source: rubric_addition
+            source_text: 说明风险识别
+            acceptance_check: 候选人说明时间、范围、质量、兼容性、接口和应用商店审核等风险。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-09'
+          - check_id: reviewed:communication.mobile_cross_role_coordination.deadline:rubric_addition:alternative_plan:v1
+            source: rubric_addition
+            source_text: 说明替代方案
+            acceptance_check: 候选人提出范围裁剪、分阶段交付、降级体验、延期局部能力或临时方案。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-09'
+          - check_id: reviewed:communication.mobile_cross_role_coordination.deadline:rubric_addition:alignment_communication:v1
+            source: rubric_addition
+            source_text: 说明对齐沟通
+            acceptance_check: 候选人说明如何和后端、设计、产品对齐取舍、验收和后续计划。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-09'
         priority: 6
         status: active

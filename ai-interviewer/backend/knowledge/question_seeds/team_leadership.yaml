@@ -32,6 +32,84 @@ seeds:
         expected_signals: [Separates expectation clarity from capability, gives feedback directly, tracks improvement]
         anti_patterns: [Labels person too early, avoids feedback, delegates coaching entirely]
         good_answer_hints: [Clarify expectations, coach with evidence, review progress with team impact in mind]
+        reviewed_acceptance_checks:
+          - check_id: reviewed:team_leadership.management_team_growth.new_member_underperformance:must_cover:2dff30a8:v1
+            source: must_cover
+            source_text: team_diagnosis
+            acceptance_check: 候选人围绕「team_diagnosis」说明团队目标、人员或协作问题、管理动作、反馈机制和结果复盘。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:team_leadership.management_team_growth.new_member_underperformance:must_cover:f514eb37:v1
+            source: must_cover
+            source_text: coaching_action
+            acceptance_check: 候选人围绕「coaching_action」说明团队目标、人员或协作问题、管理动作、反馈机制和结果复盘。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:team_leadership.management_team_growth.new_member_underperformance:must_cover:d02743d5:v1
+            source: must_cover
+            source_text: motivation
+            acceptance_check: 候选人围绕「motivation」说明团队目标、人员或协作问题、管理动作、反馈机制和结果复盘。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:team_leadership.management_team_growth.new_member_underperformance:must_cover:568c1c84:v1
+            source: must_cover
+            source_text: follow_up
+            acceptance_check: 候选人围绕「follow_up」说明团队目标、人员或协作问题、管理动作、反馈机制和结果复盘。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:team_leadership.management_team_growth.new_member_underperformance:rubric_addition:057ae307:v1
+            source: rubric_addition
+            source_text: Diagnose ability versus clarity issue
+            acceptance_check: 候选人补充说明「Diagnose ability versus clarity issue」，并落到数据、案例、客户/用户反馈、流程证据、协作动作或验证方式中的至少一类具体证据。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:team_leadership.management_team_growth.new_member_underperformance:rubric_addition:f47611fe:v1
+            source: rubric_addition
+            source_text: set coaching actions
+            acceptance_check: 候选人补充说明「set coaching actions」，并落到数据、案例、客户/用户反馈、流程证据、协作动作或验证方式中的至少一类具体证据。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:team_leadership.management_team_growth.new_member_underperformance:rubric_addition:098fa000:v1
+            source: rubric_addition
+            source_text: review progress
+            acceptance_check: 候选人补充说明「review progress」，并落到数据、案例、客户/用户反馈、流程证据、协作动作或验证方式中的至少一类具体证据。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
         priority: 17
         status: active
       - id: team_leadership.management_team_growth.low_morale_after_change
@@ -48,5 +126,83 @@ seeds:
         expected_signals: [Listens to concerns, connects work to goal, creates small wins]
         anti_patterns: [Only repeats strategy, ignores emotion, uses pressure as motivation]
         good_answer_hints: [Listen first, explain context, create ownership through concrete choices]
+        reviewed_acceptance_checks:
+          - check_id: reviewed:team_leadership.management_team_growth.low_morale_after_change:must_cover:75bcc9c0:v1
+            source: must_cover
+            source_text: team_diagnosis
+            acceptance_check: 候选人围绕「team_diagnosis」说明团队目标、人员或协作问题、管理动作、反馈机制和结果复盘。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:team_leadership.management_team_growth.low_morale_after_change:must_cover:c01a8735:v1
+            source: must_cover
+            source_text: coaching_action
+            acceptance_check: 候选人围绕「coaching_action」说明团队目标、人员或协作问题、管理动作、反馈机制和结果复盘。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:team_leadership.management_team_growth.low_morale_after_change:must_cover:eb5d546d:v1
+            source: must_cover
+            source_text: motivation
+            acceptance_check: 候选人围绕「motivation」说明团队目标、人员或协作问题、管理动作、反馈机制和结果复盘。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:team_leadership.management_team_growth.low_morale_after_change:must_cover:f5f6ea7d:v1
+            source: must_cover
+            source_text: follow_up
+            acceptance_check: 候选人围绕「follow_up」说明团队目标、人员或协作问题、管理动作、反馈机制和结果复盘。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:team_leadership.management_team_growth.low_morale_after_change:rubric_addition:5ee57776:v1
+            source: rubric_addition
+            source_text: Acknowledge change impact
+            acceptance_check: 候选人补充说明「Acknowledge change impact」，并落到数据、案例、客户/用户反馈、流程证据、协作动作或验证方式中的至少一类具体证据。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:team_leadership.management_team_growth.low_morale_after_change:rubric_addition:4477fa12:v1
+            source: rubric_addition
+            source_text: explain why
+            acceptance_check: 候选人补充说明「explain why」，并落到数据、案例、客户/用户反馈、流程证据、协作动作或验证方式中的至少一类具体证据。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:team_leadership.management_team_growth.low_morale_after_change:rubric_addition:649ad135:v1
+            source: rubric_addition
+            source_text: create participation and feedback loop
+            acceptance_check: 候选人补充说明「create participation and feedback loop」，并落到数据、案例、客户/用户反馈、流程证据、协作动作或验证方式中的至少一类具体证据。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
         priority: 15
         status: active

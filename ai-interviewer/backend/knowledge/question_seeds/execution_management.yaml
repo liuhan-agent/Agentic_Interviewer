@@ -32,6 +32,84 @@ seeds:
         expected_signals: [Defines cadence, makes blockers visible, assigns owners]
         anti_patterns: [Adds meetings without purpose, only asks people to hurry, lacks milestone criteria]
         good_answer_hints: [Clarify work breakdown, create review rhythm, escalate blockers early]
+        reviewed_acceptance_checks:
+          - check_id: reviewed:execution_management.management_execution_rhythm.slipping_cross_team_project:must_cover:06e448bb:v1
+            source: must_cover
+            source_text: milestone_plan
+            acceptance_check: 候选人围绕「milestone_plan」说明执行计划、责任分工、风险跟踪、资源协调和结果复盘。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:execution_management.management_execution_rhythm.slipping_cross_team_project:must_cover:2010c039:v1
+            source: must_cover
+            source_text: risk_tracking
+            acceptance_check: 候选人围绕「risk_tracking」说明执行计划、责任分工、风险跟踪、资源协调和结果复盘。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:execution_management.management_execution_rhythm.slipping_cross_team_project:must_cover:72ee3f6e:v1
+            source: must_cover
+            source_text: operating_rhythm
+            acceptance_check: 候选人围绕「operating_rhythm」说明执行计划、责任分工、风险跟踪、资源协调和结果复盘。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:execution_management.management_execution_rhythm.slipping_cross_team_project:must_cover:30caf89e:v1
+            source: must_cover
+            source_text: result_review
+            acceptance_check: 候选人围绕「result_review」说明执行计划、责任分工、风险跟踪、资源协调和结果复盘。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:execution_management.management_execution_rhythm.slipping_cross_team_project:rubric_addition:257d8787:v1
+            source: rubric_addition
+            source_text: Clarify milestones and owners
+            acceptance_check: 候选人补充说明「Clarify milestones and owners」，并落到数据、案例、客户/用户反馈、流程证据、协作动作或验证方式中的至少一类具体证据。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:execution_management.management_execution_rhythm.slipping_cross_team_project:rubric_addition:81876c5d:v1
+            source: rubric_addition
+            source_text: create risk review cadence
+            acceptance_check: 候选人补充说明「create risk review cadence」，并落到数据、案例、客户/用户反馈、流程证据、协作动作或验证方式中的至少一类具体证据。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:execution_management.management_execution_rhythm.slipping_cross_team_project:rubric_addition:56349d89:v1
+            source: rubric_addition
+            source_text: track outcomes
+            acceptance_check: 候选人补充说明「track outcomes」，并落到数据、案例、客户/用户反馈、流程证据、协作动作或验证方式中的至少一类具体证据。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
         priority: 17
         status: active
       - id: execution_management.management_execution_rhythm.busy_but_no_result
@@ -48,5 +126,83 @@ seeds:
         expected_signals: [Uses result metrics, cuts low value work, updates rhythm]
         anti_patterns: [Rewards busyness, blames team effort, keeps same plan without diagnosis]
         good_answer_hints: [Compare output with outcome, identify bottleneck, reset priorities and cadence]
+        reviewed_acceptance_checks:
+          - check_id: reviewed:execution_management.management_execution_rhythm.busy_but_no_result:must_cover:13be92da:v1
+            source: must_cover
+            source_text: milestone_plan
+            acceptance_check: 候选人围绕「milestone_plan」说明执行计划、责任分工、风险跟踪、资源协调和结果复盘。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:execution_management.management_execution_rhythm.busy_but_no_result:must_cover:089f13a9:v1
+            source: must_cover
+            source_text: risk_tracking
+            acceptance_check: 候选人围绕「risk_tracking」说明执行计划、责任分工、风险跟踪、资源协调和结果复盘。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:execution_management.management_execution_rhythm.busy_but_no_result:must_cover:3a9564a2:v1
+            source: must_cover
+            source_text: operating_rhythm
+            acceptance_check: 候选人围绕「operating_rhythm」说明执行计划、责任分工、风险跟踪、资源协调和结果复盘。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:execution_management.management_execution_rhythm.busy_but_no_result:must_cover:4f5c2cbe:v1
+            source: must_cover
+            source_text: result_review
+            acceptance_check: 候选人围绕「result_review」说明执行计划、责任分工、风险跟踪、资源协调和结果复盘。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:execution_management.management_execution_rhythm.busy_but_no_result:rubric_addition:8d488fe5:v1
+            source: rubric_addition
+            source_text: Separate activity from outcome
+            acceptance_check: 候选人补充说明「Separate activity from outcome」，并落到数据、案例、客户/用户反馈、流程证据、协作动作或验证方式中的至少一类具体证据。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:execution_management.management_execution_rhythm.busy_but_no_result:rubric_addition:d63ee853:v1
+            source: rubric_addition
+            source_text: find bottleneck
+            acceptance_check: 候选人补充说明「find bottleneck」，并落到数据、案例、客户/用户反馈、流程证据、协作动作或验证方式中的至少一类具体证据。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:execution_management.management_execution_rhythm.busy_but_no_result:rubric_addition:73d2a78e:v1
+            source: rubric_addition
+            source_text: reset operating focus
+            acceptance_check: 候选人补充说明「reset operating focus」，并落到数据、案例、客户/用户反馈、流程证据、协作动作或验证方式中的至少一类具体证据。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
         priority: 15
         status: active

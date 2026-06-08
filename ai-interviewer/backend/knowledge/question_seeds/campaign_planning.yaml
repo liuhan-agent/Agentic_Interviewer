@@ -32,6 +32,84 @@ seeds:
         expected_signals: [能把目标分层, 能写清创意约束和自由度, 能让多团队对齐]
         anti_patterns: [只写活动主题, 目标混在一起, brief 不可执行]
         good_answer_hints: [先定目标和受众, 再写 message, 最后形成 brief 和节奏]
+        reviewed_acceptance_checks:
+          - check_id: reviewed:campaign_planning.integrated_launch_plan.message_brief:must_cover:604cce8a:v1
+            source: must_cover
+            source_text: 营销目标
+            acceptance_check: 候选人围绕「营销目标」说明目标或问题背景、关键约束、涉及对象和本人澄清/拆解动作。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:campaign_planning.integrated_launch_plan.message_brief:must_cover:8fad6ce4:v1
+            source: must_cover
+            source_text: 目标受众
+            acceptance_check: 候选人围绕「目标受众」说明目标或问题背景、关键约束、涉及对象和本人澄清/拆解动作。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:campaign_planning.integrated_launch_plan.message_brief:must_cover:e0369896:v1
+            source: must_cover
+            source_text: 核心 message
+            acceptance_check: 候选人围绕「核心 message」说明活动目标、目标人群、资源约束、节奏设计和结果衡量。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:campaign_planning.integrated_launch_plan.message_brief:must_cover:fc594cea:v1
+            source: must_cover
+            source_text: 渠道节奏
+            acceptance_check: 候选人围绕「渠道节奏」说明活动目标、目标人群、资源约束、节奏设计和结果衡量。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:campaign_planning.integrated_launch_plan.message_brief:rubric_addition:72915a91:v1
+            source: rubric_addition
+            source_text: 说明 campaign 目标
+            acceptance_check: 候选人补充说明「说明 campaign 目标」，并落到数据、案例、客户/用户反馈、流程证据、协作动作或验证方式中的至少一类具体证据。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:campaign_planning.integrated_launch_plan.message_brief:rubric_addition:59693aec:v1
+            source: rubric_addition
+            source_text: 说明受众与 message
+            acceptance_check: 候选人补充说明「说明受众与 message」，并落到数据、案例、客户/用户反馈、流程证据、协作动作或验证方式中的至少一类具体证据。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:campaign_planning.integrated_launch_plan.message_brief:rubric_addition:2a67dfb8:v1
+            source: rubric_addition
+            source_text: 说明 brief 和协同
+            acceptance_check: 候选人补充说明「说明 brief 和协同」，并落到数据、案例、客户/用户反馈、流程证据、协作动作或验证方式中的至少一类具体证据。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
         priority: 17
         status: active
       - id: campaign_planning.integrated_launch_plan.cross_function_timeline
@@ -48,5 +126,83 @@ seeds:
         expected_signals: [能识别关键路径, 能控制延期影响, 能同步销售和客服风险]
         anti_patterns: [一延期就全盘推迟, 不区分关键依赖, 不通知相关方]
         good_answer_hints: [先拆关键路径, 再找替代方案, 最后同步风险]
+        reviewed_acceptance_checks:
+          - check_id: reviewed:campaign_planning.integrated_launch_plan.cross_function_timeline:must_cover:a177a6b3:v1
+            source: must_cover
+            source_text: 营销目标
+            acceptance_check: 候选人围绕「营销目标」说明目标或问题背景、关键约束、涉及对象和本人澄清/拆解动作。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:campaign_planning.integrated_launch_plan.cross_function_timeline:must_cover:ed9ae696:v1
+            source: must_cover
+            source_text: 目标受众
+            acceptance_check: 候选人围绕「目标受众」说明目标或问题背景、关键约束、涉及对象和本人澄清/拆解动作。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:campaign_planning.integrated_launch_plan.cross_function_timeline:must_cover:76a8bb98:v1
+            source: must_cover
+            source_text: 核心 message
+            acceptance_check: 候选人围绕「核心 message」说明活动目标、目标人群、资源约束、节奏设计和结果衡量。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:campaign_planning.integrated_launch_plan.cross_function_timeline:must_cover:c282abc2:v1
+            source: must_cover
+            source_text: 渠道节奏
+            acceptance_check: 候选人围绕「渠道节奏」说明活动目标、目标人群、资源约束、节奏设计和结果衡量。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:campaign_planning.integrated_launch_plan.cross_function_timeline:rubric_addition:f860095a:v1
+            source: rubric_addition
+            source_text: 说明依赖和关键路径
+            acceptance_check: 候选人补充说明「说明依赖和关键路径」，并落到数据、案例、客户/用户反馈、流程证据、协作动作或验证方式中的至少一类具体证据。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:campaign_planning.integrated_launch_plan.cross_function_timeline:rubric_addition:48fc7449:v1
+            source: rubric_addition
+            source_text: 说明替代方案
+            acceptance_check: 候选人补充说明「说明替代方案」，并落到数据、案例、客户/用户反馈、流程证据、协作动作或验证方式中的至少一类具体证据。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:campaign_planning.integrated_launch_plan.cross_function_timeline:rubric_addition:61cacf30:v1
+            source: rubric_addition
+            source_text: 说明同步和升级机制
+            acceptance_check: 候选人补充说明「说明同步和升级机制」，并落到数据、案例、客户/用户反馈、流程证据、协作动作或验证方式中的至少一类具体证据。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
         priority: 16
         status: active

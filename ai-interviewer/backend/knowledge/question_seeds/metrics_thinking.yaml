@@ -32,6 +32,84 @@ seeds:
         expected_signals: [能区分行为指标和价值指标, 能补充留存或复访, 能考虑 A/B 或对照]
         anti_patterns: [只看点击率, 不看长期效果, 不排除外部因素]
         good_answer_hints: [先定义用户价值, 再选指标体系, 最后设计归因]
+        reviewed_acceptance_checks:
+          - check_id: reviewed:metrics_thinking.north_star_metric.feature_success:must_cover:c056c09a:v1
+            source: must_cover
+            source_text: 核心指标
+            acceptance_check: 候选人围绕「核心指标」说明业务指标或结果口径、证据来源、归因边界和如何影响下一步判断。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:metrics_thinking.north_star_metric.feature_success:must_cover:85ac32a8:v1
+            source: must_cover
+            source_text: 辅助指标
+            acceptance_check: 候选人围绕「辅助指标」说明业务指标或结果口径、证据来源、归因边界和如何影响下一步判断。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:metrics_thinking.north_star_metric.feature_success:must_cover:7a43588c:v1
+            source: must_cover
+            source_text: 反作弊指标
+            acceptance_check: 候选人围绕「反作弊指标」说明业务指标或结果口径、证据来源、归因边界和如何影响下一步判断。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:metrics_thinking.north_star_metric.feature_success:must_cover:240282fb:v1
+            source: must_cover
+            source_text: 归因方法
+            acceptance_check: 候选人围绕「归因方法」说明指标口径、业务含义、归因边界和如何用指标指导决策。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:metrics_thinking.north_star_metric.feature_success:rubric_addition:f3385292:v1
+            source: rubric_addition
+            source_text: 说明核心指标与用户价值关系
+            acceptance_check: 候选人补充说明「说明核心指标与用户价值关系」，并落到数据、案例、客户/用户反馈、流程证据、协作动作或验证方式中的至少一类具体证据。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:metrics_thinking.north_star_metric.feature_success:rubric_addition:f8f70ea9:v1
+            source: rubric_addition
+            source_text: 说明辅助和反向指标
+            acceptance_check: 候选人补充说明「说明辅助和反向指标」，并落到数据、案例、客户/用户反馈、流程证据、协作动作或验证方式中的至少一类具体证据。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:metrics_thinking.north_star_metric.feature_success:rubric_addition:0ba42eed:v1
+            source: rubric_addition
+            source_text: 说明归因或实验方式
+            acceptance_check: 候选人补充说明「说明归因或实验方式」，并落到数据、案例、客户/用户反馈、流程证据、协作动作或验证方式中的至少一类具体证据。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
         priority: 17
         status: active
       - id: metrics_thinking.north_star_metric.metric_side_effect
@@ -48,5 +126,83 @@ seeds:
         expected_signals: [能识别指标被钻空子, 能设计质量约束, 能把指标调整回用户价值]
         anti_patterns: [指标涨了就算成功, 忽略投诉, 没有护栏]
         good_answer_hints: [先识别副作用, 再补护栏指标, 最后调整决策规则]
+        reviewed_acceptance_checks:
+          - check_id: reviewed:metrics_thinking.north_star_metric.metric_side_effect:must_cover:d6cf387a:v1
+            source: must_cover
+            source_text: 核心指标
+            acceptance_check: 候选人围绕「核心指标」说明业务指标或结果口径、证据来源、归因边界和如何影响下一步判断。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:metrics_thinking.north_star_metric.metric_side_effect:must_cover:1c13723d:v1
+            source: must_cover
+            source_text: 辅助指标
+            acceptance_check: 候选人围绕「辅助指标」说明业务指标或结果口径、证据来源、归因边界和如何影响下一步判断。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:metrics_thinking.north_star_metric.metric_side_effect:must_cover:9039dc73:v1
+            source: must_cover
+            source_text: 反作弊指标
+            acceptance_check: 候选人围绕「反作弊指标」说明业务指标或结果口径、证据来源、归因边界和如何影响下一步判断。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:metrics_thinking.north_star_metric.metric_side_effect:must_cover:a0bae67b:v1
+            source: must_cover
+            source_text: 归因方法
+            acceptance_check: 候选人围绕「归因方法」说明指标口径、业务含义、归因边界和如何用指标指导决策。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:metrics_thinking.north_star_metric.metric_side_effect:rubric_addition:f2350c18:v1
+            source: rubric_addition
+            source_text: 说明护栏指标
+            acceptance_check: 候选人补充说明「说明护栏指标」，并落到数据、案例、客户/用户反馈、流程证据、协作动作或验证方式中的至少一类具体证据。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:metrics_thinking.north_star_metric.metric_side_effect:rubric_addition:ea0ae42b:v1
+            source: rubric_addition
+            source_text: 说明质量样本或用户反馈
+            acceptance_check: 候选人补充说明「说明质量样本或用户反馈」，并落到数据、案例、客户/用户反馈、流程证据、协作动作或验证方式中的至少一类具体证据。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:metrics_thinking.north_star_metric.metric_side_effect:rubric_addition:6f0cc125:v1
+            source: rubric_addition
+            source_text: 说明是否调整目标
+            acceptance_check: 候选人补充说明「说明是否调整目标」，并落到数据、案例、客户/用户反馈、流程证据、协作动作或验证方式中的至少一类具体证据。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
         priority: 16
         status: active

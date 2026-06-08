@@ -32,6 +32,84 @@ seeds:
         expected_signals: [能从 GMV 拆到流量转化客单, 能看渠道和人群, 能提出验证优先级]
         anti_patterns: [只看总盘, 直接归因到一个原因, 没有下一步动作]
         good_answer_hints: [先建指标树, 再分群定位, 最后验证最可能假设]
+        reviewed_acceptance_checks:
+          - check_id: reviewed:data_analysis.operations_metric_diagnosis.gmv_drop:must_cover:653d967e:v1
+            source: must_cover
+            source_text: 指标拆解
+            acceptance_check: 候选人围绕「指标拆解」说明业务指标或结果口径、证据来源、归因边界和如何影响下一步判断。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:data_analysis.operations_metric_diagnosis.gmv_drop:must_cover:93be8197:v1
+            source: must_cover
+            source_text: 分群分析
+            acceptance_check: 候选人围绕「分群分析」说明分析问题、数据口径、判断依据、业务解释和后续行动建议。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:data_analysis.operations_metric_diagnosis.gmv_drop:must_cover:cdf655f5:v1
+            source: must_cover
+            source_text: 因果假设
+            acceptance_check: 候选人围绕「因果假设」说明分析问题、数据口径、判断依据、业务解释和后续行动建议。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:data_analysis.operations_metric_diagnosis.gmv_drop:must_cover:de936935:v1
+            source: must_cover
+            source_text: 验证动作
+            acceptance_check: 候选人围绕「验证动作」说明验证方式、反馈来源、复盘结论和下一步改进动作。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:data_analysis.operations_metric_diagnosis.gmv_drop:rubric_addition:897f3667:v1
+            source: rubric_addition
+            source_text: 说明指标树拆解
+            acceptance_check: 候选人补充说明「说明指标树拆解」，并落到数据、案例、客户/用户反馈、流程证据、协作动作或验证方式中的至少一类具体证据。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:data_analysis.operations_metric_diagnosis.gmv_drop:rubric_addition:b35524a5:v1
+            source: rubric_addition
+            source_text: 说明分群或渠道分析
+            acceptance_check: 候选人补充说明「说明分群或渠道分析」，并落到数据、案例、客户/用户反馈、流程证据、协作动作或验证方式中的至少一类具体证据。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:data_analysis.operations_metric_diagnosis.gmv_drop:rubric_addition:b31b7519:v1
+            source: rubric_addition
+            source_text: 说明行动和验证
+            acceptance_check: 候选人补充说明「说明行动和验证」，并落到数据、案例、客户/用户反馈、流程证据、协作动作或验证方式中的至少一类具体证据。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
         priority: 17
         status: active
       - id: data_analysis.operations_metric_diagnosis.ab_experiment
@@ -48,5 +126,83 @@ seeds:
         expected_signals: [能识别样本代表性问题, 能提出分层或补样, 能谨慎做全量决策]
         anti_patterns: [只看显著性, 不看样本结构, 直接全量上线]
         good_answer_hints: [先审样本, 再做分层, 最后灰度验证]
+        reviewed_acceptance_checks:
+          - check_id: reviewed:data_analysis.operations_metric_diagnosis.ab_experiment:must_cover:3c1790b4:v1
+            source: must_cover
+            source_text: 指标拆解
+            acceptance_check: 候选人围绕「指标拆解」说明业务指标或结果口径、证据来源、归因边界和如何影响下一步判断。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:data_analysis.operations_metric_diagnosis.ab_experiment:must_cover:afd2c160:v1
+            source: must_cover
+            source_text: 分群分析
+            acceptance_check: 候选人围绕「分群分析」说明分析问题、数据口径、判断依据、业务解释和后续行动建议。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:data_analysis.operations_metric_diagnosis.ab_experiment:must_cover:d3b54740:v1
+            source: must_cover
+            source_text: 因果假设
+            acceptance_check: 候选人围绕「因果假设」说明分析问题、数据口径、判断依据、业务解释和后续行动建议。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:data_analysis.operations_metric_diagnosis.ab_experiment:must_cover:c6aa11bd:v1
+            source: must_cover
+            source_text: 验证动作
+            acceptance_check: 候选人围绕「验证动作」说明验证方式、反馈来源、复盘结论和下一步改进动作。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:data_analysis.operations_metric_diagnosis.ab_experiment:rubric_addition:17f9f9d5:v1
+            source: rubric_addition
+            source_text: 说明样本偏斜风险
+            acceptance_check: 候选人补充说明「说明样本偏斜风险」，并落到数据、案例、客户/用户反馈、流程证据、协作动作或验证方式中的至少一类具体证据。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:data_analysis.operations_metric_diagnosis.ab_experiment:rubric_addition:8b6dc76b:v1
+            source: rubric_addition
+            source_text: 说明分层验证
+            acceptance_check: 候选人补充说明「说明分层验证」，并落到数据、案例、客户/用户反馈、流程证据、协作动作或验证方式中的至少一类具体证据。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:data_analysis.operations_metric_diagnosis.ab_experiment:rubric_addition:6df7304b:v1
+            source: rubric_addition
+            source_text: 说明灰度或补充实验
+            acceptance_check: 候选人补充说明「说明灰度或补充实验」，并落到数据、案例、客户/用户反馈、流程证据、协作动作或验证方式中的至少一类具体证据。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
         priority: 16
         status: active

@@ -33,7 +33,7 @@ seeds:
         anti_patterns: [只说加锁不讨论吞吐, 只说用 Redis 不说明失效, 忽略异常重试和幂等]
         good_answer_hints: [先定义一致性目标, 再拆读写路径, 最后补充失败恢复和观测]
         reviewed_acceptance_checks:
-          - check_id: reviewed:sd_cache_flash_sale:core_consistency_goal:v1
+          - check_id: reviewed:system_design.cache_consistency.flash_sale_inventory:must_cover:consistency_goal:v1
             source: must_cover
             source_text: 一致性目标
             acceptance_check: 候选人明确区分强一致和最终一致，并说明秒杀库存中不可接受超卖、可权衡少卖或短暂展示延迟的边界。
@@ -44,40 +44,40 @@ seeds:
             reviewed_variant_version: 1
             reviewed_by: codex
             reviewed_at: "2026-06-07"
-          - check_id: reviewed:sd_cache_flash_sale:core_invalidation:v1
+          - check_id: reviewed:system_design.cache_consistency.flash_sale_inventory:must_cover:invalidation:v1
             source: must_cover
             source_text: 失效策略
             acceptance_check: 候选人说明缓存写入、删除、过期或延迟双删等失效策略，并指出可能产生不一致的时间窗口。
             severity: core
             review_status: reviewed
-            version: 1
+            version: 2
             reviewed_seed_version: 1
             reviewed_variant_version: 1
             reviewed_by: codex
-            reviewed_at: "2026-06-07"
-          - check_id: reviewed:sd_cache_flash_sale:core_write_path:v1
+            reviewed_at: "2026-06-08"
+          - check_id: reviewed:system_design.cache_consistency.flash_sale_inventory:must_cover:write_path:v1
             source: must_cover
             source_text: 写路径取舍
             acceptance_check: 候选人描述 Redis、数据库、消息队列或扣减服务之间的写路径顺序，并解释吞吐、一致性和失败恢复的取舍。
             severity: core
             review_status: reviewed
-            version: 1
+            version: 2
             reviewed_seed_version: 1
             reviewed_variant_version: 1
             reviewed_by: codex
-            reviewed_at: "2026-06-07"
-          - check_id: reviewed:sd_cache_flash_sale:core_degrade_compensation:v1
+            reviewed_at: "2026-06-08"
+          - check_id: reviewed:system_design.cache_consistency.flash_sale_inventory:must_cover:degrade_compensation:v1
             source: must_cover
             source_text: 降级补偿
             acceptance_check: 候选人给出缓存异常、消息失败或库存不一致时的限流、降级、补偿或人工处理方案。
             severity: core
             review_status: reviewed
-            version: 1
+            version: 2
             reviewed_seed_version: 1
             reviewed_variant_version: 1
             reviewed_by: codex
-            reviewed_at: "2026-06-07"
-          - check_id: reviewed:sd_cache_flash_sale:support_invalidation_window:v1
+            reviewed_at: "2026-06-08"
+          - check_id: reviewed:system_design.cache_consistency.flash_sale_inventory:rubric_addition:invalidation_window:v1
             source: rubric_addition
             source_text: 说明缓存失效窗口
             acceptance_check: 候选人能指出读旧、击穿、并发更新或双删间隔导致的具体失效窗口，而不是只说清缓存。
@@ -88,7 +88,7 @@ seeds:
             reviewed_variant_version: 1
             reviewed_by: codex
             reviewed_at: "2026-06-07"
-          - check_id: reviewed:sd_cache_flash_sale:support_oversell_undersell:v1
+          - check_id: reviewed:system_design.cache_consistency.flash_sale_inventory:rubric_addition:oversell_undersell:v1
             source: rubric_addition
             source_text: 说明超卖与少卖处理
             acceptance_check: 候选人说明如何防止超卖，并解释少卖、占用释放或库存回补的处理策略。
@@ -99,7 +99,7 @@ seeds:
             reviewed_variant_version: 1
             reviewed_by: codex
             reviewed_at: "2026-06-07"
-          - check_id: reviewed:sd_cache_flash_sale:support_metrics:v1
+          - check_id: reviewed:system_design.cache_consistency.flash_sale_inventory:rubric_addition:metrics:v1
             source: rubric_addition
             source_text: 给出监控指标
             acceptance_check: 候选人给出库存差异、缓存命中率、扣减失败率、MQ 积压或补偿任务失败等可观测指标。
@@ -127,7 +127,7 @@ seeds:
         anti_patterns: [只说重试, 只清缓存不解释对账, 没有业务阻断策略]
         good_answer_hints: [先定义不可破坏的不变量, 再设计检测阻断修复三段流程]
         reviewed_acceptance_checks:
-          - check_id: reviewed:sd_cache_failover:core_consistency_goal:v1
+          - check_id: reviewed:system_design.cache_consistency.redis_failover_repair:must_cover:consistency_goal:v1
             source: must_cover
             source_text: 一致性目标
             acceptance_check: 候选人明确故障切换期间库存、订单或资金类不变量，说明哪些场景必须阻断下单，哪些可最终一致修复。
@@ -138,40 +138,40 @@ seeds:
             reviewed_variant_version: 1
             reviewed_by: codex
             reviewed_at: "2026-06-07"
-          - check_id: reviewed:sd_cache_failover:core_invalidation:v1
+          - check_id: reviewed:system_design.cache_consistency.redis_failover_repair:must_cover:invalidation:v1
             source: must_cover
             source_text: 失效策略
             acceptance_check: 候选人说明 Redis 主从切换、读旧或缓存污染后的失效、刷新、旁路读取或重建策略。
             severity: core
             review_status: reviewed
-            version: 1
+            version: 2
             reviewed_seed_version: 1
             reviewed_variant_version: 1
             reviewed_by: codex
-            reviewed_at: "2026-06-07"
-          - check_id: reviewed:sd_cache_failover:core_write_path:v1
+            reviewed_at: "2026-06-08"
+          - check_id: reviewed:system_design.cache_consistency.redis_failover_repair:must_cover:write_path:v1
             source: must_cover
             source_text: 写路径取舍
             acceptance_check: 候选人解释故障期间读缓存、读库、写库、写缓存之间的切换取舍，并说明对吞吐和一致性的影响。
             severity: core
             review_status: reviewed
-            version: 1
+            version: 2
             reviewed_seed_version: 1
             reviewed_variant_version: 1
             reviewed_by: codex
-            reviewed_at: "2026-06-07"
-          - check_id: reviewed:sd_cache_failover:core_degrade_compensation:v1
+            reviewed_at: "2026-06-08"
+          - check_id: reviewed:system_design.cache_consistency.redis_failover_repair:must_cover:degrade_compensation:v1
             source: must_cover
             source_text: 降级补偿
             acceptance_check: 候选人给出检测到读旧后的降级、阻断、异步对账、修复任务和人工兜底流程。
             severity: core
             review_status: reviewed
-            version: 1
+            version: 2
             reviewed_seed_version: 1
             reviewed_variant_version: 1
             reviewed_by: codex
-            reviewed_at: "2026-06-07"
-          - check_id: reviewed:sd_cache_failover:support_detection_signal:v1
+            reviewed_at: "2026-06-08"
+          - check_id: reviewed:system_design.cache_consistency.redis_failover_repair:rubric_addition:detection_signal:v1
             source: rubric_addition
             source_text: 说明故障检测信号
             acceptance_check: 候选人给出可触发处置的信号，如 Redis failover 事件、版本号倒退、库存差异、读写延迟或告警指标。
@@ -182,7 +182,7 @@ seeds:
             reviewed_variant_version: 1
             reviewed_by: codex
             reviewed_at: "2026-06-07"
-          - check_id: reviewed:sd_cache_failover:support_block_or_degrade:v1
+          - check_id: reviewed:system_design.cache_consistency.redis_failover_repair:rubric_addition:block_or_degrade:v1
             source: rubric_addition
             source_text: 说明阻断或降级策略
             acceptance_check: 候选人说明高风险商品或核心链路如何临时阻断、限流、切只读、回源或提示用户延迟。
@@ -193,7 +193,7 @@ seeds:
             reviewed_variant_version: 1
             reviewed_by: codex
             reviewed_at: "2026-06-07"
-          - check_id: reviewed:sd_cache_failover:support_reconcile_repair:v1
+          - check_id: reviewed:system_design.cache_consistency.redis_failover_repair:rubric_addition:reconcile_repair:v1
             source: rubric_addition
             source_text: 说明异步对账和修复闭环
             acceptance_check: 候选人说明故障恢复后如何跑库存对账、修复缓存和数据库差异，并验证修复结果。
@@ -239,6 +239,84 @@ seeds:
         expected_signals: [能做数量级估算, 能设计限流排队和熔断, 能讨论热点资源保护]
         anti_patterns: [直接堆机器, 没有容量公式, 忽略用户等待体验]
         good_answer_hints: [用峰值 QPS 和库存写入比例展开, 说明保护核心库存链路]
+        reviewed_acceptance_checks:
+          - check_id: reviewed:system_design.capacity_planning.live_event_ticketing:must_cover:168566b7:v1
+            source: must_cover
+            source_text: 流量估算
+            acceptance_check: 候选人先给出峰值 QPS、并发量、请求耗时、读写比例或数据规模假设，并基于假设推导容量而不是凭感觉设计。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:system_design.capacity_planning.live_event_ticketing:must_cover:b1d1ebf5:v1
+            source: must_cover
+            source_text: 瓶颈定位
+            acceptance_check: 候选人识别入口、应用线程池、缓存、数据库、消息队列或第三方依赖中的主要瓶颈，并说明验证证据。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:system_design.capacity_planning.live_event_ticketing:must_cover:d1e9471e:v1
+            source: must_cover
+            source_text: 削峰限流
+            acceptance_check: 候选人提出排队、令牌桶/漏桶、熔断、降级或拒绝策略，并说明保护下游和用户体验之间的取舍。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:system_design.capacity_planning.live_event_ticketing:must_cover:0115e368:v1
+            source: must_cover
+            source_text: 扩容策略
+            acceptance_check: 候选人说明水平扩容、分片、缓存预热、队列消费者扩容或数据库扩容的触发条件、验证指标和回滚边界。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:system_design.capacity_planning.live_event_ticketing:rubric_addition:aadd6dcd:v1
+            source: rubric_addition
+            source_text: 要求候选人先给流量假设
+            acceptance_check: 候选人补充说明「要求候选人先给流量假设」，并给出可验证的指标、动作、样例或取舍，能对应到本题具体场景。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:system_design.capacity_planning.live_event_ticketing:rubric_addition:5b386452:v1
+            source: rubric_addition
+            source_text: 要求解释排队和拒绝策略
+            acceptance_check: 候选人补充说明「要求解释排队和拒绝策略」，并给出可验证的指标、动作、样例或取舍，能对应到本题具体场景。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:system_design.capacity_planning.live_event_ticketing:rubric_addition:380ee873:v1
+            source: rubric_addition
+            source_text: 要求说明扩容触发条件
+            acceptance_check: 候选人补充说明「要求说明扩容触发条件」，并给出可验证的指标、动作、样例或取舍，能对应到本题具体场景。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
         priority: 18
         status: active
       - id: system_design.capacity_planning.queue_backpressure
@@ -255,6 +333,84 @@ seeds:
         expected_signals: [能用吞吐差估算堆积, 能区分保护库存和保护体验, 能提出可观测指标]
         anti_patterns: [只说加机器, 没有拒绝策略, 不估算队列耗尽时间]
         good_answer_hints: [先估算峰值与消费能力差, 再设计限流排队降级和扩容]
+        reviewed_acceptance_checks:
+          - check_id: reviewed:system_design.capacity_planning.queue_backpressure:must_cover:b3ca7812:v1
+            source: must_cover
+            source_text: 流量估算
+            acceptance_check: 候选人先给出峰值 QPS、并发量、请求耗时、读写比例或数据规模假设，并基于假设推导容量而不是凭感觉设计。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:system_design.capacity_planning.queue_backpressure:must_cover:4067bb44:v1
+            source: must_cover
+            source_text: 瓶颈定位
+            acceptance_check: 候选人识别入口、应用线程池、缓存、数据库、消息队列或第三方依赖中的主要瓶颈，并说明验证证据。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:system_design.capacity_planning.queue_backpressure:must_cover:b28d4778:v1
+            source: must_cover
+            source_text: 削峰限流
+            acceptance_check: 候选人提出排队、令牌桶/漏桶、熔断、降级或拒绝策略，并说明保护下游和用户体验之间的取舍。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:system_design.capacity_planning.queue_backpressure:must_cover:b03daf46:v1
+            source: must_cover
+            source_text: 扩容策略
+            acceptance_check: 候选人说明水平扩容、分片、缓存预热、队列消费者扩容或数据库扩容的触发条件、验证指标和回滚边界。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:system_design.capacity_planning.queue_backpressure:rubric_addition:60b6edeb:v1
+            source: rubric_addition
+            source_text: 说明队列水位和处理速率
+            acceptance_check: 候选人补充说明「说明队列水位和处理速率」，并给出可验证的指标、动作、样例或取舍，能对应到本题具体场景。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:system_design.capacity_planning.queue_backpressure:rubric_addition:7cb9e33b:v1
+            source: rubric_addition
+            source_text: 说明入口与下游背压关系
+            acceptance_check: 候选人补充说明「说明入口与下游背压关系」，并给出可验证的指标、动作、样例或取舍，能对应到本题具体场景。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:system_design.capacity_planning.queue_backpressure:rubric_addition:cfbf3d55:v1
+            source: rubric_addition
+            source_text: 说明扩容和降级触发条件
+            acceptance_check: 候选人补充说明「说明扩容和降级触发条件」，并给出可验证的指标、动作、样例或取舍，能对应到本题具体场景。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
         priority: 14
         status: active
 
@@ -290,6 +446,84 @@ seeds:
         expected_signals: [能把超时重试和熔断联系起来, 能隔离资源池, 能设计恢复验证]
         anti_patterns: [无限重试, 全量关闭核心功能, 没有回切策略]
         good_answer_hints: [先标出依赖链路, 再给隔离策略, 最后说明降级体验和恢复门槛]
+        reviewed_acceptance_checks:
+          - check_id: reviewed:system_design.failure_isolation.recommendation_dependency:must_cover:9e0abc60:v1
+            source: must_cover
+            source_text: 依赖识别
+            acceptance_check: 候选人列出本题关键上下游依赖及同步/异步调用关系，区分强依赖、弱依赖和可降级依赖。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:system_design.failure_isolation.recommendation_dependency:must_cover:9e8ce5be:v1
+            source: must_cover
+            source_text: 隔离边界
+            acceptance_check: 候选人说明超时、线程池隔离、舱壁、熔断或资源配额边界，避免单个依赖拖垮核心链路。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:system_design.failure_isolation.recommendation_dependency:must_cover:4d009afc:v1
+            source: must_cover
+            source_text: 降级策略
+            acceptance_check: 候选人给出默认值、缓存兜底、异步补偿、排队或阻断策略，并说明哪些请求可以继续、哪些必须失败。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:system_design.failure_isolation.recommendation_dependency:must_cover:c62c3ea9:v1
+            source: must_cover
+            source_text: 恢复验证
+            acceptance_check: 候选人说明依赖恢复后的观察窗口、探活、灰度恢复、补偿任务或审计对账，避免恢复后继续污染状态。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:system_design.failure_isolation.recommendation_dependency:rubric_addition:4d024048:v1
+            source: rubric_addition
+            source_text: 说明超时预算
+            acceptance_check: 候选人补充说明「说明超时预算」，并给出可验证的指标、动作、样例或取舍，能对应到本题具体场景。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:system_design.failure_isolation.recommendation_dependency:rubric_addition:b0435b45:v1
+            source: rubric_addition
+            source_text: 说明默认内容或缓存兜底
+            acceptance_check: 候选人补充说明「说明默认内容或缓存兜底」，并给出可验证的指标、动作、样例或取舍，能对应到本题具体场景。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:system_design.failure_isolation.recommendation_dependency:rubric_addition:9b58dd46:v1
+            source: rubric_addition
+            source_text: 说明恢复观察窗口
+            acceptance_check: 候选人补充说明「说明恢复观察窗口」，并给出可验证的指标、动作、样例或取舍，能对应到本题具体场景。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
         priority: 16
         status: active
       - id: system_design.failure_isolation.payment_dependency
@@ -306,6 +540,84 @@ seeds:
         expected_signals: [能区分安全风控和体验降级, 能给出超时预算, 能说明回切观察窗口]
         anti_patterns: [无条件放行, 无限重试, 没有恢复验证]
         good_answer_hints: [先按业务风险分级, 再设计隔离降级和恢复验证]
+        reviewed_acceptance_checks:
+          - check_id: reviewed:system_design.failure_isolation.payment_dependency:must_cover:a28620f0:v1
+            source: must_cover
+            source_text: 依赖识别
+            acceptance_check: 候选人列出本题关键上下游依赖及同步/异步调用关系，区分强依赖、弱依赖和可降级依赖。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:system_design.failure_isolation.payment_dependency:must_cover:060a7d7d:v1
+            source: must_cover
+            source_text: 隔离边界
+            acceptance_check: 候选人说明超时、线程池隔离、舱壁、熔断或资源配额边界，避免单个依赖拖垮核心链路。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:system_design.failure_isolation.payment_dependency:must_cover:84170042:v1
+            source: must_cover
+            source_text: 降级策略
+            acceptance_check: 候选人给出默认值、缓存兜底、异步补偿、排队或阻断策略，并说明哪些请求可以继续、哪些必须失败。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:system_design.failure_isolation.payment_dependency:must_cover:435ed1e3:v1
+            source: must_cover
+            source_text: 恢复验证
+            acceptance_check: 候选人说明依赖恢复后的观察窗口、探活、灰度恢复、补偿任务或审计对账，避免恢复后继续污染状态。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:system_design.failure_isolation.payment_dependency:rubric_addition:defe04fd:v1
+            source: rubric_addition
+            source_text: 说明哪些请求必须阻断
+            acceptance_check: 候选人补充说明「说明哪些请求必须阻断」，并给出可验证的指标、动作、样例或取舍，能对应到本题具体场景。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:system_design.failure_isolation.payment_dependency:rubric_addition:3d71fd54:v1
+            source: rubric_addition
+            source_text: 说明超时和熔断阈值
+            acceptance_check: 候选人补充说明「说明超时和熔断阈值」，并给出可验证的指标、动作、样例或取舍，能对应到本题具体场景。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:system_design.failure_isolation.payment_dependency:rubric_addition:7edd834f:v1
+            source: rubric_addition
+            source_text: 说明恢复后的补偿或审计
+            acceptance_check: 候选人补充说明「说明恢复后的补偿或审计」，并给出可验证的指标、动作、样例或取舍，能对应到本题具体场景。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
         priority: 13
         status: active
 
@@ -341,6 +653,84 @@ seeds:
         expected_signals: [能画出核心实体, 能讨论事务边界, 能处理补偿和幂等]
         anti_patterns: [只有一张大表, 状态随意更新, 忽略历史审计]
         good_answer_hints: [从核心查询和写入动作开始, 逐步扩展状态和事件]
+        reviewed_acceptance_checks:
+          - check_id: reviewed:system_design.data_modeling_tradeoffs.order_lifecycle:must_cover:92d9d72e:v1
+            source: must_cover
+            source_text: 核心实体
+            acceptance_check: 候选人识别本题核心实体、关系、主键和状态字段，并说明实体边界如何支撑主要业务动作。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:system_design.data_modeling_tradeoffs.order_lifecycle:must_cover:446df179:v1
+            source: must_cover
+            source_text: 查询模式
+            acceptance_check: 候选人明确本题接口的过滤条件、关联表、排序字段、分页方式和数据量级，并据此判断慢查询来源，而不是直接说加索引。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:system_design.data_modeling_tradeoffs.order_lifecycle:must_cover:81ab690e:v1
+            source: must_cover
+            source_text: 一致性边界
+            acceptance_check: 候选人区分强一致、事务内一致和最终一致的边界，并说明并发更新、状态流转或补偿时如何保持不变量。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:system_design.data_modeling_tradeoffs.order_lifecycle:must_cover:fac6b2f7:v1
+            source: must_cover
+            source_text: 演进成本
+            acceptance_check: 候选人说明字段、索引、状态、事件或读模型后续演进的迁移、兼容、回放和历史数据成本。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:system_design.data_modeling_tradeoffs.order_lifecycle:rubric_addition:c13dd869:v1
+            source: rubric_addition
+            source_text: 说明状态机边界
+            acceptance_check: 候选人补充说明「说明状态机边界」，并给出可验证的指标、动作、样例或取舍，能对应到本题具体场景。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:system_design.data_modeling_tradeoffs.order_lifecycle:rubric_addition:6573cbb2:v1
+            source: rubric_addition
+            source_text: 说明查询索引
+            acceptance_check: 候选人补充说明「说明查询索引」，并给出可验证的指标、动作、样例或取舍，能对应到本题具体场景。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:system_design.data_modeling_tradeoffs.order_lifecycle:rubric_addition:b60e401b:v1
+            source: rubric_addition
+            source_text: 说明并发状态变更处理
+            acceptance_check: 候选人补充说明「说明并发状态变更处理」，并给出可验证的指标、动作、样例或取舍，能对应到本题具体场景。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
         priority: 14
         status: active
       - id: system_design.data_modeling_tradeoffs.audit_projection
@@ -357,6 +747,84 @@ seeds:
         expected_signals: [能按查询场景拆模型, 能说明强一致和最终一致边界, 能考虑历史审计不可变性]
         anti_patterns: [所有需求塞进一张表, 不保留历史, 不讨论迁移成本]
         good_answer_hints: [先列读写场景, 再决定主模型投影和审计日志]
+        reviewed_acceptance_checks:
+          - check_id: reviewed:system_design.data_modeling_tradeoffs.audit_projection:must_cover:7776ae41:v1
+            source: must_cover
+            source_text: 核心实体
+            acceptance_check: 候选人识别本题核心实体、关系、主键和状态字段，并说明实体边界如何支撑主要业务动作。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:system_design.data_modeling_tradeoffs.audit_projection:must_cover:77581d08:v1
+            source: must_cover
+            source_text: 查询模式
+            acceptance_check: 候选人明确本题接口的过滤条件、关联表、排序字段、分页方式和数据量级，并据此判断慢查询来源，而不是直接说加索引。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:system_design.data_modeling_tradeoffs.audit_projection:must_cover:2a7c5f8b:v1
+            source: must_cover
+            source_text: 一致性边界
+            acceptance_check: 候选人区分强一致、事务内一致和最终一致的边界，并说明并发更新、状态流转或补偿时如何保持不变量。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:system_design.data_modeling_tradeoffs.audit_projection:must_cover:60e6f114:v1
+            source: must_cover
+            source_text: 演进成本
+            acceptance_check: 候选人说明字段、索引、状态、事件或读模型后续演进的迁移、兼容、回放和历史数据成本。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:system_design.data_modeling_tradeoffs.audit_projection:rubric_addition:68e7de73:v1
+            source: rubric_addition
+            source_text: 说明不同读模型的字段和时效
+            acceptance_check: 候选人补充说明「说明不同读模型的字段和时效」，并给出可验证的指标、动作、样例或取舍，能对应到本题具体场景。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:system_design.data_modeling_tradeoffs.audit_projection:rubric_addition:fbb9bc57:v1
+            source: rubric_addition
+            source_text: 说明事件或审计日志作用
+            acceptance_check: 候选人补充说明「说明事件或审计日志作用」，并给出可验证的指标、动作、样例或取舍，能对应到本题具体场景。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:system_design.data_modeling_tradeoffs.audit_projection:rubric_addition:6de9aea4:v1
+            source: rubric_addition
+            source_text: 说明迁移和回放成本
+            acceptance_check: 候选人补充说明「说明迁移和回放成本」，并给出可验证的指标、动作、样例或取舍，能对应到本题具体场景。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
         priority: 12
         status: active
   - id: system_design.observability_slo
@@ -391,6 +859,84 @@ seeds:
         expected_signals: [能定义端到端延迟指标, 能用 trace 定位瓶颈, 能说明告警和复盘机制]
         anti_patterns: [只看 CPU, 告警过多没有分级, 不关注用户路径]
         good_answer_hints: [围绕用户路径定义 SLIs, 再补日志指标追踪三件套]
+        reviewed_acceptance_checks:
+          - check_id: reviewed:system_design.observability_slo.checkout_latency:must_cover:5cd6c46f:v1
+            source: must_cover
+            source_text: 关键指标
+            acceptance_check: 候选人定义本题 SLI/SLO 或黄金指标，包括延迟、错误率、吞吐、饱和度及业务成功率等可观测口径。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:system_design.observability_slo.checkout_latency:must_cover:ba72bcff:v1
+            source: must_cover
+            source_text: 日志追踪
+            acceptance_check: 候选人说明请求 ID、trace span、关键日志字段和采样策略，能定位一次请求跨服务或跨队列的耗时与错误。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:system_design.observability_slo.checkout_latency:must_cover:4aa37ade:v1
+            source: must_cover
+            source_text: 告警阈值
+            acceptance_check: 候选人给出阈值、窗口、分级、抑制或降噪策略，避免告警过松漏报或过严刷屏。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:system_design.observability_slo.checkout_latency:must_cover:32731dd3:v1
+            source: must_cover
+            source_text: 复盘改进
+            acceptance_check: 候选人说明事故或 SLO 违约后的复盘动作、根因沉淀、自动化补强和回归验证。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:system_design.observability_slo.checkout_latency:rubric_addition:84f6cf27:v1
+            source: rubric_addition
+            source_text: 说明黄金指标
+            acceptance_check: 候选人补充说明「说明黄金指标」，并给出可验证的指标、动作、样例或取舍，能对应到本题具体场景。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:system_design.observability_slo.checkout_latency:rubric_addition:b5f6398a:v1
+            source: rubric_addition
+            source_text: 说明 trace 采样
+            acceptance_check: 候选人补充说明「说明 trace 采样」，并给出可验证的指标、动作、样例或取舍，能对应到本题具体场景。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:system_design.observability_slo.checkout_latency:rubric_addition:94b67d1c:v1
+            source: rubric_addition
+            source_text: 说明告警降噪
+            acceptance_check: 候选人补充说明「说明告警降噪」，并给出可验证的指标、动作、样例或取舍，能对应到本题具体场景。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
         priority: 12
         status: active
       - id: system_design.observability_slo.error_budget_release
@@ -407,6 +953,84 @@ seeds:
         expected_signals: [能把用户路径指标和发布决策关联, 能定义暂停或回滚阈值, 能说明后续治理]
         anti_patterns: [只看单机指标, 错误预算耗尽仍继续发布, 没有责任归因和复盘]
         good_answer_hints: [先定义 SLO 和错误预算, 再给发布闸门和恢复动作]
+        reviewed_acceptance_checks:
+          - check_id: reviewed:system_design.observability_slo.error_budget_release:must_cover:50f640b2:v1
+            source: must_cover
+            source_text: 关键指标
+            acceptance_check: 候选人定义本题 SLI/SLO 或黄金指标，包括延迟、错误率、吞吐、饱和度及业务成功率等可观测口径。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:system_design.observability_slo.error_budget_release:must_cover:5507a39f:v1
+            source: must_cover
+            source_text: 日志追踪
+            acceptance_check: 候选人说明请求 ID、trace span、关键日志字段和采样策略，能定位一次请求跨服务或跨队列的耗时与错误。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:system_design.observability_slo.error_budget_release:must_cover:ba225eba:v1
+            source: must_cover
+            source_text: 告警阈值
+            acceptance_check: 候选人给出阈值、窗口、分级、抑制或降噪策略，避免告警过松漏报或过严刷屏。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:system_design.observability_slo.error_budget_release:must_cover:b0d6f097:v1
+            source: must_cover
+            source_text: 复盘改进
+            acceptance_check: 候选人说明事故或 SLO 违约后的复盘动作、根因沉淀、自动化补强和回归验证。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:system_design.observability_slo.error_budget_release:rubric_addition:bd7e5f16:v1
+            source: rubric_addition
+            source_text: 说明 SLI 和错误预算计算
+            acceptance_check: 候选人补充说明「说明 SLI 和错误预算计算」，并给出可验证的指标、动作、样例或取舍，能对应到本题具体场景。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:system_design.observability_slo.error_budget_release:rubric_addition:f011f53b:v1
+            source: rubric_addition
+            source_text: 说明发布闸门
+            acceptance_check: 候选人补充说明「说明发布闸门」，并给出可验证的指标、动作、样例或取舍，能对应到本题具体场景。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:system_design.observability_slo.error_budget_release:rubric_addition:bd9fcf3f:v1
+            source: rubric_addition
+            source_text: 说明告警和复盘动作
+            acceptance_check: 候选人补充说明「说明告警和复盘动作」，并给出可验证的指标、动作、样例或取舍，能对应到本题具体场景。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
         priority: 11
         status: active
 
@@ -442,6 +1066,84 @@ seeds:
         expected_signals: [能从用户路径定义可用性指标, 能区分症状告警和原因告警, 能提出值班和复盘机制]
         anti_patterns: [只看机器 CPU, 告警没有优先级, 故障后不复盘]
         good_answer_hints: [先定义用户影响, 再设计指标和告警, 最后补响应和治理闭环]
+        reviewed_acceptance_checks:
+          - check_id: reviewed:system_design.sre_service_reliability.checkout_slo:must_cover:44c7b082:v1
+            source: must_cover
+            source_text: SLO
+            acceptance_check: 候选人围绕「SLO」给出可量化口径、采集位置、阈值或观察窗口，并说明这些指标如何触发定位、告警、发布或复盘动作。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:system_design.sre_service_reliability.checkout_slo:must_cover:ce79300f:v1
+            source: must_cover
+            source_text: 监控告警
+            acceptance_check: 候选人围绕「监控告警」给出可量化口径、采集位置、阈值或观察窗口，并说明这些指标如何触发定位、告警、发布或复盘动作。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:system_design.sre_service_reliability.checkout_slo:must_cover:c7281450:v1
+            source: must_cover
+            source_text: 容量风险
+            acceptance_check: 候选人围绕「容量风险」给出容量、资源或成本假设，说明估算方法、瓶颈来源、扩缩容触发条件和验证指标。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:system_design.sre_service_reliability.checkout_slo:must_cover:d1156808:v1
+            source: must_cover
+            source_text: 故障响应
+            acceptance_check: 候选人围绕「故障响应」给出系统级设计决策，说明参与组件、数据或调用路径、容量或稳定性边界，以及如何验证该设计。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:system_design.sre_service_reliability.checkout_slo:rubric_addition:a9e83b13:v1
+            source: rubric_addition
+            source_text: 说明用户视角 SLI
+            acceptance_check: 候选人补充说明「说明用户视角 SLI」，并给出组件关系、容量假设、故障边界、灰度回滚或监控验证中的至少一类具体证据。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:system_design.sre_service_reliability.checkout_slo:rubric_addition:8d6af204:v1
+            source: rubric_addition
+            source_text: 说明告警分级和降噪
+            acceptance_check: 候选人补充说明「说明告警分级和降噪」，并给出组件关系、容量假设、故障边界、灰度回滚或监控验证中的至少一类具体证据。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:system_design.sre_service_reliability.checkout_slo:rubric_addition:7d469b26:v1
+            source: rubric_addition
+            source_text: 说明应急响应和复盘
+            acceptance_check: 候选人补充说明「说明应急响应和复盘」，并给出组件关系、容量假设、故障边界、灰度回滚或监控验证中的至少一类具体证据。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
         priority: 16
         status: active
       - id: system_design.sre_service_reliability.capacity_risk
@@ -458,6 +1160,84 @@ seeds:
         expected_signals: [能估算峰值和瓶颈链路, 能设计压测保护措施, 能准备扩容回滚和降级策略]
         anti_patterns: [只说加机器, 不说明压测风险, 不准备降级预案]
         good_answer_hints: [先估算流量模型, 再找瓶颈和压测边界, 最后准备扩容降级预案]
+        reviewed_acceptance_checks:
+          - check_id: reviewed:system_design.sre_service_reliability.capacity_risk:must_cover:f641b12f:v1
+            source: must_cover
+            source_text: SLO
+            acceptance_check: 候选人围绕「SLO」给出可量化口径、采集位置、阈值或观察窗口，并说明这些指标如何触发定位、告警、发布或复盘动作。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:system_design.sre_service_reliability.capacity_risk:must_cover:eda6e851:v1
+            source: must_cover
+            source_text: 监控告警
+            acceptance_check: 候选人围绕「监控告警」给出可量化口径、采集位置、阈值或观察窗口，并说明这些指标如何触发定位、告警、发布或复盘动作。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:system_design.sre_service_reliability.capacity_risk:must_cover:19362606:v1
+            source: must_cover
+            source_text: 容量风险
+            acceptance_check: 候选人围绕「容量风险」给出容量、资源或成本假设，说明估算方法、瓶颈来源、扩缩容触发条件和验证指标。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:system_design.sre_service_reliability.capacity_risk:must_cover:164e439b:v1
+            source: must_cover
+            source_text: 故障响应
+            acceptance_check: 候选人围绕「故障响应」给出系统级设计决策，说明参与组件、数据或调用路径、容量或稳定性边界，以及如何验证该设计。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:system_design.sre_service_reliability.capacity_risk:rubric_addition:c1b9bd55:v1
+            source: rubric_addition
+            source_text: 说明容量估算假设
+            acceptance_check: 候选人补充说明「说明容量估算假设」，并给出组件关系、容量假设、故障边界、灰度回滚或监控验证中的至少一类具体证据。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:system_design.sre_service_reliability.capacity_risk:rubric_addition:0245323f:v1
+            source: rubric_addition
+            source_text: 说明压测与线上差异
+            acceptance_check: 候选人补充说明「说明压测与线上差异」，并给出组件关系、容量假设、故障边界、灰度回滚或监控验证中的至少一类具体证据。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:system_design.sre_service_reliability.capacity_risk:rubric_addition:0d996ff9:v1
+            source: rubric_addition
+            source_text: 说明扩容和降级预案
+            acceptance_check: 候选人补充说明「说明扩容和降级预案」，并给出组件关系、容量假设、故障边界、灰度回滚或监控验证中的至少一类具体证据。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
         priority: 14
         status: active
   - id: system_design.ai_agent_execution_chain
@@ -492,6 +1272,84 @@ seeds:
         expected_signals: [能设计执行状态机, 能记录工具输入输出, 能处理工具失败和用户追问]
         anti_patterns: [把所有逻辑放进一个 prompt, 不保存执行状态, 无法复盘错误]
         good_answer_hints: [先定义执行阶段, 再设计工具和状态, 最后补观测和兜底]
+        reviewed_acceptance_checks:
+          - check_id: reviewed:system_design.ai_agent_execution_chain.customer_support:must_cover:bf571639:v1
+            source: must_cover
+            source_text: 任务规划
+            acceptance_check: 候选人围绕「任务规划」给出系统级设计决策，说明参与组件、数据或调用路径、容量或稳定性边界，以及如何验证该设计。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:system_design.ai_agent_execution_chain.customer_support:must_cover:3a7e8fe5:v1
+            source: must_cover
+            source_text: 工具编排
+            acceptance_check: 候选人围绕「工具编排」给出系统级设计决策，说明参与组件、数据或调用路径、容量或稳定性边界，以及如何验证该设计。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:system_design.ai_agent_execution_chain.customer_support:must_cover:117df4b3:v1
+            source: must_cover
+            source_text: 状态管理
+            acceptance_check: 候选人围绕「状态管理」给出系统级设计决策，说明参与组件、数据或调用路径、容量或稳定性边界，以及如何验证该设计。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:system_design.ai_agent_execution_chain.customer_support:must_cover:6b611c12:v1
+            source: must_cover
+            source_text: 可观测性
+            acceptance_check: 候选人围绕「可观测性」给出可量化口径、采集位置、阈值或观察窗口，并说明这些指标如何触发定位、告警、发布或复盘动作。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:system_design.ai_agent_execution_chain.customer_support:rubric_addition:291165f2:v1
+            source: rubric_addition
+            source_text: 说明任务分解和工具编排
+            acceptance_check: 候选人补充说明「说明任务分解和工具编排」，并给出组件关系、容量假设、故障边界、灰度回滚或监控验证中的至少一类具体证据。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:system_design.ai_agent_execution_chain.customer_support:rubric_addition:83dd0e28:v1
+            source: rubric_addition
+            source_text: 说明状态记录和审计
+            acceptance_check: 候选人补充说明「说明状态记录和审计」，并给出组件关系、容量假设、故障边界、灰度回滚或监控验证中的至少一类具体证据。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:system_design.ai_agent_execution_chain.customer_support:rubric_addition:b5d3f2cf:v1
+            source: rubric_addition
+            source_text: 说明失败恢复和人工兜底
+            acceptance_check: 候选人补充说明「说明失败恢复和人工兜底」，并给出组件关系、容量假设、故障边界、灰度回滚或监控验证中的至少一类具体证据。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
         priority: 18
         status: active
       - id: system_design.ai_agent_execution_chain.parallel_tools
@@ -508,6 +1366,84 @@ seeds:
         expected_signals: [能设置调用预算, 能区分关键和可选工具, 能记录中间证据]
         anti_patterns: [无限等待最慢工具, 所有工具失败都返回空, 不记录工具证据]
         good_answer_hints: [先分工具优先级, 再设预算和超时, 最后定义合并和降级]
+        reviewed_acceptance_checks:
+          - check_id: reviewed:system_design.ai_agent_execution_chain.parallel_tools:must_cover:68bd2ffa:v1
+            source: must_cover
+            source_text: 任务规划
+            acceptance_check: 候选人围绕「任务规划」给出系统级设计决策，说明参与组件、数据或调用路径、容量或稳定性边界，以及如何验证该设计。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:system_design.ai_agent_execution_chain.parallel_tools:must_cover:421fdc2c:v1
+            source: must_cover
+            source_text: 工具编排
+            acceptance_check: 候选人围绕「工具编排」给出系统级设计决策，说明参与组件、数据或调用路径、容量或稳定性边界，以及如何验证该设计。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:system_design.ai_agent_execution_chain.parallel_tools:must_cover:3108f70a:v1
+            source: must_cover
+            source_text: 状态管理
+            acceptance_check: 候选人围绕「状态管理」给出系统级设计决策，说明参与组件、数据或调用路径、容量或稳定性边界，以及如何验证该设计。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:system_design.ai_agent_execution_chain.parallel_tools:must_cover:333d78c6:v1
+            source: must_cover
+            source_text: 可观测性
+            acceptance_check: 候选人围绕「可观测性」给出可量化口径、采集位置、阈值或观察窗口，并说明这些指标如何触发定位、告警、发布或复盘动作。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:system_design.ai_agent_execution_chain.parallel_tools:rubric_addition:4c3bb9e3:v1
+            source: rubric_addition
+            source_text: 说明超时和预算
+            acceptance_check: 候选人补充说明「说明超时和预算」，并给出组件关系、容量假设、故障边界、灰度回滚或监控验证中的至少一类具体证据。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:system_design.ai_agent_execution_chain.parallel_tools:rubric_addition:c7af3690:v1
+            source: rubric_addition
+            source_text: 说明结果合并可信度
+            acceptance_check: 候选人补充说明「说明结果合并可信度」，并给出组件关系、容量假设、故障边界、灰度回滚或监控验证中的至少一类具体证据。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:system_design.ai_agent_execution_chain.parallel_tools:rubric_addition:9a6ac227:v1
+            source: rubric_addition
+            source_text: 说明失败降级和重试
+            acceptance_check: 候选人补充说明「说明失败降级和重试」，并给出组件关系、容量假设、故障边界、灰度回滚或监控验证中的至少一类具体证据。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
         priority: 16
         status: active
   - id: system_design.ai_agent_memory_context
@@ -542,6 +1478,84 @@ seeds:
         expected_signals: [能区分会话和长期记忆, 能设计写入过滤, 能处理用户修改或删除]
         anti_patterns: [所有对话都写长期记忆, 不处理隐私, 不处理过期]
         good_answer_hints: [先划分记忆类型, 再定义写入规则, 最后补冲突和删除]
+        reviewed_acceptance_checks:
+          - check_id: reviewed:system_design.ai_agent_memory_context.personalization:must_cover:067400cf:v1
+            source: must_cover
+            source_text: 短期上下文
+            acceptance_check: 候选人围绕「短期上下文」给出系统级设计决策，说明参与组件、数据或调用路径、容量或稳定性边界，以及如何验证该设计。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:system_design.ai_agent_memory_context.personalization:must_cover:a03bd230:v1
+            source: must_cover
+            source_text: 长期记忆
+            acceptance_check: 候选人围绕「长期记忆」给出系统级设计决策，说明参与组件、数据或调用路径、容量或稳定性边界，以及如何验证该设计。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:system_design.ai_agent_memory_context.personalization:must_cover:ea725449:v1
+            source: must_cover
+            source_text: 检索策略
+            acceptance_check: 候选人围绕「检索策略」说明数据、索引、检索或召回链路中的输入输出、质量风险、验证指标和修复/迭代方式。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:system_design.ai_agent_memory_context.personalization:must_cover:bdeced25:v1
+            source: must_cover
+            source_text: 隐私边界
+            acceptance_check: 候选人围绕「隐私边界」明确权限、安全或合规边界，说明准入规则、最小披露/最小权限、审计或异常兜底，避免把敏感风险留给默认行为。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:system_design.ai_agent_memory_context.personalization:rubric_addition:fdaca271:v1
+            source: rubric_addition
+            source_text: 说明记忆类型分层
+            acceptance_check: 候选人补充说明「说明记忆类型分层」，并给出组件关系、容量假设、故障边界、灰度回滚或监控验证中的至少一类具体证据。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:system_design.ai_agent_memory_context.personalization:rubric_addition:57a9bcad:v1
+            source: rubric_addition
+            source_text: 说明写入准入和删除
+            acceptance_check: 候选人补充说明「说明写入准入和删除」，并给出组件关系、容量假设、故障边界、灰度回滚或监控验证中的至少一类具体证据。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:system_design.ai_agent_memory_context.personalization:rubric_addition:bb95f256:v1
+            source: rubric_addition
+            source_text: 说明隐私和冲突处理
+            acceptance_check: 候选人补充说明「说明隐私和冲突处理」，并给出组件关系、容量假设、故障边界、灰度回滚或监控验证中的至少一类具体证据。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
         priority: 17
         status: active
       - id: system_design.ai_agent_memory_context.retrieval_conflict
@@ -558,6 +1572,84 @@ seeds:
         expected_signals: [能定义指令层级, 能区分事实知识和偏好, 能让用户确认关键冲突]
         anti_patterns: [任意拼接所有上下文, 不记录冲突, 不解释依据]
         good_answer_hints: [先定义上下文层级, 再处理冲突, 最后记录证据和确认]
+        reviewed_acceptance_checks:
+          - check_id: reviewed:system_design.ai_agent_memory_context.retrieval_conflict:must_cover:8ee51d3b:v1
+            source: must_cover
+            source_text: 短期上下文
+            acceptance_check: 候选人围绕「短期上下文」给出系统级设计决策，说明参与组件、数据或调用路径、容量或稳定性边界，以及如何验证该设计。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:system_design.ai_agent_memory_context.retrieval_conflict:must_cover:c1ad6f0c:v1
+            source: must_cover
+            source_text: 长期记忆
+            acceptance_check: 候选人围绕「长期记忆」给出系统级设计决策，说明参与组件、数据或调用路径、容量或稳定性边界，以及如何验证该设计。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:system_design.ai_agent_memory_context.retrieval_conflict:must_cover:70a4ddb5:v1
+            source: must_cover
+            source_text: 检索策略
+            acceptance_check: 候选人围绕「检索策略」说明数据、索引、检索或召回链路中的输入输出、质量风险、验证指标和修复/迭代方式。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:system_design.ai_agent_memory_context.retrieval_conflict:must_cover:cbd6d882:v1
+            source: must_cover
+            source_text: 隐私边界
+            acceptance_check: 候选人围绕「隐私边界」明确权限、安全或合规边界，说明准入规则、最小披露/最小权限、审计或异常兜底，避免把敏感风险留给默认行为。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:system_design.ai_agent_memory_context.retrieval_conflict:rubric_addition:b847619a:v1
+            source: rubric_addition
+            source_text: 说明上下文优先级
+            acceptance_check: 候选人补充说明「说明上下文优先级」，并给出组件关系、容量假设、故障边界、灰度回滚或监控验证中的至少一类具体证据。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:system_design.ai_agent_memory_context.retrieval_conflict:rubric_addition:c33cede8:v1
+            source: rubric_addition
+            source_text: 说明证据选择和引用
+            acceptance_check: 候选人补充说明「说明证据选择和引用」，并给出组件关系、容量假设、故障边界、灰度回滚或监控验证中的至少一类具体证据。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:system_design.ai_agent_memory_context.retrieval_conflict:rubric_addition:5d922b4c:v1
+            source: rubric_addition
+            source_text: 说明冲突日志和用户确认
+            acceptance_check: 候选人补充说明「说明冲突日志和用户确认」，并给出组件关系、容量假设、故障边界、灰度回滚或监控验证中的至少一类具体证据。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
         priority: 15
         status: active
   - id: system_design.ai_fullstack_workflow_observability
@@ -592,6 +1684,84 @@ seeds:
         expected_signals: [能设计 workflow run, 能追踪模型调用, 能恢复部分失败步骤]
         anti_patterns: [只有一个同步接口, 失败后无法定位步骤, 不记录模型输入输出摘要]
         good_answer_hints: [先拆步骤, 再设计状态和 trace, 最后补失败恢复]
+        reviewed_acceptance_checks:
+          - check_id: reviewed:system_design.ai_fullstack_workflow_observability.report_generation:must_cover:35d20f77:v1
+            source: must_cover
+            source_text: 工作流状态
+            acceptance_check: 候选人围绕「工作流状态」给出系统级设计决策，说明参与组件、数据或调用路径、容量或稳定性边界，以及如何验证该设计。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:system_design.ai_fullstack_workflow_observability.report_generation:must_cover:c376b030:v1
+            source: must_cover
+            source_text: 调用链追踪
+            acceptance_check: 候选人围绕「调用链追踪」给出系统级设计决策，说明参与组件、数据或调用路径、容量或稳定性边界，以及如何验证该设计。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:system_design.ai_fullstack_workflow_observability.report_generation:must_cover:62bde089:v1
+            source: must_cover
+            source_text: 成本指标
+            acceptance_check: 候选人围绕「成本指标」给出可量化口径、采集位置、阈值或观察窗口，并说明这些指标如何触发定位、告警、发布或复盘动作。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:system_design.ai_fullstack_workflow_observability.report_generation:must_cover:473a4d37:v1
+            source: must_cover
+            source_text: 失败补偿
+            acceptance_check: 候选人围绕「失败补偿」说明失败分类、触发条件、重试/降级/恢复策略和防止影响扩散的边界。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:system_design.ai_fullstack_workflow_observability.report_generation:rubric_addition:57df717f:v1
+            source: rubric_addition
+            source_text: 说明步骤状态机
+            acceptance_check: 候选人补充说明「说明步骤状态机」，并给出组件关系、容量假设、故障边界、灰度回滚或监控验证中的至少一类具体证据。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:system_design.ai_fullstack_workflow_observability.report_generation:rubric_addition:be5907a8:v1
+            source: rubric_addition
+            source_text: 说明调用链和日志
+            acceptance_check: 候选人补充说明「说明调用链和日志」，并给出组件关系、容量假设、故障边界、灰度回滚或监控验证中的至少一类具体证据。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:system_design.ai_fullstack_workflow_observability.report_generation:rubric_addition:0b6d1c9a:v1
+            source: rubric_addition
+            source_text: 说明失败恢复和人工接管
+            acceptance_check: 候选人补充说明「说明失败恢复和人工接管」，并给出组件关系、容量假设、故障边界、灰度回滚或监控验证中的至少一类具体证据。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
         priority: 17
         status: active
       - id: system_design.ai_fullstack_workflow_observability.cost_control
@@ -608,6 +1778,84 @@ seeds:
         expected_signals: [能按用户功能模型统计成本, 能设计配额和限流, 能识别异常调用]
         anti_patterns: [只看总账单, 不做用户或功能归因, 成本超限直接失败]
         good_answer_hints: [先定义成本维度, 再做配额和告警, 最后设计体验降级]
+        reviewed_acceptance_checks:
+          - check_id: reviewed:system_design.ai_fullstack_workflow_observability.cost_control:must_cover:b77c1910:v1
+            source: must_cover
+            source_text: 工作流状态
+            acceptance_check: 候选人围绕「工作流状态」给出系统级设计决策，说明参与组件、数据或调用路径、容量或稳定性边界，以及如何验证该设计。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:system_design.ai_fullstack_workflow_observability.cost_control:must_cover:1f808940:v1
+            source: must_cover
+            source_text: 调用链追踪
+            acceptance_check: 候选人围绕「调用链追踪」给出系统级设计决策，说明参与组件、数据或调用路径、容量或稳定性边界，以及如何验证该设计。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:system_design.ai_fullstack_workflow_observability.cost_control:must_cover:fb9c8c34:v1
+            source: must_cover
+            source_text: 成本指标
+            acceptance_check: 候选人围绕「成本指标」给出可量化口径、采集位置、阈值或观察窗口，并说明这些指标如何触发定位、告警、发布或复盘动作。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:system_design.ai_fullstack_workflow_observability.cost_control:must_cover:4f7c53ad:v1
+            source: must_cover
+            source_text: 失败补偿
+            acceptance_check: 候选人围绕「失败补偿」说明失败分类、触发条件、重试/降级/恢复策略和防止影响扩散的边界。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:system_design.ai_fullstack_workflow_observability.cost_control:rubric_addition:12ded80c:v1
+            source: rubric_addition
+            source_text: 说明成本归因维度
+            acceptance_check: 候选人补充说明「说明成本归因维度」，并给出组件关系、容量假设、故障边界、灰度回滚或监控验证中的至少一类具体证据。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:system_design.ai_fullstack_workflow_observability.cost_control:rubric_addition:0eb470e6:v1
+            source: rubric_addition
+            source_text: 说明配额和限流
+            acceptance_check: 候选人补充说明「说明配额和限流」，并给出组件关系、容量假设、故障边界、灰度回滚或监控验证中的至少一类具体证据。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:system_design.ai_fullstack_workflow_observability.cost_control:rubric_addition:89c1c2e8:v1
+            source: rubric_addition
+            source_text: 说明异常告警和体验兜底
+            acceptance_check: 候选人补充说明「说明异常告警和体验兜底」，并给出组件关系、容量假设、故障边界、灰度回滚或监控验证中的至少一类具体证据。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
         priority: 15
         status: active
   - id: system_design.ai_fullstack_rag_productization
@@ -642,6 +1890,84 @@ seeds:
         expected_signals: [能处理文档更新, 能在检索前后做权限控制, 能引用来源和收集反馈]
         anti_patterns: [所有文档混在一个索引, 不做权限过滤, 答案没有来源]
         good_answer_hints: [先设计数据和权限模型, 再做检索链路, 最后补反馈和评估]
+        reviewed_acceptance_checks:
+          - check_id: reviewed:system_design.ai_fullstack_rag_productization.knowledge_assistant:must_cover:450866cf:v1
+            source: must_cover
+            source_text: 文档 ingestion
+            acceptance_check: 候选人围绕「文档 ingestion」给出系统级设计决策，说明参与组件、数据或调用路径、容量或稳定性边界，以及如何验证该设计。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:system_design.ai_fullstack_rag_productization.knowledge_assistant:must_cover:dd08d78a:v1
+            source: must_cover
+            source_text: 检索召回
+            acceptance_check: 候选人围绕「检索召回」说明数据、索引、检索或召回链路中的输入输出、质量风险、验证指标和修复/迭代方式。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:system_design.ai_fullstack_rag_productization.knowledge_assistant:must_cover:7f09501c:v1
+            source: must_cover
+            source_text: 权限过滤
+            acceptance_check: 候选人围绕「权限过滤」明确权限、安全或合规边界，说明准入规则、最小披露/最小权限、审计或异常兜底，避免把敏感风险留给默认行为。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:system_design.ai_fullstack_rag_productization.knowledge_assistant:must_cover:7f60e6e6:v1
+            source: must_cover
+            source_text: 答案反馈
+            acceptance_check: 候选人围绕「答案反馈」给出系统级设计决策，说明参与组件、数据或调用路径、容量或稳定性边界，以及如何验证该设计。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:system_design.ai_fullstack_rag_productization.knowledge_assistant:rubric_addition:fbaad818:v1
+            source: rubric_addition
+            source_text: 说明文档处理和索引
+            acceptance_check: 候选人补充说明「说明文档处理和索引」，并给出组件关系、容量假设、故障边界、灰度回滚或监控验证中的至少一类具体证据。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:system_design.ai_fullstack_rag_productization.knowledge_assistant:rubric_addition:8e32e952:v1
+            source: rubric_addition
+            source_text: 说明权限过滤
+            acceptance_check: 候选人补充说明「说明权限过滤」，并给出组件关系、容量假设、故障边界、灰度回滚或监控验证中的至少一类具体证据。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:system_design.ai_fullstack_rag_productization.knowledge_assistant:rubric_addition:55d6e52f:v1
+            source: rubric_addition
+            source_text: 说明答案证据和反馈
+            acceptance_check: 候选人补充说明「说明答案证据和反馈」，并给出组件关系、容量假设、故障边界、灰度回滚或监控验证中的至少一类具体证据。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
         priority: 17
         status: active
       - id: system_design.ai_fullstack_rag_productization.quality_regression
@@ -658,6 +1984,84 @@ seeds:
         expected_signals: [能区分召回不足和生成错误, 能建立离线评估集, 能灰度索引更新]
         anti_patterns: [只改 prompt, 不看召回证据, 没有回归基线]
         good_answer_hints: [先拆质量链路, 再建立评估集, 最后治理发布回归]
+        reviewed_acceptance_checks:
+          - check_id: reviewed:system_design.ai_fullstack_rag_productization.quality_regression:must_cover:ac1dcfad:v1
+            source: must_cover
+            source_text: 文档 ingestion
+            acceptance_check: 候选人围绕「文档 ingestion」给出系统级设计决策，说明参与组件、数据或调用路径、容量或稳定性边界，以及如何验证该设计。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:system_design.ai_fullstack_rag_productization.quality_regression:must_cover:929fb526:v1
+            source: must_cover
+            source_text: 检索召回
+            acceptance_check: 候选人围绕「检索召回」说明数据、索引、检索或召回链路中的输入输出、质量风险、验证指标和修复/迭代方式。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:system_design.ai_fullstack_rag_productization.quality_regression:must_cover:74b3d2e0:v1
+            source: must_cover
+            source_text: 权限过滤
+            acceptance_check: 候选人围绕「权限过滤」明确权限、安全或合规边界，说明准入规则、最小披露/最小权限、审计或异常兜底，避免把敏感风险留给默认行为。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:system_design.ai_fullstack_rag_productization.quality_regression:must_cover:5067d79f:v1
+            source: must_cover
+            source_text: 答案反馈
+            acceptance_check: 候选人围绕「答案反馈」给出系统级设计决策，说明参与组件、数据或调用路径、容量或稳定性边界，以及如何验证该设计。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:system_design.ai_fullstack_rag_productization.quality_regression:rubric_addition:d0df8e28:v1
+            source: rubric_addition
+            source_text: 说明评估集和基线
+            acceptance_check: 候选人补充说明「说明评估集和基线」，并给出组件关系、容量假设、故障边界、灰度回滚或监控验证中的至少一类具体证据。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:system_design.ai_fullstack_rag_productization.quality_regression:rubric_addition:042dcb5b:v1
+            source: rubric_addition
+            source_text: 说明召回和生成拆分
+            acceptance_check: 候选人补充说明「说明召回和生成拆分」，并给出组件关系、容量假设、故障边界、灰度回滚或监控验证中的至少一类具体证据。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:system_design.ai_fullstack_rag_productization.quality_regression:rubric_addition:70898f3a:v1
+            source: rubric_addition
+            source_text: 说明索引发布和回滚
+            acceptance_check: 候选人补充说明「说明索引发布和回滚」，并给出组件关系、容量假设、故障边界、灰度回滚或监控验证中的至少一类具体证据。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
         priority: 15
         status: active
   - id: system_design.architect_complex_system_evolution
@@ -692,6 +2096,84 @@ seeds:
         expected_signals: [能识别业务边界, 能设计双写或适配层, 能控制发布和数据风险]
         anti_patterns: [直接全量重写, 不考虑数据迁移, 不给验收指标]
         good_answer_hints: [先梳理边界和痛点, 再分阶段迁移, 最后设指标和回滚]
+        reviewed_acceptance_checks:
+          - check_id: reviewed:system_design.architect_complex_system_evolution.monolith_split:must_cover:c2711277:v1
+            source: must_cover
+            source_text: 现状约束
+            acceptance_check: 候选人围绕「现状约束」给出系统级设计决策，说明参与组件、数据或调用路径、容量或稳定性边界，以及如何验证该设计。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:system_design.architect_complex_system_evolution.monolith_split:must_cover:4da534fd:v1
+            source: must_cover
+            source_text: 目标架构
+            acceptance_check: 候选人围绕「目标架构」给出系统级设计决策，说明参与组件、数据或调用路径、容量或稳定性边界，以及如何验证该设计。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:system_design.architect_complex_system_evolution.monolith_split:must_cover:ca9da768:v1
+            source: must_cover
+            source_text: 迁移路径
+            acceptance_check: 候选人围绕「迁移路径」说明兼容、灰度、回滚或迁移边界，包含触发条件、风险控制和验证方式。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:system_design.architect_complex_system_evolution.monolith_split:must_cover:c41e6dae:v1
+            source: must_cover
+            source_text: 风险控制
+            acceptance_check: 候选人围绕「风险控制」给出系统级设计决策，说明参与组件、数据或调用路径、容量或稳定性边界，以及如何验证该设计。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:system_design.architect_complex_system_evolution.monolith_split:rubric_addition:879f13b7:v1
+            source: rubric_addition
+            source_text: 说明领域边界
+            acceptance_check: 候选人补充说明「说明领域边界」，并给出组件关系、容量假设、故障边界、灰度回滚或监控验证中的至少一类具体证据。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:system_design.architect_complex_system_evolution.monolith_split:rubric_addition:480e2728:v1
+            source: rubric_addition
+            source_text: 说明阶段性迁移
+            acceptance_check: 候选人补充说明「说明阶段性迁移」，并给出组件关系、容量假设、故障边界、灰度回滚或监控验证中的至少一类具体证据。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:system_design.architect_complex_system_evolution.monolith_split:rubric_addition:cdb914b1:v1
+            source: rubric_addition
+            source_text: 说明回滚和兼容
+            acceptance_check: 候选人补充说明「说明回滚和兼容」，并给出组件关系、容量假设、故障边界、灰度回滚或监控验证中的至少一类具体证据。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
         priority: 18
         status: active
       - id: system_design.architect_complex_system_evolution.platform_capability
@@ -708,6 +2190,84 @@ seeds:
         expected_signals: [能判断重复度和稳定性, 能设计扩展点, 能治理平台滥用]
         anti_patterns: [看到重复就平台化, 忽略业务差异, 没有接入迁移计划]
         good_answer_hints: [先判断共性和变化点, 再设计平台边界, 最后规划迁移和治理]
+        reviewed_acceptance_checks:
+          - check_id: reviewed:system_design.architect_complex_system_evolution.platform_capability:must_cover:f01d82cd:v1
+            source: must_cover
+            source_text: 现状约束
+            acceptance_check: 候选人围绕「现状约束」给出系统级设计决策，说明参与组件、数据或调用路径、容量或稳定性边界，以及如何验证该设计。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:system_design.architect_complex_system_evolution.platform_capability:must_cover:990ba441:v1
+            source: must_cover
+            source_text: 目标架构
+            acceptance_check: 候选人围绕「目标架构」给出系统级设计决策，说明参与组件、数据或调用路径、容量或稳定性边界，以及如何验证该设计。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:system_design.architect_complex_system_evolution.platform_capability:must_cover:1bd42952:v1
+            source: must_cover
+            source_text: 迁移路径
+            acceptance_check: 候选人围绕「迁移路径」说明兼容、灰度、回滚或迁移边界，包含触发条件、风险控制和验证方式。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:system_design.architect_complex_system_evolution.platform_capability:must_cover:11602eaf:v1
+            source: must_cover
+            source_text: 风险控制
+            acceptance_check: 候选人围绕「风险控制」给出系统级设计决策，说明参与组件、数据或调用路径、容量或稳定性边界，以及如何验证该设计。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:system_design.architect_complex_system_evolution.platform_capability:rubric_addition:55a48746:v1
+            source: rubric_addition
+            source_text: 说明平台化准入标准
+            acceptance_check: 候选人补充说明「说明平台化准入标准」，并给出组件关系、容量假设、故障边界、灰度回滚或监控验证中的至少一类具体证据。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:system_design.architect_complex_system_evolution.platform_capability:rubric_addition:a4bb2b29:v1
+            source: rubric_addition
+            source_text: 说明抽象和扩展点
+            acceptance_check: 候选人补充说明「说明抽象和扩展点」，并给出组件关系、容量假设、故障边界、灰度回滚或监控验证中的至少一类具体证据。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:system_design.architect_complex_system_evolution.platform_capability:rubric_addition:5a9a84c8:v1
+            source: rubric_addition
+            source_text: 说明接入和治理成本
+            acceptance_check: 候选人补充说明「说明接入和治理成本」，并给出组件关系、容量假设、故障边界、灰度回滚或监控验证中的至少一类具体证据。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
         priority: 16
         status: active
   - id: system_design.architect_technical_choice_tradeoff
@@ -742,6 +2302,84 @@ seeds:
         expected_signals: [能定义评估指标, 能比较成本和风险, 能设计验证和退出]
         anti_patterns: [按流行度选型, 不做 PoC, 不考虑团队维护能力]
         good_answer_hints: [先定义决策标准, 再做小规模验证, 最后沉淀决策和治理]
+        reviewed_acceptance_checks:
+          - check_id: reviewed:system_design.architect_technical_choice_tradeoff.storage_selection:must_cover:9a828517:v1
+            source: must_cover
+            source_text: 业务目标
+            acceptance_check: 候选人围绕「业务目标」给出系统级设计决策，说明参与组件、数据或调用路径、容量或稳定性边界，以及如何验证该设计。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:system_design.architect_technical_choice_tradeoff.storage_selection:must_cover:da4a6d38:v1
+            source: must_cover
+            source_text: 技术约束
+            acceptance_check: 候选人围绕「技术约束」给出系统级设计决策，说明参与组件、数据或调用路径、容量或稳定性边界，以及如何验证该设计。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:system_design.architect_technical_choice_tradeoff.storage_selection:must_cover:9deba183:v1
+            source: must_cover
+            source_text: 成本收益
+            acceptance_check: 候选人围绕「成本收益」给出容量、资源或成本假设，说明估算方法、瓶颈来源、扩缩容触发条件和验证指标。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:system_design.architect_technical_choice_tradeoff.storage_selection:must_cover:3f25f4ae:v1
+            source: must_cover
+            source_text: 决策机制
+            acceptance_check: 候选人围绕「决策机制」给出系统级设计决策，说明参与组件、数据或调用路径、容量或稳定性边界，以及如何验证该设计。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:system_design.architect_technical_choice_tradeoff.storage_selection:rubric_addition:43c4c3f2:v1
+            source: rubric_addition
+            source_text: 说明核心需求和约束
+            acceptance_check: 候选人补充说明「说明核心需求和约束」，并给出组件关系、容量假设、故障边界、灰度回滚或监控验证中的至少一类具体证据。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:system_design.architect_technical_choice_tradeoff.storage_selection:rubric_addition:2590ac84:v1
+            source: rubric_addition
+            source_text: 说明候选方案比较
+            acceptance_check: 候选人补充说明「说明候选方案比较」，并给出组件关系、容量假设、故障边界、灰度回滚或监控验证中的至少一类具体证据。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:system_design.architect_technical_choice_tradeoff.storage_selection:rubric_addition:fa16a981:v1
+            source: rubric_addition
+            source_text: 说明 PoC 和决策记录
+            acceptance_check: 候选人补充说明「说明 PoC 和决策记录」，并给出组件关系、容量假设、故障边界、灰度回滚或监控验证中的至少一类具体证据。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
         priority: 17
         status: active
       - id: system_design.architect_technical_choice_tradeoff.build_vs_buy
@@ -758,6 +2396,84 @@ seeds:
         expected_signals: [能拆一次性和持续成本, 能评估供应商锁定, 能设计退出预案]
         anti_patterns: [只看采购价格, 不考虑数据和权限, 不评估替换成本]
         good_answer_hints: [先对齐业务期限, 再比较总成本和风险, 最后设计退出机制]
+        reviewed_acceptance_checks:
+          - check_id: reviewed:system_design.architect_technical_choice_tradeoff.build_vs_buy:must_cover:d993ec46:v1
+            source: must_cover
+            source_text: 业务目标
+            acceptance_check: 候选人围绕「业务目标」给出系统级设计决策，说明参与组件、数据或调用路径、容量或稳定性边界，以及如何验证该设计。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:system_design.architect_technical_choice_tradeoff.build_vs_buy:must_cover:8a4a6aa5:v1
+            source: must_cover
+            source_text: 技术约束
+            acceptance_check: 候选人围绕「技术约束」给出系统级设计决策，说明参与组件、数据或调用路径、容量或稳定性边界，以及如何验证该设计。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:system_design.architect_technical_choice_tradeoff.build_vs_buy:must_cover:088cebf9:v1
+            source: must_cover
+            source_text: 成本收益
+            acceptance_check: 候选人围绕「成本收益」给出容量、资源或成本假设，说明估算方法、瓶颈来源、扩缩容触发条件和验证指标。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:system_design.architect_technical_choice_tradeoff.build_vs_buy:must_cover:35c0fea0:v1
+            source: must_cover
+            source_text: 决策机制
+            acceptance_check: 候选人围绕「决策机制」给出系统级设计决策，说明参与组件、数据或调用路径、容量或稳定性边界，以及如何验证该设计。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:system_design.architect_technical_choice_tradeoff.build_vs_buy:rubric_addition:bd7b669b:v1
+            source: rubric_addition
+            source_text: 说明短期交付和长期成本
+            acceptance_check: 候选人补充说明「说明短期交付和长期成本」，并给出组件关系、容量假设、故障边界、灰度回滚或监控验证中的至少一类具体证据。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:system_design.architect_technical_choice_tradeoff.build_vs_buy:rubric_addition:19e0c4f2:v1
+            source: rubric_addition
+            source_text: 说明锁定和退出
+            acceptance_check: 候选人补充说明「说明锁定和退出」，并给出组件关系、容量假设、故障边界、灰度回滚或监控验证中的至少一类具体证据。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:system_design.architect_technical_choice_tradeoff.build_vs_buy:rubric_addition:213ae676:v1
+            source: rubric_addition
+            source_text: 说明集成和安全风险
+            acceptance_check: 候选人补充说明「说明集成和安全风险」，并给出组件关系、容量假设、故障边界、灰度回滚或监控验证中的至少一类具体证据。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
         priority: 15
         status: active
 
@@ -793,6 +2509,84 @@ seeds:
         expected_signals: [能定义每步幂等键, 能区分可补偿与不可补偿步骤, 能定义升级人工的明确条件]
         anti_patterns: [失败后什么都不做, 简单重试整个流程, 不通知人工]
         good_answer_hints: [先定义步骤边界, 再设计补偿与回滚, 最后给出 hand-off 触发]
+        reviewed_acceptance_checks:
+          - check_id: reviewed:system_design.ai_agent_multi_step_rollback.refund_flow:must_cover:e5c620d3:v1
+            source: must_cover
+            source_text: 步骤幂等
+            acceptance_check: 候选人围绕「步骤幂等」给出系统级设计决策，说明参与组件、数据或调用路径、容量或稳定性边界，以及如何验证该设计。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:system_design.ai_agent_multi_step_rollback.refund_flow:must_cover:71dfd52a:v1
+            source: must_cover
+            source_text: 失败检测
+            acceptance_check: 候选人围绕「失败检测」说明失败分类、触发条件、重试/降级/恢复策略和防止影响扩散的边界。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:system_design.ai_agent_multi_step_rollback.refund_flow:must_cover:2b940fdf:v1
+            source: must_cover
+            source_text: 回滚策略
+            acceptance_check: 候选人围绕「回滚策略」说明兼容、灰度、回滚或迁移边界，包含触发条件、风险控制和验证方式。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:system_design.ai_agent_multi_step_rollback.refund_flow:must_cover:90cccade:v1
+            source: must_cover
+            source_text: 人工 hand-off
+            acceptance_check: 候选人围绕「人工 hand-off」给出系统级设计决策，说明参与组件、数据或调用路径、容量或稳定性边界，以及如何验证该设计。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:system_design.ai_agent_multi_step_rollback.refund_flow:rubric_addition:1a2273e1:v1
+            source: rubric_addition
+            source_text: 说明步骤幂等设计
+            acceptance_check: 候选人补充说明「说明步骤幂等设计」，并给出组件关系、容量假设、故障边界、灰度回滚或监控验证中的至少一类具体证据。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:system_design.ai_agent_multi_step_rollback.refund_flow:rubric_addition:4c442b40:v1
+            source: rubric_addition
+            source_text: 说明失败检测点
+            acceptance_check: 候选人补充说明「说明失败检测点」，并给出组件关系、容量假设、故障边界、灰度回滚或监控验证中的至少一类具体证据。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:system_design.ai_agent_multi_step_rollback.refund_flow:rubric_addition:ca61c8b0:v1
+            source: rubric_addition
+            source_text: 说明回滚与人工 hand-off
+            acceptance_check: 候选人补充说明「说明回滚与人工 hand-off」，并给出组件关系、容量假设、故障边界、灰度回滚或监控验证中的至少一类具体证据。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
         priority: 17
         status: active
       - id: system_design.ai_agent_multi_step_rollback.partial_progress
@@ -809,6 +2603,84 @@ seeds:
         expected_signals: [能把任务状态写入持久存储, 能定时跑补偿任务, 能让用户看到清晰状态与下一步]
         anti_patterns: [只用内存状态机, 不做补偿任务, 用户看到不可解释的报错]
         good_answer_hints: [先持久化状态, 再设计补偿任务, 最后做用户可解释]
+        reviewed_acceptance_checks:
+          - check_id: reviewed:system_design.ai_agent_multi_step_rollback.partial_progress:must_cover:e1d92bbc:v1
+            source: must_cover
+            source_text: 步骤幂等
+            acceptance_check: 候选人围绕「步骤幂等」给出系统级设计决策，说明参与组件、数据或调用路径、容量或稳定性边界，以及如何验证该设计。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:system_design.ai_agent_multi_step_rollback.partial_progress:must_cover:16af2597:v1
+            source: must_cover
+            source_text: 失败检测
+            acceptance_check: 候选人围绕「失败检测」说明失败分类、触发条件、重试/降级/恢复策略和防止影响扩散的边界。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:system_design.ai_agent_multi_step_rollback.partial_progress:must_cover:ce4af36a:v1
+            source: must_cover
+            source_text: 回滚策略
+            acceptance_check: 候选人围绕「回滚策略」说明兼容、灰度、回滚或迁移边界，包含触发条件、风险控制和验证方式。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:system_design.ai_agent_multi_step_rollback.partial_progress:must_cover:ae4571f1:v1
+            source: must_cover
+            source_text: 人工 hand-off
+            acceptance_check: 候选人围绕「人工 hand-off」给出系统级设计决策，说明参与组件、数据或调用路径、容量或稳定性边界，以及如何验证该设计。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:system_design.ai_agent_multi_step_rollback.partial_progress:rubric_addition:6ee8b36d:v1
+            source: rubric_addition
+            source_text: 说明状态持久化
+            acceptance_check: 候选人补充说明「说明状态持久化」，并给出组件关系、容量假设、故障边界、灰度回滚或监控验证中的至少一类具体证据。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:system_design.ai_agent_multi_step_rollback.partial_progress:rubric_addition:59afb069:v1
+            source: rubric_addition
+            source_text: 说明补偿任务调度
+            acceptance_check: 候选人补充说明「说明补偿任务调度」，并给出组件关系、容量假设、故障边界、灰度回滚或监控验证中的至少一类具体证据。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:system_design.ai_agent_multi_step_rollback.partial_progress:rubric_addition:de223043:v1
+            source: rubric_addition
+            source_text: 说明用户可见状态与升级
+            acceptance_check: 候选人补充说明「说明用户可见状态与升级」，并给出组件关系、容量假设、故障边界、灰度回滚或监控验证中的至少一类具体证据。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
         priority: 15
         status: active
 
@@ -844,6 +2716,84 @@ seeds:
         expected_signals: [能按风险给工具分级, 能要求高风险工具人工确认, 能记录调用审计]
         anti_patterns: [所有工具默认全权, 不做审批, 没有审计]
         good_answer_hints: [先做工具分级, 再设权限审批, 最后补审计]
+        reviewed_acceptance_checks:
+          - check_id: reviewed:system_design.ai_agent_tool_registry.permission_grading:must_cover:3c1defc9:v1
+            source: must_cover
+            source_text: 工具注册
+            acceptance_check: 候选人围绕「工具注册」给出系统级设计决策，说明参与组件、数据或调用路径、容量或稳定性边界，以及如何验证该设计。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:system_design.ai_agent_tool_registry.permission_grading:must_cover:42c4dbae:v1
+            source: must_cover
+            source_text: 版本演进
+            acceptance_check: 候选人围绕「版本演进」说明兼容、灰度、回滚或迁移边界，包含触发条件、风险控制和验证方式。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:system_design.ai_agent_tool_registry.permission_grading:must_cover:3334b731:v1
+            source: must_cover
+            source_text: 权限分级
+            acceptance_check: 候选人围绕「权限分级」明确权限、安全或合规边界，说明准入规则、最小披露/最小权限、审计或异常兜底，避免把敏感风险留给默认行为。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:system_design.ai_agent_tool_registry.permission_grading:must_cover:6b37d614:v1
+            source: must_cover
+            source_text: 多租户隔离
+            acceptance_check: 候选人围绕「多租户隔离」给出系统级设计决策，说明参与组件、数据或调用路径、容量或稳定性边界，以及如何验证该设计。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:system_design.ai_agent_tool_registry.permission_grading:rubric_addition:f1f2d4f7:v1
+            source: rubric_addition
+            source_text: 说明注册与发现
+            acceptance_check: 候选人补充说明「说明注册与发现」，并给出组件关系、容量假设、故障边界、灰度回滚或监控验证中的至少一类具体证据。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:system_design.ai_agent_tool_registry.permission_grading:rubric_addition:ed7add33:v1
+            source: rubric_addition
+            source_text: 说明权限分级与审批
+            acceptance_check: 候选人补充说明「说明权限分级与审批」，并给出组件关系、容量假设、故障边界、灰度回滚或监控验证中的至少一类具体证据。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:system_design.ai_agent_tool_registry.permission_grading:rubric_addition:82fdcbb1:v1
+            source: rubric_addition
+            source_text: 说明审计日志
+            acceptance_check: 候选人补充说明「说明审计日志」，并给出组件关系、容量假设、故障边界、灰度回滚或监控验证中的至少一类具体证据。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
         priority: 16
         status: active
       - id: system_design.ai_agent_tool_registry.version_rollback
@@ -860,6 +2810,84 @@ seeds:
         expected_signals: [能设计工具版本灰度, 能保留多版本契约, 能用监控触发自动回滚]
         anti_patterns: [一次性全量升级, 不保留旧版本, 失败后没回滚机制]
         good_answer_hints: [先灰度发布, 再保留双版本契约, 最后做监控与回滚]
+        reviewed_acceptance_checks:
+          - check_id: reviewed:system_design.ai_agent_tool_registry.version_rollback:must_cover:0ab425cd:v1
+            source: must_cover
+            source_text: 工具注册
+            acceptance_check: 候选人围绕「工具注册」给出系统级设计决策，说明参与组件、数据或调用路径、容量或稳定性边界，以及如何验证该设计。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:system_design.ai_agent_tool_registry.version_rollback:must_cover:33a3b0c6:v1
+            source: must_cover
+            source_text: 版本演进
+            acceptance_check: 候选人围绕「版本演进」说明兼容、灰度、回滚或迁移边界，包含触发条件、风险控制和验证方式。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:system_design.ai_agent_tool_registry.version_rollback:must_cover:3b8e2381:v1
+            source: must_cover
+            source_text: 权限分级
+            acceptance_check: 候选人围绕「权限分级」明确权限、安全或合规边界，说明准入规则、最小披露/最小权限、审计或异常兜底，避免把敏感风险留给默认行为。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:system_design.ai_agent_tool_registry.version_rollback:must_cover:1951832a:v1
+            source: must_cover
+            source_text: 多租户隔离
+            acceptance_check: 候选人围绕「多租户隔离」给出系统级设计决策，说明参与组件、数据或调用路径、容量或稳定性边界，以及如何验证该设计。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:system_design.ai_agent_tool_registry.version_rollback:rubric_addition:58c93ec8:v1
+            source: rubric_addition
+            source_text: 说明灰度与回滚
+            acceptance_check: 候选人补充说明「说明灰度与回滚」，并给出组件关系、容量假设、故障边界、灰度回滚或监控验证中的至少一类具体证据。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:system_design.ai_agent_tool_registry.version_rollback:rubric_addition:59c30f09:v1
+            source: rubric_addition
+            source_text: 说明契约兼容策略
+            acceptance_check: 候选人补充说明「说明契约兼容策略」，并给出组件关系、容量假设、故障边界、灰度回滚或监控验证中的至少一类具体证据。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:system_design.ai_agent_tool_registry.version_rollback:rubric_addition:dab187c8:v1
+            source: rubric_addition
+            source_text: 说明监控告警
+            acceptance_check: 候选人补充说明「说明监控告警」，并给出组件关系、容量假设、故障边界、灰度回滚或监控验证中的至少一类具体证据。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
         priority: 14
         status: active
 
@@ -895,6 +2923,84 @@ seeds:
         expected_signals: [能从 DB / 向量 / 缓存全栈隔离租户, 能定义 RBAC + ABAC 权限, 能按租户限速限额]
         anti_patterns: [共享向量库不隔离, 一刀切权限, 全局限流]
         good_answer_hints: [先全栈隔离, 再权限模型, 最后配额限流]
+        reviewed_acceptance_checks:
+          - check_id: reviewed:system_design.ai_fullstack_multi_tenant_ai.tenant_isolation:must_cover:97acddc5:v1
+            source: must_cover
+            source_text: 租户隔离
+            acceptance_check: 候选人围绕「租户隔离」给出系统级设计决策，说明参与组件、数据或调用路径、容量或稳定性边界，以及如何验证该设计。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:system_design.ai_fullstack_multi_tenant_ai.tenant_isolation:must_cover:2bef4ada:v1
+            source: must_cover
+            source_text: 权限模型
+            acceptance_check: 候选人围绕「权限模型」明确权限、安全或合规边界，说明准入规则、最小披露/最小权限、审计或异常兜底，避免把敏感风险留给默认行为。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:system_design.ai_fullstack_multi_tenant_ai.tenant_isolation:must_cover:0b7ade95:v1
+            source: must_cover
+            source_text: 配额限流
+            acceptance_check: 候选人围绕「配额限流」给出系统级设计决策，说明参与组件、数据或调用路径、容量或稳定性边界，以及如何验证该设计。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:system_design.ai_fullstack_multi_tenant_ai.tenant_isolation:must_cover:6a607272:v1
+            source: must_cover
+            source_text: 数据安全
+            acceptance_check: 候选人围绕「数据安全」明确权限、安全或合规边界，说明准入规则、最小披露/最小权限、审计或异常兜底，避免把敏感风险留给默认行为。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:system_design.ai_fullstack_multi_tenant_ai.tenant_isolation:rubric_addition:bb503b9f:v1
+            source: rubric_addition
+            source_text: 说明数据隔离层级
+            acceptance_check: 候选人补充说明「说明数据隔离层级」，并给出组件关系、容量假设、故障边界、灰度回滚或监控验证中的至少一类具体证据。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:system_design.ai_fullstack_multi_tenant_ai.tenant_isolation:rubric_addition:69521420:v1
+            source: rubric_addition
+            source_text: 说明权限模型
+            acceptance_check: 候选人补充说明「说明权限模型」，并给出组件关系、容量假设、故障边界、灰度回滚或监控验证中的至少一类具体证据。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:system_design.ai_fullstack_multi_tenant_ai.tenant_isolation:rubric_addition:174f61e5:v1
+            source: rubric_addition
+            source_text: 说明配额限流
+            acceptance_check: 候选人补充说明「说明配额限流」，并给出组件关系、容量假设、故障边界、灰度回滚或监控验证中的至少一类具体证据。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
         priority: 16
         status: active
       - id: system_design.ai_fullstack_multi_tenant_ai.cross_tenant_search
@@ -911,6 +3017,84 @@ seeds:
         expected_signals: [能定义双向授权流程, 能脱敏只暴露必要字段, 能记录跨租户访问审计]
         anti_patterns: [一次授权永久访问, 全字段共享, 不留审计]
         good_answer_hints: [先双向授权, 再最小披露, 最后审计撤回]
+        reviewed_acceptance_checks:
+          - check_id: reviewed:system_design.ai_fullstack_multi_tenant_ai.cross_tenant_search:must_cover:328bb774:v1
+            source: must_cover
+            source_text: 租户隔离
+            acceptance_check: 候选人围绕「租户隔离」给出系统级设计决策，说明参与组件、数据或调用路径、容量或稳定性边界，以及如何验证该设计。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:system_design.ai_fullstack_multi_tenant_ai.cross_tenant_search:must_cover:cb1a4de3:v1
+            source: must_cover
+            source_text: 权限模型
+            acceptance_check: 候选人围绕「权限模型」明确权限、安全或合规边界，说明准入规则、最小披露/最小权限、审计或异常兜底，避免把敏感风险留给默认行为。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:system_design.ai_fullstack_multi_tenant_ai.cross_tenant_search:must_cover:3aad6d92:v1
+            source: must_cover
+            source_text: 配额限流
+            acceptance_check: 候选人围绕「配额限流」给出系统级设计决策，说明参与组件、数据或调用路径、容量或稳定性边界，以及如何验证该设计。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:system_design.ai_fullstack_multi_tenant_ai.cross_tenant_search:must_cover:82042d9b:v1
+            source: must_cover
+            source_text: 数据安全
+            acceptance_check: 候选人围绕「数据安全」明确权限、安全或合规边界，说明准入规则、最小披露/最小权限、审计或异常兜底，避免把敏感风险留给默认行为。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:system_design.ai_fullstack_multi_tenant_ai.cross_tenant_search:rubric_addition:695860cf:v1
+            source: rubric_addition
+            source_text: 说明授权流程
+            acceptance_check: 候选人补充说明「说明授权流程」，并给出组件关系、容量假设、故障边界、灰度回滚或监控验证中的至少一类具体证据。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:system_design.ai_fullstack_multi_tenant_ai.cross_tenant_search:rubric_addition:65301c69:v1
+            source: rubric_addition
+            source_text: 说明最小披露策略
+            acceptance_check: 候选人补充说明「说明最小披露策略」，并给出组件关系、容量假设、故障边界、灰度回滚或监控验证中的至少一类具体证据。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:system_design.ai_fullstack_multi_tenant_ai.cross_tenant_search:rubric_addition:4fd89926:v1
+            source: rubric_addition
+            source_text: 说明审计与撤回
+            acceptance_check: 候选人补充说明「说明审计与撤回」，并给出组件关系、容量假设、故障边界、灰度回滚或监控验证中的至少一类具体证据。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
         priority: 13
         status: active
 
@@ -946,6 +3130,84 @@ seeds:
         expected_signals: [能用统一 trace id 串联三栈, 能按用户/会话/请求归因成本, 能把质量评估写到同一时间线]
         anti_patterns: [三套系统各自为政, 没有统一 id, 质量评估离线无法对齐 trace]
         good_answer_hints: [先定统一 id, 再做成本归因, 最后接质量评估]
+        reviewed_acceptance_checks:
+          - check_id: reviewed:system_design.ai_fullstack_llm_observability_stack.three_signals:must_cover:f4182069:v1
+            source: must_cover
+            source_text: trace 链路
+            acceptance_check: 候选人围绕「trace 链路」给出系统级设计决策，说明参与组件、数据或调用路径、容量或稳定性边界，以及如何验证该设计。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:system_design.ai_fullstack_llm_observability_stack.three_signals:must_cover:98093e38:v1
+            source: must_cover
+            source_text: 成本归因
+            acceptance_check: 候选人围绕「成本归因」给出容量、资源或成本假设，说明估算方法、瓶颈来源、扩缩容触发条件和验证指标。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:system_design.ai_fullstack_llm_observability_stack.three_signals:must_cover:979da8cd:v1
+            source: must_cover
+            source_text: 质量评估
+            acceptance_check: 候选人围绕「质量评估」给出测试或评估设计，说明样例来源、覆盖边界、通过标准和回归/线上验证方式。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:system_design.ai_fullstack_llm_observability_stack.three_signals:must_cover:7fddae90:v1
+            source: must_cover
+            source_text: 三栈一致
+            acceptance_check: 候选人围绕「三栈一致」给出系统级设计决策，说明参与组件、数据或调用路径、容量或稳定性边界，以及如何验证该设计。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:system_design.ai_fullstack_llm_observability_stack.three_signals:rubric_addition:3eec5e7c:v1
+            source: rubric_addition
+            source_text: 说明统一 trace id
+            acceptance_check: 候选人补充说明「说明统一 trace id」，并给出组件关系、容量假设、故障边界、灰度回滚或监控验证中的至少一类具体证据。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:system_design.ai_fullstack_llm_observability_stack.three_signals:rubric_addition:fa42018b:v1
+            source: rubric_addition
+            source_text: 说明成本归因维度
+            acceptance_check: 候选人补充说明「说明成本归因维度」，并给出组件关系、容量假设、故障边界、灰度回滚或监控验证中的至少一类具体证据。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:system_design.ai_fullstack_llm_observability_stack.three_signals:rubric_addition:471fa195:v1
+            source: rubric_addition
+            source_text: 说明质量评估接入
+            acceptance_check: 候选人补充说明「说明质量评估接入」，并给出组件关系、容量假设、故障边界、灰度回滚或监控验证中的至少一类具体证据。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
         priority: 14
         status: active
       - id: system_design.ai_fullstack_llm_observability_stack.cost_attribution
@@ -962,6 +3224,84 @@ seeds:
         expected_signals: [能在每次调用打标团队/功能/客户, 能多维聚合分析, 能用阈值告警异常用量]
         anti_patterns: [只看月度总成本, 不打标, 没异常告警]
         good_answer_hints: [先打标, 再多维聚合, 最后异常告警]
+        reviewed_acceptance_checks:
+          - check_id: reviewed:system_design.ai_fullstack_llm_observability_stack.cost_attribution:must_cover:c3d97dc4:v1
+            source: must_cover
+            source_text: trace 链路
+            acceptance_check: 候选人围绕「trace 链路」给出系统级设计决策，说明参与组件、数据或调用路径、容量或稳定性边界，以及如何验证该设计。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:system_design.ai_fullstack_llm_observability_stack.cost_attribution:must_cover:5df39e92:v1
+            source: must_cover
+            source_text: 成本归因
+            acceptance_check: 候选人围绕「成本归因」给出容量、资源或成本假设，说明估算方法、瓶颈来源、扩缩容触发条件和验证指标。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:system_design.ai_fullstack_llm_observability_stack.cost_attribution:must_cover:55bb9e61:v1
+            source: must_cover
+            source_text: 质量评估
+            acceptance_check: 候选人围绕「质量评估」给出测试或评估设计，说明样例来源、覆盖边界、通过标准和回归/线上验证方式。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:system_design.ai_fullstack_llm_observability_stack.cost_attribution:must_cover:33a66a0d:v1
+            source: must_cover
+            source_text: 三栈一致
+            acceptance_check: 候选人围绕「三栈一致」给出系统级设计决策，说明参与组件、数据或调用路径、容量或稳定性边界，以及如何验证该设计。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:system_design.ai_fullstack_llm_observability_stack.cost_attribution:rubric_addition:3d0fbeb5:v1
+            source: rubric_addition
+            source_text: 说明采集字段
+            acceptance_check: 候选人补充说明「说明采集字段」，并给出组件关系、容量假设、故障边界、灰度回滚或监控验证中的至少一类具体证据。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:system_design.ai_fullstack_llm_observability_stack.cost_attribution:rubric_addition:82ecd31c:v1
+            source: rubric_addition
+            source_text: 说明聚合维度
+            acceptance_check: 候选人补充说明「说明聚合维度」，并给出组件关系、容量假设、故障边界、灰度回滚或监控验证中的至少一类具体证据。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:system_design.ai_fullstack_llm_observability_stack.cost_attribution:rubric_addition:ae0d0f0b:v1
+            source: rubric_addition
+            source_text: 说明异常告警
+            acceptance_check: 候选人补充说明「说明异常告警」，并给出组件关系、容量假设、故障边界、灰度回滚或监控验证中的至少一类具体证据。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
         priority: 12
         status: active
 
@@ -997,6 +3337,84 @@ seeds:
         expected_signals: [能选合适 SLI（如可用性/延迟）, 能定 SLO 阈值与统计口径, 能用 EB 决策发布节奏]
         anti_patterns: [SLO = SLA, 没 EB, 不与发布挂钩]
         good_answer_hints: [先选 SLI, 再定 SLO, 最后用 EB 决策]
+        reviewed_acceptance_checks:
+          - check_id: reviewed:system_design.sre_slo_error_budget.basic_design:must_cover:eda9bf56:v1
+            source: must_cover
+            source_text: SLI 定义
+            acceptance_check: 候选人围绕「SLI 定义」给出可量化口径、采集位置、阈值或观察窗口，并说明这些指标如何触发定位、告警、发布或复盘动作。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:system_design.sre_slo_error_budget.basic_design:must_cover:4cfc072c:v1
+            source: must_cover
+            source_text: SLO 设定
+            acceptance_check: 候选人围绕「SLO 设定」给出可量化口径、采集位置、阈值或观察窗口，并说明这些指标如何触发定位、告警、发布或复盘动作。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:system_design.sre_slo_error_budget.basic_design:must_cover:ffbc9ff7:v1
+            source: must_cover
+            source_text: error budget
+            acceptance_check: 候选人围绕「error budget」给出可量化口径、采集位置、阈值或观察窗口，并说明这些指标如何触发定位、告警、发布或复盘动作。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:system_design.sre_slo_error_budget.basic_design:must_cover:256ecd24:v1
+            source: must_cover
+            source_text: 决策机制
+            acceptance_check: 候选人围绕「决策机制」给出系统级设计决策，说明参与组件、数据或调用路径、容量或稳定性边界，以及如何验证该设计。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:system_design.sre_slo_error_budget.basic_design:rubric_addition:3ad14c5f:v1
+            source: rubric_addition
+            source_text: 说明 SLI 选择
+            acceptance_check: 候选人补充说明「说明 SLI 选择」，并给出组件关系、容量假设、故障边界、灰度回滚或监控验证中的至少一类具体证据。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:system_design.sre_slo_error_budget.basic_design:rubric_addition:19a757cf:v1
+            source: rubric_addition
+            source_text: 说明 SLO 阈值
+            acceptance_check: 候选人补充说明「说明 SLO 阈值」，并给出组件关系、容量假设、故障边界、灰度回滚或监控验证中的至少一类具体证据。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:system_design.sre_slo_error_budget.basic_design:rubric_addition:0ff53b1a:v1
+            source: rubric_addition
+            source_text: 说明 EB 用途
+            acceptance_check: 候选人补充说明「说明 EB 用途」，并给出组件关系、容量假设、故障边界、灰度回滚或监控验证中的至少一类具体证据。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
         priority: 13
         status: active
       - id: system_design.sre_slo_error_budget.cross_team
@@ -1013,6 +3431,84 @@ seeds:
         expected_signals: [能分租户层级 SLO, 能定优先级与共享 budget 规则, 能在 EB 透支时触发治理]
         anti_patterns: [一刀切 SLO, 不分层, 不与治理挂钩]
         good_answer_hints: [先分层, 再分级 SLO, 最后定治理]
+        reviewed_acceptance_checks:
+          - check_id: reviewed:system_design.sre_slo_error_budget.cross_team:must_cover:950af5db:v1
+            source: must_cover
+            source_text: SLI 定义
+            acceptance_check: 候选人围绕「SLI 定义」给出可量化口径、采集位置、阈值或观察窗口，并说明这些指标如何触发定位、告警、发布或复盘动作。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:system_design.sre_slo_error_budget.cross_team:must_cover:970e4a76:v1
+            source: must_cover
+            source_text: SLO 设定
+            acceptance_check: 候选人围绕「SLO 设定」给出可量化口径、采集位置、阈值或观察窗口，并说明这些指标如何触发定位、告警、发布或复盘动作。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:system_design.sre_slo_error_budget.cross_team:must_cover:1a55b831:v1
+            source: must_cover
+            source_text: error budget
+            acceptance_check: 候选人围绕「error budget」给出可量化口径、采集位置、阈值或观察窗口，并说明这些指标如何触发定位、告警、发布或复盘动作。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:system_design.sre_slo_error_budget.cross_team:must_cover:2b596533:v1
+            source: must_cover
+            source_text: 决策机制
+            acceptance_check: 候选人围绕「决策机制」给出系统级设计决策，说明参与组件、数据或调用路径、容量或稳定性边界，以及如何验证该设计。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:system_design.sre_slo_error_budget.cross_team:rubric_addition:9ddec167:v1
+            source: rubric_addition
+            source_text: 说明业务分层
+            acceptance_check: 候选人补充说明「说明业务分层」，并给出组件关系、容量假设、故障边界、灰度回滚或监控验证中的至少一类具体证据。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:system_design.sre_slo_error_budget.cross_team:rubric_addition:8631793d:v1
+            source: rubric_addition
+            source_text: 说明 SLO 分级
+            acceptance_check: 候选人补充说明「说明 SLO 分级」，并给出组件关系、容量假设、故障边界、灰度回滚或监控验证中的至少一类具体证据。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:system_design.sre_slo_error_budget.cross_team:rubric_addition:a69f3363:v1
+            source: rubric_addition
+            source_text: 说明 EB 共享与隔离
+            acceptance_check: 候选人补充说明「说明 EB 共享与隔离」，并给出组件关系、容量假设、故障边界、灰度回滚或监控验证中的至少一类具体证据。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
         priority: 11
         status: active
 
@@ -1048,6 +3544,84 @@ seeds:
         expected_signals: [能区分异地多活/主备/单元化, 能给容灾切换流程, 能讲数据同步与一致性]
         anti_patterns: [只讲机房冗余, 不讲数据一致, 没演练]
         good_answer_hints: [先选模式, 再做容灾, 最后讲数据]
+        reviewed_acceptance_checks:
+          - check_id: reviewed:system_design.sre_ha_architecture.multi_active:must_cover:3180e802:v1
+            source: must_cover
+            source_text: 冗余设计
+            acceptance_check: 候选人围绕「冗余设计」给出系统级设计决策，说明参与组件、数据或调用路径、容量或稳定性边界，以及如何验证该设计。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:system_design.sre_ha_architecture.multi_active:must_cover:d948352a:v1
+            source: must_cover
+            source_text: 容灾方案
+            acceptance_check: 候选人围绕「容灾方案」给出系统级设计决策，说明参与组件、数据或调用路径、容量或稳定性边界，以及如何验证该设计。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:system_design.sre_ha_architecture.multi_active:must_cover:9ae4674e:v1
+            source: must_cover
+            source_text: 灰度发布
+            acceptance_check: 候选人围绕「灰度发布」说明兼容、灰度、回滚或迁移边界，包含触发条件、风险控制和验证方式。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:system_design.sre_ha_architecture.multi_active:must_cover:323c4fc9:v1
+            source: must_cover
+            source_text: 数据一致
+            acceptance_check: 候选人围绕「数据一致」说明数据、索引、检索或召回链路中的输入输出、质量风险、验证指标和修复/迭代方式。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:system_design.sre_ha_architecture.multi_active:rubric_addition:5a206ce2:v1
+            source: rubric_addition
+            source_text: 说明冗余设计
+            acceptance_check: 候选人补充说明「说明冗余设计」，并给出组件关系、容量假设、故障边界、灰度回滚或监控验证中的至少一类具体证据。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:system_design.sre_ha_architecture.multi_active:rubric_addition:9781ba3c:v1
+            source: rubric_addition
+            source_text: 说明容灾切换
+            acceptance_check: 候选人补充说明「说明容灾切换」，并给出组件关系、容量假设、故障边界、灰度回滚或监控验证中的至少一类具体证据。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:system_design.sre_ha_architecture.multi_active:rubric_addition:d28518b2:v1
+            source: rubric_addition
+            source_text: 说明数据一致
+            acceptance_check: 候选人补充说明「说明数据一致」，并给出组件关系、容量假设、故障边界、灰度回滚或监控验证中的至少一类具体证据。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
         priority: 11
         status: active
       - id: system_design.sre_ha_architecture.gradual_release
@@ -1064,6 +3638,84 @@ seeds:
         expected_signals: [能多维度灰度（按用户/区域/比例）, 能定回滚触发, 能用监控自动判断]
         anti_patterns: [一次全量, 无回滚, 无监控]
         good_answer_hints: [先灰度, 再监控, 最后回滚]
+        reviewed_acceptance_checks:
+          - check_id: reviewed:system_design.sre_ha_architecture.gradual_release:must_cover:b23d5e94:v1
+            source: must_cover
+            source_text: 冗余设计
+            acceptance_check: 候选人围绕「冗余设计」给出系统级设计决策，说明参与组件、数据或调用路径、容量或稳定性边界，以及如何验证该设计。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:system_design.sre_ha_architecture.gradual_release:must_cover:4d1f4ca4:v1
+            source: must_cover
+            source_text: 容灾方案
+            acceptance_check: 候选人围绕「容灾方案」给出系统级设计决策，说明参与组件、数据或调用路径、容量或稳定性边界，以及如何验证该设计。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:system_design.sre_ha_architecture.gradual_release:must_cover:8df116e5:v1
+            source: must_cover
+            source_text: 灰度发布
+            acceptance_check: 候选人围绕「灰度发布」说明兼容、灰度、回滚或迁移边界，包含触发条件、风险控制和验证方式。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:system_design.sre_ha_architecture.gradual_release:must_cover:5d0948ee:v1
+            source: must_cover
+            source_text: 数据一致
+            acceptance_check: 候选人围绕「数据一致」说明数据、索引、检索或召回链路中的输入输出、质量风险、验证指标和修复/迭代方式。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:system_design.sre_ha_architecture.gradual_release:rubric_addition:efe8c977:v1
+            source: rubric_addition
+            source_text: 说明灰度维度
+            acceptance_check: 候选人补充说明「说明灰度维度」，并给出组件关系、容量假设、故障边界、灰度回滚或监控验证中的至少一类具体证据。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:system_design.sre_ha_architecture.gradual_release:rubric_addition:55433d47:v1
+            source: rubric_addition
+            source_text: 说明触发回滚
+            acceptance_check: 候选人补充说明「说明触发回滚」，并给出组件关系、容量假设、故障边界、灰度回滚或监控验证中的至少一类具体证据。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:system_design.sre_ha_architecture.gradual_release:rubric_addition:8dff6295:v1
+            source: rubric_addition
+            source_text: 说明流量切换
+            acceptance_check: 候选人补充说明「说明流量切换」，并给出组件关系、容量假设、故障边界、灰度回滚或监控验证中的至少一类具体证据。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
         priority: 9
         status: active
 
@@ -1099,6 +3751,84 @@ seeds:
         expected_signals: [能定义容量模型与瓶颈, 能用压测验证, 能给扩容/降级预案]
         anti_patterns: [只加机器, 不压测, 没预案]
         good_answer_hints: [先建模型, 再压测, 最后做预案]
+        reviewed_acceptance_checks:
+          - check_id: reviewed:system_design.sre_capacity_planning.peak_planning:must_cover:dad4ca55:v1
+            source: must_cover
+            source_text: 容量模型
+            acceptance_check: 候选人围绕「容量模型」给出容量、资源或成本假设，说明估算方法、瓶颈来源、扩缩容触发条件和验证指标。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:system_design.sre_capacity_planning.peak_planning:must_cover:6b59da88:v1
+            source: must_cover
+            source_text: 压测方法
+            acceptance_check: 候选人围绕「压测方法」给出系统级设计决策，说明参与组件、数据或调用路径、容量或稳定性边界，以及如何验证该设计。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:system_design.sre_capacity_planning.peak_planning:must_cover:240893bb:v1
+            source: must_cover
+            source_text: 扩容触发
+            acceptance_check: 候选人围绕「扩容触发」给出容量、资源或成本假设，说明估算方法、瓶颈来源、扩缩容触发条件和验证指标。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:system_design.sre_capacity_planning.peak_planning:must_cover:86a551a6:v1
+            source: must_cover
+            source_text: 预算管理
+            acceptance_check: 候选人围绕「预算管理」给出容量、资源或成本假设，说明估算方法、瓶颈来源、扩缩容触发条件和验证指标。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:system_design.sre_capacity_planning.peak_planning:rubric_addition:df80876d:v1
+            source: rubric_addition
+            source_text: 说明容量模型
+            acceptance_check: 候选人补充说明「说明容量模型」，并给出组件关系、容量假设、故障边界、灰度回滚或监控验证中的至少一类具体证据。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:system_design.sre_capacity_planning.peak_planning:rubric_addition:86ea4570:v1
+            source: rubric_addition
+            source_text: 说明压测方法
+            acceptance_check: 候选人补充说明「说明压测方法」，并给出组件关系、容量假设、故障边界、灰度回滚或监控验证中的至少一类具体证据。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:system_design.sre_capacity_planning.peak_planning:rubric_addition:259763c5:v1
+            source: rubric_addition
+            source_text: 说明扩容预案
+            acceptance_check: 候选人补充说明「说明扩容预案」，并给出组件关系、容量假设、故障边界、灰度回滚或监控验证中的至少一类具体证据。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
         priority: 10
         status: active
       - id: system_design.sre_capacity_planning.budget_constraint
@@ -1115,5 +3845,83 @@ seeds:
         expected_signals: [能拆分实例/存储/网络成本, 能选 spot/预留实例/自动缩容, 能用 EB 保护稳定性]
         anti_patterns: [只砍机器影响稳定, 不分类成本, 没保护机制]
         good_answer_hints: [先拆成本, 再做优化, 最后保稳定]
+        reviewed_acceptance_checks:
+          - check_id: reviewed:system_design.sre_capacity_planning.budget_constraint:must_cover:a93a4c90:v1
+            source: must_cover
+            source_text: 容量模型
+            acceptance_check: 候选人围绕「容量模型」给出容量、资源或成本假设，说明估算方法、瓶颈来源、扩缩容触发条件和验证指标。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:system_design.sre_capacity_planning.budget_constraint:must_cover:f48420f0:v1
+            source: must_cover
+            source_text: 压测方法
+            acceptance_check: 候选人围绕「压测方法」给出系统级设计决策，说明参与组件、数据或调用路径、容量或稳定性边界，以及如何验证该设计。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:system_design.sre_capacity_planning.budget_constraint:must_cover:2e01a96a:v1
+            source: must_cover
+            source_text: 扩容触发
+            acceptance_check: 候选人围绕「扩容触发」给出容量、资源或成本假设，说明估算方法、瓶颈来源、扩缩容触发条件和验证指标。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:system_design.sre_capacity_planning.budget_constraint:must_cover:6ae3d8f3:v1
+            source: must_cover
+            source_text: 预算管理
+            acceptance_check: 候选人围绕「预算管理」给出容量、资源或成本假设，说明估算方法、瓶颈来源、扩缩容触发条件和验证指标。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:system_design.sre_capacity_planning.budget_constraint:rubric_addition:3261f4da:v1
+            source: rubric_addition
+            source_text: 说明成本来源
+            acceptance_check: 候选人补充说明「说明成本来源」，并给出组件关系、容量假设、故障边界、灰度回滚或监控验证中的至少一类具体证据。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:system_design.sre_capacity_planning.budget_constraint:rubric_addition:89beedcf:v1
+            source: rubric_addition
+            source_text: 说明优化路径
+            acceptance_check: 候选人补充说明「说明优化路径」，并给出组件关系、容量假设、故障边界、灰度回滚或监控验证中的至少一类具体证据。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:system_design.sre_capacity_planning.budget_constraint:rubric_addition:84a7b3c8:v1
+            source: rubric_addition
+            source_text: 说明稳定性保护
+            acceptance_check: 候选人补充说明「说明稳定性保护」，并给出组件关系、容量假设、故障边界、灰度回滚或监控验证中的至少一类具体证据。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
         priority: 8
         status: active

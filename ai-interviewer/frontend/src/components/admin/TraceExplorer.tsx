@@ -2166,7 +2166,22 @@ function FinalReportPanel({ node }: { node: TraceExplorerNode }) {
             展开维度证据摘要
           </summary>
           <div className="mt-2 space-y-2">
-            {dimensionEvidence.map((item, idx) => (
+            {dimensionEvidence.map((item, idx) => {
+              const contractGateResults = recordArray(item.contract_gate_results);
+              const gateCalibrationSummaries = recordArray(
+                item.gate_calibration_summaries,
+              );
+              const contractSemanticsSummaries = recordArray(
+                item.contract_semantics_summaries,
+              );
+              const softGapTrainingSuggestions = recordArray(
+                item.soft_gap_training_suggestions,
+              );
+              const softFollowupHints = recordArray(item.soft_followup_hints);
+              const acceptanceResultItems = recordArray(
+                item.acceptance_check_result_items,
+              );
+              return (
               <div
                 key={`${stringValue(item.dimension) || "evidence"}-${idx}`}
                 className="rounded-md bg-background/60 p-2"
@@ -2207,8 +2222,73 @@ function FinalReportPanel({ node }: { node: TraceExplorerNode }) {
                   label="followup_reasons"
                   values={stringList(item.followup_reasons)}
                 />
+                {contractGateResults.length > 0 && (
+                  <div className="mt-2 space-y-2">
+                    {contractGateResults.map((gate, gateIdx) => (
+                      <ContractGateResultPanel
+                        key={`${stringValue(gate.status) || "gate"}-${gateIdx}`}
+                        result={gate}
+                        enforcement={{
+                          contract_gate_enforced: gate.enforced,
+                          contract_gate_enforcement_reason:
+                            gate.enforcement_reason,
+                          contract_gate_failed_check_ids: gate.failed_check_ids,
+                        }}
+                      />
+                    ))}
+                  </div>
+                )}
+                {gateCalibrationSummaries.length > 0 && (
+                  <div className="mt-2 space-y-2">
+                    {gateCalibrationSummaries.map((summary, summaryIdx) => (
+                      <GateCalibrationSummaryPanel
+                        key={`${stringValue(summary.turn_idx) || "gate-calibration"}-${summaryIdx}`}
+                        summary={summary}
+                      />
+                    ))}
+                  </div>
+                )}
+                {contractSemanticsSummaries.length > 0 && (
+                  <div className="mt-2 space-y-2">
+                    {contractSemanticsSummaries.map((summary, summaryIdx) => (
+                      <ContractSemanticsSummaryPanel
+                        key={`${stringValue(summary.turn_idx) || "summary"}-${summaryIdx}`}
+                        summary={summary}
+                      />
+                    ))}
+                  </div>
+                )}
+                {softGapTrainingSuggestions.length > 0 && (
+                  <div className="mt-2 space-y-2">
+                    {softGapTrainingSuggestions.map((suggestions, suggestionsIdx) => (
+                      <SoftGapTrainingSuggestionsPanel
+                        key={`${stringValue(suggestions.turn_idx) || "suggestions"}-${suggestionsIdx}`}
+                        suggestions={suggestions}
+                      />
+                    ))}
+                  </div>
+                )}
+                {softFollowupHints.length > 0 && (
+                  <div className="mt-2 space-y-2">
+                    {softFollowupHints.map((hints, hintsIdx) => (
+                      <SoftFollowupHintsPanel
+                        key={`${stringValue(hints.turn_idx) || "followup-hints"}-${hintsIdx}`}
+                        hints={hints}
+                      />
+                    ))}
+                  </div>
+                )}
+                {acceptanceResultItems.length > 0 && (
+                  <div className="mt-2">
+                    <AcceptanceCheckResultItemsList
+                      items={acceptanceResultItems}
+                      fallbackResults={{}}
+                    />
+                  </div>
+                )}
               </div>
-            ))}
+              );
+            })}
           </div>
         </details>
       )}
@@ -3076,15 +3156,61 @@ function EvaluatorScoringBasis({ node }: { node: TraceExplorerNode }) {
   if (node.node !== "evaluator") return null;
 
   const payload = recordFromUnknown(node.payload);
+  const evaluation = recordFromUnknown(node.evaluation);
   const contract = recordFromUnknown(payload.contract);
   const rubricPoints = stringList(payload.rubric_points);
   const mustCover = stringList(contract.must_cover);
   const acceptanceChecks = stringList(contract.acceptance_checks);
   const acceptanceCheckItems = recordArray(contract.acceptance_check_items);
+  const acceptanceCheckResults = recordWithPayloadFallback(
+    evaluation.acceptance_check_results,
+    payload.acceptance_check_results,
+  );
+  const evaluationAcceptanceCheckResultItems = recordArray(
+    evaluation.acceptance_check_result_items,
+  );
+  const payloadAcceptanceCheckResultItems = recordArray(
+    payload.acceptance_check_result_items,
+  );
+  const acceptanceCheckResultItems =
+    evaluationAcceptanceCheckResultItems.length > 0
+      ? evaluationAcceptanceCheckResultItems
+      : payloadAcceptanceCheckResultItems;
+  const evaluationContractGateResult = recordFromUnknown(
+    evaluation.contract_gate_result,
+  );
+  const payloadContractGateResult = recordFromUnknown(payload.contract_gate_result);
+  const contractGateResult =
+    Object.keys(evaluationContractGateResult).length > 0
+      ? evaluationContractGateResult
+      : payloadContractGateResult;
+  const evaluationContractSemanticsSummary = recordFromUnknown(
+    evaluation.contract_semantics_summary,
+  );
+  const payloadContractSemanticsSummary = recordFromUnknown(
+    payload.contract_semantics_summary,
+  );
+  const contractSemanticsSummary =
+    Object.keys(evaluationContractSemanticsSummary).length > 0
+      ? evaluationContractSemanticsSummary
+      : payloadContractSemanticsSummary;
+  const contractGateEnforcement = {
+    contract_gate_enforced:
+      evaluation.contract_gate_enforced ?? payload.contract_gate_enforced,
+    contract_gate_enforcement_reason:
+      evaluation.contract_gate_enforcement_reason ??
+      payload.contract_gate_enforcement_reason,
+    contract_gate_failed_count:
+      evaluation.contract_gate_failed_count ?? payload.contract_gate_failed_count,
+    contract_gate_failed_check_ids:
+      evaluation.contract_gate_failed_check_ids ??
+      payload.contract_gate_failed_check_ids,
+  };
   const reviewFocus = stringList(contract.review_focus);
   const signedBy = stringList(payload.signed_by);
   const contractSignedBy = stringList(contract.signed_by);
   const contractSource = stringValue(payload.contract_source);
+  const contractDiagnostics = recordFromUnknown(payload.contract_diagnostics);
   const hasBasis =
     Object.keys(contract).length > 0 ||
     rubricPoints.length > 0 ||
@@ -3143,12 +3269,18 @@ function EvaluatorScoringBasis({ node }: { node: TraceExplorerNode }) {
             <summary className="cursor-pointer select-none font-medium">
               展开评分依据明细
             </summary>
-            <div className="mt-2 grid gap-3 xl:grid-cols-2">
-              <EvidenceList label="覆盖要求" values={mustCover} />
-              <AcceptanceCheckItemsList
-                label="验收检查"
+            <div className="mt-2 grid gap-3">
+              <ContractMustCoverPanel values={mustCover} />
+              <ContractAcceptanceOverview
+                contract={contract}
+                diagnostics={contractDiagnostics}
                 values={acceptanceChecks}
                 items={acceptanceCheckItems}
+                resultItems={acceptanceCheckResultItems}
+                fallbackResults={acceptanceCheckResults}
+                gateResult={contractGateResult}
+                gateEnforcement={contractGateEnforcement}
+                semanticsSummary={contractSemanticsSummary}
               />
               <EvidenceList
                 label="最低门槛"
@@ -3244,6 +3376,40 @@ function EvaluationEvidence({ node }: { node: TraceExplorerNode }) {
       ? evaluationContractGateResult
       : payloadContractGateResult;
   const hasContractGateResult = Object.keys(contractGateResult).length > 0;
+  const evaluationGateCalibrationSummary = recordFromUnknown(
+    evaluation.gate_calibration_summary,
+  );
+  const payloadGateCalibrationSummary = recordFromUnknown(
+    payload.gate_calibration_summary,
+  );
+  const gateCalibrationSummary =
+    Object.keys(evaluationGateCalibrationSummary).length > 0
+      ? evaluationGateCalibrationSummary
+      : payloadGateCalibrationSummary;
+  const hasGateCalibrationSummary =
+    Object.keys(gateCalibrationSummary).length > 0;
+  const evaluationSoftGapTrainingSuggestions = recordFromUnknown(
+    evaluation.soft_gap_training_suggestions,
+  );
+  const payloadSoftGapTrainingSuggestions = recordFromUnknown(
+    payload.soft_gap_training_suggestions,
+  );
+  const softGapTrainingSuggestions =
+    Object.keys(evaluationSoftGapTrainingSuggestions).length > 0
+      ? evaluationSoftGapTrainingSuggestions
+      : payloadSoftGapTrainingSuggestions;
+  const hasSoftGapTrainingSuggestions = hasSoftGapTrainingSuggestionPayload(
+    softGapTrainingSuggestions,
+  );
+  const evaluationSoftFollowupHints = recordFromUnknown(
+    evaluation.soft_followup_hints,
+  );
+  const payloadSoftFollowupHints = recordFromUnknown(payload.soft_followup_hints);
+  const softFollowupHints =
+    Object.keys(evaluationSoftFollowupHints).length > 0
+      ? evaluationSoftFollowupHints
+      : payloadSoftFollowupHints;
+  const hasSoftFollowupHints = hasSoftFollowupHintsPayload(softFollowupHints);
   const contractGateEnforcement = {
     contract_gate_enforced:
       evaluation.contract_gate_enforced ?? payload.contract_gate_enforced,
@@ -3270,6 +3436,9 @@ function EvaluationEvidence({ node }: { node: TraceExplorerNode }) {
     Object.keys(acceptanceCheckResults).length === 0 &&
     acceptanceCheckResultItems.length === 0 &&
     !hasContractGateResult &&
+    !hasGateCalibrationSummary &&
+    !hasSoftGapTrainingSuggestions &&
+    !hasSoftFollowupHints &&
     !rationale &&
     typeof node.immediate_reward_applied !== "boolean"
   ) {
@@ -3304,6 +3473,23 @@ function EvaluationEvidence({ node }: { node: TraceExplorerNode }) {
             result={contractGateResult}
             enforcement={contractGateEnforcement}
           />
+        </div>
+      )}
+      {hasGateCalibrationSummary && (
+        <div className="mt-3">
+          <GateCalibrationSummaryPanel summary={gateCalibrationSummary} />
+        </div>
+      )}
+      {hasSoftGapTrainingSuggestions && (
+        <div className="mt-3">
+          <SoftGapTrainingSuggestionsPanel
+            suggestions={softGapTrainingSuggestions}
+          />
+        </div>
+      )}
+      {hasSoftFollowupHints && (
+        <div className="mt-3">
+          <SoftFollowupHintsPanel hints={softFollowupHints} />
         </div>
       )}
       {(acceptanceCheckResultItems.length > 0 ||
@@ -3866,12 +4052,18 @@ function AskQuestionEvidencePanelV2({ node }: { node: TraceExplorerNode }) {
             <summary className="cursor-pointer select-none font-medium">
               展开评分契约明细
             </summary>
-            <div className="mt-2 grid gap-3 xl:grid-cols-2">
-              <EvidenceList label="must_cover" values={contractMustCover} />
-              <AcceptanceCheckItemsList
-                label="acceptance_checks"
+            <div className="mt-2 grid gap-3">
+              <ContractMustCoverPanel values={contractMustCover} />
+              <ContractAcceptanceOverview
+                contract={contract}
+                diagnostics={contractDiagnostics}
                 values={contractAcceptanceChecks}
                 items={contractAcceptanceCheckItems}
+                resultItems={[]}
+                fallbackResults={{}}
+                gateResult={{}}
+                gateEnforcement={{}}
+                semanticsSummary={{}}
               />
               <EvidenceList
                 label="minimum_bar"
@@ -5189,6 +5381,1227 @@ function AcceptanceCheckItemsList({
   );
 }
 
+function ContractMustCoverPanel({ values }: { values: string[] }) {
+  if (values.length === 0) {
+    return <EvidenceList label="覆盖要求 must_cover" values={values} />;
+  }
+
+  return (
+    <div className="rounded-md border bg-background/45 p-3">
+      <div className="flex flex-wrap items-start justify-between gap-2">
+        <div className="min-w-0">
+          <p className="font-medium">覆盖要求</p>
+          <p className="mt-0.5 text-[11px] leading-relaxed text-muted-foreground">
+            定义本题评分范围，不是逐条硬门槛。
+            <span className="ml-1 font-mono">must_cover</span>
+          </p>
+        </div>
+        <Badge variant="outline" className="font-mono text-[10px]">
+          scope
+        </Badge>
+      </div>
+      <ul className="mt-2 list-disc space-y-1 pl-4">
+        {values.map((value, idx) => (
+          <li key={`${value}-${idx}`} className="break-words leading-relaxed">
+            {value}
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
+type ContractAcceptanceGroupKey =
+  | "reviewed_core"
+  | "reviewed_supporting"
+  | "adaptive_context"
+  | "compiled_fallback"
+  | "rewrite_fallback"
+  | "evaluator_extra"
+  | "other";
+
+const CONTRACT_ACCEPTANCE_GROUPS: Array<{
+  key: ContractAcceptanceGroupKey;
+  label: string;
+  rawLabel: string;
+  description: string;
+}> = [
+  {
+    key: "reviewed_core",
+    label: "核心判定条款",
+    rawLabel: "reviewed core",
+    description: "DB/YAML 已审核的底线条款，会进入 reviewed/core gate。",
+  },
+  {
+    key: "reviewed_supporting",
+    label: "补充判定条款",
+    rawLabel: "reviewed supporting",
+    description: "人工审核过的补充条款，用来丰富证据，不参与 gate 强制判定。",
+  },
+  {
+    key: "adaptive_context",
+    label: "上下文补充条款",
+    rawLabel: "adaptive_context",
+    description: "LLM 根据简历、JD 和本题上下文生成的补充检查项。",
+  },
+  {
+    key: "compiled_fallback",
+    label: "编译兜底条款",
+    rawLabel: "compiled_fallback",
+    description: "从 locked seed rubric 确定性编译出来的兜底检查项。",
+  },
+  {
+    key: "rewrite_fallback",
+    label: "改写兜底条款",
+    rawLabel: "rewrite_fallback",
+    description: "题目去重或语言改写后重建的兜底检查项。",
+  },
+  {
+    key: "evaluator_extra",
+    label: "评估器额外结果",
+    rawLabel: "evaluator_extra",
+    description: "Evaluator 返回但没有匹配到已签署合同的额外结果。",
+  },
+  {
+    key: "other",
+    label: "其它条款",
+    rawLabel: "other",
+    description: "来自其它来源或旧 trace 的合同检查项。",
+  },
+];
+
+function ContractAcceptanceOverview({
+  contract,
+  diagnostics,
+  values,
+  items,
+  resultItems,
+  fallbackResults,
+  gateResult,
+  gateEnforcement,
+  semanticsSummary,
+}: {
+  contract: Record<string, unknown>;
+  diagnostics: Record<string, unknown>;
+  values: string[];
+  items: Record<string, unknown>[];
+  resultItems: Record<string, unknown>[];
+  fallbackResults: Record<string, unknown>;
+  gateResult: Record<string, unknown>;
+  gateEnforcement: Record<string, unknown>;
+  semanticsSummary: Record<string, unknown>;
+}) {
+  const [sourceFilter, setSourceFilter] = useState("all");
+  const [severityFilter, setSeverityFilter] = useState("all");
+  const [verdictFilter, setVerdictFilter] = useState("all");
+  const [contractItemQuery, setContractItemQuery] = useState("");
+
+  const visibleItems = items.filter(
+    (item) => stringValue(item.text) || stringValue(item.acceptance_check),
+  );
+  const resultByKey = useMemo(
+    () => acceptanceItemResultByKey(resultItems, fallbackResults),
+    [resultItems, fallbackResults],
+  );
+  const gateFailedIds = useMemo(
+    () => contractGateFailedCheckIdSet(gateResult, gateEnforcement),
+    [gateResult, gateEnforcement],
+  );
+  const displayItems = useMemo(
+    () =>
+      visibleItems
+        .map((item, index) =>
+          contractAcceptanceDisplayItem(item, {
+            index,
+            resultByKey,
+            gateFailedIds,
+          }),
+        )
+        .sort(contractAcceptanceDisplaySort),
+    [visibleItems, resultByKey, gateFailedIds],
+  );
+  const query = contractItemQuery.trim().toLowerCase();
+  const filteredItems = displayItems.filter((item) => {
+    if (sourceFilter !== "all" && item.source !== sourceFilter) return false;
+    if (severityFilter !== "all" && item.severity !== severityFilter) return false;
+    if (verdictFilter !== "all" && item.verdictBucket !== verdictFilter) return false;
+    if (query && !contractAcceptanceSearchText(item.raw, item.result).includes(query)) {
+      return false;
+    }
+    return true;
+  });
+  const sourceOptions = uniqueSorted(displayItems.map((item) => item.source));
+  const severityOptions = uniqueSorted(displayItems.map((item) => item.severity));
+  const summary = reviewedCoreSummary(displayItems);
+  const acceptanceMode =
+    stringValue(diagnostics.contract_acceptance_mode) ||
+    stringValue(diagnostics.reviewed_acceptance_mode) ||
+    stringValue(contract.contract_acceptance_mode) ||
+    "—";
+  const gateStatus = stringValue(gateResult.status);
+  const gateMode = stringValue(gateResult.mode);
+  const wouldPass = gateResult.would_pass;
+  const enforced = gateEnforcement.contract_gate_enforced === true;
+  const enforcementReason = stringValue(
+    gateEnforcement.contract_gate_enforcement_reason,
+  );
+  const usingLegacyChecks = visibleItems.length === 0;
+  const usingLegacyResults =
+    resultItems.length === 0 && Object.keys(fallbackResults).length > 0;
+
+  if (usingLegacyChecks) {
+    return (
+      <div data-trace-contract-fallback="legacy_acceptance_checks_fallback">
+        <EvidenceList label="legacy_acceptance_checks_fallback" values={values} />
+        {usingLegacyResults && (
+          <div
+            className="mt-2"
+            data-trace-contract-fallback="legacy_acceptance_check_results_fallback"
+          >
+            <AcceptanceCheckResults results={fallbackResults} />
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-3" data-trace-section="contract_acceptance_overview">
+      <div className="rounded-md border border-cyan-500/20 bg-cyan-500/[0.035] p-3">
+        <div className="flex flex-wrap items-start justify-between gap-2">
+          <div className="min-w-0">
+            <p className="font-medium">评分契约概览</p>
+            <p className="mt-0.5 max-w-[68ch] text-[11px] leading-relaxed text-muted-foreground">
+              先看核心底线是否满足，再按来源和等级检查补充条款。
+              <span className="ml-1 font-mono">contract_acceptance_overview</span>
+            </p>
+          </div>
+          <div className="rounded-md border bg-background/55 px-2 py-1">
+            <p className="text-[10px] text-muted-foreground">
+              评分契约模式
+              <span className="ml-1 font-mono">contract_acceptance_mode</span>
+            </p>
+            <p className="mt-0.5 font-mono text-xs font-semibold">
+              {acceptanceMode}
+            </p>
+          </div>
+        </div>
+
+        <div className="mt-3 grid gap-3 2xl:grid-cols-[minmax(0,1fr)_minmax(320px,420px)]">
+          <div className="min-w-0 space-y-3">
+            <div className="grid gap-2 sm:grid-cols-2">
+          <ContractAcceptanceMetric
+            traceKey="reviewed_core_summary"
+            label="核心条款"
+            rawLabel="reviewed_core_summary"
+            value={`${summary.total} 条`}
+            detail={`${summary.yes} 通过 yes / ${summary.no} 未通过 no / ${summary.partial} 部分 partial / ${summary.missing} 缺失 missing`}
+          />
+          <ContractAcceptanceMetric
+            traceKey="reviewed_core_failed"
+            label="未满足核心条款"
+            rawLabel="reviewed_core_failed"
+            value={formatCountValue(summary.no + summary.partial + summary.missing)}
+            detail="no / partial / missing 都按未满足处理"
+          />
+          <ContractAcceptanceMetric
+            traceKey="contract_gate_result"
+            label="Gate 状态"
+            rawLabel="contract_gate_result"
+            value={gateStatus ? `${gateMode || "shadow"} / ${gateStatus}` : "not_recorded"}
+            detail={
+              gateStatus
+                ? `would_pass ${
+                    typeof wouldPass === "boolean"
+                      ? formatBooleanValue(wouldPass)
+                      : "not_applicable"
+                  }`
+                : "no gate payload"
+            }
+          />
+          <ContractAcceptanceMetric
+            traceKey="contract_gate_enforced"
+            label="强制覆盖"
+            rawLabel="contract_gate_enforced"
+            value={enforced ? "true" : "false"}
+            detail={enforcementReason || "no enforcement override"}
+          />
+            </div>
+
+            <ContractAcceptanceLayerGuide />
+          </div>
+
+          <ContractSemanticsSummaryPanel summary={semanticsSummary} />
+        </div>
+      </div>
+
+      <ContractAcceptanceFilters
+        sourceFilter={sourceFilter}
+        severityFilter={severityFilter}
+        verdictFilter={verdictFilter}
+        contractItemQuery={contractItemQuery}
+        sourceOptions={sourceOptions}
+        severityOptions={severityOptions}
+        onSourceFilterChange={setSourceFilter}
+        onSeverityFilterChange={setSeverityFilter}
+        onVerdictFilterChange={setVerdictFilter}
+        onQueryChange={setContractItemQuery}
+      />
+
+      <div className="space-y-2">
+        {CONTRACT_ACCEPTANCE_GROUPS.map((group) => (
+          <ContractAcceptanceGroup
+            key={group.key}
+            group={group}
+            items={filteredItems.filter((item) => item.groupKey === group.key)}
+          />
+        ))}
+      </div>
+
+      {usingLegacyResults && (
+        <div
+          className="rounded-md border bg-background/45 p-2"
+          data-trace-contract-fallback="legacy_acceptance_check_results_fallback"
+        >
+          <p className="mb-2 font-medium">legacy_acceptance_check_results_fallback</p>
+          <AcceptanceCheckResults results={fallbackResults} />
+        </div>
+      )}
+    </div>
+  );
+}
+
+function ContractSemanticsSummaryPanel({
+  summary,
+}: {
+  summary: Record<string, unknown>;
+}) {
+  const reviewedCore = recordFromUnknown(summary.reviewed_core);
+  const reviewedSupporting = recordFromUnknown(summary.reviewed_supporting);
+  const adaptiveContext = recordFromUnknown(summary.adaptive_context);
+  const evaluatorExtra = recordFromUnknown(summary.evaluator_extra);
+  const hasSummary = Object.keys(summary).length > 0;
+  const rows = [
+    {
+      key: "reviewed_core",
+      label: "核心底线",
+      raw: "reviewed core = hard gate",
+      total: reviewedCore.total,
+      gaps: summary.hard_gap_count,
+      description: "Hard gate: only reviewed/core can enforce pass or refine.",
+    },
+    {
+      key: "reviewed_supporting",
+      label: "质量细分",
+      raw: "reviewed supporting = quality signals",
+      total: reviewedSupporting.total,
+      gaps: summary.soft_quality_gap_count,
+      description: "Soft quality gaps from reviewed/supporting: evidence and report nuance.",
+    },
+    {
+      key: "adaptive_context",
+      label: "上下文补充",
+      raw: "adaptive context = context signals",
+      total: adaptiveContext.total,
+      gaps: summary.context_gap_count,
+      description: "Context gaps: resume/JD/question-specific follow-up signals.",
+    },
+    {
+      key: "evaluator_extra",
+      label: "观察项",
+      raw: "evaluator_extra = observation only",
+      total: evaluatorExtra.total,
+      gaps: 0,
+      description: "Observation only: not part of gate or hard scoring.",
+    },
+  ];
+
+  return (
+    <div
+      className="min-w-0 rounded-md border bg-background/55 p-3"
+      data-trace-section="contract_semantics_summary"
+    >
+      <div className="flex flex-wrap items-start justify-between gap-2">
+        <div className="min-w-0">
+          <p className="font-medium">合同语义摘要</p>
+          <p className="mt-0.5 text-[11px] leading-relaxed text-muted-foreground">
+            must_cover = scoring scope; reviewed core controls the gate;
+            supporting/adaptive stay as soft signals.
+          </p>
+        </div>
+        <Badge variant={hasSummary ? "outline" : "secondary"} className="font-mono text-[10px]">
+          contract_semantics_summary
+        </Badge>
+      </div>
+      <div className="mt-3 space-y-2">
+        {rows.map((row) => (
+          <div
+            key={row.key}
+            className="rounded-md border bg-background/45 p-2"
+            data-trace-contract-semantics={row.key}
+          >
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <p className="font-medium">{row.label}</p>
+              <span className="break-all font-mono text-[10px] text-muted-foreground">
+                {row.raw}
+              </span>
+            </div>
+            <div className="mt-2 grid gap-2 sm:grid-cols-2">
+              <NodeFact label="total" value={formatCountValue(row.total)} />
+              <NodeFact label="gap count" value={formatCountValue(row.gaps)} />
+            </div>
+            <p className="mt-1 text-[11px] leading-relaxed text-muted-foreground">
+              {row.description}
+            </p>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function hasSoftGapTrainingSuggestionPayload(
+  suggestions: Record<string, unknown>,
+) {
+  if (Object.keys(suggestions).length === 0) return false;
+  const counts = recordFromUnknown(suggestions.counts);
+  const total = Number(counts.total ?? 0);
+  return (
+    total > 0 ||
+    recordArray(suggestions.quality_suggestions).length > 0 ||
+    recordArray(suggestions.context_suggestions).length > 0
+  );
+}
+
+function hasSoftFollowupHintsPayload(hints: Record<string, unknown>) {
+  if (Object.keys(hints).length === 0) return false;
+  const counts = recordFromUnknown(hints.counts);
+  const total = Number(counts.total ?? 0);
+  return (
+    total > 0 ||
+    recordArray(hints.quality_hints).length > 0 ||
+    recordArray(hints.context_hints).length > 0
+  );
+}
+
+function SoftGapTrainingSuggestionsPanel({
+  suggestions,
+}: {
+  suggestions: Record<string, unknown>;
+}) {
+  const qualitySuggestions = recordArray(suggestions.quality_suggestions);
+  const contextSuggestions = recordArray(suggestions.context_suggestions);
+  const counts = recordFromUnknown(suggestions.counts);
+  if (!hasSoftGapTrainingSuggestionPayload(suggestions)) return null;
+
+  return (
+    <div
+      className="min-w-0 rounded-md border border-amber-500/25 bg-amber-500/[0.035] p-3"
+      data-trace-section="soft_gap_training_suggestions"
+    >
+      <div className="flex flex-wrap items-start justify-between gap-2">
+        <div className="min-w-0">
+          <p className="font-medium">训练建议</p>
+          <p className="mt-0.5 text-[11px] leading-relaxed text-muted-foreground">
+            soft_gap_training_suggestions: reviewed_supporting becomes quality
+            suggestions; adaptive_context becomes context suggestions.
+          </p>
+        </div>
+        <Badge variant="outline" className="font-mono text-[10px]">
+          {formatCountValue(counts.total)} suggestions
+        </Badge>
+      </div>
+
+      <div className="mt-3 grid gap-2 sm:grid-cols-3">
+        <NodeFact
+          label="质量补强 quality"
+          value={formatCountValue(counts.quality ?? qualitySuggestions.length)}
+        />
+        <NodeFact
+          label="上下文补强 context"
+          value={formatCountValue(counts.context ?? contextSuggestions.length)}
+        />
+        <NodeFact
+          label="source"
+          value={stringValue(suggestions.source) || "contract_semantics_summary"}
+        />
+      </div>
+
+      <div className="mt-3 grid gap-3 2xl:grid-cols-2">
+        <SoftGapSuggestionGroup
+          heading="质量补强建议"
+          rawLabel="reviewed_supporting"
+          description="来自 reviewed/supporting 的质量细分缺口，只用于报告和训练建议。"
+          items={qualitySuggestions}
+        />
+        <SoftGapSuggestionGroup
+          heading="上下文补强建议"
+          rawLabel="adaptive_context"
+          description="来自简历/JD/题目上下文缺口，不覆盖 reviewed core。"
+          items={contextSuggestions}
+        />
+      </div>
+    </div>
+  );
+}
+
+function SoftGapSuggestionGroup({
+  heading,
+  rawLabel,
+  description,
+  items,
+}: {
+  heading: string;
+  rawLabel: string;
+  description: string;
+  items: Record<string, unknown>[];
+}) {
+  return (
+    <div className="min-w-0 rounded-md border bg-background/45 p-2">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div className="min-w-0">
+          <p className="font-medium">{heading}</p>
+          <p className="font-mono text-[10px] text-muted-foreground">
+            {rawLabel}
+          </p>
+        </div>
+        <Badge variant={items.length > 0 ? "warn" : "secondary"} className="text-[10px]">
+          {items.length} items
+        </Badge>
+      </div>
+      <p className="mt-1 text-[11px] leading-relaxed text-muted-foreground">
+        {description}
+      </p>
+      {items.length === 0 ? (
+        <p className="mt-2 rounded-md border bg-background/45 p-2 text-[11px] text-muted-foreground">
+          no soft gaps
+        </p>
+      ) : (
+        <div className="mt-2 space-y-2">
+          {items.map((item, idx) => (
+            <SoftGapSuggestionCard
+              key={`${stringValue(item.suggestion_id) || rawLabel}-${idx}`}
+              item={item}
+            />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function SoftGapSuggestionCard({ item }: { item: Record<string, unknown> }) {
+  const evidence = stringList(item.evidence);
+  return (
+    <div className="min-w-0 rounded-md border bg-background/55 p-2">
+      <div className="flex flex-wrap items-start justify-between gap-2">
+        <div className="min-w-0">
+          <p className="break-words font-medium">
+            {stringValue(item.title) || stringValue(item.text) || "soft gap"}
+          </p>
+          <p className="mt-1 break-words text-[11px] leading-relaxed text-muted-foreground">
+            {stringValue(item.description) || stringValue(item.text)}
+          </p>
+        </div>
+        <div className="flex flex-wrap gap-1">
+          <Badge variant="outline" className="font-mono text-[10px]">
+            {stringValue(item.source) || "soft_gap"}
+          </Badge>
+          <Badge variant="secondary" className="font-mono text-[10px]">
+            {stringValue(item.verdict) || stringValue(item.reason) || "missing"}
+          </Badge>
+        </div>
+      </div>
+      <div className="mt-2 grid gap-2 sm:grid-cols-2">
+        <NodeFact
+          label="check_id"
+          value={stringValue(item.check_id) || "—"}
+        />
+        <NodeFact
+          label="suggestion_id"
+          value={stringValue(item.suggestion_id) || "—"}
+        />
+      </div>
+      <EvidenceList label="evidence" values={evidence} />
+    </div>
+  );
+}
+
+function SoftFollowupHintsPanel({
+  hints,
+}: {
+  hints: Record<string, unknown>;
+}) {
+  const qualityHints = recordArray(hints.quality_hints);
+  const contextHints = recordArray(hints.context_hints);
+  const counts = recordFromUnknown(hints.counts);
+  if (!hasSoftFollowupHintsPayload(hints)) return null;
+
+  return (
+    <div
+      className="min-w-0 rounded-md border border-cyan-500/25 bg-cyan-500/[0.035] p-3"
+      data-trace-section="soft_followup_hints"
+    >
+      <div className="flex flex-wrap items-start justify-between gap-2">
+        <div className="min-w-0">
+          <p className="font-medium">追问意图草稿</p>
+          <p className="mt-0.5 text-[11px] leading-relaxed text-muted-foreground">
+            soft_followup_hints: shadow-only follow-up ideas from soft gaps;
+            not injected into ask_question prompts.
+          </p>
+        </div>
+        <div className="flex flex-wrap gap-1">
+          <Badge variant="outline" className="font-mono text-[10px]">
+            {stringValue(hints.mode) || "shadow"}
+          </Badge>
+          <Badge variant="secondary" className="font-mono text-[10px]">
+            applied={formatDiagnosticScalar(hints.applied)}
+          </Badge>
+        </div>
+      </div>
+
+      <div className="mt-3 grid gap-2 sm:grid-cols-4">
+        <NodeFact
+          label="质量追问 quality"
+          value={formatCountValue(counts.quality ?? qualityHints.length)}
+        />
+        <NodeFact
+          label="上下文追问 context"
+          value={formatCountValue(counts.context ?? contextHints.length)}
+        />
+        <NodeFact
+          label="total"
+          value={formatCountValue(counts.total ?? qualityHints.length + contextHints.length)}
+        />
+        <NodeFact
+          label="source"
+          value={stringValue(hints.source) || "soft_gap_training_suggestions"}
+        />
+      </div>
+
+      <div className="mt-3 grid gap-3 2xl:grid-cols-2">
+        <SoftFollowupHintGroup
+          heading="质量追问"
+          rawLabel="probe_quality_gap"
+          description="来自 reviewed/supporting 的质量缺口，只作为未来追问意图观察，不触发 gate。"
+          items={qualityHints}
+        />
+        <SoftFollowupHintGroup
+          heading="上下文追问"
+          rawLabel="probe_context_gap"
+          description="来自 adaptive_context 的简历/JD/题目上下文缺口，不覆盖 reviewed core。"
+          items={contextHints}
+        />
+      </div>
+    </div>
+  );
+}
+
+function SoftFollowupHintGroup({
+  heading,
+  rawLabel,
+  description,
+  items,
+}: {
+  heading: string;
+  rawLabel: string;
+  description: string;
+  items: Record<string, unknown>[];
+}) {
+  return (
+    <div className="min-w-0 rounded-md border bg-background/45 p-2">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div className="min-w-0">
+          <p className="font-medium">{heading}</p>
+          <p className="font-mono text-[10px] text-muted-foreground">
+            {rawLabel}
+          </p>
+        </div>
+        <Badge variant={items.length > 0 ? "success" : "secondary"} className="text-[10px]">
+          {items.length} hints
+        </Badge>
+      </div>
+      <p className="mt-1 text-[11px] leading-relaxed text-muted-foreground">
+        {description}
+      </p>
+      {items.length === 0 ? (
+        <p className="mt-2 rounded-md border bg-background/45 p-2 text-[11px] text-muted-foreground">
+          no follow-up hints
+        </p>
+      ) : (
+        <div className="mt-2 space-y-2">
+          {items.map((item, idx) => (
+            <SoftFollowupHintCard
+              key={`${stringValue(item.hint_id) || rawLabel}-${idx}`}
+              item={item}
+            />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function SoftFollowupHintCard({ item }: { item: Record<string, unknown> }) {
+  const evidence = stringList(item.evidence);
+  const focus = stringValue(item.focus) || stringValue(item.text) || "follow-up hint";
+  return (
+    <div className="min-w-0 rounded-md border bg-background/55 p-2">
+      <div className="flex flex-wrap items-start justify-between gap-2">
+        <div className="min-w-0">
+          <p className="break-words font-medium">{focus}</p>
+          <p className="mt-1 break-words text-[11px] leading-relaxed text-muted-foreground">
+            {stringValue(item.reason) || stringValue(item.text)}
+          </p>
+        </div>
+        <div className="flex flex-wrap gap-1">
+          <Badge variant="outline" className="font-mono text-[10px]">
+            {stringValue(item.intent) || "probe_soft_gap"}
+          </Badge>
+          <Badge variant="secondary" className="font-mono text-[10px]">
+            {stringValue(item.verdict) || "missing"}
+          </Badge>
+        </div>
+      </div>
+      <div className="mt-2 grid gap-2 sm:grid-cols-2">
+        <NodeFact
+          label="hint_id"
+          value={stringValue(item.hint_id) || "—"}
+        />
+        <NodeFact
+          label="check_id"
+          value={stringValue(item.check_id) || "—"}
+        />
+        <NodeFact
+          label="source"
+          value={stringValue(item.source) || "soft_gap"}
+        />
+        <NodeFact
+          label="suggestion_id"
+          value={stringValue(item.suggestion_id) || "—"}
+        />
+      </div>
+      <EvidenceList label="evidence" values={evidence} />
+    </div>
+  );
+}
+
+function ContractAcceptanceFilters({
+  sourceFilter,
+  severityFilter,
+  verdictFilter,
+  contractItemQuery,
+  sourceOptions,
+  severityOptions,
+  onSourceFilterChange,
+  onSeverityFilterChange,
+  onVerdictFilterChange,
+  onQueryChange,
+}: {
+  sourceFilter: string;
+  severityFilter: string;
+  verdictFilter: string;
+  contractItemQuery: string;
+  sourceOptions: string[];
+  severityOptions: string[];
+  onSourceFilterChange: (value: string) => void;
+  onSeverityFilterChange: (value: string) => void;
+  onVerdictFilterChange: (value: string) => void;
+  onQueryChange: (value: string) => void;
+}) {
+  return (
+    <div className="rounded-md border bg-background/45 p-2">
+      <div className="grid gap-2 md:grid-cols-4">
+        <label className="text-[11px] text-muted-foreground">
+          来源 <span className="font-mono">source</span>
+          <select
+            aria-label="source filter"
+            className="mt-1 w-full rounded-md border bg-background px-2 py-1 font-mono text-[11px]"
+            value={sourceFilter}
+            onChange={(event) => onSourceFilterChange(event.target.value)}
+          >
+            <option value="all">全部 all</option>
+            {sourceOptions.map((source) => (
+              <option key={source} value={source}>
+                {source}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label className="text-[11px] text-muted-foreground">
+          等级 <span className="font-mono">severity</span>
+          <select
+            aria-label="severity filter"
+            className="mt-1 w-full rounded-md border bg-background px-2 py-1 font-mono text-[11px]"
+            value={severityFilter}
+            onChange={(event) => onSeverityFilterChange(event.target.value)}
+          >
+            <option value="all">全部 all</option>
+            {severityOptions.map((severity) => (
+              <option key={severity} value={severity}>
+                {severity}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label className="text-[11px] text-muted-foreground">
+          结论 <span className="font-mono">verdict</span>
+          <select
+            aria-label="verdict filter"
+            className="mt-1 w-full rounded-md border bg-background px-2 py-1 font-mono text-[11px]"
+            value={verdictFilter}
+            onChange={(event) => onVerdictFilterChange(event.target.value)}
+          >
+            <option value="all">全部 all</option>
+            <option value="yes">通过 yes</option>
+            <option value="partial">部分 partial</option>
+            <option value="no">未通过 no</option>
+            <option value="missing">缺失 missing</option>
+          </select>
+        </label>
+        <label className="text-[11px] text-muted-foreground">
+          关键词 <span className="font-mono">keyword</span>
+          <input
+            aria-label="contract item search"
+            className="mt-1 w-full rounded-md border bg-background px-2 py-1 text-[11px]"
+            type="search"
+            placeholder="条款 / source / check_id / evidence"
+            value={contractItemQuery}
+            onChange={(event) => onQueryChange(event.target.value)}
+          />
+        </label>
+      </div>
+    </div>
+  );
+}
+
+function ContractAcceptanceLayerGuide() {
+  const layers = [
+    {
+      label: "评分范围",
+      raw: "must_cover = scoring scope",
+      description: "定义本题必须考察什么，不直接作为逐条 gate。",
+    },
+    {
+      label: "核心底线",
+      raw: "reviewed core = hard gate",
+      description: "已审核的硬门槛，进入 reviewed core gate。",
+    },
+    {
+      label: "质量细分",
+      raw: "reviewed supporting = quality signals",
+      description: "已审核的补充判断，影响证据丰富度，不单独触发 gate。",
+    },
+    {
+      label: "上下文补充",
+      raw: "adaptive context = context signals",
+      description: "结合简历、JD 和题目上下文生成，不覆盖核心底线。",
+    },
+  ];
+
+  return (
+    <div className="mt-3 rounded-md border bg-background/45 p-2">
+      <p className="text-[11px] font-medium">条款层级关系</p>
+      <div className="mt-2 grid gap-2 md:grid-cols-2">
+        {layers.map((layer) => (
+          <div key={layer.raw} className="min-w-0 rounded-md bg-background/45 p-2">
+            <p className="text-xs font-medium">{layer.label}</p>
+            <p className="mt-0.5 font-mono text-[10px] text-muted-foreground">
+              {layer.raw}
+            </p>
+            <p className="mt-1 break-words text-[11px] leading-relaxed text-muted-foreground">
+              {layer.description}
+            </p>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function ContractAcceptanceMetric({
+  traceKey,
+  label,
+  rawLabel,
+  value,
+  detail,
+}: {
+  traceKey: string;
+  label: string;
+  rawLabel: string;
+  value: string;
+  detail: string;
+}) {
+  return (
+    <div
+      className="min-w-0 rounded-md border bg-background/55 p-2"
+      data-trace-metric={traceKey}
+    >
+      <p className="truncate text-[10px] uppercase tracking-wider text-muted-foreground">
+        {label}
+      </p>
+      <p className="mt-0.5 truncate font-mono text-[10px] text-muted-foreground">
+        {rawLabel}
+      </p>
+      <p className="mt-1 break-words font-mono text-sm font-semibold">{value}</p>
+      <p className="mt-0.5 break-words text-[11px] leading-snug text-muted-foreground">
+        {detail}
+      </p>
+    </div>
+  );
+}
+
+function ContractAcceptanceGroup({
+  group,
+  items,
+}: {
+  group: (typeof CONTRACT_ACCEPTANCE_GROUPS)[number];
+  items: ReturnType<typeof contractAcceptanceDisplayItem>[];
+}) {
+  if (items.length === 0) return null;
+
+  return (
+    <details className="rounded-md border bg-background/45 p-2" open>
+      <summary className="cursor-pointer select-none">
+        <span className="font-medium">{group.label}</span>
+        <Badge variant="outline" className="ml-2 font-mono text-[10px]">
+          {group.rawLabel}
+        </Badge>
+        <span className="ml-2 font-mono text-[10px] text-muted-foreground">
+          {items.length} checks
+        </span>
+      </summary>
+      <p className="mt-1 text-[11px] text-muted-foreground">{group.description}</p>
+      <div className="mt-2 grid gap-2 xl:grid-cols-2">
+        {items.map((item) => (
+          <ContractAcceptanceItemCard key={item.key} item={item} />
+        ))}
+      </div>
+    </details>
+  );
+}
+
+function ContractAcceptanceItemCard({
+  item,
+}: {
+  item: ReturnType<typeof contractAcceptanceDisplayItem>;
+}) {
+  const badgeVariant = item.failed
+    ? "warn"
+    : item.verdictBucket === "yes"
+      ? "success"
+      : "outline";
+  const borderClass = item.failed
+    ? "border-amber-500/45 bg-amber-500/[0.055]"
+    : "border-border bg-background/50";
+
+  return (
+    <div className={`rounded-md border p-2 ${borderClass}`}>
+      <div className="flex flex-wrap gap-1">
+        <Badge variant="outline" className="font-mono text-[10px]">
+          {item.source}
+        </Badge>
+        <Badge variant="outline" className="font-mono text-[10px]">
+          {contractSeverityLabel(item.severity)}
+        </Badge>
+        <Badge
+          variant={badgeVariant}
+          className={`font-mono text-[10px] ${acceptanceVerdictBadgeClass(
+            item.verdict,
+          )}`}
+        >
+          {contractVerdictLabel(item.verdictBucket)}
+        </Badge>
+        {item.gateFailed && (
+          <Badge variant="warn" className="font-mono text-[10px]">
+            Gate 未通过
+          </Badge>
+        )}
+      </div>
+      <p className="mt-2 break-words text-sm font-medium leading-relaxed">
+        {item.text}
+      </p>
+      {(item.checkId || item.sourceText || item.origin || item.gateFailed) && (
+        <div className="mt-2 grid gap-1 font-mono text-[10px] leading-relaxed text-muted-foreground">
+          {item.checkId && (
+            <span className="break-all">条款 ID check_id: {item.checkId}</span>
+          )}
+          {item.origin && <span className="break-all">来源 origin: {item.origin}</span>}
+          {item.sourceText && (
+            <span className="break-words">原始标准 source_text: {item.sourceText}</span>
+          )}
+          {item.gateFailed && <span>Gate 失败标记 gate_failed_item</span>}
+        </div>
+      )}
+      {item.evidenceQuotes.length > 0 && (
+        <details className="mt-2 rounded-md border bg-background/50 p-2">
+          <summary className="cursor-pointer select-none text-muted-foreground">
+            证据 evidence
+          </summary>
+          <ul className="mt-2 list-disc space-y-1 pl-4">
+            {item.evidenceQuotes.map((quote, idx) => (
+              <li key={idx} className="break-words">
+                {quote}
+              </li>
+            ))}
+          </ul>
+        </details>
+      )}
+    </div>
+  );
+}
+
+function contractSeverityLabel(severity: string): string {
+  if (severity === "core") return "核心 core";
+  if (severity === "supporting") return "补充 supporting";
+  return severity || "未记录 severity";
+}
+
+function contractVerdictLabel(verdict: string): string {
+  if (verdict === "yes") return "通过 yes";
+  if (verdict === "partial") return "部分 partial";
+  if (verdict === "no") return "未通过 no";
+  if (verdict === "missing") return "缺失 missing";
+  return verdict || "未记录 verdict";
+}
+
+function contractAcceptanceDisplayItem(
+  raw: Record<string, unknown>,
+  {
+    index,
+    resultByKey,
+    gateFailedIds,
+  }: {
+    index: number;
+    resultByKey: Map<string, Record<string, unknown>>;
+    gateFailedIds: Set<string>;
+  },
+) {
+  const result = findAcceptanceItemResult(raw, resultByKey);
+  const resultPresent = result ? result.result_present !== false : false;
+  const verdict = resultPresent ? acceptanceVerdict(result) : "";
+  const verdictBucket = normalizeAcceptanceVerdict(verdict, resultPresent);
+  const text = stringValue(raw.text) || stringValue(raw.acceptance_check);
+  const source = stringValue(raw.source) || "other";
+  const severity = stringValue(raw.severity) || "supporting";
+  const checkId = stringValue(raw.check_id);
+  const sourceText = stringValue(raw.source_text);
+  const origin = stringValue(raw.origin);
+  const groupKey = contractAcceptanceGroupKey(raw);
+  const gateFailed = acceptanceCheckItemKeys(raw).some((key) =>
+    gateFailedIds.has(key),
+  );
+  const failed =
+    gateFailed || (groupKey === "reviewed_core" && verdictBucket !== "yes");
+  const evidenceQuotes = result
+    ? acceptanceEvidenceQuotes(result)
+    : acceptanceEvidenceQuotes(raw);
+
+  return {
+    raw,
+    result,
+    index,
+    key: `${checkId || normalizeAcceptanceKey(text) || sourceText || "check"}-${index}`,
+    text,
+    source,
+    severity,
+    checkId,
+    sourceText,
+    origin,
+    verdict,
+    verdictBucket,
+    groupKey,
+    gateFailed,
+    failed,
+    evidenceQuotes,
+  };
+}
+
+function contractAcceptanceDisplaySort(
+  left: ReturnType<typeof contractAcceptanceDisplayItem>,
+  right: ReturnType<typeof contractAcceptanceDisplayItem>,
+): number {
+  if (left.failed !== right.failed) return left.failed ? -1 : 1;
+  const leftGroup = contractAcceptanceGroupRank(left.groupKey);
+  const rightGroup = contractAcceptanceGroupRank(right.groupKey);
+  if (leftGroup !== rightGroup) return leftGroup - rightGroup;
+  const leftVerdict = acceptanceVerdictRank(left.verdictBucket);
+  const rightVerdict = acceptanceVerdictRank(right.verdictBucket);
+  if (leftVerdict !== rightVerdict) return leftVerdict - rightVerdict;
+  return left.index - right.index;
+}
+
+function contractAcceptanceGroupKey(
+  item: Record<string, unknown>,
+): ContractAcceptanceGroupKey {
+  const source = (stringValue(item.source) || stringValue(item.origin)).toLowerCase();
+  const severity = stringValue(item.severity).toLowerCase();
+
+  if (source === "reviewed" && severity === "core") return "reviewed_core";
+  if (source === "reviewed") return "reviewed_supporting";
+  if (source === "adaptive_context") return "adaptive_context";
+  if (source === "compiled_fallback") return "compiled_fallback";
+  if (source === "rewrite_fallback") return "rewrite_fallback";
+  if (source === "evaluator_extra") return "evaluator_extra";
+  return "other";
+}
+
+function contractAcceptanceGroupRank(group: ContractAcceptanceGroupKey): number {
+  const index = CONTRACT_ACCEPTANCE_GROUPS.findIndex((item) => item.key === group);
+  return index >= 0 ? index : CONTRACT_ACCEPTANCE_GROUPS.length;
+}
+
+function acceptanceVerdictRank(verdict: string): number {
+  const normalized = normalizeAcceptanceVerdict(verdict, true);
+  if (normalized === "no") return 0;
+  if (normalized === "partial") return 1;
+  if (normalized === "missing") return 2;
+  if (normalized === "yes") return 3;
+  return 4;
+}
+
+function normalizeAcceptanceVerdict(
+  verdict: string,
+  resultPresent: boolean,
+): "yes" | "partial" | "no" | "missing" {
+  if (!resultPresent) return "missing";
+  const normalized = verdict.trim().toLowerCase();
+  if (normalized === "yes") return "yes";
+  if (normalized === "partial") return "partial";
+  if (normalized === "no") return "no";
+  return "missing";
+}
+
+function acceptanceItemResultByKey(
+  resultItems: Record<string, unknown>[],
+  fallbackResults: Record<string, unknown>,
+): Map<string, Record<string, unknown>> {
+  const resultByKey = new Map<string, Record<string, unknown>>();
+  const addResult = (item: Record<string, unknown>) => {
+    for (const key of acceptanceCheckItemKeys(item)) {
+      if (!resultByKey.has(key)) resultByKey.set(key, item);
+    }
+  };
+
+  for (const item of resultItems) addResult(item);
+  for (const [text, value] of Object.entries(fallbackResults)) {
+    const record = recordFromUnknown(value);
+    addResult({
+      ...record,
+      text: stringValue(record.text) || text,
+      verdict: stringValue(record.verdict) || acceptanceVerdict(value),
+      result_present: record.result_present ?? true,
+    });
+  }
+
+  return resultByKey;
+}
+
+function findAcceptanceItemResult(
+  item: Record<string, unknown>,
+  resultByKey: Map<string, Record<string, unknown>>,
+): Record<string, unknown> | undefined {
+  for (const key of acceptanceCheckItemKeys(item)) {
+    const result = resultByKey.get(key);
+    if (result) return result;
+  }
+  return undefined;
+}
+
+function contractGateFailedCheckIdSet(
+  gateResult: Record<string, unknown>,
+  gateEnforcement: Record<string, unknown>,
+): Set<string> {
+  const failed = new Set<string>();
+  for (const checkId of stringList(gateEnforcement.contract_gate_failed_check_ids)) {
+    failed.add(`check_id:${checkId.toLowerCase()}`);
+  }
+  for (const item of recordArray(gateResult.failed_items)) {
+    for (const key of acceptanceCheckItemKeys(item)) failed.add(key);
+  }
+  return failed;
+}
+
+function acceptanceCheckItemKeys(item: Record<string, unknown>): string[] {
+  const keys: string[] = [];
+  const checkId = stringValue(item.check_id);
+  const text = stringValue(item.text) || stringValue(item.acceptance_check);
+  const source = stringValue(item.source);
+  const sourceText = stringValue(item.source_text);
+
+  if (checkId) keys.push(`check_id:${checkId.toLowerCase()}`);
+  const normalizedText = normalizeAcceptanceKey(text);
+  if (normalizedText) keys.push(`text:${normalizedText}`);
+  const normalizedSourceText = normalizeAcceptanceKey(sourceText);
+  if (normalizedSourceText) {
+    keys.push(`source_text:${source.toLowerCase()}|${normalizedSourceText}`);
+    keys.push(`source_text:${normalizedSourceText}`);
+  }
+  return keys;
+}
+
+function normalizeAcceptanceKey(value: string): string {
+  return value.trim().toLowerCase().replace(/\s+/g, " ");
+}
+
+function reviewedCoreSummary(
+  items: Array<ReturnType<typeof contractAcceptanceDisplayItem>>,
+): { total: number; yes: number; partial: number; no: number; missing: number } {
+  const summary = { total: 0, yes: 0, partial: 0, no: 0, missing: 0 };
+  for (const item of items) {
+    if (item.groupKey !== "reviewed_core") continue;
+    summary.total += 1;
+    if (item.verdictBucket === "yes") summary.yes += 1;
+    else if (item.verdictBucket === "partial") summary.partial += 1;
+    else if (item.verdictBucket === "no") summary.no += 1;
+    else summary.missing += 1;
+  }
+  return summary;
+}
+
+function uniqueSorted(values: string[]): string[] {
+  return Array.from(new Set(values.filter((value) => value.trim()))).sort((a, b) =>
+    a.localeCompare(b),
+  );
+}
+
+function contractAcceptanceSearchText(
+  item: Record<string, unknown>,
+  result?: Record<string, unknown>,
+): string {
+  const fields: string[] = [];
+  const add = (value: unknown) => {
+    if (typeof value === "string" && value.trim()) fields.push(value);
+    else if (typeof value === "number" || typeof value === "boolean") {
+      fields.push(formatDiagnosticScalar(value));
+    }
+  };
+  const addItem = (value: Record<string, unknown>) => {
+    add(value.text);
+    add(value.acceptance_check);
+    add(value.source);
+    add(value.severity);
+    add(value.check_id);
+    add(value.source_text);
+    add(value.origin);
+    add(value.verdict);
+    add(value.status);
+    add(value.result);
+    add(value.result_present);
+    for (const quote of acceptanceEvidenceQuotes(value)) add(quote);
+    const seedRef = recordFromUnknown(value.seed_ref);
+    add(seedRef.seed_id);
+    add(seedRef.variant_id);
+    add(seedRef.seed_version);
+    add(seedRef.variant_version);
+  };
+
+  add(contractAcceptanceGroupKey(item));
+  addItem(item);
+  if (result) addItem(result);
+  return fields.join(" ").toLowerCase();
+}
+
 function AcceptanceCheckResults({
   results,
 }: {
@@ -5347,6 +6760,111 @@ function ContractGateResultPanel({
                     : "verdict: missing",
                   `evidence_count: ${formatCountValue(item.evidence_count)}`,
                 ]
+                  .filter(Boolean)
+                  .join(" | ")}
+              </p>
+            </div>
+          ))}
+        </div>
+      )}
+    </details>
+  );
+}
+
+function GateCalibrationSummaryPanel({
+  summary,
+}: {
+  summary: Record<string, unknown>;
+}) {
+  const mode = stringValue(summary.mode);
+  if (!mode) return null;
+  const signals = stringList(summary.signals);
+  const reviewedCore = recordFromUnknown(summary.reviewed_core);
+  const failedItems = recordArray(summary.failed_items);
+  const hasHighScoreFailure = summary.high_score_gate_failed === true;
+  const hasPartialOnlyFailure = summary.partial_only_gate_failed === true;
+  const hasHardFailure = summary.hard_failure_gate_failed === true;
+  const badgeVariant =
+    hasHighScoreFailure || hasHardFailure
+      ? "warn"
+      : hasPartialOnlyFailure
+        ? "outline"
+        : "secondary";
+
+  return (
+    <details
+      className="rounded-md border border-sky-500/25 bg-sky-500/[0.035] p-2"
+      data-trace-section="gate_calibration_summary"
+    >
+      <summary className="cursor-pointer select-none font-medium">
+        Gate 校准审计{" "}
+        <span className="font-mono">gate_calibration_summary</span>
+      </summary>
+      <p className="mt-1 text-[11px] leading-relaxed text-muted-foreground">
+        Audit-only strictness signals; this panel does not change passed,
+        routing, reward, or reviewed/core gate policy.
+      </p>
+      <div className="mt-2 grid gap-2 md:grid-cols-2 lg:grid-cols-4">
+        <NodeFact label="mode" value={mode || "audit"} />
+        <NodeFact label="score_band" value={stringValue(summary.score_band) || "unknown"} />
+        <NodeFact label="score" value={formatDiagnosticScalar(summary.score)} />
+        <NodeFact label="gate_status" value={stringValue(summary.gate_status) || "—"} />
+        <NodeFact
+          label="high_score_gate_failed"
+          value={formatBooleanValue(hasHighScoreFailure)}
+        />
+        <NodeFact
+          label="partial_only_gate_failed"
+          value={formatBooleanValue(hasPartialOnlyFailure)}
+        />
+        <NodeFact
+          label="hard_failure_gate_failed"
+          value={formatBooleanValue(hasHardFailure)}
+        />
+        <NodeFact
+          label="standard_score_gate_failed"
+          value={formatBooleanValue(summary.standard_score_gate_failed === true)}
+        />
+      </div>
+      <div className="mt-2 flex flex-wrap gap-1.5">
+        <Badge variant={badgeVariant} className="font-mono text-[10px]">
+          {signals.length > 0 ? `${signals.length} signals` : "no signal"}
+        </Badge>
+        <Badge variant="outline" className="font-mono text-[10px]">
+          yes {formatCountValue(reviewedCore.yes)}
+        </Badge>
+        <Badge variant="outline" className="font-mono text-[10px]">
+          partial {formatCountValue(reviewedCore.partial)}
+        </Badge>
+        <Badge variant="outline" className="font-mono text-[10px]">
+          no {formatCountValue(reviewedCore.no)}
+        </Badge>
+        <Badge variant="outline" className="font-mono text-[10px]">
+          missing {formatCountValue(reviewedCore.missing)}
+        </Badge>
+      </div>
+      <EvidenceList label="signals" values={signals} />
+      <EvidenceList
+        label="failed_check_ids"
+        values={stringList(summary.failed_check_ids)}
+      />
+      {failedItems.length > 0 && (
+        <div className="mt-2 space-y-2">
+          {failedItems.map((item, idx) => (
+            <div
+              key={`${stringValue(item.check_id) || stringValue(item.text)}-${idx}`}
+              className="rounded-md border bg-background/50 p-2"
+            >
+              <div className="flex flex-wrap items-start justify-between gap-2">
+                <p className="min-w-0 flex-1 break-words font-medium">
+                  {stringValue(item.text) || stringValue(item.check_id) || "gate item"}
+                </p>
+                <Badge variant="outline" className="font-mono text-[10px]">
+                  {stringValue(item.reason) || stringValue(item.verdict) || "missing"}
+                </Badge>
+              </div>
+              <p className="mt-1 break-words font-mono text-[10px] text-muted-foreground">
+                {[stringValue(item.check_id), stringValue(item.verdict)]
                   .filter(Boolean)
                   .join(" | ")}
               </p>
@@ -7064,10 +8582,14 @@ function addAcceptanceCheckItemSearchFields(
   add(item.origin);
   add(item.verdict);
   add(item.result_present);
+  add(contractAcceptanceGroupKey(item));
+  add(contractAcceptanceSearchText(item));
   for (const quote of acceptanceEvidenceQuotes(item)) add(quote);
   const seedRef = recordFromUnknown(item.seed_ref);
   add(seedRef.seed_id);
   add(seedRef.variant_id);
+  add(seedRef.seed_version);
+  add(seedRef.variant_version);
 }
 
 function addContractGateResultSearchFields(
@@ -7087,6 +8609,8 @@ function addContractGateResultSearchFields(
   add(result.mode);
   add(result.status);
   add(result.would_pass);
+  add("contract_gate_result");
+  if (stringValue(result.status) === "failed") add("reviewed_core_failed");
   for (const warning of stringList(result.warnings)) add(warning);
   add(result.eligible_count);
   add(result.satisfied_count);
@@ -7099,10 +8623,190 @@ function addContractGateResultSearchFields(
   for (const severity of stringList(scope.severities)) add(severity);
   add(scope.partial_policy);
   for (const item of recordArray(result.failed_items)) {
+    add("gate_failed_item");
     addAcceptanceCheckItemSearchFields(fields, item);
     add(item.reason);
     add(item.evidence_count);
   }
+}
+
+function addGateCalibrationSummarySearchFields(
+  fields: string[],
+  summaryValue: unknown,
+) {
+  const summary = recordFromUnknown(summaryValue);
+  if (Object.keys(summary).length === 0) return;
+  const add = (value: unknown) => {
+    if (typeof value === "string" && value.trim()) fields.push(value);
+    else if (typeof value === "number" || typeof value === "boolean") {
+      fields.push(formatDiagnosticScalar(value));
+    }
+  };
+  add("gate_calibration_summary");
+  add("Gate 校准审计");
+  add("audit-only strictness signals");
+  add(summary.mode);
+  add(summary.source);
+  add(summary.score);
+  add(summary.score_band);
+  add(summary.passed);
+  add(summary.gate_mode);
+  add(summary.gate_status);
+  add(summary.gate_enforced);
+  add(summary.high_score_gate_failed);
+  add(summary.standard_score_gate_failed);
+  add(summary.partial_only_gate_failed);
+  add(summary.hard_failure_gate_failed);
+  for (const signal of stringList(summary.signals)) add(signal);
+  const reviewedCore = recordFromUnknown(summary.reviewed_core);
+  add(reviewedCore.eligible);
+  add(reviewedCore.yes);
+  add(reviewedCore.partial);
+  add(reviewedCore.no);
+  add(reviewedCore.missing);
+  add(reviewedCore.failed);
+  for (const checkId of stringList(summary.failed_check_ids)) add(checkId);
+  for (const checkId of stringList(summary.partial_check_ids)) add(checkId);
+  for (const checkId of stringList(summary.no_check_ids)) add(checkId);
+  for (const checkId of stringList(summary.missing_check_ids)) add(checkId);
+  for (const item of recordArray(summary.failed_items)) {
+    add(item.check_id);
+    add(item.text);
+    add(item.verdict);
+    add(item.reason);
+    add(item.evidence_count);
+  }
+}
+
+function addContractSemanticsSummarySearchFields(
+  fields: string[],
+  summaryValue: unknown,
+) {
+  const summary = recordFromUnknown(summaryValue);
+  if (Object.keys(summary).length === 0) return;
+  const add = (value: unknown) => {
+    if (typeof value === "string" && value.trim()) fields.push(value);
+    else if (typeof value === "number" || typeof value === "boolean") {
+      fields.push(formatDiagnosticScalar(value));
+    }
+  };
+  add("contract_semantics_summary");
+  add("must_cover = scoring scope");
+  add("reviewed core = hard gate");
+  add("reviewed supporting = quality signals");
+  add("adaptive context = context signals");
+  add(summary.hard_gap_count);
+  add(summary.soft_quality_gap_count);
+  add(summary.context_gap_count);
+  for (const key of [
+    "reviewed_core",
+    "reviewed_supporting",
+    "adaptive_context",
+    "evaluator_extra",
+  ]) {
+    add(key);
+    const bucket = recordFromUnknown(summary[key]);
+    add(bucket.total);
+    add(bucket.yes);
+    add(bucket.partial);
+    add(bucket.no);
+    add(bucket.missing);
+    for (const item of [
+      ...recordArray(bucket.failed_items),
+      ...recordArray(bucket.gap_items),
+      ...recordArray(bucket.items),
+    ]) {
+      addAcceptanceCheckItemSearchFields(fields, item);
+      add(item.reason);
+      add(item.evidence_count);
+    }
+  }
+}
+
+function addSoftGapTrainingSuggestionsSearchFields(
+  fields: string[],
+  suggestionsValue: unknown,
+) {
+  const suggestions = recordFromUnknown(suggestionsValue);
+  if (Object.keys(suggestions).length === 0) return;
+  const add = (value: unknown) => {
+    if (typeof value === "string" && value.trim()) fields.push(value);
+    else if (typeof value === "number" || typeof value === "boolean") {
+      fields.push(formatDiagnosticScalar(value));
+    }
+  };
+  const addSuggestion = (item: Record<string, unknown>) => {
+    add(item.suggestion_id);
+    add(item.source);
+    add(item.severity);
+    add(item.check_id);
+    add(item.title);
+    add(item.description);
+    add(item.text);
+    add(item.verdict);
+    add(item.reason);
+    add(item.evidence_count);
+    for (const evidence of stringList(item.evidence)) add(evidence);
+  };
+  add("soft_gap_training_suggestions");
+  add("quality suggestions");
+  add("context suggestions");
+  add("reviewed_supporting");
+  add("adaptive_context");
+  const counts = recordFromUnknown(suggestions.counts);
+  add(counts.quality);
+  add(counts.context);
+  add(counts.total);
+  for (const item of recordArray(suggestions.quality_suggestions)) {
+    addSuggestion(item);
+  }
+  for (const item of recordArray(suggestions.context_suggestions)) {
+    addSuggestion(item);
+  }
+}
+
+function addSoftFollowupHintsSearchFields(
+  fields: string[],
+  hintsValue: unknown,
+) {
+  const hints = recordFromUnknown(hintsValue);
+  if (Object.keys(hints).length === 0) return;
+  const add = (value: unknown) => {
+    if (typeof value === "string" && value.trim()) fields.push(value);
+    else if (typeof value === "number" || typeof value === "boolean") {
+      fields.push(formatDiagnosticScalar(value));
+    }
+  };
+  const addHint = (item: Record<string, unknown>) => {
+    add(item.hint_id);
+    add(item.suggestion_id);
+    add(item.source);
+    add(item.intent);
+    add(item.check_id);
+    add(item.focus);
+    add(item.text);
+    add(item.verdict);
+    add(item.reason);
+    add(item.evidence_count);
+    for (const evidence of stringList(item.evidence)) add(evidence);
+  };
+  add("soft_followup_hints");
+  add("追问意图草稿");
+  add("质量追问");
+  add("上下文追问");
+  add("probe_quality_gap");
+  add("probe_context_gap");
+  add("applied=false");
+  add(hints.mode);
+  add(hints.applied);
+  add(hints.source);
+  const counts = recordFromUnknown(hints.counts);
+  add(counts.quality);
+  add(counts.context);
+  add(counts.total);
+  for (const hintId of stringList(hints.priority_order)) add(hintId);
+  for (const item of recordArray(hints.quality_hints)) addHint(item);
+  for (const item of recordArray(hints.context_hints)) addHint(item);
 }
 
 function evaluatorScoringSearchFields(
@@ -7140,7 +8844,18 @@ function evaluatorScoringSearchFields(
     recordFromUnknown(evaluation),
   ]) {
     add(record.contract_source);
+    add(record.contract_acceptance_mode);
     add(record.contract_bar_level);
+    const contractDiagnostics = recordFromUnknown(record.contract_diagnostics);
+    add(contractDiagnostics.contract_acceptance_mode);
+    add(contractDiagnostics.reviewed_acceptance_mode);
+    add(contractDiagnostics.reviewed_acceptance_source);
+    for (const warning of stringList(contractDiagnostics.reviewed_acceptance_warnings)) {
+      add(warning);
+    }
+    for (const warning of stringList(contractDiagnostics.compiled_acceptance_warnings)) {
+      add(warning);
+    }
     addList(record.signed_by);
     addList(record.rubric_points);
     addRecord(record.rubric_coverage);
@@ -7149,6 +8864,31 @@ function evaluatorScoringSearchFields(
       addAcceptanceCheckItemSearchFields(fields, item);
     }
     addContractGateResultSearchFields(fields, record.contract_gate_result);
+    addGateCalibrationSummarySearchFields(
+      fields,
+      record.gate_calibration_summary,
+    );
+    addContractSemanticsSummarySearchFields(
+      fields,
+      record.contract_semantics_summary,
+    );
+    addSoftGapTrainingSuggestionsSearchFields(
+      fields,
+      record.soft_gap_training_suggestions,
+    );
+    addSoftFollowupHintsSearchFields(fields, record.soft_followup_hints);
+    for (const summary of recordArray(record.contract_semantics_summaries)) {
+      addContractSemanticsSummarySearchFields(fields, summary);
+    }
+    for (const summary of recordArray(record.gate_calibration_summaries)) {
+      addGateCalibrationSummarySearchFields(fields, summary);
+    }
+    for (const suggestions of recordArray(record.soft_gap_training_suggestions)) {
+      addSoftGapTrainingSuggestionsSearchFields(fields, suggestions);
+    }
+    for (const hints of recordArray(record.soft_followup_hints)) {
+      addSoftFollowupHintsSearchFields(fields, hints);
+    }
     add(record.recommended_next);
     add(record.recommended_next_plan);
     add(record.recommended_probe_intent);
@@ -7280,7 +9020,21 @@ function successorNodeSearchFields(
   addRecord(record.report_summary);
   addRecord(record.scoring_credibility);
   for (const item of recordArray(record.dimension_results)) addRecord(item);
-  for (const item of recordArray(record.dimension_evidence)) addRecord(item);
+  for (const item of recordArray(record.dimension_evidence)) {
+    addRecord(item);
+    for (const summary of recordArray(item.contract_semantics_summaries)) {
+      addContractSemanticsSummarySearchFields(fields, summary);
+    }
+    for (const summary of recordArray(item.gate_calibration_summaries)) {
+      addGateCalibrationSummarySearchFields(fields, summary);
+    }
+    for (const suggestions of recordArray(item.soft_gap_training_suggestions)) {
+      addSoftGapTrainingSuggestionsSearchFields(fields, suggestions);
+    }
+    for (const hints of recordArray(item.soft_followup_hints)) {
+      addSoftFollowupHintsSearchFields(fields, hints);
+    }
+  }
   addRecord(record.closing_chain);
   addRecord(record.workflow_artifacts);
 
@@ -7497,12 +9251,19 @@ function askQuestionSearchFields(
 
   const contractDiagnostics = recordFromUnknown(record.contract_diagnostics);
   add(contractDiagnostics.source);
+  add(contractDiagnostics.contract_acceptance_mode);
+  add(contractDiagnostics.reviewed_acceptance_mode);
+  add(contractDiagnostics.reviewed_acceptance_source);
+  add(contractDiagnostics.compiled_acceptance_applied);
+  add(contractDiagnostics.reviewed_acceptance_applied);
   add(contractDiagnostics.signed_status);
   add(contractDiagnostics.bar_level);
   add(contractDiagnostics.expected_bar_level);
   addList(contractDiagnostics.uncovered_must_cover_items);
   addList(contractDiagnostics.generic_items);
   addList(contractDiagnostics.warnings);
+  addList(contractDiagnostics.compiled_acceptance_warnings);
+  addList(contractDiagnostics.reviewed_acceptance_warnings);
 
   const askPlan = recordFromUnknown(record.ask_plan);
   add(askPlan.plan_id);

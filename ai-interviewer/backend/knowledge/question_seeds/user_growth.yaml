@@ -32,6 +32,84 @@ seeds:
         expected_signals: [能按人群和路径拆漏斗, 能提出可落地动作, 能区分相关和因果]
         anti_patterns: [直接做补贴, 只看整体转化, 不设计对照]
         good_answer_hints: [先拆漏斗, 再定位人群, 最后用实验验证]
+        reviewed_acceptance_checks:
+          - check_id: reviewed:user_growth.activation_retention.activation_dropoff:must_cover:f9ef020a:v1
+            source: must_cover
+            source_text: 目标人群
+            acceptance_check: 候选人围绕「目标人群」说明目标或问题背景、关键约束、涉及对象和本人澄清/拆解动作。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:user_growth.activation_retention.activation_dropoff:must_cover:37f12c82:v1
+            source: must_cover
+            source_text: 增长杠杆
+            acceptance_check: 候选人围绕「增长杠杆」说明增长目标、用户分层、实验或运营动作、风险控制和结果判断。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:user_growth.activation_retention.activation_dropoff:must_cover:fe600cb8:v1
+            source: must_cover
+            source_text: 数据归因
+            acceptance_check: 候选人围绕「数据归因」说明业务指标或结果口径、证据来源、归因边界和如何影响下一步判断。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:user_growth.activation_retention.activation_dropoff:must_cover:8b4b6c21:v1
+            source: must_cover
+            source_text: 复盘动作
+            acceptance_check: 候选人围绕「复盘动作」说明验证方式、反馈来源、复盘结论和下一步改进动作。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:user_growth.activation_retention.activation_dropoff:rubric_addition:32231cbc:v1
+            source: rubric_addition
+            source_text: 说明漏斗流失点
+            acceptance_check: 候选人补充说明「说明漏斗流失点」，并落到数据、案例、客户/用户反馈、流程证据、协作动作或验证方式中的至少一类具体证据。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:user_growth.activation_retention.activation_dropoff:rubric_addition:5a25f190:v1
+            source: rubric_addition
+            source_text: 说明目标人群和渠道差异
+            acceptance_check: 候选人补充说明「说明目标人群和渠道差异」，并落到数据、案例、客户/用户反馈、流程证据、协作动作或验证方式中的至少一类具体证据。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:user_growth.activation_retention.activation_dropoff:rubric_addition:edf7d103:v1
+            source: rubric_addition
+            source_text: 说明验证和复盘方式
+            acceptance_check: 候选人补充说明「说明验证和复盘方式」，并落到数据、案例、客户/用户反馈、流程证据、协作动作或验证方式中的至少一类具体证据。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
         priority: 18
         status: active
       - id: user_growth.activation_retention.retention_attribution
@@ -48,5 +126,83 @@ seeds:
         expected_signals: [能使用 cohort 或对照, 能排除节假日和版本影响, 能承认归因边界]
         anti_patterns: [留存涨了就归功于活动, 不拆人群, 不看长期效果]
         good_answer_hints: [先列干扰因素, 再设计对照, 最后给归因置信度]
+        reviewed_acceptance_checks:
+          - check_id: reviewed:user_growth.activation_retention.retention_attribution:must_cover:9edad996:v1
+            source: must_cover
+            source_text: 目标人群
+            acceptance_check: 候选人围绕「目标人群」说明目标或问题背景、关键约束、涉及对象和本人澄清/拆解动作。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:user_growth.activation_retention.retention_attribution:must_cover:db1ed6a6:v1
+            source: must_cover
+            source_text: 增长杠杆
+            acceptance_check: 候选人围绕「增长杠杆」说明增长目标、用户分层、实验或运营动作、风险控制和结果判断。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:user_growth.activation_retention.retention_attribution:must_cover:e0476deb:v1
+            source: must_cover
+            source_text: 数据归因
+            acceptance_check: 候选人围绕「数据归因」说明业务指标或结果口径、证据来源、归因边界和如何影响下一步判断。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:user_growth.activation_retention.retention_attribution:must_cover:7b965b84:v1
+            source: must_cover
+            source_text: 复盘动作
+            acceptance_check: 候选人围绕「复盘动作」说明验证方式、反馈来源、复盘结论和下一步改进动作。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:user_growth.activation_retention.retention_attribution:rubric_addition:5270cd37:v1
+            source: rubric_addition
+            source_text: 说明对照或准实验方法
+            acceptance_check: 候选人补充说明「说明对照或准实验方法」，并落到数据、案例、客户/用户反馈、流程证据、协作动作或验证方式中的至少一类具体证据。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:user_growth.activation_retention.retention_attribution:rubric_addition:2bb12d34:v1
+            source: rubric_addition
+            source_text: 说明分群与时间窗口
+            acceptance_check: 候选人补充说明「说明分群与时间窗口」，并落到数据、案例、客户/用户反馈、流程证据、协作动作或验证方式中的至少一类具体证据。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:user_growth.activation_retention.retention_attribution:rubric_addition:f28d2b64:v1
+            source: rubric_addition
+            source_text: 说明归因不确定性
+            acceptance_check: 候选人补充说明「说明归因不确定性」，并落到数据、案例、客户/用户反馈、流程证据、协作动作或验证方式中的至少一类具体证据。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
         priority: 16
         status: active

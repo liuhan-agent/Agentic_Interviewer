@@ -32,6 +32,84 @@ seeds:
         expected_signals: [能区分创建成功和处理中, 能处理客户端重试, 能避免破坏旧客户端]
         anti_patterns: [只靠前端禁用按钮, 每次请求都新建资源, 错误语义含糊]
         good_answer_hints: [先定义请求与状态流转, 再讨论重复提交和兼容演进]
+        reviewed_acceptance_checks:
+          - check_id: reviewed:coding_quality.java_api_contract_idempotency.payment_create_retry:must_cover:5c8815a6:v1
+            source: must_cover
+            source_text: 请求响应契约
+            acceptance_check: 候选人定义稳定的请求字段、响应字段、状态流转和错误返回，让调用方能可靠处理创建、查询和重试。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:coding_quality.java_api_contract_idempotency.payment_create_retry:must_cover:ef1a9d78:v1
+            source: must_cover
+            source_text: 幂等键
+            acceptance_check: 候选人说明幂等键的生成方、作用域、有效期、存储方式和冲突处理，保证重复请求返回同一业务结果。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:coding_quality.java_api_contract_idempotency.payment_create_retry:must_cover:555cbdc6:v1
+            source: must_cover
+            source_text: 错误语义
+            acceptance_check: 候选人至少区分处理中/已成功、可重试失败和不可重试失败等关键语义，并说明调用方如何安全重试或停止重试，避免超时后一律按 500 处理。
+            severity: core
+            review_status: reviewed
+            version: 2
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:coding_quality.java_api_contract_idempotency.payment_create_retry:must_cover:f17b452f:v1
+            source: must_cover
+            source_text: 向后兼容
+            acceptance_check: 候选人说明字段新增、废弃、默认值、版本化或灰度策略，避免破坏已有客户端。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:coding_quality.java_api_contract_idempotency.payment_create_retry:rubric_addition:5fa1dc7b:v1
+            source: rubric_addition
+            source_text: 说明幂等键作用域
+            acceptance_check: 候选人补充说明「说明幂等键作用域」，并给出可验证的指标、动作、样例或取舍，能对应到本题具体场景。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:coding_quality.java_api_contract_idempotency.payment_create_retry:rubric_addition:94e20398:v1
+            source: rubric_addition
+            source_text: 说明处理中和已成功响应
+            acceptance_check: 候选人补充说明「说明处理中和已成功响应」，并给出可验证的指标、动作、样例或取舍，能对应到本题具体场景。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:coding_quality.java_api_contract_idempotency.payment_create_retry:rubric_addition:fe1daf6b:v1
+            source: rubric_addition
+            source_text: 说明错误码和状态码
+            acceptance_check: 候选人补充说明「说明错误码和状态码」，并给出可验证的指标、动作、样例或取舍，能对应到本题具体场景。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
         priority: 18
         status: active
       - id: coding_quality.java_api_contract_idempotency.client_retry_status
@@ -74,14 +152,14 @@ seeds:
           - check_id: reviewed:cq_api_retry_status:core_error_semantics:v1
             source: must_cover
             source_text: 错误语义
-            acceptance_check: 候选人定义可重试、不可重试、处理中、最终成功、最终失败等错误码或状态码语义，避免超时后一律返回 500。
+            acceptance_check: 候选人至少定义处理中/最终结果、可重试失败和不可重试失败等关键状态或错误语义，让客户端能判断查询、重试或停止重试。
             severity: core
             review_status: reviewed
-            version: 1
+            version: 2
             reviewed_seed_version: 1
             reviewed_variant_version: 1
             reviewed_by: codex
-            reviewed_at: "2026-06-07"
+            reviewed_at: "2026-06-08"
           - check_id: reviewed:cq_api_retry_status:core_backward_compatibility:v1
             source: must_cover
             source_text: 向后兼容
@@ -161,6 +239,84 @@ seeds:
         expected_signals: [能抽出稳定接口, 能避免业务分支散落, 能设计单元测试和集成测试]
         anti_patterns: [只把 if else 搬到另一个类, 没有契约校验, 没有回归样例]
         good_answer_hints: [先识别变化点和不变量, 再设计策略接口, 最后补测试和灰度]
+        reviewed_acceptance_checks:
+          - check_id: reviewed:coding_quality.java_agent_extension_boundaries.ai_strategy_hot_swap:must_cover:e92709e1:v1
+            source: must_cover
+            source_text: 接口边界
+            acceptance_check: 候选人划清策略接口、领域服务、基础设施和模型/外部依赖的边界，避免业务逻辑被具体实现绑死。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:coding_quality.java_agent_extension_boundaries.ai_strategy_hot_swap:must_cover:e1020882:v1
+            source: must_cover
+            source_text: 策略注册
+            acceptance_check: 候选人说明策略注册、选择、优先级、灰度或热切换机制，并能解释冲突或默认策略处理。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:coding_quality.java_agent_extension_boundaries.ai_strategy_hot_swap:must_cover:b1f1b7c4:v1
+            source: must_cover
+            source_text: 输入校验
+            acceptance_check: 候选人说明对外部输入、模型输出、配置和上下文对象做 schema/范围/权限校验，不能默认可信。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:coding_quality.java_agent_extension_boundaries.ai_strategy_hot_swap:must_cover:792e4c7d:v1
+            source: must_cover
+            source_text: 回归测试
+            acceptance_check: 候选人给出单测、集成测试、契约测试、异常样例或灰度验证，覆盖关键分支和历史缺陷。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:coding_quality.java_agent_extension_boundaries.ai_strategy_hot_swap:rubric_addition:6b30f331:v1
+            source: rubric_addition
+            source_text: 说明策略接口和上下文对象
+            acceptance_check: 候选人补充说明「说明策略接口和上下文对象」，并给出可验证的指标、动作、样例或取舍，能对应到本题具体场景。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:coding_quality.java_agent_extension_boundaries.ai_strategy_hot_swap:rubric_addition:b2499831:v1
+            source: rubric_addition
+            source_text: 说明注册和选择规则
+            acceptance_check: 候选人补充说明「说明注册和选择规则」，并给出可验证的指标、动作、样例或取舍，能对应到本题具体场景。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:coding_quality.java_agent_extension_boundaries.ai_strategy_hot_swap:rubric_addition:e33ff05a:v1
+            source: rubric_addition
+            source_text: 说明测试覆盖和灰度发布
+            acceptance_check: 候选人补充说明「说明测试覆盖和灰度发布」，并给出可验证的指标、动作、样例或取舍，能对应到本题具体场景。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
         priority: 15
         status: active
       - id: coding_quality.java_agent_extension_boundaries.llm_output_guard
@@ -177,6 +333,84 @@ seeds:
         expected_signals: [能用运行时 schema 校验, 能隔离模型字段和业务领域对象, 能处理缺失或越界输出]
         anti_patterns: [业务代码直接信任模型输出, 只靠 prompt 约束, 缺少异常样例测试]
         good_answer_hints: [先固定业务动作契约, 再做模型输出转换和校验, 最后覆盖异常测试]
+        reviewed_acceptance_checks:
+          - check_id: reviewed:coding_quality.java_agent_extension_boundaries.llm_output_guard:must_cover:ea24bdd4:v1
+            source: must_cover
+            source_text: 接口边界
+            acceptance_check: 候选人划清策略接口、领域服务、基础设施和模型/外部依赖的边界，避免业务逻辑被具体实现绑死。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:coding_quality.java_agent_extension_boundaries.llm_output_guard:must_cover:db710681:v1
+            source: must_cover
+            source_text: 策略注册
+            acceptance_check: 候选人说明策略注册、选择、优先级、灰度或热切换机制，并能解释冲突或默认策略处理。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:coding_quality.java_agent_extension_boundaries.llm_output_guard:must_cover:3d98db87:v1
+            source: must_cover
+            source_text: 输入校验
+            acceptance_check: 候选人说明对外部输入、模型输出、配置和上下文对象做 schema/范围/权限校验，不能默认可信。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:coding_quality.java_agent_extension_boundaries.llm_output_guard:must_cover:dbba468d:v1
+            source: must_cover
+            source_text: 回归测试
+            acceptance_check: 候选人给出单测、集成测试、契约测试、异常样例或灰度验证，覆盖关键分支和历史缺陷。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:coding_quality.java_agent_extension_boundaries.llm_output_guard:rubric_addition:7d989535:v1
+            source: rubric_addition
+            source_text: 说明模型输出不可信
+            acceptance_check: 候选人补充说明「说明模型输出不可信」，并给出可验证的指标、动作、样例或取舍，能对应到本题具体场景。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:coding_quality.java_agent_extension_boundaries.llm_output_guard:rubric_addition:28ea2341:v1
+            source: rubric_addition
+            source_text: 说明防腐转换层
+            acceptance_check: 候选人补充说明「说明防腐转换层」，并给出可验证的指标、动作、样例或取舍，能对应到本题具体场景。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:coding_quality.java_agent_extension_boundaries.llm_output_guard:rubric_addition:39e1d1ae:v1
+            source: rubric_addition
+            source_text: 说明异常兜底和回归样例
+            acceptance_check: 候选人补充说明「说明异常兜底和回归样例」，并给出可验证的指标、动作、样例或取舍，能对应到本题具体场景。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
         priority: 13
         status: active
 
@@ -212,6 +446,84 @@ seeds:
         expected_signals: [能把外部依赖封装到端口, 能覆盖异常和边界条件, 能区分单测和集成测试价值]
         anti_patterns: [所有逻辑塞在一个 service 方法, 单测只覆盖 happy path, 测试依赖真实外部服务]
         good_answer_hints: [先拆职责和依赖方向, 再设计测试夹具, 最后补关键路径回归]
+        reviewed_acceptance_checks:
+          - check_id: reviewed:coding_quality.java_service_testability.transaction_service_boundary:must_cover:ce4d8b6c:v1
+            source: must_cover
+            source_text: 分层边界
+            acceptance_check: 候选人说明 controller、service、domain、repository 或 infrastructure 的职责边界，并避免跨层依赖混乱。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:coding_quality.java_service_testability.transaction_service_boundary:must_cover:11d2609f:v1
+            source: must_cover
+            source_text: 依赖隔离
+            acceptance_check: 候选人说明用接口、mock/fake、测试容器或适配器隔离外部依赖，使核心逻辑可以稳定测试。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:coding_quality.java_service_testability.transaction_service_boundary:must_cover:dd451458:v1
+            source: must_cover
+            source_text: 测试金字塔
+            acceptance_check: 候选人说明单测、集成测试、端到端测试的比例和边界，把多数业务规则放在快速稳定的测试层。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:coding_quality.java_service_testability.transaction_service_boundary:must_cover:67b77ba4:v1
+            source: must_cover
+            source_text: 回归样例
+            acceptance_check: 候选人列出覆盖正常、异常、边界、并发或重复执行的关键回归样例，并说明数据准备方式。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:coding_quality.java_service_testability.transaction_service_boundary:rubric_addition:6c7af010:v1
+            source: rubric_addition
+            source_text: 说明领域逻辑和基础设施依赖分离
+            acceptance_check: 候选人补充说明「说明领域逻辑和基础设施依赖分离」，并给出可验证的指标、动作、样例或取舍，能对应到本题具体场景。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:coding_quality.java_service_testability.transaction_service_boundary:rubric_addition:4b65343a:v1
+            source: rubric_addition
+            source_text: 说明 mock 与真实集成测试边界
+            acceptance_check: 候选人补充说明「说明 mock 与真实集成测试边界」，并给出可验证的指标、动作、样例或取舍，能对应到本题具体场景。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:coding_quality.java_service_testability.transaction_service_boundary:rubric_addition:31c2b378:v1
+            source: rubric_addition
+            source_text: 说明关键回归样例
+            acceptance_check: 候选人补充说明「说明关键回归样例」，并给出可验证的指标、动作、样例或取舍，能对应到本题具体场景。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
         priority: 15
         status: active
       - id: coding_quality.java_service_testability.async_job_test
@@ -228,6 +540,84 @@ seeds:
         expected_signals: [能覆盖可重试与不可重试失败, 能验证重复执行无副作用, 能把关键 bug 固化成回归用例]
         anti_patterns: [只测成功路径, 不模拟重复消息, 不断言最终状态]
         good_answer_hints: [先画状态机, 再列失败场景, 最后把历史问题做成固定用例]
+        reviewed_acceptance_checks:
+          - check_id: reviewed:coding_quality.java_service_testability.async_job_test:must_cover:8af9c741:v1
+            source: must_cover
+            source_text: 分层边界
+            acceptance_check: 候选人说明 controller、service、domain、repository 或 infrastructure 的职责边界，并避免跨层依赖混乱。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:coding_quality.java_service_testability.async_job_test:must_cover:e938c166:v1
+            source: must_cover
+            source_text: 依赖隔离
+            acceptance_check: 候选人说明用接口、mock/fake、测试容器或适配器隔离外部依赖，使核心逻辑可以稳定测试。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:coding_quality.java_service_testability.async_job_test:must_cover:1b8a8d85:v1
+            source: must_cover
+            source_text: 测试金字塔
+            acceptance_check: 候选人说明单测、集成测试、端到端测试的比例和边界，把多数业务规则放在快速稳定的测试层。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:coding_quality.java_service_testability.async_job_test:must_cover:81d11424:v1
+            source: must_cover
+            source_text: 回归样例
+            acceptance_check: 候选人列出覆盖正常、异常、边界、并发或重复执行的关键回归样例，并说明数据准备方式。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:coding_quality.java_service_testability.async_job_test:rubric_addition:164bdca3:v1
+            source: rubric_addition
+            source_text: 说明状态迁移覆盖
+            acceptance_check: 候选人补充说明「说明状态迁移覆盖」，并给出可验证的指标、动作、样例或取舍，能对应到本题具体场景。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:coding_quality.java_service_testability.async_job_test:rubric_addition:657d9c90:v1
+            source: rubric_addition
+            source_text: 说明失败注入和重复执行测试
+            acceptance_check: 候选人补充说明「说明失败注入和重复执行测试」，并给出可验证的指标、动作、样例或取舍，能对应到本题具体场景。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:coding_quality.java_service_testability.async_job_test:rubric_addition:bf742ae3:v1
+            source: rubric_addition
+            source_text: 说明测试数据可维护
+            acceptance_check: 候选人补充说明「说明测试数据可维护」，并给出可验证的指标、动作、样例或取舍，能对应到本题具体场景。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
         priority: 13
         status: active
 
@@ -263,6 +653,84 @@ seeds:
         expected_signals: [能设计清晰组件契约, 能避免状态耦合, 能覆盖关键业务规则测试]
         anti_patterns: [把所有逻辑塞进一个组件, 没有测试策略, API 随需求随意扩张]
         good_answer_hints: [先定义使用方契约, 再拆状态和规则, 最后补测试和版本演进]
+        reviewed_acceptance_checks:
+          - check_id: reviewed:coding_quality.frontend_component_maintainability.form_builder:must_cover:c442e455:v1
+            source: must_cover
+            source_text: 组件边界
+            acceptance_check: 候选人围绕「组件边界」说明代码、模块或 API 的具体设计约束、可测试性或演进策略，并指出如何通过测试或发布流程验证。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:coding_quality.frontend_component_maintainability.form_builder:must_cover:a62d335c:v1
+            source: must_cover
+            source_text: 状态管理
+            acceptance_check: 候选人围绕「状态管理」说明代码、模块或 API 的具体设计约束、可测试性或演进策略，并指出如何通过测试或发布流程验证。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:coding_quality.frontend_component_maintainability.form_builder:must_cover:b7cc35d0:v1
+            source: must_cover
+            source_text: 测试策略
+            acceptance_check: 候选人围绕「测试策略」给出测试或评估设计，说明样例来源、覆盖边界、通过标准和回归/线上验证方式。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:coding_quality.frontend_component_maintainability.form_builder:must_cover:f08ade66:v1
+            source: must_cover
+            source_text: 可演进性
+            acceptance_check: 候选人围绕「可演进性」说明兼容、灰度、回滚或迁移边界，包含触发条件、风险控制和验证方式。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:coding_quality.frontend_component_maintainability.form_builder:rubric_addition:40a50f4f:v1
+            source: rubric_addition
+            source_text: 说明受控与非受控边界
+            acceptance_check: 候选人补充说明「说明受控与非受控边界」，并给出接口约束、模块边界、测试样例、兼容策略或发布验证中的至少一类具体内容。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:coding_quality.frontend_component_maintainability.form_builder:rubric_addition:236c2925:v1
+            source: rubric_addition
+            source_text: 说明联动逻辑隔离
+            acceptance_check: 候选人补充说明「说明联动逻辑隔离」，并给出接口约束、模块边界、测试样例、兼容策略或发布验证中的至少一类具体内容。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:coding_quality.frontend_component_maintainability.form_builder:rubric_addition:50209147:v1
+            source: rubric_addition
+            source_text: 说明单测和集成测试
+            acceptance_check: 候选人补充说明「说明单测和集成测试」，并给出接口约束、模块边界、测试样例、兼容策略或发布验证中的至少一类具体内容。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
         priority: 15
         status: active
       - id: coding_quality.frontend_component_maintainability.design_system
@@ -279,6 +747,84 @@ seeds:
         expected_signals: [能平衡统一和业务灵活性, 能设计渐进迁移, 能建立质量门禁]
         anti_patterns: [一次性推翻重写, 只统一样式不统一行为, 没有迁移计划]
         good_answer_hints: [先盘点重复模式, 再设计稳定 API, 最后灰度迁移和测试兜底]
+        reviewed_acceptance_checks:
+          - check_id: reviewed:coding_quality.frontend_component_maintainability.design_system:must_cover:5a9457f6:v1
+            source: must_cover
+            source_text: 组件边界
+            acceptance_check: 候选人围绕「组件边界」说明代码、模块或 API 的具体设计约束、可测试性或演进策略，并指出如何通过测试或发布流程验证。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:coding_quality.frontend_component_maintainability.design_system:must_cover:a303d16d:v1
+            source: must_cover
+            source_text: 状态管理
+            acceptance_check: 候选人围绕「状态管理」说明代码、模块或 API 的具体设计约束、可测试性或演进策略，并指出如何通过测试或发布流程验证。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:coding_quality.frontend_component_maintainability.design_system:must_cover:763f53ed:v1
+            source: must_cover
+            source_text: 测试策略
+            acceptance_check: 候选人围绕「测试策略」给出测试或评估设计，说明样例来源、覆盖边界、通过标准和回归/线上验证方式。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:coding_quality.frontend_component_maintainability.design_system:must_cover:cd8a9427:v1
+            source: must_cover
+            source_text: 可演进性
+            acceptance_check: 候选人围绕「可演进性」说明兼容、灰度、回滚或迁移边界，包含触发条件、风险控制和验证方式。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:coding_quality.frontend_component_maintainability.design_system:rubric_addition:8542a822:v1
+            source: rubric_addition
+            source_text: 说明组件抽象边界
+            acceptance_check: 候选人补充说明「说明组件抽象边界」，并给出接口约束、模块边界、测试样例、兼容策略或发布验证中的至少一类具体内容。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:coding_quality.frontend_component_maintainability.design_system:rubric_addition:22a5329e:v1
+            source: rubric_addition
+            source_text: 说明旧用法迁移策略
+            acceptance_check: 候选人补充说明「说明旧用法迁移策略」，并给出接口约束、模块边界、测试样例、兼容策略或发布验证中的至少一类具体内容。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:coding_quality.frontend_component_maintainability.design_system:rubric_addition:1eea7e2b:v1
+            source: rubric_addition
+            source_text: 说明视觉和交互回归测试
+            acceptance_check: 候选人补充说明「说明视觉和交互回归测试」，并给出接口约束、模块边界、测试样例、兼容策略或发布验证中的至少一类具体内容。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
         priority: 13
         status: active
 
@@ -314,6 +860,84 @@ seeds:
         expected_signals: [能避免循环依赖, 能分业务模块和基础模块, 能设计模块级测试]
         anti_patterns: [所有模块互相调用, 公共组件承载业务逻辑, 没有发布影响评估]
         good_answer_hints: [先按业务和基础能力分层, 再治理依赖, 最后补测试和发布检查]
+        reviewed_acceptance_checks:
+          - check_id: reviewed:coding_quality.mobile_modular_quality.feature_module:must_cover:8b691d10:v1
+            source: must_cover
+            source_text: 模块边界
+            acceptance_check: 候选人围绕「模块边界」说明代码、模块或 API 的具体设计约束、可测试性或演进策略，并指出如何通过测试或发布流程验证。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:coding_quality.mobile_modular_quality.feature_module:must_cover:82344594:v1
+            source: must_cover
+            source_text: 依赖管理
+            acceptance_check: 候选人围绕「依赖管理」说明代码、模块或 API 的具体设计约束、可测试性或演进策略，并指出如何通过测试或发布流程验证。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:coding_quality.mobile_modular_quality.feature_module:must_cover:a4d8d932:v1
+            source: must_cover
+            source_text: 测试策略
+            acceptance_check: 候选人围绕「测试策略」给出测试或评估设计，说明样例来源、覆盖边界、通过标准和回归/线上验证方式。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:coding_quality.mobile_modular_quality.feature_module:must_cover:cb0f19fe:v1
+            source: must_cover
+            source_text: 发布影响
+            acceptance_check: 候选人围绕「发布影响」说明兼容、灰度、回滚或迁移边界，包含触发条件、风险控制和验证方式。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:coding_quality.mobile_modular_quality.feature_module:rubric_addition:e1d2c682:v1
+            source: rubric_addition
+            source_text: 说明模块划分原则
+            acceptance_check: 候选人补充说明「说明模块划分原则」，并给出接口约束、模块边界、测试样例、兼容策略或发布验证中的至少一类具体内容。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:coding_quality.mobile_modular_quality.feature_module:rubric_addition:24da5f3c:v1
+            source: rubric_addition
+            source_text: 说明公共组件边界
+            acceptance_check: 候选人补充说明「说明公共组件边界」，并给出接口约束、模块边界、测试样例、兼容策略或发布验证中的至少一类具体内容。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:coding_quality.mobile_modular_quality.feature_module:rubric_addition:bf75e00f:v1
+            source: rubric_addition
+            source_text: 说明依赖和测试策略
+            acceptance_check: 候选人补充说明「说明依赖和测试策略」，并给出接口约束、模块边界、测试样例、兼容策略或发布验证中的至少一类具体内容。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
         priority: 15
         status: active
       - id: coding_quality.mobile_modular_quality.cross_platform
@@ -330,6 +954,84 @@ seeds:
         expected_signals: [能区分业务逻辑复用和原生差异, 能建立多端验收用例, 能控制灰度风险]
         anti_patterns: [强行完全一致, 不处理平台能力差异, 只靠人工回归]
         good_answer_hints: [先定义复用层级, 再列平台差异, 最后做自动化和灰度]
+        reviewed_acceptance_checks:
+          - check_id: reviewed:coding_quality.mobile_modular_quality.cross_platform:must_cover:1d263132:v1
+            source: must_cover
+            source_text: 模块边界
+            acceptance_check: 候选人围绕「模块边界」说明代码、模块或 API 的具体设计约束、可测试性或演进策略，并指出如何通过测试或发布流程验证。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:coding_quality.mobile_modular_quality.cross_platform:must_cover:a20f9793:v1
+            source: must_cover
+            source_text: 依赖管理
+            acceptance_check: 候选人围绕「依赖管理」说明代码、模块或 API 的具体设计约束、可测试性或演进策略，并指出如何通过测试或发布流程验证。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:coding_quality.mobile_modular_quality.cross_platform:must_cover:ac64bfe5:v1
+            source: must_cover
+            source_text: 测试策略
+            acceptance_check: 候选人围绕「测试策略」给出测试或评估设计，说明样例来源、覆盖边界、通过标准和回归/线上验证方式。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:coding_quality.mobile_modular_quality.cross_platform:must_cover:308de2b9:v1
+            source: must_cover
+            source_text: 发布影响
+            acceptance_check: 候选人围绕「发布影响」说明兼容、灰度、回滚或迁移边界，包含触发条件、风险控制和验证方式。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:coding_quality.mobile_modular_quality.cross_platform:rubric_addition:d2b818fc:v1
+            source: rubric_addition
+            source_text: 说明跨端复用边界
+            acceptance_check: 候选人补充说明「说明跨端复用边界」，并给出接口约束、模块边界、测试样例、兼容策略或发布验证中的至少一类具体内容。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:coding_quality.mobile_modular_quality.cross_platform:rubric_addition:a6af98ca:v1
+            source: rubric_addition
+            source_text: 说明平台差异处理
+            acceptance_check: 候选人补充说明「说明平台差异处理」，并给出接口约束、模块边界、测试样例、兼容策略或发布验证中的至少一类具体内容。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:coding_quality.mobile_modular_quality.cross_platform:rubric_addition:588c0d0d:v1
+            source: rubric_addition
+            source_text: 说明自动化和灰度验证
+            acceptance_check: 候选人补充说明「说明自动化和灰度验证」，并给出接口约束、模块边界、测试样例、兼容策略或发布验证中的至少一类具体内容。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
         priority: 13
         status: active
 
@@ -365,6 +1067,84 @@ seeds:
         expected_signals: [能抽出字段级/区块级/表单级组件, 能让局部状态不污染全局, 能定义校验执行时机]
         anti_patterns: [大表单一个组件, 全状态放最外层, 校验全在提交时]
         good_answer_hints: [先分层, 再隔离, 最后校验]
+        reviewed_acceptance_checks:
+          - check_id: reviewed:coding_quality.frontend_web_form_composition.layered_design:must_cover:87a20cd4:v1
+            source: must_cover
+            source_text: 组件抽象
+            acceptance_check: 候选人围绕「组件抽象」说明代码、模块或 API 的具体设计约束、可测试性或演进策略，并指出如何通过测试或发布流程验证。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:coding_quality.frontend_web_form_composition.layered_design:must_cover:6b77b686:v1
+            source: must_cover
+            source_text: 状态隔离
+            acceptance_check: 候选人围绕「状态隔离」说明代码、模块或 API 的具体设计约束、可测试性或演进策略，并指出如何通过测试或发布流程验证。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:coding_quality.frontend_web_form_composition.layered_design:must_cover:2006e564:v1
+            source: must_cover
+            source_text: 校验链路
+            acceptance_check: 候选人围绕「校验链路」说明代码、模块或 API 的具体设计约束、可测试性或演进策略，并指出如何通过测试或发布流程验证。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:coding_quality.frontend_web_form_composition.layered_design:must_cover:c7e080fc:v1
+            source: must_cover
+            source_text: 可测试性
+            acceptance_check: 候选人围绕「可测试性」给出测试或评估设计，说明样例来源、覆盖边界、通过标准和回归/线上验证方式。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:coding_quality.frontend_web_form_composition.layered_design:rubric_addition:bc6fc53a:v1
+            source: rubric_addition
+            source_text: 说明组件分层
+            acceptance_check: 候选人补充说明「说明组件分层」，并给出接口约束、模块边界、测试样例、兼容策略或发布验证中的至少一类具体内容。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:coding_quality.frontend_web_form_composition.layered_design:rubric_addition:ea7d8664:v1
+            source: rubric_addition
+            source_text: 说明状态隔离
+            acceptance_check: 候选人补充说明「说明状态隔离」，并给出接口约束、模块边界、测试样例、兼容策略或发布验证中的至少一类具体内容。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:coding_quality.frontend_web_form_composition.layered_design:rubric_addition:c7bcc019:v1
+            source: rubric_addition
+            source_text: 说明校验链路
+            acceptance_check: 候选人补充说明「说明校验链路」，并给出接口约束、模块边界、测试样例、兼容策略或发布验证中的至少一类具体内容。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
         priority: 13
         status: active
       - id: coding_quality.frontend_web_form_composition.dynamic_field
@@ -381,6 +1161,84 @@ seeds:
         expected_signals: [能维护字段依赖图, 能隔离卸载字段的值, 能动态启用校验规则]
         anti_patterns: [字段卸载丢值, 全表单刷新, 校验规则硬编码]
         good_answer_hints: [先建依赖图, 再保留状态, 最后动态校验]
+        reviewed_acceptance_checks:
+          - check_id: reviewed:coding_quality.frontend_web_form_composition.dynamic_field:must_cover:68642931:v1
+            source: must_cover
+            source_text: 组件抽象
+            acceptance_check: 候选人围绕「组件抽象」说明代码、模块或 API 的具体设计约束、可测试性或演进策略，并指出如何通过测试或发布流程验证。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:coding_quality.frontend_web_form_composition.dynamic_field:must_cover:9c6f06f0:v1
+            source: must_cover
+            source_text: 状态隔离
+            acceptance_check: 候选人围绕「状态隔离」说明代码、模块或 API 的具体设计约束、可测试性或演进策略，并指出如何通过测试或发布流程验证。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:coding_quality.frontend_web_form_composition.dynamic_field:must_cover:3e59318f:v1
+            source: must_cover
+            source_text: 校验链路
+            acceptance_check: 候选人围绕「校验链路」说明代码、模块或 API 的具体设计约束、可测试性或演进策略，并指出如何通过测试或发布流程验证。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:coding_quality.frontend_web_form_composition.dynamic_field:must_cover:2b9f1853:v1
+            source: must_cover
+            source_text: 可测试性
+            acceptance_check: 候选人围绕「可测试性」给出测试或评估设计，说明样例来源、覆盖边界、通过标准和回归/线上验证方式。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:coding_quality.frontend_web_form_composition.dynamic_field:rubric_addition:5fe8e11e:v1
+            source: rubric_addition
+            source_text: 说明字段依赖图
+            acceptance_check: 候选人补充说明「说明字段依赖图」，并给出接口约束、模块边界、测试样例、兼容策略或发布验证中的至少一类具体内容。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:coding_quality.frontend_web_form_composition.dynamic_field:rubric_addition:ae96a013:v1
+            source: rubric_addition
+            source_text: 说明状态保留策略
+            acceptance_check: 候选人补充说明「说明状态保留策略」，并给出接口约束、模块边界、测试样例、兼容策略或发布验证中的至少一类具体内容。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:coding_quality.frontend_web_form_composition.dynamic_field:rubric_addition:c64466d1:v1
+            source: rubric_addition
+            source_text: 说明动态校验
+            acceptance_check: 候选人补充说明「说明动态校验」，并给出接口约束、模块边界、测试样例、兼容策略或发布验证中的至少一类具体内容。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
         priority: 11
         status: active
 
@@ -416,6 +1274,84 @@ seeds:
         expected_signals: [能分组 props（外观/行为/数据）, 能用 discriminated union 表达变体, 能自动生成文档]
         anti_patterns: [所有 props 全 optional, 没分组, 手工维护文档]
         good_answer_hints: [先分组 props, 再定必传, 最后自动文档]
+        reviewed_acceptance_checks:
+          - check_id: reviewed:coding_quality.frontend_web_type_contract.public_api:must_cover:14614833:v1
+            source: must_cover
+            source_text: 类型契约
+            acceptance_check: 候选人围绕「类型契约」说明代码、模块或 API 的具体设计约束、可测试性或演进策略，并指出如何通过测试或发布流程验证。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:coding_quality.frontend_web_type_contract.public_api:must_cover:a0af38f4:v1
+            source: must_cover
+            source_text: 公共/私有边界
+            acceptance_check: 候选人围绕「公共/私有边界」说明代码、模块或 API 的具体设计约束、可测试性或演进策略，并指出如何通过测试或发布流程验证。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:coding_quality.frontend_web_type_contract.public_api:must_cover:d22d4026:v1
+            source: must_cover
+            source_text: 文档与示例
+            acceptance_check: 候选人围绕「文档与示例」说明代码、模块或 API 的具体设计约束、可测试性或演进策略，并指出如何通过测试或发布流程验证。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:coding_quality.frontend_web_type_contract.public_api:must_cover:4ab24154:v1
+            source: must_cover
+            source_text: 演进策略
+            acceptance_check: 候选人围绕「演进策略」说明兼容、灰度、回滚或迁移边界，包含触发条件、风险控制和验证方式。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:coding_quality.frontend_web_type_contract.public_api:rubric_addition:86d58f92:v1
+            source: rubric_addition
+            source_text: 说明 props 分组
+            acceptance_check: 候选人补充说明「说明 props 分组」，并给出接口约束、模块边界、测试样例、兼容策略或发布验证中的至少一类具体内容。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:coding_quality.frontend_web_type_contract.public_api:rubric_addition:62ae446e:v1
+            source: rubric_addition
+            source_text: 说明默认值与必传
+            acceptance_check: 候选人补充说明「说明默认值与必传」，并给出接口约束、模块边界、测试样例、兼容策略或发布验证中的至少一类具体内容。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:coding_quality.frontend_web_type_contract.public_api:rubric_addition:111678ed:v1
+            source: rubric_addition
+            source_text: 说明文档生成
+            acceptance_check: 候选人补充说明「说明文档生成」，并给出接口约束、模块边界、测试样例、兼容策略或发布验证中的至少一类具体内容。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
         priority: 11
         status: active
       - id: coding_quality.frontend_web_type_contract.evolution
@@ -432,6 +1368,84 @@ seeds:
         expected_signals: [能在类型上加 @deprecated, 能用编译期警告引导迁移, 能监控旧 API 使用度]
         anti_patterns: [直接删 props, 没迁移期, 不监控使用度]
         good_answer_hints: [先标 deprecation, 再过渡期, 最后看监控下线]
+        reviewed_acceptance_checks:
+          - check_id: reviewed:coding_quality.frontend_web_type_contract.evolution:must_cover:4592de6d:v1
+            source: must_cover
+            source_text: 类型契约
+            acceptance_check: 候选人围绕「类型契约」说明代码、模块或 API 的具体设计约束、可测试性或演进策略，并指出如何通过测试或发布流程验证。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:coding_quality.frontend_web_type_contract.evolution:must_cover:0a0c3af4:v1
+            source: must_cover
+            source_text: 公共/私有边界
+            acceptance_check: 候选人围绕「公共/私有边界」说明代码、模块或 API 的具体设计约束、可测试性或演进策略，并指出如何通过测试或发布流程验证。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:coding_quality.frontend_web_type_contract.evolution:must_cover:909003d8:v1
+            source: must_cover
+            source_text: 文档与示例
+            acceptance_check: 候选人围绕「文档与示例」说明代码、模块或 API 的具体设计约束、可测试性或演进策略，并指出如何通过测试或发布流程验证。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:coding_quality.frontend_web_type_contract.evolution:must_cover:8f9677d5:v1
+            source: must_cover
+            source_text: 演进策略
+            acceptance_check: 候选人围绕「演进策略」说明兼容、灰度、回滚或迁移边界，包含触发条件、风险控制和验证方式。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:coding_quality.frontend_web_type_contract.evolution:rubric_addition:ac7b6619:v1
+            source: rubric_addition
+            source_text: 说明 deprecation 类型
+            acceptance_check: 候选人补充说明「说明 deprecation 类型」，并给出接口约束、模块边界、测试样例、兼容策略或发布验证中的至少一类具体内容。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:coding_quality.frontend_web_type_contract.evolution:rubric_addition:56413bad:v1
+            source: rubric_addition
+            source_text: 说明编译期警告
+            acceptance_check: 候选人补充说明「说明编译期警告」，并给出接口约束、模块边界、测试样例、兼容策略或发布验证中的至少一类具体内容。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:coding_quality.frontend_web_type_contract.evolution:rubric_addition:631576d9:v1
+            source: rubric_addition
+            source_text: 说明使用度监控
+            acceptance_check: 候选人补充说明「说明使用度监控」，并给出接口约束、模块边界、测试样例、兼容策略或发布验证中的至少一类具体内容。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
         priority: 10
         status: active
 
@@ -467,6 +1481,84 @@ seeds:
         expected_signals: [能区分单测/集成/E2E 适用范围, 能合理选工具, 能用 coverage / 回归监控]
         anti_patterns: [全 E2E 跑慢, 全单测覆盖不足, 没 CI 集成]
         good_answer_hints: [先分层, 再选工具, 最后接 CI]
+        reviewed_acceptance_checks:
+          - check_id: reviewed:coding_quality.frontend_web_testing_strategy.pyramid:must_cover:ed572f55:v1
+            source: must_cover
+            source_text: 测试金字塔
+            acceptance_check: 候选人围绕「测试金字塔」给出测试或评估设计，说明样例来源、覆盖边界、通过标准和回归/线上验证方式。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:coding_quality.frontend_web_testing_strategy.pyramid:must_cover:d9d91003:v1
+            source: must_cover
+            source_text: 工具选择
+            acceptance_check: 候选人围绕「工具选择」说明代码、模块或 API 的具体设计约束、可测试性或演进策略，并指出如何通过测试或发布流程验证。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:coding_quality.frontend_web_testing_strategy.pyramid:must_cover:b591ff73:v1
+            source: must_cover
+            source_text: mock 策略
+            acceptance_check: 候选人围绕「mock 策略」说明代码、模块或 API 的具体设计约束、可测试性或演进策略，并指出如何通过测试或发布流程验证。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:coding_quality.frontend_web_testing_strategy.pyramid:must_cover:2d159ed5:v1
+            source: must_cover
+            source_text: CI 集成
+            acceptance_check: 候选人围绕「CI 集成」说明代码、模块或 API 的具体设计约束、可测试性或演进策略，并指出如何通过测试或发布流程验证。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:coding_quality.frontend_web_testing_strategy.pyramid:rubric_addition:1b9c0646:v1
+            source: rubric_addition
+            source_text: 说明三层分工
+            acceptance_check: 候选人补充说明「说明三层分工」，并给出接口约束、模块边界、测试样例、兼容策略或发布验证中的至少一类具体内容。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:coding_quality.frontend_web_testing_strategy.pyramid:rubric_addition:2af04357:v1
+            source: rubric_addition
+            source_text: 说明工具选择
+            acceptance_check: 候选人补充说明「说明工具选择」，并给出接口约束、模块边界、测试样例、兼容策略或发布验证中的至少一类具体内容。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:coding_quality.frontend_web_testing_strategy.pyramid:rubric_addition:7260add9:v1
+            source: rubric_addition
+            source_text: 说明 CI 集成
+            acceptance_check: 候选人补充说明「说明 CI 集成」，并给出接口约束、模块边界、测试样例、兼容策略或发布验证中的至少一类具体内容。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
         priority: 10
         status: active
       - id: coding_quality.frontend_web_testing_strategy.flaky_test
@@ -483,6 +1575,84 @@ seeds:
         expected_signals: [能区分环境/时序/数据三类 flaky 根因, 能用 quarantine 隔离, 能用对照实验决定保留]
         anti_patterns: [全部禁用 E2E, 一直跑红失去 CI 意义, 不分类根因]
         good_answer_hints: [先分类根因, 再 quarantine, 最后决定]
+        reviewed_acceptance_checks:
+          - check_id: reviewed:coding_quality.frontend_web_testing_strategy.flaky_test:must_cover:ae25b13e:v1
+            source: must_cover
+            source_text: 测试金字塔
+            acceptance_check: 候选人围绕「测试金字塔」给出测试或评估设计，说明样例来源、覆盖边界、通过标准和回归/线上验证方式。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:coding_quality.frontend_web_testing_strategy.flaky_test:must_cover:104add2f:v1
+            source: must_cover
+            source_text: 工具选择
+            acceptance_check: 候选人围绕「工具选择」说明代码、模块或 API 的具体设计约束、可测试性或演进策略，并指出如何通过测试或发布流程验证。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:coding_quality.frontend_web_testing_strategy.flaky_test:must_cover:648b3e2e:v1
+            source: must_cover
+            source_text: mock 策略
+            acceptance_check: 候选人围绕「mock 策略」说明代码、模块或 API 的具体设计约束、可测试性或演进策略，并指出如何通过测试或发布流程验证。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:coding_quality.frontend_web_testing_strategy.flaky_test:must_cover:5f9c9085:v1
+            source: must_cover
+            source_text: CI 集成
+            acceptance_check: 候选人围绕「CI 集成」说明代码、模块或 API 的具体设计约束、可测试性或演进策略，并指出如何通过测试或发布流程验证。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:coding_quality.frontend_web_testing_strategy.flaky_test:rubric_addition:4442cc78:v1
+            source: rubric_addition
+            source_text: 说明 flaky 根因分类
+            acceptance_check: 候选人补充说明「说明 flaky 根因分类」，并给出接口约束、模块边界、测试样例、兼容策略或发布验证中的至少一类具体内容。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:coding_quality.frontend_web_testing_strategy.flaky_test:rubric_addition:1313f856:v1
+            source: rubric_addition
+            source_text: 说明保留/修复/替换决策
+            acceptance_check: 候选人补充说明「说明保留/修复/替换决策」，并给出接口约束、模块边界、测试样例、兼容策略或发布验证中的至少一类具体内容。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:coding_quality.frontend_web_testing_strategy.flaky_test:rubric_addition:edbd6d9c:v1
+            source: rubric_addition
+            source_text: 说明 quarantine 机制
+            acceptance_check: 候选人补充说明「说明 quarantine 机制」，并给出接口约束、模块边界、测试样例、兼容策略或发布验证中的至少一类具体内容。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
         priority: 9
         status: active
 
@@ -518,6 +1688,84 @@ seeds:
         expected_signals: [能按业务/能力划模块, 能用路由/事件通信, 能给渐进迁移路径]
         anti_patterns: [一次大重构, 模块互相强耦合, 没演进规划]
         good_answer_hints: [先分边界, 再定通信, 最后渐进迁移]
+        reviewed_acceptance_checks:
+          - check_id: reviewed:coding_quality.mobile_modularization.boundary:must_cover:d0064d90:v1
+            source: must_cover
+            source_text: 模块边界
+            acceptance_check: 候选人围绕「模块边界」说明代码、模块或 API 的具体设计约束、可测试性或演进策略，并指出如何通过测试或发布流程验证。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:coding_quality.mobile_modularization.boundary:must_cover:20cc822b:v1
+            source: must_cover
+            source_text: 通信机制
+            acceptance_check: 候选人围绕「通信机制」说明代码、模块或 API 的具体设计约束、可测试性或演进策略，并指出如何通过测试或发布流程验证。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:coding_quality.mobile_modularization.boundary:must_cover:58db8a47:v1
+            source: must_cover
+            source_text: 依赖管理
+            acceptance_check: 候选人围绕「依赖管理」说明代码、模块或 API 的具体设计约束、可测试性或演进策略，并指出如何通过测试或发布流程验证。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:coding_quality.mobile_modularization.boundary:must_cover:d27185a3:v1
+            source: must_cover
+            source_text: 演进策略
+            acceptance_check: 候选人围绕「演进策略」说明兼容、灰度、回滚或迁移边界，包含触发条件、风险控制和验证方式。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:coding_quality.mobile_modularization.boundary:rubric_addition:eadfbdf3:v1
+            source: rubric_addition
+            source_text: 说明模块边界
+            acceptance_check: 候选人补充说明「说明模块边界」，并给出接口约束、模块边界、测试样例、兼容策略或发布验证中的至少一类具体内容。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:coding_quality.mobile_modularization.boundary:rubric_addition:6fa87aa7:v1
+            source: rubric_addition
+            source_text: 说明通信机制
+            acceptance_check: 候选人补充说明「说明通信机制」，并给出接口约束、模块边界、测试样例、兼容策略或发布验证中的至少一类具体内容。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:coding_quality.mobile_modularization.boundary:rubric_addition:6b10cbc3:v1
+            source: rubric_addition
+            source_text: 说明演进策略
+            acceptance_check: 候选人补充说明「说明演进策略」，并给出接口约束、模块边界、测试样例、兼容策略或发布验证中的至少一类具体内容。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
         priority: 9
         status: active
       - id: coding_quality.mobile_modularization.binary_dep
@@ -534,6 +1782,84 @@ seeds:
         expected_signals: [能定语义化版本, 能用 ABI 检查兼容, 能给回滚]
         anti_patterns: [无版本管理, 不查 ABI, 没回滚]
         good_answer_hints: [先版本, 再兼容, 最后回滚]
+        reviewed_acceptance_checks:
+          - check_id: reviewed:coding_quality.mobile_modularization.binary_dep:must_cover:fe37efe9:v1
+            source: must_cover
+            source_text: 模块边界
+            acceptance_check: 候选人围绕「模块边界」说明代码、模块或 API 的具体设计约束、可测试性或演进策略，并指出如何通过测试或发布流程验证。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:coding_quality.mobile_modularization.binary_dep:must_cover:7578681d:v1
+            source: must_cover
+            source_text: 通信机制
+            acceptance_check: 候选人围绕「通信机制」说明代码、模块或 API 的具体设计约束、可测试性或演进策略，并指出如何通过测试或发布流程验证。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:coding_quality.mobile_modularization.binary_dep:must_cover:133ab592:v1
+            source: must_cover
+            source_text: 依赖管理
+            acceptance_check: 候选人围绕「依赖管理」说明代码、模块或 API 的具体设计约束、可测试性或演进策略，并指出如何通过测试或发布流程验证。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:coding_quality.mobile_modularization.binary_dep:must_cover:4e5cebb5:v1
+            source: must_cover
+            source_text: 演进策略
+            acceptance_check: 候选人围绕「演进策略」说明兼容、灰度、回滚或迁移边界，包含触发条件、风险控制和验证方式。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:coding_quality.mobile_modularization.binary_dep:rubric_addition:ff58aa96:v1
+            source: rubric_addition
+            source_text: 说明版本策略
+            acceptance_check: 候选人补充说明「说明版本策略」，并给出接口约束、模块边界、测试样例、兼容策略或发布验证中的至少一类具体内容。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:coding_quality.mobile_modularization.binary_dep:rubric_addition:233338e8:v1
+            source: rubric_addition
+            source_text: 说明 ABI 兼容
+            acceptance_check: 候选人补充说明「说明 ABI 兼容」，并给出接口约束、模块边界、测试样例、兼容策略或发布验证中的至少一类具体内容。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:coding_quality.mobile_modularization.binary_dep:rubric_addition:8dc21533:v1
+            source: rubric_addition
+            source_text: 说明回滚机制
+            acceptance_check: 候选人补充说明「说明回滚机制」，并给出接口约束、模块边界、测试样例、兼容策略或发布验证中的至少一类具体内容。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
         priority: 7
         status: active
 
@@ -569,6 +1895,84 @@ seeds:
         expected_signals: [能区分单测/UI/E2E 适用范围, 能合理选工具, 能用 coverage / 回归监控]
         anti_patterns: [全 UI 测试跑慢, 全单测覆盖不足, 没 CI 集成]
         good_answer_hints: [先分层, 再选工具, 最后接 CI]
+        reviewed_acceptance_checks:
+          - check_id: reviewed:coding_quality.mobile_testing_strategy.pyramid:must_cover:9f4c994f:v1
+            source: must_cover
+            source_text: 测试金字塔
+            acceptance_check: 候选人围绕「测试金字塔」给出测试或评估设计，说明样例来源、覆盖边界、通过标准和回归/线上验证方式。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:coding_quality.mobile_testing_strategy.pyramid:must_cover:ed1ea9f3:v1
+            source: must_cover
+            source_text: 工具选择
+            acceptance_check: 候选人围绕「工具选择」说明代码、模块或 API 的具体设计约束、可测试性或演进策略，并指出如何通过测试或发布流程验证。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:coding_quality.mobile_testing_strategy.pyramid:must_cover:5072a3e4:v1
+            source: must_cover
+            source_text: mock 策略
+            acceptance_check: 候选人围绕「mock 策略」说明代码、模块或 API 的具体设计约束、可测试性或演进策略，并指出如何通过测试或发布流程验证。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:coding_quality.mobile_testing_strategy.pyramid:must_cover:4240ea2f:v1
+            source: must_cover
+            source_text: CI 集成
+            acceptance_check: 候选人围绕「CI 集成」说明代码、模块或 API 的具体设计约束、可测试性或演进策略，并指出如何通过测试或发布流程验证。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:coding_quality.mobile_testing_strategy.pyramid:rubric_addition:1de3d2bf:v1
+            source: rubric_addition
+            source_text: 说明三层分工
+            acceptance_check: 候选人补充说明「说明三层分工」，并给出接口约束、模块边界、测试样例、兼容策略或发布验证中的至少一类具体内容。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:coding_quality.mobile_testing_strategy.pyramid:rubric_addition:399d12fd:v1
+            source: rubric_addition
+            source_text: 说明工具选择
+            acceptance_check: 候选人补充说明「说明工具选择」，并给出接口约束、模块边界、测试样例、兼容策略或发布验证中的至少一类具体内容。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:coding_quality.mobile_testing_strategy.pyramid:rubric_addition:bba0abae:v1
+            source: rubric_addition
+            source_text: 说明 CI 集成
+            acceptance_check: 候选人补充说明「说明 CI 集成」，并给出接口约束、模块边界、测试样例、兼容策略或发布验证中的至少一类具体内容。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
         priority: 8
         status: active
       - id: coding_quality.mobile_testing_strategy.flaky_ui
@@ -585,5 +1989,83 @@ seeds:
         expected_signals: [能区分环境/时序/数据三类 flaky 根因, 能用 quarantine 隔离, 能给截图/快照测试替代]
         anti_patterns: [全禁用 UI 测试, 不分根因, 不替代]
         good_answer_hints: [先分类根因, 再 quarantine, 最后替代]
+        reviewed_acceptance_checks:
+          - check_id: reviewed:coding_quality.mobile_testing_strategy.flaky_ui:must_cover:a448ab9d:v1
+            source: must_cover
+            source_text: 测试金字塔
+            acceptance_check: 候选人围绕「测试金字塔」给出测试或评估设计，说明样例来源、覆盖边界、通过标准和回归/线上验证方式。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:coding_quality.mobile_testing_strategy.flaky_ui:must_cover:bbd311a0:v1
+            source: must_cover
+            source_text: 工具选择
+            acceptance_check: 候选人围绕「工具选择」说明代码、模块或 API 的具体设计约束、可测试性或演进策略，并指出如何通过测试或发布流程验证。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:coding_quality.mobile_testing_strategy.flaky_ui:must_cover:5f548a3c:v1
+            source: must_cover
+            source_text: mock 策略
+            acceptance_check: 候选人围绕「mock 策略」说明代码、模块或 API 的具体设计约束、可测试性或演进策略，并指出如何通过测试或发布流程验证。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:coding_quality.mobile_testing_strategy.flaky_ui:must_cover:27bad1e8:v1
+            source: must_cover
+            source_text: CI 集成
+            acceptance_check: 候选人围绕「CI 集成」说明代码、模块或 API 的具体设计约束、可测试性或演进策略，并指出如何通过测试或发布流程验证。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:coding_quality.mobile_testing_strategy.flaky_ui:rubric_addition:3c7adedb:v1
+            source: rubric_addition
+            source_text: 说明根因分类
+            acceptance_check: 候选人补充说明「说明根因分类」，并给出接口约束、模块边界、测试样例、兼容策略或发布验证中的至少一类具体内容。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:coding_quality.mobile_testing_strategy.flaky_ui:rubric_addition:bbd66014:v1
+            source: rubric_addition
+            source_text: 说明 quarantine 机制
+            acceptance_check: 候选人补充说明「说明 quarantine 机制」，并给出接口约束、模块边界、测试样例、兼容策略或发布验证中的至少一类具体内容。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:coding_quality.mobile_testing_strategy.flaky_ui:rubric_addition:6f5f7f4e:v1
+            source: rubric_addition
+            source_text: 说明替代方案
+            acceptance_check: 候选人补充说明「说明替代方案」，并给出接口约束、模块边界、测试样例、兼容策略或发布验证中的至少一类具体内容。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
         priority: 6
         status: active

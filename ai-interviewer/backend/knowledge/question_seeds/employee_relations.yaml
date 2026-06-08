@@ -32,6 +32,84 @@ seeds:
         expected_signals: [Interviews both sides, documents facts, protects confidentiality]
         anti_patterns: [Immediately takes sides, promises impossible outcome, ignores documentation]
         good_answer_hints: [Listen first, verify facts, align next steps and boundaries]
+        reviewed_acceptance_checks:
+          - check_id: reviewed:employee_relations.hr_conflict_resolution.manager_employee_tension:must_cover:932efffd:v1
+            source: must_cover
+            source_text: fact_collection
+            acceptance_check: 候选人围绕「fact_collection」说明员工关系问题背景、事实依据、沟通动作、风险边界和后续跟进。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:employee_relations.hr_conflict_resolution.manager_employee_tension:must_cover:dfaf402e:v1
+            source: must_cover
+            source_text: risk_boundary
+            acceptance_check: 候选人围绕「risk_boundary」说明员工关系问题背景、事实依据、沟通动作、风险边界和后续跟进。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:employee_relations.hr_conflict_resolution.manager_employee_tension:must_cover:58703bbb:v1
+            source: must_cover
+            source_text: communication_plan
+            acceptance_check: 候选人围绕「communication_plan」说明员工关系问题背景、事实依据、沟通动作、风险边界和后续跟进。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:employee_relations.hr_conflict_resolution.manager_employee_tension:must_cover:9f4807e6:v1
+            source: must_cover
+            source_text: follow_up
+            acceptance_check: 候选人围绕「follow_up」说明员工关系问题背景、事实依据、沟通动作、风险边界和后续跟进。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:employee_relations.hr_conflict_resolution.manager_employee_tension:rubric_addition:9505a994:v1
+            source: rubric_addition
+            source_text: Separate facts from opinions
+            acceptance_check: 候选人补充说明「Separate facts from opinions」，并落到数据、案例、客户/用户反馈、流程证据、协作动作或验证方式中的至少一类具体证据。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:employee_relations.hr_conflict_resolution.manager_employee_tension:rubric_addition:1aa7555a:v1
+            source: rubric_addition
+            source_text: define risk level
+            acceptance_check: 候选人补充说明「define risk level」，并落到数据、案例、客户/用户反馈、流程证据、协作动作或验证方式中的至少一类具体证据。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:employee_relations.hr_conflict_resolution.manager_employee_tension:rubric_addition:8899eefc:v1
+            source: rubric_addition
+            source_text: plan follow up checkpoints
+            acceptance_check: 候选人补充说明「plan follow up checkpoints」，并落到数据、案例、客户/用户反馈、流程证据、协作动作或验证方式中的至少一类具体证据。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
         priority: 18
         status: active
       - id: employee_relations.hr_conflict_resolution.sensitive_complaint
@@ -48,5 +126,83 @@ seeds:
         expected_signals: [Defines escalation criteria, avoids premature conclusion, plans communication cadence]
         anti_patterns: [Treats it as ordinary mediation, exposes private information, delays risk escalation]
         good_answer_hints: [Classify risk, preserve evidence, communicate process not conclusions]
+        reviewed_acceptance_checks:
+          - check_id: reviewed:employee_relations.hr_conflict_resolution.sensitive_complaint:must_cover:c2e0725c:v1
+            source: must_cover
+            source_text: fact_collection
+            acceptance_check: 候选人围绕「fact_collection」说明员工关系问题背景、事实依据、沟通动作、风险边界和后续跟进。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:employee_relations.hr_conflict_resolution.sensitive_complaint:must_cover:5db0d166:v1
+            source: must_cover
+            source_text: risk_boundary
+            acceptance_check: 候选人围绕「risk_boundary」说明员工关系问题背景、事实依据、沟通动作、风险边界和后续跟进。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:employee_relations.hr_conflict_resolution.sensitive_complaint:must_cover:34dbfd45:v1
+            source: must_cover
+            source_text: communication_plan
+            acceptance_check: 候选人围绕「communication_plan」说明员工关系问题背景、事实依据、沟通动作、风险边界和后续跟进。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:employee_relations.hr_conflict_resolution.sensitive_complaint:must_cover:2967b3d3:v1
+            source: must_cover
+            source_text: follow_up
+            acceptance_check: 候选人围绕「follow_up」说明员工关系问题背景、事实依据、沟通动作、风险边界和后续跟进。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:employee_relations.hr_conflict_resolution.sensitive_complaint:rubric_addition:7f821b1a:v1
+            source: rubric_addition
+            source_text: Set investigation boundary
+            acceptance_check: 候选人补充说明「Set investigation boundary」，并落到数据、案例、客户/用户反馈、流程证据、协作动作或验证方式中的至少一类具体证据。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:employee_relations.hr_conflict_resolution.sensitive_complaint:rubric_addition:b85c8901:v1
+            source: rubric_addition
+            source_text: protect confidentiality
+            acceptance_check: 候选人补充说明「protect confidentiality」，并落到数据、案例、客户/用户反馈、流程证据、协作动作或验证方式中的至少一类具体证据。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:employee_relations.hr_conflict_resolution.sensitive_complaint:rubric_addition:49bd14cc:v1
+            source: rubric_addition
+            source_text: escalate based on risk
+            acceptance_check: 候选人补充说明「escalate based on risk」，并落到数据、案例、客户/用户反馈、流程证据、协作动作或验证方式中的至少一类具体证据。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
         priority: 16
         status: active
