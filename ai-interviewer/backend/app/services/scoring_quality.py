@@ -7,10 +7,17 @@ deterministic and reads only already-produced workflow artifacts.
 """
 from __future__ import annotations
 
+import re
 from typing import Any
 
 from app.engine.workflow.eval_helpers import is_system_fallback_text
 from app.services.scoring_credibility import compute_credibility
+
+
+_GATE_ENFORCEMENT_RISK_RE = re.compile(
+    r"^\s*Reviewed core acceptance failed(?:\s*\([^)]+\))?:?\s*(.*)$",
+    re.IGNORECASE,
+)
 
 
 def verdict_of(value: Any) -> str:
@@ -208,7 +215,8 @@ def risk_flags_from_history(
         )
 
     verification = _as_dict(verification)
-    return _dedupe(list(verification.get("reasons_to_doubt") or []) + risk_flags)[:8]
+    raw_flags = list(verification.get("reasons_to_doubt") or []) + risk_flags
+    return _dedupe([_candidate_readable_risk_flag(item) for item in raw_flags])[:8]
 
 
 def _candidate_weaknesses(evaluation: dict[str, Any]) -> list[Any]:
@@ -217,6 +225,21 @@ def _candidate_weaknesses(evaluation: dict[str, Any]) -> list[Any]:
         for item in (evaluation.get("weaknesses") or [])
         if not is_system_fallback_text(item)
     ]
+
+
+def _candidate_readable_risk_flag(value: Any) -> Any:
+    if not isinstance(value, str):
+        return value
+    text = value.strip()
+    if not text:
+        return text
+    match = _GATE_ENFORCEMENT_RISK_RE.match(text)
+    if not match:
+        return text
+    detail = (match.group(1) or "").strip()
+    if detail:
+        return f"核心判定条款未满足：{detail}"
+    return "核心判定条款未满足：需要补充核心判定条款的证据。"
 
 
 def _as_dict(value: Any) -> dict[str, Any]:

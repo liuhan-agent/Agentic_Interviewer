@@ -147,9 +147,9 @@ def _coverage_warnings(
 ) -> list[dict[str, Any]]:
     warnings: list[dict[str, Any]] = []
     for dim, status in sorted(dimension_status.items()):
-        if status == "passed":
-            continue
         score_item = dimension_scores.get(dim) or {}
+        if status == "passed" or score_item.get("passed"):
+            continue
         warnings.append(
             {
                 "dimension": dim,
@@ -224,6 +224,14 @@ def _build_dimension_scores(
         )
         score = effective_score if score_status == "scored" else None
         exclusion_reason = None if score_status == "scored" else score_status
+        passed = _dimension_passed(
+            score_status=score_status,
+            score=score,
+            dimension_status=dimension_status.get(dim),
+            quality_threshold=quality_threshold,
+            evidence=evidence,
+            turn_meta=meta,
+        )
         item = {
             "score": score,
             "score_status": score_status,
@@ -232,10 +240,10 @@ def _build_dimension_scores(
             "coverage_status": _coverage_status(
                 score_status=score_status,
                 score=score,
-                dimension_status=dimension_status.get(dim),
+                passed=passed,
                 quality_threshold=quality_threshold,
             ),
-            "passed": dimension_status.get(dim) == "passed",
+            "passed": passed,
             "rationale": latest.get("rationale") or None,
             "weaknesses": list(summary.get("weaknesses") or []),
         }
@@ -389,16 +397,164 @@ def _coverage_status(
     *,
     score_status: str,
     score: float | None,
-    dimension_status: str | None,
+    passed: bool,
     quality_threshold: float,
 ) -> str:
     if score_status != "scored":
         return "not_applicable"
-    if dimension_status == "passed":
+    if passed:
         return "passed"
     if score is not None and score < quality_threshold:
         return "below_threshold"
     return "coverage_limited"
+
+
+def _dimension_passed(
+    *,
+    score_status: str,
+    score: float | None,
+    dimension_status: str | None,
+    quality_threshold: float,
+    evidence: list[dict[str, Any]],
+    turn_meta: dict[str, Any],
+) -> bool:
+    if dimension_status == "passed":
+        return True
+    if turn_meta.get("evaluator_unavailable"):
+        return False
+    return _soft_gap_high_score_passed(
+        score_status=score_status,
+        score=score,
+        quality_threshold=quality_threshold,
+        evidence=evidence,
+    )
+
+
+def _soft_gap_high_score_passed(
+    *,
+    score_status: str,
+    score: float | None,
+    quality_threshold: float,
+    evidence: list[dict[str, Any]],
+) -> bool:
+    if score_status != "scored" or score is None or score < quality_threshold:
+        return False
+    if not evidence:
+        return False
+
+    has_soft_gap = False
+    for turn in evidence:
+        if _has_contract_gate_failure(turn):
+            return False
+        structured_items = _acceptance_result_items(turn)
+        structured_has_soft_gap = False
+        if structured_items:
+            structured_is_allowed, structured_has_soft_gap = (
+                _structured_acceptance_gaps_are_soft(structured_items)
+            )
+            if not structured_is_allowed:
+                return False
+            if structured_has_soft_gap:
+                has_soft_gap = True
+        else:
+            for verdict in _acceptance_check_verdicts(turn):
+                if verdict == "no":
+                    return False
+                if verdict == "partial":
+                    has_soft_gap = True
+        for coverage in _rubric_coverage_values(turn):
+            if coverage == "missing":
+                if not structured_has_soft_gap:
+                    return False
+                has_soft_gap = True
+                continue
+            if coverage == "partial":
+                has_soft_gap = True
+    return has_soft_gap
+
+
+def _structured_acceptance_gaps_are_soft(
+    items: list[dict[str, Any]],
+) -> tuple[bool, bool]:
+    has_soft_gap = False
+    for item in items:
+        verdict = _verdict_of(item)
+        if verdict not in {"no", "partial"}:
+            continue
+        if not _is_auxiliary_acceptance_item(item):
+            return False, has_soft_gap
+        has_soft_gap = True
+    return True, has_soft_gap
+
+
+def _has_contract_gate_failure(turn: dict[str, Any]) -> bool:
+    if turn.get("contract_gate_enforced"):
+        return True
+    failed_ids = turn.get("contract_gate_failed_check_ids")
+    if isinstance(failed_ids, list) and failed_ids:
+        return True
+    gate = turn.get("contract_gate_result") or {}
+    if not isinstance(gate, dict):
+        return False
+    if str(gate.get("status") or "").strip().lower() == "failed":
+        return True
+    failed_items = gate.get("failed_items")
+    return isinstance(failed_items, list) and bool(failed_items)
+
+
+def _acceptance_result_items(turn: dict[str, Any]) -> list[dict[str, Any]]:
+    items = turn.get("acceptance_check_result_items")
+    if not isinstance(items, list):
+        return []
+    return [item for item in items if isinstance(item, dict)]
+
+
+def _acceptance_check_verdicts(turn: dict[str, Any]) -> list[str]:
+    checks = turn.get("acceptance_checks") or {}
+    if not isinstance(checks, dict):
+        return []
+    return [_verdict_of(raw) for raw in checks.values()]
+
+
+def _rubric_coverage_values(turn: dict[str, Any]) -> list[str]:
+    rubric = turn.get("rubric_coverage") or {}
+    if not isinstance(rubric, dict):
+        return []
+    values: list[str] = []
+    for raw in rubric.values():
+        coverage = str(raw or "").strip().lower()
+        if coverage in {"covered", "partial", "missing"}:
+            values.append(coverage)
+    return values
+
+
+def _is_reviewed_core_item(item: dict[str, Any]) -> bool:
+    source = str(item.get("source") or "").strip().lower()
+    severity = str(item.get("severity") or "").strip().lower()
+    return source == "reviewed" and severity == "core"
+
+
+def _is_auxiliary_acceptance_item(item: dict[str, Any]) -> bool:
+    if _is_reviewed_core_item(item):
+        return False
+    severity = str(item.get("severity") or "").strip().lower()
+    source = str(item.get("source") or "").strip().lower()
+    if severity == "core":
+        return False
+    if severity == "supporting":
+        return True
+    return source == "adaptive_context" and not severity
+
+
+def _effective_dimension_status(
+    dimension_status: dict[str, str],
+    dimension_scores: dict[str, dict[str, Any]],
+) -> dict[str, str]:
+    status = dict(dimension_status or {})
+    for dim, item in dimension_scores.items():
+        if item.get("passed"):
+            status[dim] = "passed"
+    return status
 
 
 def _score_summary(
@@ -530,6 +686,35 @@ def _turn_evidence(qa: dict[str, Any]) -> dict[str, Any]:
         "contract_gate_failed_check_ids": (
             evaluation.get("contract_gate_failed_check_ids") or []
         ),
+        "gate_calibration_summary": (
+            evaluation.get("gate_calibration_summary") or {}
+        ),
+        "contract_semantics_summary": (
+            evaluation.get("contract_semantics_summary") or {}
+        ),
+        "soft_gap_training_suggestions": (
+            evaluation.get("soft_gap_training_suggestions") or {}
+        ),
+        "soft_followup_hints": evaluation.get("soft_followup_hints") or {},
+        "evaluation_quality_warning": bool(
+            evaluation.get("evaluation_quality_warning")
+        ),
+        "evaluation_quality_warning_reason": (
+            evaluation.get("evaluation_quality_warning_reason")
+        ),
+        "evaluation_quality_warning_check_ids": (
+            evaluation.get("evaluation_quality_warning_check_ids") or []
+        ),
+        "evaluation_quality_invalid": bool(
+            evaluation.get("evaluation_quality_invalid")
+        ),
+        "evaluation_quality_invalid_reason": (
+            evaluation.get("evaluation_quality_invalid_reason")
+        ),
+        "evaluation_retry_applied": bool(
+            evaluation.get("evaluation_retry_applied")
+        ),
+        "evaluation_retry_reason": evaluation.get("evaluation_retry_reason"),
         "recommended_next": evaluation.get("recommended_next"),
         "recommended_next_plan": evaluation.get("recommended_next_plan"),
         "soft_warnings": evaluation.get("soft_warnings") or [],
@@ -716,6 +901,162 @@ def _final_report_dimension_results(report: dict[str, Any]) -> list[dict[str, An
     return results
 
 
+_RESULT_ITEM_TRACE_KEYS = (
+    "check_id",
+    "text",
+    "source",
+    "severity",
+    "verdict",
+    "evidence",
+    "evidence_spans",
+    "result_present",
+)
+
+
+def _dimension_acceptance_check_result_items(
+    turn_evidence: Any,
+) -> list[dict[str, Any]]:
+    if not isinstance(turn_evidence, list):
+        return []
+
+    result_items: list[dict[str, Any]] = []
+    for turn in turn_evidence:
+        if not isinstance(turn, dict):
+            continue
+        turn_idx = turn.get("turn_idx")
+        for raw_item in turn.get("acceptance_check_result_items") or []:
+            if not isinstance(raw_item, dict):
+                continue
+            item: dict[str, Any] = {"turn_idx": turn_idx}
+            for key in _RESULT_ITEM_TRACE_KEYS:
+                if key in raw_item:
+                    item[key] = raw_item.get(key)
+            if len(item) > 1:
+                result_items.append(item)
+    return result_items
+
+
+def _dimension_contract_gate_results(turn_evidence: Any) -> list[dict[str, Any]]:
+    if not isinstance(turn_evidence, list):
+        return []
+
+    gate_results: list[dict[str, Any]] = []
+    for turn in turn_evidence:
+        if not isinstance(turn, dict):
+            continue
+        gate = turn.get("contract_gate_result") or {}
+        if not isinstance(gate, dict) or not gate:
+            continue
+        failed_check_ids = turn.get("contract_gate_failed_check_ids") or []
+        if not failed_check_ids:
+            failed_items = gate.get("failed_items") or []
+            if isinstance(failed_items, list):
+                failed_check_ids = [
+                    item.get("check_id")
+                    for item in failed_items
+                    if isinstance(item, dict) and item.get("check_id")
+                ]
+        gate_results.append(
+            {
+                "turn_idx": turn.get("turn_idx"),
+                "mode": gate.get("mode"),
+                "status": gate.get("status"),
+                "would_pass": gate.get("would_pass"),
+                "eligible_count": gate.get("eligible_count"),
+                "satisfied_count": gate.get("satisfied_count"),
+                "failed_count": gate.get("failed_count"),
+                "partial_count": gate.get("partial_count"),
+                "no_count": gate.get("no_count"),
+                "missing_count": gate.get("missing_count"),
+                "enforced": bool(turn.get("contract_gate_enforced")),
+                "enforcement_reason": turn.get("contract_gate_enforcement_reason"),
+                "failed_check_ids": list(failed_check_ids),
+                "failed_items": (
+                    list(gate.get("failed_items"))
+                    if isinstance(gate.get("failed_items"), list)
+                    else []
+                ),
+            }
+        )
+    return gate_results
+
+
+def _dimension_gate_calibration_summaries(
+    turn_evidence: Any,
+) -> list[dict[str, Any]]:
+    if not isinstance(turn_evidence, list):
+        return []
+
+    summaries: list[dict[str, Any]] = []
+    for turn in turn_evidence:
+        if not isinstance(turn, dict):
+            continue
+        summary = turn.get("gate_calibration_summary") or {}
+        if not isinstance(summary, dict) or not summary:
+            continue
+        item = dict(summary)
+        item["turn_idx"] = turn.get("turn_idx")
+        summaries.append(item)
+    return summaries
+
+
+def _dimension_contract_semantics_summaries(
+    turn_evidence: Any,
+) -> list[dict[str, Any]]:
+    if not isinstance(turn_evidence, list):
+        return []
+
+    summaries: list[dict[str, Any]] = []
+    for turn in turn_evidence:
+        if not isinstance(turn, dict):
+            continue
+        summary = turn.get("contract_semantics_summary") or {}
+        if not isinstance(summary, dict) or not summary:
+            continue
+        item = dict(summary)
+        item["turn_idx"] = turn.get("turn_idx")
+        summaries.append(item)
+    return summaries
+
+
+def _dimension_soft_gap_training_suggestions(
+    turn_evidence: Any,
+) -> list[dict[str, Any]]:
+    if not isinstance(turn_evidence, list):
+        return []
+
+    suggestions: list[dict[str, Any]] = []
+    for turn in turn_evidence:
+        if not isinstance(turn, dict):
+            continue
+        payload = turn.get("soft_gap_training_suggestions") or {}
+        if not isinstance(payload, dict) or not payload:
+            continue
+        item = dict(payload)
+        item["turn_idx"] = turn.get("turn_idx")
+        suggestions.append(item)
+    return suggestions
+
+
+def _dimension_soft_followup_hints(
+    turn_evidence: Any,
+) -> list[dict[str, Any]]:
+    if not isinstance(turn_evidence, list):
+        return []
+
+    hints: list[dict[str, Any]] = []
+    for turn in turn_evidence:
+        if not isinstance(turn, dict):
+            continue
+        payload = turn.get("soft_followup_hints") or {}
+        if not isinstance(payload, dict) or not payload:
+            continue
+        item = dict(payload)
+        item["turn_idx"] = turn.get("turn_idx")
+        hints.append(item)
+    return hints
+
+
 def _final_report_dimension_evidence(report: dict[str, Any]) -> list[dict[str, Any]]:
     dimension_summaries = report.get("dimension_summaries") or {}
     if not isinstance(dimension_summaries, dict):
@@ -729,6 +1070,20 @@ def _final_report_dimension_evidence(report: dict[str, Any]) -> list[dict[str, A
         weaknesses = summary.get("weaknesses") or []
         turn_evidence = summary.get("evidence") or []
         followup_reasons = summary.get("followup_reasons") or []
+        contract_gate_results = _dimension_contract_gate_results(turn_evidence)
+        gate_calibration_summaries = _dimension_gate_calibration_summaries(
+            turn_evidence
+        )
+        contract_semantics_summaries = _dimension_contract_semantics_summaries(
+            turn_evidence
+        )
+        soft_gap_training_suggestions = _dimension_soft_gap_training_suggestions(
+            turn_evidence
+        )
+        soft_followup_hints = _dimension_soft_followup_hints(turn_evidence)
+        acceptance_check_result_items = _dimension_acceptance_check_result_items(
+            turn_evidence
+        )
         evidence.append(
             {
                 "dimension": dim,
@@ -748,6 +1103,12 @@ def _final_report_dimension_evidence(report: dict[str, Any]) -> list[dict[str, A
                 "evidence_count": (
                     len(turn_evidence) if isinstance(turn_evidence, list) else 0
                 ),
+                "contract_gate_results": contract_gate_results,
+                "gate_calibration_summaries": gate_calibration_summaries,
+                "contract_semantics_summaries": contract_semantics_summaries,
+                "soft_gap_training_suggestions": soft_gap_training_suggestions,
+                "soft_followup_hints": soft_followup_hints,
+                "acceptance_check_result_items": acceptance_check_result_items,
             }
         )
     return evidence
@@ -865,18 +1226,20 @@ def final_report_node(state: InterviewState) -> dict[str, Any]:
         threshold,
         score_breakdowns=state.get("score_breakdowns") or {},
     )
+    dimension_status = _effective_dimension_status(dimension_status, dimension_scores)
     score_summary = _score_summary(dimension_scores)
     overall = _overall_score(dimension_scores)
     coverage_warnings = _coverage_warnings(dimension_scores, dimension_status)
     if incoming_status == "cancelled":
-        verdict = "cancelled"
+        score_only_verdict = "cancelled"
     elif overall is None:
-        verdict = "unknown"
+        score_only_verdict = "unknown"
     else:
-        verdict = _verdict(overall, threshold)
-    coverage_limited_verdict = _coverage_limited_verdict(verdict, coverage_warnings)
+        score_only_verdict = _verdict(overall, threshold)
+    verdict = _coverage_limited_verdict(score_only_verdict, coverage_warnings)
+    coverage_limited_verdict = verdict
     growth_signal = _growth_signal(verdict)
-    coverage_limited = coverage_limited_verdict != verdict
+    coverage_limited = verdict != score_only_verdict
     coverage_status = _report_coverage_status(coverage_warnings)
 
     # Surface evaluator fallback rate so the report UI can warn when
@@ -895,8 +1258,9 @@ def final_report_node(state: InterviewState) -> dict[str, Any]:
     )
     # Frontend-facing projection: the Next.js ``ReportView`` consumes
     # ``growth_signal`` and ``dimension_scores`` (RubricScore shape).
-    # We keep the internal ``verdict`` and ``dimension_summaries``
-    # fields intact so tracer / analytics / existing tests keep working.
+    # ``verdict`` is also coverage-aware so API consumers do not see a
+    # simple pass when reviewed/core coverage is incomplete. Preserve
+    # the score-only label separately for audit / analytics.
     report = {
         "session_id": state.get("session_id"),
         "trace_id": state.get("trace_id"),
@@ -905,6 +1269,7 @@ def final_report_node(state: InterviewState) -> dict[str, Any]:
         "overall_score": overall,
         "quality_threshold": threshold,
         "verdict": verdict,
+        "score_only_verdict": score_only_verdict,
         "growth_signal": growth_signal,
         "overall_verdict": growth_signal,
         "coverage_status": coverage_status,

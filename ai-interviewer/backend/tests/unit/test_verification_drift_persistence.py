@@ -167,10 +167,40 @@ def test_verification_rejoins_acceptance_check_result_items(monkeypatch) -> None
                     "origin": "question_variant",
                     "seed_ref": {"seed_id": "seed"},
                     "metadata": {"criterion_source": "must_cover"},
+                },
+                {
+                    "check_id": "reviewed:support:impact",
+                    "text": "Explains operational impact",
+                    "source": "reviewed",
+                    "severity": "supporting",
+                    "source_text": "impact",
+                    "origin": "question_variant",
+                },
+                {
+                    "check_id": "adaptive:project-context",
+                    "text": "Connects the answer to the resume project",
+                    "source": "adaptive_context",
+                    "severity": "supporting",
+                    "source_text": "",
+                    "origin": "negotiated_contract",
                 }
             ],
         }
     )
+    state["evaluation"]["acceptance_check_results"] = {
+        "Mentions concrete failure modes": {
+            "verdict": "yes",
+            "evidence": ["failure modes"],
+        },
+        "Explains operational impact": {
+            "verdict": "partial",
+            "evidence": ["latency impact"],
+        },
+        "Connects the answer to the resume project": {
+            "verdict": "no",
+            "evidence": [],
+        },
+    }
 
     update = verification_mod.verification_node(state)  # type: ignore[arg-type]
 
@@ -185,6 +215,22 @@ def test_verification_rejoins_acceptance_check_result_items(monkeypatch) -> None
     assert gate["eligible_count"] == 1
     assert gate["satisfied_count"] == 1
     assert gate["failed_count"] == 0
+    summary = update["evaluation"]["contract_semantics_summary"]
+    assert summary["reviewed_core"]["yes"] == 1
+    assert summary["hard_gap_count"] == 0
+    suggestions = update["evaluation"]["soft_gap_training_suggestions"]
+    assert suggestions["counts"] == {"quality": 1, "context": 1, "total": 2}
+    assert suggestions["quality_suggestions"][0]["check_id"] == (
+        "reviewed:support:impact"
+    )
+    assert suggestions["context_suggestions"][0]["check_id"] == (
+        "adaptive:project-context"
+    )
+    hints = update["evaluation"]["soft_followup_hints"]
+    assert hints["mode"] == "shadow"
+    assert hints["applied"] is False
+    assert hints["quality_hints"][0]["intent"] == "probe_quality_gap"
+    assert hints["context_hints"][0]["intent"] == "probe_context_gap"
     assert "acceptance_check_items" not in captured["scoring_contract"]
     assert captured["scoring_contract"]["acceptance_check_items_for_prompt"] == [
         {
@@ -192,6 +238,18 @@ def test_verification_rejoins_acceptance_check_result_items(monkeypatch) -> None
             "text": "Mentions concrete failure modes",
             "source": "reviewed",
             "severity": "core",
+        },
+        {
+            "check_id": "reviewed:support:impact",
+            "text": "Explains operational impact",
+            "source": "reviewed",
+            "severity": "supporting",
+        },
+        {
+            "check_id": "adaptive:project-context",
+            "text": "Connects the answer to the resume project",
+            "source": "adaptive_context",
+            "severity": "supporting",
         }
     ]
 

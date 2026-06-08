@@ -114,6 +114,73 @@ def test_append_dedupes_by_source_text_without_generic_prefix_false_coverage() -
     )
 
 
+def test_reviewed_item_replaces_same_text_adaptive_item_and_keeps_metadata() -> None:
+    base = {
+        "acceptance_checks": ["Answer defines the target consistency level."],
+    }
+    reviewed = acceptance_check_items_from_structured(
+        [
+            {
+                "check_id": "reviewed:cache-consistency:core:v1",
+                "source": "must_cover",
+                "source_text": "consistency target",
+                "acceptance_check": "Answer defines the target consistency level.",
+                "severity": "core",
+            }
+        ],
+        source="reviewed",
+        origin="question_variant",
+    )
+
+    contract, appended = append_acceptance_check_items(base, reviewed)
+
+    assert appended == []
+    assert contract["acceptance_checks"] == [
+        "Answer defines the target consistency level."
+    ]
+    item = contract["acceptance_check_items"][0]
+    assert item["check_id"] == "reviewed:cache-consistency:core:v1"
+    assert item["text"] == "Answer defines the target consistency level."
+    assert item["source"] == "reviewed"
+    assert item["severity"] == "core"
+    assert item["source_text"] == "consistency target"
+    assert item["origin"] == "question_variant"
+    assert item["metadata"]["criterion_source"] == "must_cover"
+
+
+def test_reviewed_item_survives_when_adaptive_item_is_only_semantically_similar() -> None:
+    base = {
+        "acceptance_checks": [
+            "The answer names the consistency goal and its boundary."
+        ],
+    }
+    reviewed = acceptance_check_items_from_structured(
+        [
+            {
+                "check_id": "reviewed:cache-consistency:core:v1",
+                "source": "must_cover",
+                "source_text": "consistency target",
+                "acceptance_check": "Answer defines the target consistency level.",
+                "severity": "core",
+            }
+        ],
+        source="reviewed",
+        origin="question_variant",
+    )
+
+    contract, appended = append_acceptance_check_items(base, reviewed)
+
+    assert appended == ["Answer defines the target consistency level."]
+    assert [item["source"] for item in contract["acceptance_check_items"]] == [
+        "adaptive_context",
+        "reviewed",
+    ]
+    assert [item["severity"] for item in contract["acceptance_check_items"]] == [
+        "supporting",
+        "core",
+    ]
+
+
 def test_join_acceptance_check_results_backfills_item_metadata() -> None:
     contract = ensure_contract_acceptance_items(
         {

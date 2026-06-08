@@ -61,6 +61,38 @@ def _no_rate(acceptance: dict[str, Any]) -> float:
     return no_count / total
 
 
+def _is_reviewed_core_item(item: dict[str, Any]) -> bool:
+    source = str(item.get("source") or "").strip().lower()
+    severity = str(item.get("severity") or "").strip().lower()
+    return source == "reviewed" and severity == "core"
+
+
+def _structured_hard_no_rate(items: Any) -> float | None:
+    """Return hard no-rate for structured acceptance results.
+
+    ``None`` means the caller should fall back to legacy text-keyed
+    acceptance_check_results. A non-empty structured list means source
+    metadata is authoritative, so only reviewed/core checks count as
+    hard contract failures for reward hygiene.
+    """
+
+    if not isinstance(items, list) or not items:
+        return None
+
+    total = 0
+    no_count = 0
+    for raw in items:
+        if not isinstance(raw, dict) or not _is_reviewed_core_item(raw):
+            continue
+        total += 1
+        verdict = str(raw.get("verdict") or "").strip().lower()
+        if verdict == "no":
+            no_count += 1
+    if total == 0:
+        return 0.0
+    return no_count / total
+
+
 def immediate_reward(
     *,
     evaluation: dict[str, Any],
@@ -111,8 +143,15 @@ def immediate_reward(
         if "evaluator" not in signed_by:
             penalty += float(s.reward_contract_unsigned_penalty)
 
+    structured_rate = _structured_hard_no_rate(
+        evaluation.get("acceptance_check_result_items")
+    )
     acceptance = evaluation.get("acceptance_check_results") or {}
-    if isinstance(acceptance, dict):
+    if structured_rate is not None:
+        rate = structured_rate
+        if rate > float(s.reward_acceptance_no_rate_threshold):
+            penalty += float(s.reward_acceptance_no_penalty)
+    elif isinstance(acceptance, dict):
         rate = _no_rate(acceptance)
         if rate > float(s.reward_acceptance_no_rate_threshold):
             penalty += float(s.reward_acceptance_no_penalty)

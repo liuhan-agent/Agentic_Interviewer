@@ -170,6 +170,25 @@ _EXPECTED_CONTRACT_BAR_BY_DIFFICULTY = {
     "hard": "deep_probe",
 }
 _GENERIC_CONTRACT_ITEMS = {"depth", "clarity"}
+_AI_RAG_ASCII_TOPIC_PATTERNS = (
+    r"langchainj",
+    r"spring[-_\s]?ai",
+    r"\brag\b",
+    r"\bllm\b",
+    r"function[-_\s]?calling",
+    r"tool[-_\s]?calling",
+    r"\bagent\b",
+)
+_AI_RAG_CJK_TOPIC_TERMS = (
+    "ai工作流",
+    "ai应用",
+    "ai集成",
+    "智能评估",
+    "函数调用",
+    "工具调用",
+    "模型调用",
+    "大模型",
+)
 
 
 def select_question_candidates(**kwargs: Any) -> QuestionSelectionResult:
@@ -2246,10 +2265,19 @@ def _append_compiled_acceptance_checks(
     source: str = "compiled_fallback",
     origin: str = "locked_core_compiler",
     seed_ref: dict[str, Any] | None = None,
+    filter_covered: bool = True,
 ) -> tuple[PlanContract, list[str]]:
-    append_candidates = _compiled_acceptance_append_candidates(
-        contract,
-        compiled_acceptance_checks,
+    append_candidates = (
+        _compiled_acceptance_append_candidates(
+            contract,
+            compiled_acceptance_checks,
+        )
+        if filter_covered
+        else [
+            _acceptance_check_text(check)
+            for check in compiled_acceptance_checks or []
+            if isinstance(check, dict) and _acceptance_check_text(check)
+        ]
     )
     if not append_candidates:
         updated = ensure_contract_acceptance_items(contract)
@@ -2267,6 +2295,27 @@ def _append_compiled_acceptance_checks(
     ]
     updated, appended = append_acceptance_check_items(contract, incoming_items)
     return updated, appended  # type: ignore[return-value]
+
+
+def _reviewed_acceptance_missing_source_metadata(
+    reviewed_acceptance_checks: list[dict[str, Any]] | None,
+    contract: dict[str, Any] | None,
+) -> list[str]:
+    expected_ids = [
+        str(check.get("check_id") or "").strip()
+        for check in reviewed_acceptance_checks or []
+        if isinstance(check, dict) and str(check.get("check_id") or "").strip()
+    ]
+    if not expected_ids:
+        return []
+    final_reviewed_ids = {
+        str(item.get("check_id") or "").strip()
+        for item in (contract or {}).get("acceptance_check_items") or []
+        if isinstance(item, dict)
+        and str(item.get("source") or "").strip() == "reviewed"
+        and str(item.get("check_id") or "").strip()
+    }
+    return [check_id for check_id in expected_ids if check_id not in final_reviewed_ids]
 
 
 def _acceptance_checks_missing_from_text(
@@ -2318,6 +2367,50 @@ def _acceptance_checks_for_reviewed_mode(
     if reviewed_acceptance_source == "compiled_fallback":
         return list(compiled_acceptance_checks or [])
     return []
+
+
+def _contains_ai_rag_topic(text: str) -> bool:
+    raw = str(text or "").lower()
+    compact = re.sub(r"\s+", "", raw)
+    if any(
+        re.search(pattern, raw, flags=re.IGNORECASE)
+        for pattern in _AI_RAG_ASCII_TOPIC_PATTERNS
+    ):
+        return True
+    return any(term in compact for term in _AI_RAG_CJK_TOPIC_TERMS)
+
+
+def _reviewed_acceptance_topic_mismatch(
+    *,
+    final_contract: dict[str, Any],
+    proposed_contract: dict[str, Any],
+    reviewed_checks: list[dict[str, Any]],
+) -> bool:
+    if not reviewed_checks:
+        return False
+    contract_blob = "\n".join(
+        str(value or "")
+        for value in (
+            final_contract.get("must_cover"),
+            final_contract.get("acceptance_checks"),
+            final_contract.get("minimum_bar"),
+            final_contract.get("review_focus"),
+            proposed_contract.get("must_cover"),
+            proposed_contract.get("acceptance_checks"),
+            proposed_contract.get("minimum_bar"),
+            proposed_contract.get("review_focus"),
+        )
+    )
+    if not _contains_ai_rag_topic(contract_blob):
+        return False
+
+    reviewed_blob = "\n".join(
+        str(check.get(key) or "")
+        for check in reviewed_checks
+        if isinstance(check, dict)
+        for key in ("check_id", "source_text", "acceptance_check")
+    )
+    return not _contains_ai_rag_topic(reviewed_blob)
 
 
 def _strings_for_trace(value: Any) -> list[str]:
@@ -2558,6 +2651,26 @@ def _contract_diagnostics_for_trace(
         checks_text=final_acceptance_text,
         check_terms=final_acceptance_terms,
     )
+    reviewed_acceptance_missing_source_metadata = (
+        _reviewed_acceptance_missing_source_metadata(
+            reviewed_selected_checks,
+            final_contract,
+        )
+        if contract_acceptance_mode == "reviewed_append"
+        and reviewed_acceptance_source == "reviewed"
+        and not rewrite_fallback
+        else []
+    )
+    reviewed_acceptance_topic_mismatch = (
+        _reviewed_acceptance_topic_mismatch(
+            final_contract=final_contract,
+            proposed_contract=proposed,
+            reviewed_checks=reviewed_selected_checks,
+        )
+        if reviewed_acceptance_mode_enabled
+        and reviewed_acceptance_source == "reviewed"
+        else False
+    )
     reviewed_acceptance_warnings: list[str] = []
     if reviewed_acceptance_mode_enabled and reviewed_acceptance_source == "compiled_fallback":
         reviewed_acceptance_warnings.append(
@@ -2565,6 +2678,15 @@ def _contract_diagnostics_for_trace(
         )
     if reviewed_acceptance_source != "none" and reviewed_acceptance_missing_from_final:
         reviewed_acceptance_warnings.append("reviewed_acceptance_missing_from_final")
+    if (
+        reviewed_acceptance_source == "reviewed"
+        and reviewed_acceptance_missing_source_metadata
+    ):
+        reviewed_acceptance_warnings.append(
+            "reviewed_acceptance_source_metadata_missing"
+        )
+    if reviewed_acceptance_topic_mismatch:
+        reviewed_acceptance_warnings.append("reviewed_acceptance_topic_mismatch")
     if reviewed_acceptance_source != "none" and rewrite_fallback:
         reviewed_acceptance_warnings.append(
             "reviewed_acceptance_not_applied_after_rewrite"
@@ -2621,6 +2743,14 @@ def _contract_diagnostics_for_trace(
             reviewed_acceptance_missing_from_final
             if reviewed_acceptance_mode_enabled
             else []
+        ),
+        "reviewed_acceptance_missing_source_metadata": (
+            reviewed_acceptance_missing_source_metadata
+            if reviewed_acceptance_mode_enabled
+            else []
+        ),
+        "reviewed_acceptance_topic_mismatch": bool(
+            reviewed_acceptance_topic_mismatch
         ),
         "reviewed_acceptance_applied": bool(reviewed_acceptance_applied),
         "reviewed_acceptance_warnings": reviewed_acceptance_warnings,
@@ -2948,8 +3078,14 @@ def ask_question_node(state: InterviewState) -> dict[str, Any]:
                     else "locked_core_compiler"
                 ),
                 seed_ref=(ctx.get("locked_core_contract") or {}).get("seed_ref"),
+                filter_covered=reviewed_acceptance_source != "reviewed",
             )
             reviewed_acceptance_applied = bool(reviewed_append_candidates)
+            if reviewed_acceptance_source == "reviewed":
+                reviewed_acceptance_applied = not _reviewed_acceptance_missing_source_metadata(
+                    reviewed_acceptance_checks,
+                    contract,
+                )
             if reviewed_acceptance_source == "compiled_fallback":
                 compiled_acceptance_append_candidates = reviewed_append_candidates
                 compiled_acceptance_applied = bool(reviewed_append_candidates)

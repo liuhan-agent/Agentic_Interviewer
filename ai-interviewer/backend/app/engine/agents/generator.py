@@ -117,6 +117,7 @@ def _question_seed_fields(question_seed_block: str) -> dict[str, str]:
         "Scenario:": "scenario",
         "Question stem:": "question_stem",
         "Prompt template:": "prompt_template",
+        "Skill tags:": "skill_tags",
     }
     for line in str(question_seed_block or "").splitlines():
         stripped = line.strip()
@@ -125,6 +126,95 @@ def _question_seed_fields(question_seed_block: str) -> dict[str, str]:
                 fields[key] = stripped[len(prefix) :].strip()
                 break
     return fields
+
+
+_BROAD_SEED_SKILL_TAGS = {
+    "backend",
+    "backend_systems",
+    "java",
+    "junior",
+    "mid",
+    "senior",
+    "spring",
+}
+
+_SEED_TAG_ALIASES = {
+    "async": {"async", "异步"},
+    "backpressure": {"backpressure", "背压"},
+    "cache": {"cache", "缓存", "redis"},
+    "compensation": {"compensation", "补偿"},
+    "consistency": {"consistency", "一致"},
+    "database": {"database", "数据库"},
+    "idempotency": {"idempotency", "幂等"},
+    "mq": {"mq", "消息", "队列", "rabbitmq"},
+    "mysql": {"mysql", "数据库"},
+    "outbox": {"outbox"},
+    "payment": {"payment", "支付"},
+    "redis": {"redis", "缓存"},
+    "retry": {"retry", "重试"},
+    "transaction": {"transaction", "事务"},
+}
+
+_CJK_SEED_ANCHOR_TERMS = {
+    "背压",
+    "补偿",
+    "超卖",
+    "对账",
+    "订单",
+    "队列",
+    "事务",
+    "幂等",
+    "缓存",
+    "扣款",
+    "库存",
+    "流量",
+    "流水",
+    "秒杀",
+    "投递",
+    "通知",
+    "异步",
+    "支付",
+    "重放",
+    "重试",
+}
+
+
+def _seed_alignment_terms(question_seed_block: str) -> set[str]:
+    seed = _question_seed_fields(question_seed_block)
+    terms: set[str] = set()
+    for raw_tag in str(seed.get("skill_tags") or "").split(","):
+        tag = raw_tag.strip().lower()
+        if not tag or tag in _BROAD_SEED_SKILL_TAGS:
+            continue
+        parts = [tag]
+        parts.extend(part for part in re.split(r"[_\-\s]+", tag) if part)
+        for part in parts:
+            if part in _BROAD_SEED_SKILL_TAGS:
+                continue
+            aliases = _SEED_TAG_ALIASES.get(part)
+            if aliases:
+                terms.update(aliases)
+            elif len(part) >= 4:
+                terms.add(part)
+
+    seed_text = " ".join(
+        str(seed.get(key) or "")
+        for key in ("scenario", "question_stem", "prompt_template")
+    )
+    for term in _CJK_SEED_ANCHOR_TERMS:
+        if term in seed_text:
+            terms.add(term)
+    return {term.lower() for term in terms if str(term).strip()}
+
+
+def _looks_seed_misaligned(question: Any, question_seed_block: str) -> bool:
+    seed_terms = _seed_alignment_terms(question_seed_block)
+    if not question_seed_block or not seed_terms:
+        return False
+    text = str(question or "").lower()
+    hits = {term for term in seed_terms if term and term in text}
+    required_hits = 1 if len(seed_terms) <= 2 else 2
+    return len(hits) < required_hits
 
 
 def _seed_backed_fallback_question_text(
@@ -152,6 +242,59 @@ def _seed_backed_fallback_question_text(
         f"请结合「{project}」中与「{skills}」相关的{dim}场景，{scenario_part}"
         f"{stem} 请说明你的具体设计、关键取舍、验证指标，以及如果压力更高会如何演进。"
     )
+
+
+def _seed_backed_contract_from_hints(
+    contract_hints: dict[str, Any] | None,
+    *,
+    bar_level: str,
+) -> dict[str, Any] | None:
+    seed = (contract_hints or {}).get("question_seed")
+    if not isinstance(seed, dict):
+        return None
+    rubric = seed.get("rubric")
+    if not isinstance(rubric, dict):
+        return None
+    must_cover = [
+        str(item).strip()
+        for item in rubric.get("must_cover") or []
+        if str(item or "").strip()
+    ]
+    if not must_cover:
+        return None
+    additions = [
+        str(item).strip()
+        for item in seed.get("rubric_additions") or []
+        if str(item or "").strip()
+    ]
+    return {
+        "must_cover": must_cover,
+        "acceptable_if_missing": [],
+        "acceptance_checks": [
+            _seed_acceptance_check_text(item, required=True)
+            for item in must_cover
+        ]
+        + [
+            _seed_acceptance_check_text(item, required=False)
+            for item in additions
+        ],
+        "minimum_bar": str(rubric.get("minimum_bar") or "").strip()
+        or _seed_acceptance_check_text(", ".join(must_cover), required=True),
+        "review_focus": additions or must_cover,
+        "bar_level": bar_level,
+    }
+
+
+def _seed_acceptance_check_text(item: str, *, required: bool) -> str:
+    if _contains_cjk(item):
+        prefix = "回答需要" if required else "回答应补充"
+        return f"{prefix}{item}。"
+    prefix = "Answer must cover" if required else "Answer should address"
+    return f"{prefix} {item}."
+
+
+def _contains_cjk(value: str) -> bool:
+    return bool(re.search(r"[\u4e00-\u9fff]", str(value or "")))
 
 
 def _looks_like_generic_tradeoff_prompt(question: Any) -> bool:
@@ -338,7 +481,11 @@ def generate_question(
     )
     used_seed_fallback = bool(
         seed_fallback
-        and (not model_question or _looks_like_generic_tradeoff_prompt(model_question))
+        and (
+            not model_question
+            or _looks_like_generic_tradeoff_prompt(model_question)
+            or _looks_seed_misaligned(model_question, question_seed_block)
+        )
     )
     question_text = (
         seed_fallback
@@ -353,6 +500,13 @@ def generate_question(
             probe_intent=probe_intent,
         )
     )
+    if used_seed_fallback:
+        seed_contract = _seed_backed_contract_from_hints(
+            contract_hints,
+            bar_level=difficulty_to_bar_level(target_difficulty),
+        )
+        if seed_contract:
+            proposed = seed_contract
     question = {
         "question": question_text,
         "dimension": data.get("dimension", dimension),
@@ -363,6 +517,8 @@ def generate_question(
     }
     if used_seed_fallback:
         question["seed_backed_fallback"] = True
+        if model_question and _looks_seed_misaligned(model_question, question_seed_block):
+            question["seed_backed_fallback_reason"] = "structured_seed_alignment"
     if resume_anchor:
         question["resume_anchor"] = resume_anchor
     log.debug(

@@ -245,6 +245,37 @@ def _evaluator_trace_payload(
         "contract_gate_result": copy.deepcopy(
             evaluation.get("contract_gate_result") or {}
         ),
+        "gate_calibration_summary": copy.deepcopy(
+            evaluation.get("gate_calibration_summary") or {}
+        ),
+        "contract_semantics_summary": copy.deepcopy(
+            evaluation.get("contract_semantics_summary") or {}
+        ),
+        "soft_gap_training_suggestions": copy.deepcopy(
+            evaluation.get("soft_gap_training_suggestions") or {}
+        ),
+        "soft_followup_hints": copy.deepcopy(
+            evaluation.get("soft_followup_hints") or {}
+        ),
+        "evaluation_quality_warning": bool(
+            evaluation.get("evaluation_quality_warning")
+        ),
+        "evaluation_quality_warning_reason": evaluation.get(
+            "evaluation_quality_warning_reason"
+        ),
+        "evaluation_quality_warning_check_ids": copy.deepcopy(
+            _list_or_empty(evaluation.get("evaluation_quality_warning_check_ids"))
+        ),
+        "evaluation_quality_invalid": bool(
+            evaluation.get("evaluation_quality_invalid")
+        ),
+        "evaluation_quality_invalid_reason": evaluation.get(
+            "evaluation_quality_invalid_reason"
+        ),
+        "evaluation_retry_applied": bool(
+            evaluation.get("evaluation_retry_applied")
+        ),
+        "evaluation_retry_reason": evaluation.get("evaluation_retry_reason"),
         "recommended_next": evaluation.get("recommended_next"),
         "recommended_next_plan": evaluation.get("recommended_next_plan"),
         "recommended_probe_intent": evaluation.get("recommended_probe_intent"),

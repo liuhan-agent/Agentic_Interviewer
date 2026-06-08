@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import json
 import math
+import re
 from collections import Counter
 from typing import Any
 
@@ -149,6 +150,10 @@ def _coach_context_report(final_report: dict[str, Any]) -> dict[str, Any]:
             coverage_limited.append(str(dim))
             if isinstance(next_summary, dict):
                 next_summary["weaknesses"] = []
+        elif isinstance(next_summary, dict):
+            next_summary["weaknesses"] = _sanitize_training_plan_text(
+                next_summary.get("weaknesses") or []
+            )
         filtered_summaries[str(dim)] = next_summary
     report["dimension_summaries"] = filtered_summaries
     policy = dict(report.get("coach_generation_policy") or {})
@@ -178,6 +183,38 @@ def _is_system_fallback_text(value: Any) -> bool:
     return any(marker.lower() in lowered for marker in _SYSTEM_FALLBACK_MARKERS)
 
 
+_GATE_ENFORCEMENT_WEAKNESS_RE = re.compile(
+    r"^\s*Reviewed core acceptance failed(?:\s*\([^)]+\))?:?\s*(.*)$",
+    re.IGNORECASE,
+)
+
+
+def _candidate_readable_weakness(value: Any) -> str:
+    text = str(value or "").strip()
+    if not text:
+        return ""
+    match = _GATE_ENFORCEMENT_WEAKNESS_RE.match(text)
+    if not match:
+        return text
+    detail = (match.group(1) or "").strip()
+    if detail:
+        return f"核心判定条款未满足：{detail}"
+    return "核心判定条款未满足：需要补充核心判定条款的证据。"
+
+
+def _sanitize_training_plan_text(value: Any) -> Any:
+    if isinstance(value, str):
+        return _candidate_readable_weakness(value)
+    if isinstance(value, list):
+        return [_sanitize_training_plan_text(item) for item in value]
+    if isinstance(value, dict):
+        return {
+            key: _sanitize_training_plan_text(item)
+            for key, item in value.items()
+        }
+    return value
+
+
 def _is_evaluator_fallback(evaluation: dict[str, Any]) -> bool:
     return bool(
         evaluation.get("source") == "fallback"
@@ -196,7 +233,7 @@ def _localise_known_weakness(text: str) -> str:
         ),
         "Evaluator LLM unavailable.": "评估模型暂时不可用。",
     }
-    return known.get(text, text)
+    return known.get(text, _candidate_readable_weakness(text))
 
 
 def _candidate_weaknesses(evaluation: dict[str, Any]) -> list[str]:
@@ -550,7 +587,33 @@ def _normalize_llm_plan(data: dict[str, Any]) -> dict[str, Any]:
     data.setdefault("signal_summary", "")
     data.setdefault("priority_weaknesses", [])
     data.setdefault("practice_plan", [])
-    return data
+    cleaned = _sanitize_training_plan_text(data)
+    return cleaned if isinstance(cleaned, dict) else data
+
+
+def _decode_llm_training_plan(raw: Any) -> tuple[dict[str, Any] | None, str]:
+    raw_text = str(raw or "").strip()
+    if not raw_text:
+        return None, "empty_output"
+
+    try:
+        data = parse_json_response(raw)
+    except Exception as e:  # pragma: no cover
+        log.warning("coach LLM response parse raised: %s", e)
+        return None, "json_parse_failed"
+
+    if not isinstance(data, dict):
+        return None, "invalid_structure"
+    if not data:
+        reason = (
+            "invalid_structure"
+            if _looks_like_empty_json_object(raw_text)
+            else "json_parse_failed"
+        )
+        return None, reason
+    if not _has_coach_plan_shape(data):
+        return None, "invalid_structure"
+    return data, ""
 
 
 def build_training_plan(
@@ -578,54 +641,30 @@ def build_training_plan(
         verification_summary=verification,
     )
     messages = frame_to_coach_messages(frame)
-    try:
-        raw = call_chat(messages, json_mode=True, agent_role="coach")
-    except Exception as e:  # pragma: no cover
-        log.warning("coach LLM call failed, using fallback: %s", e)
-        return _fallback_with_reason(
-            reason="llm_call_failed",
-            final_report=coach_report,
-            qa_history=qa_history,
-        )
+    last_reason = "json_parse_failed"
+    for attempt in range(2):
+        try:
+            raw = call_chat(messages, json_mode=True, agent_role="coach")
+        except Exception as e:  # pragma: no cover
+            log.warning("coach LLM call failed, using fallback: %s", e)
+            return _fallback_with_reason(
+                reason="llm_call_failed",
+                final_report=coach_report,
+                qa_history=qa_history,
+            )
 
-    raw_text = str(raw or "").strip()
-    if not raw_text:
-        return _fallback_with_reason(
-            reason="empty_output",
-            final_report=coach_report,
-            qa_history=qa_history,
-        )
+        data, reason = _decode_llm_training_plan(raw)
+        if data is not None:
+            data = _normalize_llm_plan(data)
+            data.setdefault("source", "llm")
+            return data
 
-    try:
-        data = parse_json_response(raw)
-    except Exception as e:  # pragma: no cover
-        log.warning("coach LLM response parse raised, using fallback: %s", e)
-        return _fallback_with_reason(
-            reason="json_parse_failed",
-            final_report=coach_report,
-            qa_history=qa_history,
-        )
+        last_reason = reason
+        if attempt == 0:
+            log.info("coach LLM output invalid (%s), retrying once", reason)
 
-    if not isinstance(data, dict):
-        return _fallback_with_reason(
-            reason="invalid_structure",
-            final_report=coach_report,
-            qa_history=qa_history,
-        )
-    if not data:
-        reason = "invalid_structure" if _looks_like_empty_json_object(raw_text) else "json_parse_failed"
-        return _fallback_with_reason(
-            reason=reason,
-            final_report=coach_report,
-            qa_history=qa_history,
-        )
-    if not _has_coach_plan_shape(data):
-        return _fallback_with_reason(
-            reason="invalid_structure",
-            final_report=coach_report,
-            qa_history=qa_history,
-        )
-
-    data = _normalize_llm_plan(data)
-    data.setdefault("source", "llm")
-    return data
+    return _fallback_with_reason(
+        reason=last_reason,
+        final_report=coach_report,
+        qa_history=qa_history,
+    )

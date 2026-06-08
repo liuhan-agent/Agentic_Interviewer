@@ -219,6 +219,54 @@ def test_turn_evidence_preserves_full_dict_shape() -> None:
             "contract_gate_enforcement_reason": "reviewed_core_failed",
             "contract_gate_failed_count": 1,
             "contract_gate_failed_check_ids": ["reviewed:ttl"],
+            "contract_semantics_summary": {
+                "reviewed_core": {"total": 1, "yes": 0, "partial": 1, "no": 0, "missing": 0},
+                "hard_gap_count": 1,
+                "reviewed_supporting": {"total": 0, "gap_items": []},
+                "adaptive_context": {"total": 0, "gap_items": []},
+            },
+            "soft_gap_training_suggestions": {
+                "present": True,
+                "source": "contract_semantics_summary",
+                "quality_suggestions": [
+                    {
+                        "suggestion_id": "soft_gap:test",
+                        "source": "reviewed_supporting",
+                        "check_id": "reviewed:support:ttl",
+                        "title": "Quality gap: explains TTL tradeoff",
+                        "description": "Improve the TTL tradeoff.",
+                    }
+                ],
+                "context_suggestions": [],
+                "counts": {"quality": 1, "context": 0, "total": 1},
+            },
+            "soft_followup_hints": {
+                "present": True,
+                "mode": "shadow",
+                "applied": False,
+                "source": "soft_gap_training_suggestions",
+                "quality_hints": [
+                    {
+                        "hint_id": "soft_followup:test",
+                        "source": "reviewed_supporting",
+                        "intent": "probe_quality_gap",
+                        "check_id": "reviewed:support:ttl",
+                        "focus": "Probe quality gap without treating it as a hard gate.",
+                    }
+                ],
+                "context_hints": [],
+                "priority_order": ["soft_followup:test"],
+                "counts": {"quality": 1, "context": 0, "total": 1},
+            },
+            "evaluation_quality_warning": True,
+            "evaluation_quality_warning_reason": (
+                "empty_evidence_all_reviewed_core_partial"
+            ),
+            "evaluation_quality_warning_check_ids": ["reviewed:ttl"],
+            "evaluation_quality_invalid": True,
+            "evaluation_quality_invalid_reason": "quality_guard_retry_exhausted",
+            "evaluation_retry_applied": True,
+            "evaluation_retry_reason": "quality_guard",
             "recommended_next": "advance",
             "recommended_next_plan": "adaptive",
         },
@@ -244,6 +292,28 @@ def test_turn_evidence_preserves_full_dict_shape() -> None:
     assert evidence["contract_gate_enforcement_reason"] == "reviewed_core_failed"
     assert evidence["contract_gate_failed_count"] == 1
     assert evidence["contract_gate_failed_check_ids"] == ["reviewed:ttl"]
+    assert evidence["contract_semantics_summary"]["hard_gap_count"] == 1
+    assert evidence["contract_semantics_summary"]["reviewed_core"]["partial"] == 1
+    assert evidence["soft_gap_training_suggestions"]["counts"]["quality"] == 1
+    assert evidence["soft_gap_training_suggestions"]["quality_suggestions"][0][
+        "check_id"
+    ] == "reviewed:support:ttl"
+    assert evidence["soft_followup_hints"]["mode"] == "shadow"
+    assert evidence["soft_followup_hints"]["applied"] is False
+    assert evidence["soft_followup_hints"]["quality_hints"][0]["intent"] == (
+        "probe_quality_gap"
+    )
+    assert evidence["evaluation_quality_warning"] is True
+    assert evidence["evaluation_quality_warning_reason"] == (
+        "empty_evidence_all_reviewed_core_partial"
+    )
+    assert evidence["evaluation_quality_warning_check_ids"] == ["reviewed:ttl"]
+    assert evidence["evaluation_quality_invalid"] is True
+    assert evidence["evaluation_quality_invalid_reason"] == (
+        "quality_guard_retry_exhausted"
+    )
+    assert evidence["evaluation_retry_applied"] is True
+    assert evidence["evaluation_retry_reason"] == "quality_guard"
 
 
 def test_turn_evidence_preserves_depth_followup_metadata() -> None:
@@ -478,6 +548,37 @@ def test_final_report_filters_evaluator_fallback_from_risk_flags(monkeypatch) ->
 # ---------------------------------------------------------------------------
 
 
+def test_final_report_risk_flags_clean_gate_machine_prefixes(monkeypatch) -> None:
+    monkeypatch.setattr(fr, "get_tracer", lambda: _NoopTracer())
+
+    raw = (
+        "Reviewed core acceptance failed (partial): "
+        "候选人说明重复支付时的服务端幂等保护。"
+    )
+    qa_history = [
+        _mk_qa_turn(
+            turn_idx=0,
+            dimension="coding_quality",
+            passed=False,
+            score=8.0,
+            acceptance={"Explains idempotency.": "partial"},
+        ),
+    ]
+    qa_history[0]["evaluation"]["weaknesses"] = [raw]
+    state = _mk_state(qa_history)
+    state["scores_per_dim"] = {"coding_quality": 8.0}
+    state["dimension_status"] = {"coding_quality": "active"}
+
+    out = fr.final_report_node(state)  # type: ignore[arg-type]
+    report = out["final_report"]
+
+    rendered = str(report["risk_flags"])
+    assert "Reviewed core acceptance failed" not in rendered
+    assert report["risk_flags"] == [
+        "核心判定条款未满足：候选人说明重复支付时的服务端幂等保护。"
+    ]
+
+
 def _mk_qa_turn(
     *,
     turn_idx: int,
@@ -508,6 +609,36 @@ def _mk_qa_turn(
     }
     if resume_anchor is not None:
         turn["resume_anchor"] = resume_anchor
+    return turn
+
+
+def _add_acceptance_item(
+    turn: dict[str, Any],
+    *,
+    check_id: str,
+    text: str,
+    verdict: str,
+    source: str,
+    severity: str,
+) -> dict[str, Any]:
+    item = {
+        "check_id": check_id,
+        "text": text,
+        "source": source,
+        "severity": severity,
+        "verdict": verdict,
+        "result_present": True,
+        "evidence": [] if verdict == "no" else ["partial evidence"],
+    }
+    evaluation = turn["evaluation"]
+    evaluation["acceptance_check_result_items"] = [
+        *evaluation.get("acceptance_check_result_items", []),
+        item,
+    ]
+    evaluation["acceptance_check_results"] = {
+        **(evaluation.get("acceptance_check_results") or {}),
+        text: {"verdict": verdict, "evidence": item["evidence"]},
+    }
     return turn
 
 
@@ -975,7 +1106,7 @@ def test_final_report_node_cancelled_verdict_passes_through(monkeypatch) -> None
     assert report["cancelled"] is True
 
 
-def test_final_report_separates_positive_verdict_from_coverage_risk(monkeypatch) -> None:
+def test_final_report_uses_coverage_aware_candidate_verdict(monkeypatch) -> None:
     monkeypatch.setattr(fr, "get_tracer", lambda: _NoopTracer())
 
     qa_history = [
@@ -1002,13 +1133,14 @@ def test_final_report_separates_positive_verdict_from_coverage_risk(monkeypatch)
     report = out["final_report"]
 
     assert report["overall_score"] == 8.8
-    assert report["verdict"] == "strong_pass"
-    assert report["growth_signal"] == "excellent"
-    assert report["overall_verdict"] == "excellent"
+    assert report["verdict"] == "borderline"
+    assert report["score_only_verdict"] == "strong_pass"
     assert report["coverage_status"] == "incomplete"
     assert report["coverage_limited"] is True
     assert report["coverage_limited_verdict"] == "borderline"
     assert report["coverage_limited_growth_signal"] == "near_target"
+    assert report["growth_signal"] == "near_target"
+    assert report["overall_verdict"] == "near_target"
     assert report["coverage_warnings"] == [
             {
                 "dimension": "communication",
@@ -1016,6 +1148,40 @@ def test_final_report_separates_positive_verdict_from_coverage_risk(monkeypatch)
                 "score": None,
             }
         ]
+
+
+def test_final_report_downgrades_internal_verdict_when_coverage_is_incomplete(
+    monkeypatch,
+) -> None:
+    monkeypatch.setattr(fr, "get_tracer", lambda: _NoopTracer())
+
+    qa_history = [
+        _mk_qa_turn(
+            turn_idx=0,
+            dimension="system_design",
+            passed=True,
+            score=8.8,
+            acceptance={"Names a trade-off.": "yes"},
+        ),
+    ]
+    state = _mk_state(qa_history)
+    state["quality_threshold"] = 7.0
+    state["scores_per_dim"] = {
+        "system_design": 8.8,
+        "communication": 0.0,
+    }
+    state["dimension_status"] = {
+        "system_design": "passed",
+        "communication": "pending",
+    }
+
+    out = fr.final_report_node(state)  # type: ignore[arg-type]
+    report = out["final_report"]
+
+    assert report["coverage_status"] == "incomplete"
+    assert report["coverage_limited"] is True
+    assert report["verdict"] == "borderline"
+    assert report["overall_verdict"] == "near_target"
 
 
 def test_final_report_counts_real_zero_scores_in_overall(monkeypatch) -> None:
@@ -1105,7 +1271,9 @@ def test_final_report_marks_unscored_skipped_and_fallback_dimensions(monkeypatch
     assert report["dimension_scores"]["problem_solving"]["exclusion_reason"] == "not_evaluated"
 
 
-def test_final_report_keeps_coverage_limited_scores_in_overall(monkeypatch) -> None:
+def test_final_report_promotes_partial_only_high_score_out_of_coverage_limited(
+    monkeypatch,
+) -> None:
     monkeypatch.setattr(fr, "get_tracer", lambda: _NoopTracer())
 
     qa_history = [
@@ -1117,6 +1285,9 @@ def test_final_report_keeps_coverage_limited_scores_in_overall(monkeypatch) -> N
             acceptance={"Explains consistency trade-off.": "partial"},
         ),
     ]
+    qa_history[0]["evaluation"]["rubric_coverage"] = {
+        "Explains consistency trade-off.": "partial"
+    }
     state = _mk_state(qa_history)
     state["scores_per_dim"] = {"technical_depth": 9.0}
     state["dimension_status"] = {"technical_depth": "active"}
@@ -1128,7 +1299,257 @@ def test_final_report_keeps_coverage_limited_scores_in_overall(monkeypatch) -> N
     assert report["overall_score"] == 9.0
     assert report["dimension_scores"]["technical_depth"]["score_status"] == "scored"
     assert report["dimension_scores"]["technical_depth"]["excluded_from_overall"] is False
+    assert report["dimension_scores"]["technical_depth"]["coverage_status"] == "passed"
+    assert report["dimension_scores"]["technical_depth"]["passed"] is True
+    assert report["dimension_status"]["technical_depth"] == "passed"
+    assert report["coverage_warnings"] == []
+    assert report["coverage_status"] == "complete"
+    assert report["coverage_limited"] is False
+
+
+def test_final_report_keeps_hard_gap_high_score_coverage_limited(
+    monkeypatch,
+) -> None:
+    monkeypatch.setattr(fr, "get_tracer", lambda: _NoopTracer())
+
+    qa_history = [
+        _mk_qa_turn(
+            turn_idx=0,
+            dimension="technical_depth",
+            passed=False,
+            score=9.0,
+            acceptance={"Explains consistency trade-off.": "no"},
+        ),
+    ]
+    qa_history[0]["evaluation"]["rubric_coverage"] = {
+        "Explains consistency trade-off.": "missing"
+    }
+    state = _mk_state(qa_history)
+    state["scores_per_dim"] = {"technical_depth": 9.0}
+    state["dimension_status"] = {"technical_depth": "active"}
+    state["quality_threshold"] = 7.0
+
+    out = fr.final_report_node(state)  # type: ignore[arg-type]
+    report = out["final_report"]
+
     assert report["dimension_scores"]["technical_depth"]["coverage_status"] == "coverage_limited"
+    assert report["dimension_scores"]["technical_depth"]["passed"] is False
+    assert report["dimension_status"]["technical_depth"] == "active"
+    assert report["coverage_warnings"] == [
+        {"dimension": "technical_depth", "status": "active", "score": 9.0}
+    ]
+
+
+def test_final_report_keeps_contract_gate_failure_coverage_limited(
+    monkeypatch,
+) -> None:
+    monkeypatch.setattr(fr, "get_tracer", lambda: _NoopTracer())
+
+    qa_history = [
+        _mk_qa_turn(
+            turn_idx=0,
+            dimension="technical_depth",
+            passed=False,
+            score=9.0,
+            acceptance={"Explains consistency trade-off.": "partial"},
+        ),
+    ]
+    qa_history[0]["evaluation"]["contract_gate_result"] = {
+        "mode": "enforce",
+        "status": "failed",
+        "failed_items": [
+            {
+                "check_id": "reviewed:technical_depth:core_boundary:v1",
+                "reason": "partial",
+            }
+        ],
+    }
+    qa_history[0]["evaluation"]["contract_gate_enforced"] = True
+    state = _mk_state(qa_history)
+    state["scores_per_dim"] = {"technical_depth": 9.0}
+    state["dimension_status"] = {"technical_depth": "active"}
+    state["quality_threshold"] = 7.0
+
+    out = fr.final_report_node(state)  # type: ignore[arg-type]
+    report = out["final_report"]
+
+    assert report["dimension_scores"]["technical_depth"]["coverage_status"] == "coverage_limited"
+    assert report["dimension_scores"]["technical_depth"]["passed"] is False
+
+
+def test_final_report_promotes_structured_supporting_no_out_of_coverage_limited(
+    monkeypatch,
+) -> None:
+    monkeypatch.setattr(fr, "get_tracer", lambda: _NoopTracer())
+
+    qa_history = [
+        _mk_qa_turn(
+            turn_idx=0,
+            dimension="project_experience",
+            passed=False,
+            score=8.0,
+            acceptance={},
+        ),
+    ]
+    _add_acceptance_item(
+        qa_history[0],
+        check_id="seed_check:write_amplification",
+        text="Explain the source of write amplification.",
+        verdict="no",
+        source="compiled_fallback",
+        severity="supporting",
+    )
+    qa_history[0]["evaluation"]["rubric_coverage"] = {
+        "Versioning strategy that was outside the question stem": "missing"
+    }
+    state = _mk_state(qa_history)
+    state["scores_per_dim"] = {"project_experience": 8.0}
+    state["dimension_status"] = {"project_experience": "active"}
+    state["quality_threshold"] = 7.0
+
+    out = fr.final_report_node(state)  # type: ignore[arg-type]
+    report = out["final_report"]
+
+    assert report["dimension_scores"]["project_experience"]["coverage_status"] == "passed"
+    assert report["dimension_scores"]["project_experience"]["passed"] is True
+    assert report["dimension_status"]["project_experience"] == "passed"
+    assert report["coverage_warnings"] == []
+    assert report["dimension_summaries"]["project_experience"]["weaknesses"] == [
+        "weakness-0"
+    ]
+    assert (
+        report["dimension_summaries"]["project_experience"]["evidence"][0][
+            "acceptance_check_result_items"
+        ][0]["check_id"]
+        == "seed_check:write_amplification"
+    )
+
+
+def test_final_report_keeps_structured_core_no_coverage_limited(
+    monkeypatch,
+) -> None:
+    monkeypatch.setattr(fr, "get_tracer", lambda: _NoopTracer())
+
+    qa_history = [
+        _mk_qa_turn(
+            turn_idx=0,
+            dimension="coding_quality",
+            passed=False,
+            score=8.0,
+            acceptance={},
+        ),
+    ]
+    _add_acceptance_item(
+        qa_history[0],
+        check_id="seed_check:idempotency_core",
+        text="Explain the idempotency persistence mechanism.",
+        verdict="no",
+        source="compiled_fallback",
+        severity="core",
+    )
+    state = _mk_state(qa_history)
+    state["scores_per_dim"] = {"coding_quality": 8.0}
+    state["dimension_status"] = {"coding_quality": "active"}
+    state["quality_threshold"] = 7.0
+
+    out = fr.final_report_node(state)  # type: ignore[arg-type]
+    report = out["final_report"]
+
+    assert report["dimension_scores"]["coding_quality"]["coverage_status"] == "coverage_limited"
+    assert report["dimension_scores"]["coding_quality"]["passed"] is False
+
+
+def test_final_report_keeps_reviewed_core_partial_coverage_limited(
+    monkeypatch,
+) -> None:
+    monkeypatch.setattr(fr, "get_tracer", lambda: _NoopTracer())
+
+    qa_history = [
+        _mk_qa_turn(
+            turn_idx=0,
+            dimension="technical_depth",
+            passed=False,
+            score=9.0,
+            acceptance={},
+        ),
+    ]
+    _add_acceptance_item(
+        qa_history[0],
+        check_id="reviewed:technical_depth:core_boundary:v1",
+        text="Separate transactional writes from external side effects.",
+        verdict="partial",
+        source="reviewed",
+        severity="core",
+    )
+    state = _mk_state(qa_history)
+    state["scores_per_dim"] = {"technical_depth": 9.0}
+    state["dimension_status"] = {"technical_depth": "active"}
+    state["quality_threshold"] = 7.0
+
+    out = fr.final_report_node(state)  # type: ignore[arg-type]
+    report = out["final_report"]
+
+    assert report["dimension_scores"]["technical_depth"]["coverage_status"] == "coverage_limited"
+    assert report["dimension_scores"]["technical_depth"]["passed"] is False
+
+
+def test_final_report_does_not_promote_legacy_no_without_structured_items(
+    monkeypatch,
+) -> None:
+    monkeypatch.setattr(fr, "get_tracer", lambda: _NoopTracer())
+
+    qa_history = [
+        _mk_qa_turn(
+            turn_idx=0,
+            dimension="problem_solving",
+            passed=False,
+            score=9.0,
+            acceptance={"Explain the repair verification loop.": "no"},
+        ),
+    ]
+    state = _mk_state(qa_history)
+    state["scores_per_dim"] = {"problem_solving": 9.0}
+    state["dimension_status"] = {"problem_solving": "active"}
+    state["quality_threshold"] = 7.0
+
+    out = fr.final_report_node(state)  # type: ignore[arg-type]
+    report = out["final_report"]
+
+    assert report["dimension_scores"]["problem_solving"]["coverage_status"] == "coverage_limited"
+    assert report["dimension_scores"]["problem_solving"]["passed"] is False
+
+
+def test_final_report_does_not_promote_dimension_with_evaluator_fallback(
+    monkeypatch,
+) -> None:
+    monkeypatch.setattr(fr, "get_tracer", lambda: _NoopTracer())
+
+    fallback_turn = _mk_fallback_turn(turn_idx=0, dimension="project_experience")
+    scored_turn = _mk_qa_turn(
+        turn_idx=1,
+        dimension="project_experience",
+        passed=False,
+        score=8.0,
+        acceptance={},
+    )
+    _add_acceptance_item(
+        scored_turn,
+        check_id="seed_check:write_amplification",
+        text="Explain the source of write amplification.",
+        verdict="no",
+        source="compiled_fallback",
+        severity="supporting",
+    )
+    state = _mk_state([fallback_turn, scored_turn])
+    state["scores_per_dim"] = {"project_experience": 8.0}
+    state["dimension_status"] = {"project_experience": "active"}
+    state["quality_threshold"] = 7.0
+
+    out = fr.final_report_node(state)  # type: ignore[arg-type]
+    report = out["final_report"]
+
+    assert report["dimension_scores"]["project_experience"]["coverage_status"] == "coverage_limited"
+    assert report["dimension_scores"]["project_experience"]["passed"] is False
 
 
 def test_final_report_rebuilds_multiturn_score_breakdown_from_qa_history(

@@ -38,10 +38,16 @@ from app.engine.contracts.acceptance_items import (
     contract_for_source_aware_scoring,
     join_acceptance_check_results,
 )
+from app.engine.contracts.acceptance_summary import build_contract_semantics_summary
 from app.engine.contracts.contract_gate import (
     apply_contract_gate_enforcement,
     build_contract_gate_result,
     resolve_contract_gate_mode,
+)
+from app.engine.contracts.followup_hints import build_soft_followup_hints
+from app.engine.contracts.gate_calibration import build_gate_calibration_summary
+from app.engine.contracts.training_suggestions import (
+    build_soft_gap_training_suggestions,
 )
 from app.engine.workflow.depth_followup import preserve_depth_followup_dimension_status
 from app.engine.workflow.evaluation_consistency import (
@@ -380,6 +386,15 @@ def _apply_verification(
     # Prefer deep_probe for refine rounds triggered by the verifier
     # because by definition the current question already passed once.
     out["recommended_next_plan"] = "deep_probe"
+    category = (
+        "verifier_high_confidence_fail"
+        if verdict == "fail"
+        else "verifier_high_confidence_partial"
+    )
+    failure_categories = list(out.get("failure_categories") or [])
+    if category not in failure_categories:
+        failure_categories.append(category)
+    out["failure_categories"] = failure_categories
     out.setdefault("weaknesses", [])
     for r in reasons:
         if r not in out["weaknesses"]:
@@ -439,13 +454,18 @@ def _verification_changes(
     after_items = _string_items(updated_evaluation.get(field))
     added = [item for item in after_items if item not in before_items]
     if added:
+        reason = (
+            "contract_gate_reviewed_core_failed"
+            if any(item == "contract_gate_reviewed_core_failed" for item in added)
+            else _verification_change_reason(verification, field)
+        )
         changes.append(
             {
                 "field": field,
                 "label": "Failure categories",
                 "before": before_items,
                 "after": added,
-                "reason": "contract_gate_reviewed_core_failed",
+                "reason": reason,
             }
         )
 
@@ -516,6 +536,10 @@ def _verification_effect(triggered: bool, changes: list[dict[str, Any]]) -> str:
 _METADATA_ONLY_EVALUATION_FIELDS = {
     "acceptance_check_result_items",
     "contract_gate_result",
+    "gate_calibration_summary",
+    "contract_semantics_summary",
+    "soft_gap_training_suggestions",
+    "soft_followup_hints",
 }
 
 
@@ -670,6 +694,27 @@ def verification_node(state: InterviewState) -> dict[str, Any]:
         updated_evaluation.get("contract_gate_result"),
         mode=contract_gate_mode,
     )
+    updated_evaluation["gate_calibration_summary"] = (
+        build_gate_calibration_summary(
+            score=updated_evaluation.get("score"),
+            passed=updated_evaluation.get("passed"),
+            contract_gate_result=updated_evaluation.get("contract_gate_result"),
+            gate_enforced=updated_evaluation.get("contract_gate_enforced"),
+        )
+    )
+    updated_evaluation["contract_semantics_summary"] = (
+        build_contract_semantics_summary(
+            updated_evaluation.get("acceptance_check_result_items")
+        )
+    )
+    updated_evaluation["soft_gap_training_suggestions"] = (
+        build_soft_gap_training_suggestions(
+            updated_evaluation.get("contract_semantics_summary")
+        )
+    )
+    updated_evaluation["soft_followup_hints"] = build_soft_followup_hints(
+        updated_evaluation.get("soft_gap_training_suggestions")
+    )
     dimension_status = sync_dimension_status(
         dict(state.get("dimension_status") or {}),
         str(dimension),
@@ -786,6 +831,9 @@ def verification_node(state: InterviewState) -> dict[str, Any]:
                 "verification_effect": verification_effect,
                 "contract_gate_result": updated_evaluation.get(
                     "contract_gate_result"
+                ),
+                "gate_calibration_summary": updated_evaluation.get(
+                    "gate_calibration_summary"
                 ),
                 "elapsed_ms": int((time.perf_counter() - node_started_at) * 1000),
             },

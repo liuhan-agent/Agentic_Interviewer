@@ -91,7 +91,14 @@ def test_verification_changes_describe_high_confidence_partial_override() -> Non
     assert by_field["recommended_next"]["after"] == "refine"
     assert by_field["recommended_next_plan"]["after"] == "deep_probe"
     assert by_field["weaknesses"]["after"] == ["missing operational metrics"]
+    assert by_field["failure_categories"]["after"] == [
+        "verifier_high_confidence_partial"
+    ]
     assert by_field["passed"]["reason"] == "verifier_high_confidence_partial"
+    assert (
+        by_field["failure_categories"]["reason"]
+        == "verifier_high_confidence_partial"
+    )
     assert vnode._verification_effect(True, changes) == "overruled_to_refine"
 
 
@@ -115,6 +122,10 @@ def test_verification_changes_describe_high_confidence_fail_forced_refine() -> N
     assert by_field["verifier_forced_refine"]["before"] is False
     assert by_field["verifier_forced_refine"]["after"] is True
     assert by_field["verifier_forced_refine"]["reason"] == "verifier_high_confidence_fail"
+    assert by_field["failure_categories"]["after"] == [
+        "verifier_high_confidence_fail"
+    ]
+    assert by_field["failure_categories"]["reason"] == "verifier_high_confidence_fail"
     assert vnode._verification_effect(True, changes) == "overruled_to_refine"
 
 
@@ -360,6 +371,16 @@ def test_evaluator_contract_gate_enforce_updates_state_before_routing(
     assert evaluation["contract_gate_result"]["mode"] == "enforce"
     assert evaluation["contract_gate_enforced"] is True
     assert evaluation["contract_gate_failed_check_ids"] == ["reviewed:rollback"]
+    assert evaluation["gate_calibration_summary"]["signals"] == [
+        "high_score_gate_failed",
+        "partial_only_gate_failed",
+    ]
+    assert evaluation["gate_calibration_summary"]["score_band"] == "high"
+    assert evaluation["gate_calibration_summary"]["partial_check_ids"] == [
+        "reviewed:rollback"
+    ]
+    assert evaluation["contract_semantics_summary"]["reviewed_core"]["partial"] == 1
+    assert evaluation["contract_semantics_summary"]["hard_gap_count"] == 1
     assert "acceptance_check_items" not in captured["scoring_contract"]
     assert captured["scoring_contract"]["acceptance_check_items_for_prompt"] == [
         {
@@ -372,9 +393,122 @@ def test_evaluator_contract_gate_enforce_updates_state_before_routing(
     assert out["dimension_status"]["technical_depth"] == "active"
     assert out["pending_qa_turn"]["evaluation"]["passed"] is False
     assert traced_states[-1]["evaluation"]["passed"] is False
+    assert (
+        traced_states[-1]["evaluation"]["gate_calibration_summary"][
+            "partial_only_gate_failed"
+        ]
+        is True
+    )
 
     route_state = {**state, **out}
     assert routers.route_after_eval(route_state) == "refine"  # type: ignore[arg-type]
+
+
+def test_evaluator_builds_soft_gap_training_suggestions_without_route_change(
+    monkeypatch,
+) -> None:
+    monkeypatch.setattr(enode, "get_tracer", lambda: SimpleNamespace(trace_evaluator=lambda *a, **k: None))
+    monkeypatch.setattr(
+        enode,
+        "get_settings",
+        lambda: SimpleNamespace(
+            enable_evaluator_prompt_feedback=False,
+            contract_gate_mode="shadow",
+        ),
+    )
+    monkeypatch.setattr(enode, "get_raw_answer_for_state", lambda state: None)
+    monkeypatch.setattr(enode, "_persist_interview_turn_fact", lambda **_kwargs: None)
+    monkeypatch.setattr(enode, "immediate_reward", lambda **_kwargs: 0.42)
+
+    def fake_evaluate_answer(**_kwargs) -> dict[str, Any]:
+        return {
+            "score": 8.2,
+            "passed": True,
+            "recommended_next": "advance",
+            "recommended_next_plan": None,
+            "acceptance_check_results": {
+                "Mentions rollback.": {"verdict": "yes", "evidence": ["rollback"]},
+                "Explains idempotent compensation.": {
+                    "verdict": "partial",
+                    "evidence": ["retry"],
+                },
+                "Connects to the payment migration project.": {
+                    "verdict": "no",
+                    "evidence": [],
+                },
+            },
+        }
+
+    monkeypatch.setattr(enode, "evaluate_answer", fake_evaluate_answer)
+
+    state: dict[str, Any] = {
+        "current_dimension": "technical_depth",
+        "current_question": {
+            "dimension": "technical_depth",
+            "question": "How would you migrate this safely?",
+            "rubric_points": [],
+        },
+        "current_contract": {
+            "acceptance_checks": [
+                "Mentions rollback.",
+                "Explains idempotent compensation.",
+                "Connects to the payment migration project.",
+            ],
+            "acceptance_check_items": [
+                {
+                    "check_id": "reviewed:rollback",
+                    "text": "Mentions rollback.",
+                    "source": "reviewed",
+                    "severity": "core",
+                },
+                {
+                    "check_id": "reviewed:support:idempotency",
+                    "text": "Explains idempotent compensation.",
+                    "source": "reviewed",
+                    "severity": "supporting",
+                },
+                {
+                    "check_id": "adaptive:payment-migration",
+                    "text": "Connects to the payment migration project.",
+                    "source": "adaptive_context",
+                    "severity": "supporting",
+                },
+            ],
+        },
+        "current_answer": "I would use rollback and retries.",
+        "quality_threshold": 7.5,
+        "scores_per_dim": {},
+        "score_breakdowns": {},
+        "qa_history": [],
+        "turn_idx": 0,
+        "formal_turn_idx": 0,
+        "turn_budget_remaining": 3,
+        "max_turns": 5,
+        "dimensions": ["technical_depth"],
+        "dimension_status": {"technical_depth": "active"},
+        "selected_action": {"id": "ask_deeper"},
+    }
+
+    out = enode.evaluator_node(state)  # type: ignore[arg-type]
+
+    evaluation = out["evaluation"]
+    assert evaluation["passed"] is False
+    assert evaluation["recommended_next"] == "refine"
+    suggestions = evaluation["soft_gap_training_suggestions"]
+    assert suggestions["counts"] == {"quality": 1, "context": 1, "total": 2}
+    assert suggestions["quality_suggestions"][0]["check_id"] == (
+        "reviewed:support:idempotency"
+    )
+    assert suggestions["context_suggestions"][0]["check_id"] == (
+        "adaptive:payment-migration"
+    )
+    hints = evaluation["soft_followup_hints"]
+    assert hints["mode"] == "shadow"
+    assert hints["applied"] is False
+    assert hints["counts"] == {"quality": 1, "context": 1, "total": 2}
+    assert hints["quality_hints"][0]["intent"] == "probe_quality_gap"
+    assert hints["context_hints"][0]["intent"] == "probe_context_gap"
+    assert out["dimension_status"]["technical_depth"] == "active"
 
 
 def test_verification_contract_gate_enforce_overrides_verifier_pass(
@@ -462,6 +596,15 @@ def test_verification_contract_gate_enforce_overrides_verifier_pass(
     assert evaluation["recommended_next_plan"] == "deep_probe"
     assert evaluation["contract_gate_result"]["mode"] == "enforce"
     assert evaluation["contract_gate_enforced"] is True
+    assert evaluation["gate_calibration_summary"]["signals"] == [
+        "high_score_gate_failed",
+        "hard_failure_gate_failed",
+    ]
+    assert evaluation["gate_calibration_summary"]["no_check_ids"] == [
+        "reviewed:rollback"
+    ]
+    assert evaluation["contract_semantics_summary"]["reviewed_core"]["no"] == 1
+    assert evaluation["contract_semantics_summary"]["hard_gap_count"] == 1
     assert out["dimension_status"]["technical_depth"] == "active"
     assert out["pending_qa_turn"]["evaluation"]["passed"] is False
     assert traced_payloads[-1]["updated_passed"] is False
@@ -472,6 +615,7 @@ def test_verification_contract_gate_enforce_overrides_verifier_pass(
     }
     assert by_field["passed"]["reason"] == "contract_gate_reviewed_core_failed"
     assert traced_payloads[-1]["verification_effect"] == "overruled_to_refine"
+    assert traced_payloads[-1]["gate_calibration_summary"]["hard_failure_gate_failed"] is True
 
 
 def test_verification_contract_gate_enforce_keeps_existing_forced_refine(
