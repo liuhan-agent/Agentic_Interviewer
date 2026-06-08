@@ -32,6 +32,84 @@ seeds:
         expected_signals: [能区分模型输出、后端解析和前端展示责任, 能补运行时校验, 能沉淀异常样例]
         anti_patterns: [前端直接相信模型字段, 只改 prompt 不加校验, 没有回归测试]
         good_answer_hints: [先复现字段缺失路径, 再固定契约和校验, 最后补样例回归]
+        reviewed_acceptance_checks:
+          - check_id: reviewed:problem_solving.ai_fullstack_contract_regression.model_response_schema:must_cover:73afb882:v1
+            source: must_cover
+            source_text: 异常现象
+            acceptance_check: 候选人围绕「异常现象」说明失败分类、触发条件、重试/降级/恢复策略和防止影响扩散的边界。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:problem_solving.ai_fullstack_contract_regression.model_response_schema:must_cover:8d20915a:v1
+            source: must_cover
+            source_text: 契约边界
+            acceptance_check: 候选人针对「契约边界」给出排查或处置闭环，包含观察证据、判断依据、行动步骤和修复后验证，而不是直接跳到结论。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:problem_solving.ai_fullstack_contract_regression.model_response_schema:must_cover:8de472dc:v1
+            source: must_cover
+            source_text: 回归定位
+            acceptance_check: 候选人围绕「回归定位」给出测试或评估设计，说明样例来源、覆盖边界、通过标准和回归/线上验证方式。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:problem_solving.ai_fullstack_contract_regression.model_response_schema:must_cover:4511cd84:v1
+            source: must_cover
+            source_text: 修复验证
+            acceptance_check: 候选人围绕「修复验证」给出测试或评估设计，说明样例来源、覆盖边界、通过标准和回归/线上验证方式。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:problem_solving.ai_fullstack_contract_regression.model_response_schema:rubric_addition:a23d172e:v1
+            source: rubric_addition
+            source_text: 说明模型输出不可信
+            acceptance_check: 候选人补充说明「说明模型输出不可信」，并给出可复现证据、排查步骤、止血动作、修复验证或复盘改进中的至少一类具体内容。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:problem_solving.ai_fullstack_contract_regression.model_response_schema:rubric_addition:ea3b7db7:v1
+            source: rubric_addition
+            source_text: 说明契约校验和容错
+            acceptance_check: 候选人补充说明「说明契约校验和容错」，并给出可复现证据、排查步骤、止血动作、修复验证或复盘改进中的至少一类具体内容。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:problem_solving.ai_fullstack_contract_regression.model_response_schema:rubric_addition:ec687406:v1
+            source: rubric_addition
+            source_text: 说明回归样例和监控
+            acceptance_check: 候选人补充说明「说明回归样例和监控」，并给出可复现证据、排查步骤、止血动作、修复验证或复盘改进中的至少一类具体内容。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
         priority: 16
         status: active
       - id: problem_solving.ai_fullstack_contract_regression.prompt_versioning
@@ -48,6 +126,84 @@ seeds:
         expected_signals: [能给输出契约加版本, 能兼容历史任务, 能用样例集验证升级]
         anti_patterns: [直接覆盖 prompt, 不记录版本, 历史数据无法展示]
         good_answer_hints: [先拆 prompt 与契约版本, 再做兼容解析, 最后补回归样例]
+        reviewed_acceptance_checks:
+          - check_id: reviewed:problem_solving.ai_fullstack_contract_regression.prompt_versioning:must_cover:8064ad82:v1
+            source: must_cover
+            source_text: 异常现象
+            acceptance_check: 候选人围绕「异常现象」说明失败分类、触发条件、重试/降级/恢复策略和防止影响扩散的边界。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:problem_solving.ai_fullstack_contract_regression.prompt_versioning:must_cover:b079032c:v1
+            source: must_cover
+            source_text: 契约边界
+            acceptance_check: 候选人针对「契约边界」给出排查或处置闭环，包含观察证据、判断依据、行动步骤和修复后验证，而不是直接跳到结论。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:problem_solving.ai_fullstack_contract_regression.prompt_versioning:must_cover:6127920d:v1
+            source: must_cover
+            source_text: 回归定位
+            acceptance_check: 候选人围绕「回归定位」给出测试或评估设计，说明样例来源、覆盖边界、通过标准和回归/线上验证方式。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:problem_solving.ai_fullstack_contract_regression.prompt_versioning:must_cover:a1cb0b50:v1
+            source: must_cover
+            source_text: 修复验证
+            acceptance_check: 候选人围绕「修复验证」给出测试或评估设计，说明样例来源、覆盖边界、通过标准和回归/线上验证方式。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:problem_solving.ai_fullstack_contract_regression.prompt_versioning:rubric_addition:97dc64ed:v1
+            source: rubric_addition
+            source_text: 说明 prompt 和输出契约版本
+            acceptance_check: 候选人补充说明「说明 prompt 和输出契约版本」，并给出可复现证据、排查步骤、止血动作、修复验证或复盘改进中的至少一类具体内容。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:problem_solving.ai_fullstack_contract_regression.prompt_versioning:rubric_addition:a99f613c:v1
+            source: rubric_addition
+            source_text: 说明历史数据兼容
+            acceptance_check: 候选人补充说明「说明历史数据兼容」，并给出可复现证据、排查步骤、止血动作、修复验证或复盘改进中的至少一类具体内容。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:problem_solving.ai_fullstack_contract_regression.prompt_versioning:rubric_addition:587e34e2:v1
+            source: rubric_addition
+            source_text: 说明灰度和回滚
+            acceptance_check: 候选人补充说明「说明灰度和回滚」，并给出可复现证据、排查步骤、止血动作、修复验证或复盘改进中的至少一类具体内容。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
         priority: 14
         status: active
 
@@ -83,6 +239,84 @@ seeds:
         expected_signals: [能接受至少一次执行语义, 能避免重复副作用, 能区分可重试与不可重试失败]
         anti_patterns: [无限重试, 没有任务状态, 同步阻塞主交易链路]
         good_answer_hints: [先定义任务状态和幂等键, 再设计重试节奏与死信, 最后补人工审核入口]
+        reviewed_acceptance_checks:
+          - check_id: reviewed:problem_solving.java_async_retry_incident.delayed_task_retry:must_cover:fddd05c2:v1
+            source: must_cover
+            source_text: 任务状态
+            acceptance_check: 候选人定义异步任务或消息处理的状态机，区分待处理、处理中、成功、失败、死信和人工介入状态。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:problem_solving.java_async_retry_incident.delayed_task_retry:must_cover:c368c8e2:v1
+            source: must_cover
+            source_text: 重试策略
+            acceptance_check: 候选人说明可重试错误、退避节奏、最大次数、暂停恢复和幂等前提，避免无限重试扩大影响。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:problem_solving.java_async_retry_incident.delayed_task_retry:must_cover:4301d55b:v1
+            source: must_cover
+            source_text: 幂等处理
+            acceptance_check: 候选人说明任务唯一键、业务唯一约束、去重记录或状态机如何保证重复执行不产生重复副作用。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:problem_solving.java_async_retry_incident.delayed_task_retry:must_cover:42538bb2:v1
+            source: must_cover
+            source_text: 死信告警
+            acceptance_check: 候选人说明进入死信或人工介入的条件、告警内容、处理入口和修复后的回放/关闭流程。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:problem_solving.java_async_retry_incident.delayed_task_retry:rubric_addition:4cf85695:v1
+            source: rubric_addition
+            source_text: 说明任务唯一键和状态流转
+            acceptance_check: 候选人补充说明「说明任务唯一键和状态流转」，并给出可验证的指标、动作、样例或取舍，能对应到本题具体场景。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:problem_solving.java_async_retry_incident.delayed_task_retry:rubric_addition:8a2b9b28:v1
+            source: rubric_addition
+            source_text: 说明指数退避和最大次数
+            acceptance_check: 候选人补充说明「说明指数退避和最大次数」，并给出可验证的指标、动作、样例或取舍，能对应到本题具体场景。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:problem_solving.java_async_retry_incident.delayed_task_retry:rubric_addition:9caa5168:v1
+            source: rubric_addition
+            source_text: 说明死信处理和告警
+            acceptance_check: 候选人补充说明「说明死信处理和告警」，并给出可验证的指标、动作、样例或取舍，能对应到本题具体场景。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
         priority: 18
         status: active
       - id: problem_solving.java_async_retry_incident.mq_duplicate_delivery
@@ -212,6 +446,84 @@ seeds:
         expected_signals: [能判断影响面和优先级, 能用日志指标链路追踪定位, 能选择回滚降级或限流]
         anti_patterns: [长时间只读代码不止血, 没有时间线, 不做复盘]
         good_answer_hints: [先建立事故时间线, 再对比发布变更和核心指标, 最后恢复服务并沉淀预防措施]
+        reviewed_acceptance_checks:
+          - check_id: reviewed:problem_solving.java_production_incident_response.latency_spike:must_cover:ed8cba83:v1
+            source: must_cover
+            source_text: 影响面判断
+            acceptance_check: 候选人先圈定影响用户、接口、数据范围、时间窗口和业务损失，并据此确定优先级。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:problem_solving.java_production_incident_response.latency_spike:must_cover:b80e038d:v1
+            source: must_cover
+            source_text: 证据收集
+            acceptance_check: 候选人说明从监控、日志、trace、发布记录、数据库或消息队列收集证据，而不是直接猜根因。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:problem_solving.java_production_incident_response.latency_spike:must_cover:8009d1e9:v1
+            source: must_cover
+            source_text: 止血方案
+            acceptance_check: 候选人提出回滚、降级、限流、冻结写入、切流或补偿等止血动作，并说明副作用和恢复条件。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:problem_solving.java_production_incident_response.latency_spike:must_cover:d0411e43:v1
+            source: must_cover
+            source_text: 复盘改进
+            acceptance_check: 候选人说明事故或 SLO 违约后的复盘动作、根因沉淀、自动化补强和回归验证。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:problem_solving.java_production_incident_response.latency_spike:rubric_addition:af00655a:v1
+            source: rubric_addition
+            source_text: 说明先止血再根因
+            acceptance_check: 候选人补充说明「说明先止血再根因」，并给出可验证的指标、动作、样例或取舍，能对应到本题具体场景。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:problem_solving.java_production_incident_response.latency_spike:rubric_addition:05905e0d:v1
+            source: rubric_addition
+            source_text: 说明发布前后指标对比
+            acceptance_check: 候选人补充说明「说明发布前后指标对比」，并给出可验证的指标、动作、样例或取舍，能对应到本题具体场景。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:problem_solving.java_production_incident_response.latency_spike:rubric_addition:49596aeb:v1
+            source: rubric_addition
+            source_text: 说明复盘改进动作
+            acceptance_check: 候选人补充说明「说明复盘改进动作」，并给出可验证的指标、动作、样例或取舍，能对应到本题具体场景。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
         priority: 17
         status: active
       - id: problem_solving.java_production_incident_response.data_corruption
@@ -228,6 +540,84 @@ seeds:
         expected_signals: [能保护用户权益, 能用日志和快照圈定影响, 能设计小批量修复和验证]
         anti_patterns: [直接手工改库无审计, 不通知相关方, 修复后不验证]
         good_answer_hints: [先止血和备份, 再圈定影响并小批量修复, 最后补测试监控和复盘]
+        reviewed_acceptance_checks:
+          - check_id: reviewed:problem_solving.java_production_incident_response.data_corruption:must_cover:439c3770:v1
+            source: must_cover
+            source_text: 影响面判断
+            acceptance_check: 候选人先圈定影响用户、接口、数据范围、时间窗口和业务损失，并据此确定优先级。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:problem_solving.java_production_incident_response.data_corruption:must_cover:b077f440:v1
+            source: must_cover
+            source_text: 证据收集
+            acceptance_check: 候选人说明从监控、日志、trace、发布记录、数据库或消息队列收集证据，而不是直接猜根因。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:problem_solving.java_production_incident_response.data_corruption:must_cover:1302c443:v1
+            source: must_cover
+            source_text: 止血方案
+            acceptance_check: 候选人提出回滚、降级、限流、冻结写入、切流或补偿等止血动作，并说明副作用和恢复条件。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:problem_solving.java_production_incident_response.data_corruption:must_cover:caa93b49:v1
+            source: must_cover
+            source_text: 复盘改进
+            acceptance_check: 候选人说明事故或 SLO 违约后的复盘动作、根因沉淀、自动化补强和回归验证。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:problem_solving.java_production_incident_response.data_corruption:rubric_addition:cd5b9e1b:v1
+            source: rubric_addition
+            source_text: 说明冻结或降级写入
+            acceptance_check: 候选人补充说明「说明冻结或降级写入」，并给出可验证的指标、动作、样例或取舍，能对应到本题具体场景。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:problem_solving.java_production_incident_response.data_corruption:rubric_addition:ac19ae82:v1
+            source: rubric_addition
+            source_text: 说明影响面圈定
+            acceptance_check: 候选人补充说明「说明影响面圈定」，并给出可验证的指标、动作、样例或取舍，能对应到本题具体场景。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:problem_solving.java_production_incident_response.data_corruption:rubric_addition:d7bd630f:v1
+            source: rubric_addition
+            source_text: 说明修复脚本审计和回滚
+            acceptance_check: 候选人补充说明「说明修复脚本审计和回滚」，并给出可验证的指标、动作、样例或取舍，能对应到本题具体场景。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
         priority: 15
         status: active
 
@@ -263,6 +653,84 @@ seeds:
         expected_signals: [能定位 Redis Lua 与消息发送边界, 能检查消费位点和失败日志, 能设计库存对账任务]
         anti_patterns: [只清缓存, 不查消息链路, 不区分超卖和少卖]
         good_answer_hints: [先确认业务不变量和影响面, 再追踪 Redis 到 MQ 到 DB, 最后补偿和监控]
+        reviewed_acceptance_checks:
+          - check_id: reviewed:problem_solving.java_cache_message_consistency.redis_deduct_db_missing:must_cover:2f6be1ee:v1
+            source: must_cover
+            source_text: 现象复现
+            acceptance_check: 候选人说明如何稳定复现或确认问题现象，包括触发条件、时间线、输入样例或线上指标。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:problem_solving.java_cache_message_consistency.redis_deduct_db_missing:must_cover:2923fb5b:v1
+            source: must_cover
+            source_text: 链路证据
+            acceptance_check: 候选人能串起缓存、数据库、消息、任务或服务调用链路证据，证明不一致或故障发生在哪一段。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:problem_solving.java_cache_message_consistency.redis_deduct_db_missing:must_cover:f4645151:v1
+            source: must_cover
+            source_text: 一致性边界
+            acceptance_check: 候选人区分强一致、事务内一致和最终一致的边界，并说明并发更新、状态流转或补偿时如何保持不变量。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:problem_solving.java_cache_message_consistency.redis_deduct_db_missing:must_cover:024a86bd:v1
+            source: must_cover
+            source_text: 修复验证
+            acceptance_check: 候选人说明修复后的数据校验、回归测试、压测、监控观察和回滚预案，确保问题没有复发。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:problem_solving.java_cache_message_consistency.redis_deduct_db_missing:rubric_addition:55245a07:v1
+            source: rubric_addition
+            source_text: 说明缓存和数据库的写入顺序
+            acceptance_check: 候选人补充说明「说明缓存和数据库的写入顺序」，并给出可验证的指标、动作、样例或取舍，能对应到本题具体场景。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:problem_solving.java_cache_message_consistency.redis_deduct_db_missing:rubric_addition:de5990ad:v1
+            source: rubric_addition
+            source_text: 说明消息丢失或消费失败证据
+            acceptance_check: 候选人补充说明「说明消息丢失或消费失败证据」，并给出可验证的指标、动作、样例或取舍，能对应到本题具体场景。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:problem_solving.java_cache_message_consistency.redis_deduct_db_missing:rubric_addition:b496834c:v1
+            source: rubric_addition
+            source_text: 说明补偿和对账机制
+            acceptance_check: 候选人补充说明「说明补偿和对账机制」，并给出可验证的指标、动作、样例或取舍，能对应到本题具体场景。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
         priority: 16
         status: active
       - id: problem_solving.java_cache_message_consistency.consumer_lag_repair
@@ -280,7 +748,7 @@ seeds:
         anti_patterns: [盲目扩容消费者不看下游压力, 不提示用户状态延迟, 没有追平验证]
         good_answer_hints: [先量化积压和影响, 再决定降级与扩容, 最后追平校验]
         reviewed_acceptance_checks:
-          - check_id: reviewed:ps_consumer_lag:core_reproduce:v1
+          - check_id: reviewed:problem_solving.java_cache_message_consistency.consumer_lag_repair:must_cover:reproduce:v1
             source: must_cover
             source_text: 现象复现
             acceptance_check: 候选人说明如何复现或确认 MQ lag 导致的缓存与数据库状态延迟，包括影响时间、范围和用户可见现象。
@@ -291,7 +759,7 @@ seeds:
             reviewed_variant_version: 1
             reviewed_by: codex
             reviewed_at: "2026-06-07"
-          - check_id: reviewed:ps_consumer_lag:core_evidence:v1
+          - check_id: reviewed:problem_solving.java_cache_message_consistency.consumer_lag_repair:must_cover:evidence:v1
             source: must_cover
             source_text: 链路证据
             acceptance_check: 候选人能用消息积压、消费耗时、失败日志、缓存更新时间或数据库写入时间线证明不一致来源。
@@ -302,29 +770,29 @@ seeds:
             reviewed_variant_version: 1
             reviewed_by: codex
             reviewed_at: "2026-06-07"
-          - check_id: reviewed:ps_consumer_lag:core_consistency_boundary:v1
+          - check_id: reviewed:problem_solving.java_cache_message_consistency.consumer_lag_repair:must_cover:consistency_boundary:v1
             source: must_cover
             source_text: 一致性边界
             acceptance_check: 候选人明确哪些用户展示可接受短暂延迟，哪些扣减、支付或库存状态必须以数据库或权威源为准。
             severity: core
             review_status: reviewed
-            version: 1
+            version: 2
             reviewed_seed_version: 1
             reviewed_variant_version: 1
             reviewed_by: codex
-            reviewed_at: "2026-06-07"
-          - check_id: reviewed:ps_consumer_lag:core_repair_verification:v1
+            reviewed_at: "2026-06-08"
+          - check_id: reviewed:problem_solving.java_cache_message_consistency.consumer_lag_repair:must_cover:repair_verification:v1
             source: must_cover
             source_text: 修复验证
             acceptance_check: 候选人说明消费追平后如何对账、刷新缓存、抽样校验并确认用户侧状态恢复一致。
             severity: core
             review_status: reviewed
-            version: 1
+            version: 2
             reviewed_seed_version: 1
             reviewed_variant_version: 1
             reviewed_by: codex
-            reviewed_at: "2026-06-07"
-          - check_id: reviewed:ps_consumer_lag:support_lag_metrics:v1
+            reviewed_at: "2026-06-08"
+          - check_id: reviewed:problem_solving.java_cache_message_consistency.consumer_lag_repair:rubric_addition:lag_metrics:v1
             source: rubric_addition
             source_text: 说明积压指标和消费速率
             acceptance_check: 候选人给出 lag、消费 TPS、单条耗时、失败率、预计追平时间或下游写入压力等指标。
@@ -335,7 +803,7 @@ seeds:
             reviewed_variant_version: 1
             reviewed_by: codex
             reviewed_at: "2026-06-07"
-          - check_id: reviewed:ps_consumer_lag:support_user_degrade:v1
+          - check_id: reviewed:problem_solving.java_cache_message_consistency.consumer_lag_repair:rubric_addition:user_degrade:v1
             source: rubric_addition
             source_text: 说明用户侧降级或提示
             acceptance_check: 候选人说明用户侧如何提示状态延迟、切换权威查询、限制高风险操作或提供可解释的降级体验。
@@ -346,7 +814,7 @@ seeds:
             reviewed_variant_version: 1
             reviewed_by: codex
             reviewed_at: "2026-06-07"
-          - check_id: reviewed:ps_consumer_lag:support_catchup_check:v1
+          - check_id: reviewed:problem_solving.java_cache_message_consistency.consumer_lag_repair:rubric_addition:catchup_check:v1
             source: rubric_addition
             source_text: 说明追平后的校验
             acceptance_check: 候选人说明追平后按订单、库存或缓存 key 做校验，并把遗漏项进入补偿或人工处理队列。
@@ -392,6 +860,84 @@ seeds:
         expected_signals: [能区分资源加载失败和运行时异常, 能用版本和用户维度圈定影响, 能给出止血动作]
         anti_patterns: [只让用户刷新, 不看版本差异, 不做回滚判断]
         good_answer_hints: [先确认影响范围, 再收集前端日志和版本信息, 最后选择回滚或热修]
+        reviewed_acceptance_checks:
+          - check_id: reviewed:problem_solving.frontend_online_issue.white_screen:must_cover:bd6ddeae:v1
+            source: must_cover
+            source_text: 影响判断
+            acceptance_check: 候选人针对「影响判断」给出排查或处置闭环，包含观察证据、判断依据、行动步骤和修复后验证，而不是直接跳到结论。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:problem_solving.frontend_online_issue.white_screen:must_cover:81f9972d:v1
+            source: must_cover
+            source_text: 复现路径
+            acceptance_check: 候选人针对「复现路径」给出排查或处置闭环，包含观察证据、判断依据、行动步骤和修复后验证，而不是直接跳到结论。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:problem_solving.frontend_online_issue.white_screen:must_cover:6a4e6c29:v1
+            source: must_cover
+            source_text: 证据收集
+            acceptance_check: 候选人针对「证据收集」给出排查或处置闭环，包含观察证据、判断依据、行动步骤和修复后验证，而不是直接跳到结论。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:problem_solving.frontend_online_issue.white_screen:must_cover:70c10c9c:v1
+            source: must_cover
+            source_text: 止血恢复
+            acceptance_check: 候选人围绕「止血恢复」说明失败分类、触发条件、重试/降级/恢复策略和防止影响扩散的边界。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:problem_solving.frontend_online_issue.white_screen:rubric_addition:7901db79:v1
+            source: rubric_addition
+            source_text: 说明影响面判断
+            acceptance_check: 候选人补充说明「说明影响面判断」，并给出可复现证据、排查步骤、止血动作、修复验证或复盘改进中的至少一类具体内容。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:problem_solving.frontend_online_issue.white_screen:rubric_addition:6744d146:v1
+            source: rubric_addition
+            source_text: 说明 sourcemap 和日志定位
+            acceptance_check: 候选人补充说明「说明 sourcemap 和日志定位」，并给出可复现证据、排查步骤、止血动作、修复验证或复盘改进中的至少一类具体内容。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:problem_solving.frontend_online_issue.white_screen:rubric_addition:f46a9a6e:v1
+            source: rubric_addition
+            source_text: 说明回滚或降级方案
+            acceptance_check: 候选人补充说明「说明回滚或降级方案」，并给出可复现证据、排查步骤、止血动作、修复验证或复盘改进中的至少一类具体内容。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
         priority: 15
         status: active
       - id: problem_solving.frontend_online_issue.browser_compatibility
@@ -408,6 +954,84 @@ seeds:
         expected_signals: [能建立浏览器版本矩阵, 能定位 API 或 CSS 兼容差异, 能补自动化或手工回归]
         anti_patterns: [只要求用户换浏览器, 不复现环境, 不补测试]
         good_answer_hints: [先复现环境, 再定位兼容差异, 最后补降级和回归用例]
+        reviewed_acceptance_checks:
+          - check_id: reviewed:problem_solving.frontend_online_issue.browser_compatibility:must_cover:b2b0387e:v1
+            source: must_cover
+            source_text: 影响判断
+            acceptance_check: 候选人针对「影响判断」给出排查或处置闭环，包含观察证据、判断依据、行动步骤和修复后验证，而不是直接跳到结论。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:problem_solving.frontend_online_issue.browser_compatibility:must_cover:f89c7cf2:v1
+            source: must_cover
+            source_text: 复现路径
+            acceptance_check: 候选人针对「复现路径」给出排查或处置闭环，包含观察证据、判断依据、行动步骤和修复后验证，而不是直接跳到结论。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:problem_solving.frontend_online_issue.browser_compatibility:must_cover:a4a953f0:v1
+            source: must_cover
+            source_text: 证据收集
+            acceptance_check: 候选人针对「证据收集」给出排查或处置闭环，包含观察证据、判断依据、行动步骤和修复后验证，而不是直接跳到结论。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:problem_solving.frontend_online_issue.browser_compatibility:must_cover:6ea826a4:v1
+            source: must_cover
+            source_text: 止血恢复
+            acceptance_check: 候选人围绕「止血恢复」说明失败分类、触发条件、重试/降级/恢复策略和防止影响扩散的边界。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:problem_solving.frontend_online_issue.browser_compatibility:rubric_addition:e7d186d7:v1
+            source: rubric_addition
+            source_text: 说明复现矩阵
+            acceptance_check: 候选人补充说明「说明复现矩阵」，并给出可复现证据、排查步骤、止血动作、修复验证或复盘改进中的至少一类具体内容。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:problem_solving.frontend_online_issue.browser_compatibility:rubric_addition:58debdd6:v1
+            source: rubric_addition
+            source_text: 说明特性检测或 polyfill
+            acceptance_check: 候选人补充说明「说明特性检测或 polyfill」，并给出可复现证据、排查步骤、止血动作、修复验证或复盘改进中的至少一类具体内容。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:problem_solving.frontend_online_issue.browser_compatibility:rubric_addition:696a3540:v1
+            source: rubric_addition
+            source_text: 说明兼容性回归
+            acceptance_check: 候选人补充说明「说明兼容性回归」，并给出可复现证据、排查步骤、止血动作、修复验证或复盘改进中的至少一类具体内容。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
         priority: 13
         status: active
 
@@ -443,6 +1067,84 @@ seeds:
         expected_signals: [能先保护用户路径, 能并行定位和止血, 能同步风险和 ETA]
         anti_patterns: [只查代码不止血, 不判断影响面, 不同步业务方]
         good_answer_hints: [先分级和止血, 再并行验证假设, 最后复盘改进]
+        reviewed_acceptance_checks:
+          - check_id: reviewed:problem_solving.sre_incident_response.error_rate_spike:must_cover:0e77ce66:v1
+            source: must_cover
+            source_text: 影响面
+            acceptance_check: 候选人针对「影响面」给出排查或处置闭环，包含观察证据、判断依据、行动步骤和修复后验证，而不是直接跳到结论。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:problem_solving.sre_incident_response.error_rate_spike:must_cover:3d71597b:v1
+            source: must_cover
+            source_text: 根因假设
+            acceptance_check: 候选人针对「根因假设」给出排查或处置闭环，包含观察证据、判断依据、行动步骤和修复后验证，而不是直接跳到结论。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:problem_solving.sre_incident_response.error_rate_spike:must_cover:d3900656:v1
+            source: must_cover
+            source_text: 止血动作
+            acceptance_check: 候选人针对「止血动作」给出排查或处置闭环，包含观察证据、判断依据、行动步骤和修复后验证，而不是直接跳到结论。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:problem_solving.sre_incident_response.error_rate_spike:must_cover:232e7594:v1
+            source: must_cover
+            source_text: 复盘改进
+            acceptance_check: 候选人针对「复盘改进」给出排查或处置闭环，包含观察证据、判断依据、行动步骤和修复后验证，而不是直接跳到结论。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:problem_solving.sre_incident_response.error_rate_spike:rubric_addition:cae1f8b3:v1
+            source: rubric_addition
+            source_text: 说明影响面和优先级
+            acceptance_check: 候选人补充说明「说明影响面和优先级」，并给出可复现证据、排查步骤、止血动作、修复验证或复盘改进中的至少一类具体内容。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:problem_solving.sre_incident_response.error_rate_spike:rubric_addition:8e4cedcc:v1
+            source: rubric_addition
+            source_text: 说明止血动作
+            acceptance_check: 候选人补充说明「说明止血动作」，并给出可复现证据、排查步骤、止血动作、修复验证或复盘改进中的至少一类具体内容。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:problem_solving.sre_incident_response.error_rate_spike:rubric_addition:3e2f07ac:v1
+            source: rubric_addition
+            source_text: 说明排查证据和沟通节奏
+            acceptance_check: 候选人补充说明「说明排查证据和沟通节奏」，并给出可复现证据、排查步骤、止血动作、修复验证或复盘改进中的至少一类具体内容。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
         priority: 15
         status: active
       - id: problem_solving.sre_incident_response.storage_pressure
@@ -459,6 +1161,84 @@ seeds:
         expected_signals: [能区分核心告警和低价值数据, 能设计短期降级, 能提出容量和成本改进]
         anti_patterns: [全量删除数据, 不保障核心告警, 只扩容不治理]
         good_answer_hints: [先保护核心告警, 再定位写入查询瓶颈, 最后调整采样保留和容量]
+        reviewed_acceptance_checks:
+          - check_id: reviewed:problem_solving.sre_incident_response.storage_pressure:must_cover:9c1d6255:v1
+            source: must_cover
+            source_text: 影响面
+            acceptance_check: 候选人针对「影响面」给出排查或处置闭环，包含观察证据、判断依据、行动步骤和修复后验证，而不是直接跳到结论。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:problem_solving.sre_incident_response.storage_pressure:must_cover:f51018a4:v1
+            source: must_cover
+            source_text: 根因假设
+            acceptance_check: 候选人针对「根因假设」给出排查或处置闭环，包含观察证据、判断依据、行动步骤和修复后验证，而不是直接跳到结论。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:problem_solving.sre_incident_response.storage_pressure:must_cover:d633740a:v1
+            source: must_cover
+            source_text: 止血动作
+            acceptance_check: 候选人针对「止血动作」给出排查或处置闭环，包含观察证据、判断依据、行动步骤和修复后验证，而不是直接跳到结论。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:problem_solving.sre_incident_response.storage_pressure:must_cover:8f19ed89:v1
+            source: must_cover
+            source_text: 复盘改进
+            acceptance_check: 候选人针对「复盘改进」给出排查或处置闭环，包含观察证据、判断依据、行动步骤和修复后验证，而不是直接跳到结论。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:problem_solving.sre_incident_response.storage_pressure:rubric_addition:4e9d6bc0:v1
+            source: rubric_addition
+            source_text: 说明核心告警优先级
+            acceptance_check: 候选人补充说明「说明核心告警优先级」，并给出可复现证据、排查步骤、止血动作、修复验证或复盘改进中的至少一类具体内容。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:problem_solving.sre_incident_response.storage_pressure:rubric_addition:a9bff772:v1
+            source: rubric_addition
+            source_text: 说明采样和保留策略
+            acceptance_check: 候选人补充说明「说明采样和保留策略」，并给出可复现证据、排查步骤、止血动作、修复验证或复盘改进中的至少一类具体内容。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:problem_solving.sre_incident_response.storage_pressure:rubric_addition:52145b95:v1
+            source: rubric_addition
+            source_text: 说明容量和成本治理
+            acceptance_check: 候选人补充说明「说明容量和成本治理」，并给出可复现证据、排查步骤、止血动作、修复验证或复盘改进中的至少一类具体内容。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
         priority: 13
         status: active
   - id: problem_solving.ai_agent_failure_evaluation
@@ -493,6 +1273,84 @@ seeds:
         expected_signals: [能查看工具选择原因, 能复现失败输入, 能建立回归用例]
         anti_patterns: [只改 prompt, 不看工具日志, 没有复测样本]
         good_answer_hints: [先拿到完整 trace, 再分类根因, 最后补评估集和防护]
+        reviewed_acceptance_checks:
+          - check_id: reviewed:problem_solving.ai_agent_failure_evaluation.wrong_tool_action:must_cover:8876ecdf:v1
+            source: must_cover
+            source_text: 失败分类
+            acceptance_check: 候选人围绕「失败分类」说明失败分类、触发条件、重试/降级/恢复策略和防止影响扩散的边界。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:problem_solving.ai_agent_failure_evaluation.wrong_tool_action:must_cover:91780407:v1
+            source: must_cover
+            source_text: 证据回放
+            acceptance_check: 候选人针对「证据回放」给出排查或处置闭环，包含观察证据、判断依据、行动步骤和修复后验证，而不是直接跳到结论。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:problem_solving.ai_agent_failure_evaluation.wrong_tool_action:must_cover:a9618b17:v1
+            source: must_cover
+            source_text: 评估集
+            acceptance_check: 候选人围绕「评估集」给出测试或评估设计，说明样例来源、覆盖边界、通过标准和回归/线上验证方式。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:problem_solving.ai_agent_failure_evaluation.wrong_tool_action:must_cover:6ccb80ce:v1
+            source: must_cover
+            source_text: 修复闭环
+            acceptance_check: 候选人针对「修复闭环」给出排查或处置闭环，包含观察证据、判断依据、行动步骤和修复后验证，而不是直接跳到结论。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:problem_solving.ai_agent_failure_evaluation.wrong_tool_action:rubric_addition:5e37b798:v1
+            source: rubric_addition
+            source_text: 说明失败分类
+            acceptance_check: 候选人补充说明「说明失败分类」，并给出可复现证据、排查步骤、止血动作、修复验证或复盘改进中的至少一类具体内容。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:problem_solving.ai_agent_failure_evaluation.wrong_tool_action:rubric_addition:2c65d6dd:v1
+            source: rubric_addition
+            source_text: 说明执行 trace 回放
+            acceptance_check: 候选人补充说明「说明执行 trace 回放」，并给出可复现证据、排查步骤、止血动作、修复验证或复盘改进中的至少一类具体内容。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:problem_solving.ai_agent_failure_evaluation.wrong_tool_action:rubric_addition:f11ebd7d:v1
+            source: rubric_addition
+            source_text: 说明修复后的评估验证
+            acceptance_check: 候选人补充说明「说明修复后的评估验证」，并给出可复现证据、排查步骤、止血动作、修复验证或复盘改进中的至少一类具体内容。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
         priority: 17
         status: active
       - id: problem_solving.ai_agent_failure_evaluation.hallucinated_answer
@@ -509,6 +1367,84 @@ seeds:
         expected_signals: [能要求答案引用证据, 能处理低置信度, 能建立幻觉评估指标]
         anti_patterns: [只要求模型更谨慎, 不检查检索, 不允许拒答]
         good_answer_hints: [先区分检索不足和生成问题, 再设计拒答, 最后监控高风险回答]
+        reviewed_acceptance_checks:
+          - check_id: reviewed:problem_solving.ai_agent_failure_evaluation.hallucinated_answer:must_cover:da77c15e:v1
+            source: must_cover
+            source_text: 失败分类
+            acceptance_check: 候选人围绕「失败分类」说明失败分类、触发条件、重试/降级/恢复策略和防止影响扩散的边界。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:problem_solving.ai_agent_failure_evaluation.hallucinated_answer:must_cover:de875401:v1
+            source: must_cover
+            source_text: 证据回放
+            acceptance_check: 候选人针对「证据回放」给出排查或处置闭环，包含观察证据、判断依据、行动步骤和修复后验证，而不是直接跳到结论。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:problem_solving.ai_agent_failure_evaluation.hallucinated_answer:must_cover:42b91edb:v1
+            source: must_cover
+            source_text: 评估集
+            acceptance_check: 候选人围绕「评估集」给出测试或评估设计，说明样例来源、覆盖边界、通过标准和回归/线上验证方式。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:problem_solving.ai_agent_failure_evaluation.hallucinated_answer:must_cover:276afc07:v1
+            source: must_cover
+            source_text: 修复闭环
+            acceptance_check: 候选人针对「修复闭环」给出排查或处置闭环，包含观察证据、判断依据、行动步骤和修复后验证，而不是直接跳到结论。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:problem_solving.ai_agent_failure_evaluation.hallucinated_answer:rubric_addition:a9d1023c:v1
+            source: rubric_addition
+            source_text: 说明证据召回检查
+            acceptance_check: 候选人补充说明「说明证据召回检查」，并给出可复现证据、排查步骤、止血动作、修复验证或复盘改进中的至少一类具体内容。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:problem_solving.ai_agent_failure_evaluation.hallucinated_answer:rubric_addition:2761de74:v1
+            source: rubric_addition
+            source_text: 说明拒答和置信度
+            acceptance_check: 候选人补充说明「说明拒答和置信度」，并给出可复现证据、排查步骤、止血动作、修复验证或复盘改进中的至少一类具体内容。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:problem_solving.ai_agent_failure_evaluation.hallucinated_answer:rubric_addition:63bd809b:v1
+            source: rubric_addition
+            source_text: 说明线上监控和人工复核
+            acceptance_check: 候选人补充说明「说明线上监控和人工复核」，并给出可复现证据、排查步骤、止血动作、修复验证或复盘改进中的至少一类具体内容。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
         priority: 15
         status: active
   - id: problem_solving.mobile_crash_performance
@@ -543,6 +1479,84 @@ seeds:
         expected_signals: [能看崩溃栈和版本分布, 能缩小设备系统范围, 能提出热修或回滚]
         anti_patterns: [只看单个用户反馈, 不区分版本设备, 不控制发布]
         good_answer_hints: [先看崩溃平台数据, 再复现和定位, 最后控制发布风险]
+        reviewed_acceptance_checks:
+          - check_id: reviewed:problem_solving.mobile_crash_performance.startup_crash:must_cover:e8cd46f4:v1
+            source: must_cover
+            source_text: 崩溃聚合
+            acceptance_check: 候选人针对「崩溃聚合」给出排查或处置闭环，包含观察证据、判断依据、行动步骤和修复后验证，而不是直接跳到结论。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:problem_solving.mobile_crash_performance.startup_crash:must_cover:1dbbd917:v1
+            source: must_cover
+            source_text: 影响面
+            acceptance_check: 候选人针对「影响面」给出排查或处置闭环，包含观察证据、判断依据、行动步骤和修复后验证，而不是直接跳到结论。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:problem_solving.mobile_crash_performance.startup_crash:must_cover:10d6e04b:v1
+            source: must_cover
+            source_text: 复现路径
+            acceptance_check: 候选人针对「复现路径」给出排查或处置闭环，包含观察证据、判断依据、行动步骤和修复后验证，而不是直接跳到结论。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:problem_solving.mobile_crash_performance.startup_crash:must_cover:8afca6b2:v1
+            source: must_cover
+            source_text: 修复验证
+            acceptance_check: 候选人围绕「修复验证」给出测试或评估设计，说明样例来源、覆盖边界、通过标准和回归/线上验证方式。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:problem_solving.mobile_crash_performance.startup_crash:rubric_addition:74a55ebe:v1
+            source: rubric_addition
+            source_text: 说明崩溃聚合和设备分布
+            acceptance_check: 候选人补充说明「说明崩溃聚合和设备分布」，并给出可复现证据、排查步骤、止血动作、修复验证或复盘改进中的至少一类具体内容。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:problem_solving.mobile_crash_performance.startup_crash:rubric_addition:4cfb0b92:v1
+            source: rubric_addition
+            source_text: 说明复现和符号化
+            acceptance_check: 候选人补充说明「说明复现和符号化」，并给出可复现证据、排查步骤、止血动作、修复验证或复盘改进中的至少一类具体内容。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:problem_solving.mobile_crash_performance.startup_crash:rubric_addition:f945fe12:v1
+            source: rubric_addition
+            source_text: 说明灰度暂停或回滚
+            acceptance_check: 候选人补充说明「说明灰度暂停或回滚」，并给出可复现证据、排查步骤、止血动作、修复验证或复盘改进中的至少一类具体内容。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
         priority: 17
         status: active
       - id: problem_solving.mobile_crash_performance.memory_jank
@@ -559,6 +1573,84 @@ seeds:
         expected_signals: [能使用 profiler 或性能平台, 能检查生命周期释放, 能做长时间压测]
         anti_patterns: [只重启页面, 不看内存曲线, 不验证低端设备]
         good_answer_hints: [先量化内存和帧率, 再找泄漏链, 最后做长期运行验证]
+        reviewed_acceptance_checks:
+          - check_id: reviewed:problem_solving.mobile_crash_performance.memory_jank:must_cover:c7932ed9:v1
+            source: must_cover
+            source_text: 崩溃聚合
+            acceptance_check: 候选人针对「崩溃聚合」给出排查或处置闭环，包含观察证据、判断依据、行动步骤和修复后验证，而不是直接跳到结论。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:problem_solving.mobile_crash_performance.memory_jank:must_cover:ceaf0ed7:v1
+            source: must_cover
+            source_text: 影响面
+            acceptance_check: 候选人针对「影响面」给出排查或处置闭环，包含观察证据、判断依据、行动步骤和修复后验证，而不是直接跳到结论。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:problem_solving.mobile_crash_performance.memory_jank:must_cover:7c52bc10:v1
+            source: must_cover
+            source_text: 复现路径
+            acceptance_check: 候选人针对「复现路径」给出排查或处置闭环，包含观察证据、判断依据、行动步骤和修复后验证，而不是直接跳到结论。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:problem_solving.mobile_crash_performance.memory_jank:must_cover:3f7fdd4b:v1
+            source: must_cover
+            source_text: 修复验证
+            acceptance_check: 候选人围绕「修复验证」给出测试或评估设计，说明样例来源、覆盖边界、通过标准和回归/线上验证方式。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:problem_solving.mobile_crash_performance.memory_jank:rubric_addition:b0b48a22:v1
+            source: rubric_addition
+            source_text: 说明内存和帧率指标
+            acceptance_check: 候选人补充说明「说明内存和帧率指标」，并给出可复现证据、排查步骤、止血动作、修复验证或复盘改进中的至少一类具体内容。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:problem_solving.mobile_crash_performance.memory_jank:rubric_addition:1c646dce:v1
+            source: rubric_addition
+            source_text: 说明泄漏定位
+            acceptance_check: 候选人补充说明「说明泄漏定位」，并给出可复现证据、排查步骤、止血动作、修复验证或复盘改进中的至少一类具体内容。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:problem_solving.mobile_crash_performance.memory_jank:rubric_addition:9f50e9b7:v1
+            source: rubric_addition
+            source_text: 说明资源释放和回归验证
+            acceptance_check: 候选人补充说明「说明资源释放和回归验证」，并给出可复现证据、排查步骤、止血动作、修复验证或复盘改进中的至少一类具体内容。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
         priority: 15
         status: active
   - id: problem_solving.mobile_network_cache
@@ -593,6 +1685,84 @@ seeds:
         expected_signals: [能区分请求失败和业务失败, 能使用幂等键, 能设计订单状态回查]
         anti_patterns: [失败后直接让用户重试, 不处理重复提交, 不做状态确认]
         good_answer_hints: [先定义请求结果语义, 再做幂等和回查, 最后优化提示]
+        reviewed_acceptance_checks:
+          - check_id: reviewed:problem_solving.mobile_network_cache.weak_network_order:must_cover:a0f5e3d8:v1
+            source: must_cover
+            source_text: 弱网识别
+            acceptance_check: 候选人针对「弱网识别」给出排查或处置闭环，包含观察证据、判断依据、行动步骤和修复后验证，而不是直接跳到结论。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:problem_solving.mobile_network_cache.weak_network_order:must_cover:d6cb96f8:v1
+            source: must_cover
+            source_text: 缓存一致性
+            acceptance_check: 候选人针对「缓存一致性」给出排查或处置闭环，包含观察证据、判断依据、行动步骤和修复后验证，而不是直接跳到结论。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:problem_solving.mobile_network_cache.weak_network_order:must_cover:8fa5eff3:v1
+            source: must_cover
+            source_text: 重试策略
+            acceptance_check: 候选人围绕「重试策略」说明失败分类、触发条件、重试/降级/恢复策略和防止影响扩散的边界。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:problem_solving.mobile_network_cache.weak_network_order:must_cover:4f0882f5:v1
+            source: must_cover
+            source_text: 用户体验
+            acceptance_check: 候选人针对「用户体验」给出排查或处置闭环，包含观察证据、判断依据、行动步骤和修复后验证，而不是直接跳到结论。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:problem_solving.mobile_network_cache.weak_network_order:rubric_addition:d61ca063:v1
+            source: rubric_addition
+            source_text: 说明弱网和超时判断
+            acceptance_check: 候选人补充说明「说明弱网和超时判断」，并给出可复现证据、排查步骤、止血动作、修复验证或复盘改进中的至少一类具体内容。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:problem_solving.mobile_network_cache.weak_network_order:rubric_addition:c656f494:v1
+            source: rubric_addition
+            source_text: 说明幂等和状态回查
+            acceptance_check: 候选人补充说明「说明幂等和状态回查」，并给出可复现证据、排查步骤、止血动作、修复验证或复盘改进中的至少一类具体内容。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:problem_solving.mobile_network_cache.weak_network_order:rubric_addition:8a837315:v1
+            source: rubric_addition
+            source_text: 说明用户提示和补偿
+            acceptance_check: 候选人补充说明「说明用户提示和补偿」，并给出可复现证据、排查步骤、止血动作、修复验证或复盘改进中的至少一类具体内容。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
         priority: 16
         status: active
       - id: problem_solving.mobile_network_cache.offline_sync_conflict
@@ -609,6 +1779,84 @@ seeds:
         expected_signals: [能使用版本号或变更日志, 能区分可自动合并和需确认, 能保留本地草稿]
         anti_patterns: [直接覆盖远端, 冲突后丢数据, 不给用户解释]
         good_answer_hints: [先保存本地变更, 再检测版本冲突, 最后设计合并和确认]
+        reviewed_acceptance_checks:
+          - check_id: reviewed:problem_solving.mobile_network_cache.offline_sync_conflict:must_cover:32cfd8fb:v1
+            source: must_cover
+            source_text: 弱网识别
+            acceptance_check: 候选人针对「弱网识别」给出排查或处置闭环，包含观察证据、判断依据、行动步骤和修复后验证，而不是直接跳到结论。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:problem_solving.mobile_network_cache.offline_sync_conflict:must_cover:8179dcee:v1
+            source: must_cover
+            source_text: 缓存一致性
+            acceptance_check: 候选人针对「缓存一致性」给出排查或处置闭环，包含观察证据、判断依据、行动步骤和修复后验证，而不是直接跳到结论。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:problem_solving.mobile_network_cache.offline_sync_conflict:must_cover:ce9f4836:v1
+            source: must_cover
+            source_text: 重试策略
+            acceptance_check: 候选人围绕「重试策略」说明失败分类、触发条件、重试/降级/恢复策略和防止影响扩散的边界。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:problem_solving.mobile_network_cache.offline_sync_conflict:must_cover:3d32d0d9:v1
+            source: must_cover
+            source_text: 用户体验
+            acceptance_check: 候选人针对「用户体验」给出排查或处置闭环，包含观察证据、判断依据、行动步骤和修复后验证，而不是直接跳到结论。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:problem_solving.mobile_network_cache.offline_sync_conflict:rubric_addition:cf8079ee:v1
+            source: rubric_addition
+            source_text: 说明版本和冲突检测
+            acceptance_check: 候选人补充说明「说明版本和冲突检测」，并给出可复现证据、排查步骤、止血动作、修复验证或复盘改进中的至少一类具体内容。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:problem_solving.mobile_network_cache.offline_sync_conflict:rubric_addition:724d4288:v1
+            source: rubric_addition
+            source_text: 说明自动合并和人工确认
+            acceptance_check: 候选人补充说明「说明自动合并和人工确认」，并给出可复现证据、排查步骤、止血动作、修复验证或复盘改进中的至少一类具体内容。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:problem_solving.mobile_network_cache.offline_sync_conflict:rubric_addition:5a3d9d4d:v1
+            source: rubric_addition
+            source_text: 说明失败重试和恢复
+            acceptance_check: 候选人补充说明「说明失败重试和恢复」，并给出可复现证据、排查步骤、止血动作、修复验证或复盘改进中的至少一类具体内容。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
         priority: 14
         status: active
   - id: problem_solving.ai_algorithm_experiment_attribution
@@ -643,6 +1891,84 @@ seeds:
         expected_signals: [能分用户场景分析, 能检查实验配置, 能给出决策阈值]
         anti_patterns: [只看整体均值, 不查实验配置, 没有风险控制]
         good_answer_hints: [先拆指标和人群, 再查实验链路, 最后做灰度决策]
+        reviewed_acceptance_checks:
+          - check_id: reviewed:problem_solving.ai_algorithm_experiment_attribution.ab_drop:must_cover:f5954bef:v1
+            source: must_cover
+            source_text: 指标变化
+            acceptance_check: 候选人围绕「指标变化」给出可量化口径、采集位置、阈值或观察窗口，并说明这些指标如何触发定位、告警、发布或复盘动作。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:problem_solving.ai_algorithm_experiment_attribution.ab_drop:must_cover:eb55ef3e:v1
+            source: must_cover
+            source_text: 实验分层
+            acceptance_check: 候选人针对「实验分层」给出排查或处置闭环，包含观察证据、判断依据、行动步骤和修复后验证，而不是直接跳到结论。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:problem_solving.ai_algorithm_experiment_attribution.ab_drop:must_cover:9fd04c12:v1
+            source: must_cover
+            source_text: 数据分布
+            acceptance_check: 候选人围绕「数据分布」说明数据、索引、检索或召回链路中的输入输出、质量风险、验证指标和修复/迭代方式。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:problem_solving.ai_algorithm_experiment_attribution.ab_drop:must_cover:adaef5c2:v1
+            source: must_cover
+            source_text: 归因假设
+            acceptance_check: 候选人针对「归因假设」给出排查或处置闭环，包含观察证据、判断依据、行动步骤和修复后验证，而不是直接跳到结论。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:problem_solving.ai_algorithm_experiment_attribution.ab_drop:rubric_addition:eeb2820e:v1
+            source: rubric_addition
+            source_text: 说明指标分层
+            acceptance_check: 候选人补充说明「说明指标分层」，并给出可复现证据、排查步骤、止血动作、修复验证或复盘改进中的至少一类具体内容。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:problem_solving.ai_algorithm_experiment_attribution.ab_drop:rubric_addition:d9315b36:v1
+            source: rubric_addition
+            source_text: 说明样本和流量检查
+            acceptance_check: 候选人补充说明「说明样本和流量检查」，并给出可复现证据、排查步骤、止血动作、修复验证或复盘改进中的至少一类具体内容。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:problem_solving.ai_algorithm_experiment_attribution.ab_drop:rubric_addition:dfa780b9:v1
+            source: rubric_addition
+            source_text: 说明继续灰度或回滚标准
+            acceptance_check: 候选人补充说明「说明继续灰度或回滚标准」，并给出可复现证据、排查步骤、止血动作、修复验证或复盘改进中的至少一类具体内容。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
         priority: 17
         status: active
       - id: problem_solving.ai_algorithm_experiment_attribution.data_drift
@@ -659,6 +1985,84 @@ seeds:
         expected_signals: [能比较训练和线上分布, 能监控特征和预测分布, 能设计再训练和灰度]
         anti_patterns: [只重新训练, 不查数据链路, 不验证新模型风险]
         good_answer_hints: [先确认漂移信号, 再定位数据来源, 最后设计再训练和灰度验证]
+        reviewed_acceptance_checks:
+          - check_id: reviewed:problem_solving.ai_algorithm_experiment_attribution.data_drift:must_cover:3f5b059b:v1
+            source: must_cover
+            source_text: 指标变化
+            acceptance_check: 候选人围绕「指标变化」给出可量化口径、采集位置、阈值或观察窗口，并说明这些指标如何触发定位、告警、发布或复盘动作。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:problem_solving.ai_algorithm_experiment_attribution.data_drift:must_cover:076342b1:v1
+            source: must_cover
+            source_text: 实验分层
+            acceptance_check: 候选人针对「实验分层」给出排查或处置闭环，包含观察证据、判断依据、行动步骤和修复后验证，而不是直接跳到结论。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:problem_solving.ai_algorithm_experiment_attribution.data_drift:must_cover:dd22d9fb:v1
+            source: must_cover
+            source_text: 数据分布
+            acceptance_check: 候选人围绕「数据分布」说明数据、索引、检索或召回链路中的输入输出、质量风险、验证指标和修复/迭代方式。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:problem_solving.ai_algorithm_experiment_attribution.data_drift:must_cover:e090f1ab:v1
+            source: must_cover
+            source_text: 归因假设
+            acceptance_check: 候选人针对「归因假设」给出排查或处置闭环，包含观察证据、判断依据、行动步骤和修复后验证，而不是直接跳到结论。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:problem_solving.ai_algorithm_experiment_attribution.data_drift:rubric_addition:be16d3e7:v1
+            source: rubric_addition
+            source_text: 说明漂移检测指标
+            acceptance_check: 候选人补充说明「说明漂移检测指标」，并给出可复现证据、排查步骤、止血动作、修复验证或复盘改进中的至少一类具体内容。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:problem_solving.ai_algorithm_experiment_attribution.data_drift:rubric_addition:8a49ea75:v1
+            source: rubric_addition
+            source_text: 说明样本回流和再训练
+            acceptance_check: 候选人补充说明「说明样本回流和再训练」，并给出可复现证据、排查步骤、止血动作、修复验证或复盘改进中的至少一类具体内容。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:problem_solving.ai_algorithm_experiment_attribution.data_drift:rubric_addition:b4e7bd0d:v1
+            source: rubric_addition
+            source_text: 说明线上验证和风险控制
+            acceptance_check: 候选人补充说明「说明线上验证和风险控制」，并给出可复现证据、排查步骤、止血动作、修复验证或复盘改进中的至少一类具体内容。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
         priority: 15
         status: active
   - id: problem_solving.architect_risk_incident
@@ -693,6 +2097,84 @@ seeds:
         expected_signals: [能识别超时重试放大, 能推动依赖分级, 能建立演练和评审机制]
         anti_patterns: [只责怪某个服务, 不分析依赖, 没有治理动作]
         good_answer_hints: [先画故障传播链, 再分短期长期动作, 最后形成治理机制]
+        reviewed_acceptance_checks:
+          - check_id: reviewed:problem_solving.architect_risk_incident.cascade_failure:must_cover:bbe34ed9:v1
+            source: must_cover
+            source_text: 影响面
+            acceptance_check: 候选人针对「影响面」给出排查或处置闭环，包含观察证据、判断依据、行动步骤和修复后验证，而不是直接跳到结论。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:problem_solving.architect_risk_incident.cascade_failure:must_cover:666b8d99:v1
+            source: must_cover
+            source_text: 技术根因
+            acceptance_check: 候选人针对「技术根因」给出排查或处置闭环，包含观察证据、判断依据、行动步骤和修复后验证，而不是直接跳到结论。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:problem_solving.architect_risk_incident.cascade_failure:must_cover:ff2967a2:v1
+            source: must_cover
+            source_text: 组织机制
+            acceptance_check: 候选人针对「组织机制」给出排查或处置闭环，包含观察证据、判断依据、行动步骤和修复后验证，而不是直接跳到结论。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:problem_solving.architect_risk_incident.cascade_failure:must_cover:6c7c9c41:v1
+            source: must_cover
+            source_text: 长期治理
+            acceptance_check: 候选人针对「长期治理」给出排查或处置闭环，包含观察证据、判断依据、行动步骤和修复后验证，而不是直接跳到结论。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:problem_solving.architect_risk_incident.cascade_failure:rubric_addition:411bc25c:v1
+            source: rubric_addition
+            source_text: 说明依赖和故障传播路径
+            acceptance_check: 候选人补充说明「说明依赖和故障传播路径」，并给出可复现证据、排查步骤、止血动作、修复验证或复盘改进中的至少一类具体内容。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:problem_solving.architect_risk_incident.cascade_failure:rubric_addition:9e73a0c3:v1
+            source: rubric_addition
+            source_text: 说明短期止血
+            acceptance_check: 候选人补充说明「说明短期止血」，并给出可复现证据、排查步骤、止血动作、修复验证或复盘改进中的至少一类具体内容。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:problem_solving.architect_risk_incident.cascade_failure:rubric_addition:b77c551a:v1
+            source: rubric_addition
+            source_text: 说明长期治理机制
+            acceptance_check: 候选人补充说明「说明长期治理机制」，并给出可复现证据、排查步骤、止血动作、修复验证或复盘改进中的至少一类具体内容。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
         priority: 18
         status: active
       - id: problem_solving.architect_risk_incident.tech_debt_risk
@@ -709,6 +2191,84 @@ seeds:
         expected_signals: [能把技术债和业务风险关联, 能排序治理动作, 能设计迭代验收]
         anti_patterns: [只要求重构, 不说明收益, 不考虑业务排期]
         good_answer_hints: [先量化痛点, 再按风险排序, 最后把治理嵌入业务迭代]
+        reviewed_acceptance_checks:
+          - check_id: reviewed:problem_solving.architect_risk_incident.tech_debt_risk:must_cover:705619e3:v1
+            source: must_cover
+            source_text: 影响面
+            acceptance_check: 候选人针对「影响面」给出排查或处置闭环，包含观察证据、判断依据、行动步骤和修复后验证，而不是直接跳到结论。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:problem_solving.architect_risk_incident.tech_debt_risk:must_cover:707fe115:v1
+            source: must_cover
+            source_text: 技术根因
+            acceptance_check: 候选人针对「技术根因」给出排查或处置闭环，包含观察证据、判断依据、行动步骤和修复后验证，而不是直接跳到结论。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:problem_solving.architect_risk_incident.tech_debt_risk:must_cover:8d071d31:v1
+            source: must_cover
+            source_text: 组织机制
+            acceptance_check: 候选人针对「组织机制」给出排查或处置闭环，包含观察证据、判断依据、行动步骤和修复后验证，而不是直接跳到结论。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:problem_solving.architect_risk_incident.tech_debt_risk:must_cover:ec4f716d:v1
+            source: must_cover
+            source_text: 长期治理
+            acceptance_check: 候选人针对「长期治理」给出排查或处置闭环，包含观察证据、判断依据、行动步骤和修复后验证，而不是直接跳到结论。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:problem_solving.architect_risk_incident.tech_debt_risk:rubric_addition:0eaa9acf:v1
+            source: rubric_addition
+            source_text: 说明技术债量化指标
+            acceptance_check: 候选人补充说明「说明技术债量化指标」，并给出可复现证据、排查步骤、止血动作、修复验证或复盘改进中的至少一类具体内容。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:problem_solving.architect_risk_incident.tech_debt_risk:rubric_addition:15858eff:v1
+            source: rubric_addition
+            source_text: 说明治理优先级
+            acceptance_check: 候选人补充说明「说明治理优先级」，并给出可复现证据、排查步骤、止血动作、修复验证或复盘改进中的至少一类具体内容。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:problem_solving.architect_risk_incident.tech_debt_risk:rubric_addition:f27a4994:v1
+            source: rubric_addition
+            source_text: 说明增量改造和业务协同
+            acceptance_check: 候选人补充说明「说明增量改造和业务协同」，并给出可复现证据、排查步骤、止血动作、修复验证或复盘改进中的至少一类具体内容。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
         priority: 16
         status: active
 
@@ -744,6 +2304,84 @@ seeds:
         expected_signals: [能用调用频率/相似度识别死循环, 能设最大步数与超时熔断, 能在熔断后保留 trace 供复盘]
         anti_patterns: [直接重启实例, 不留 trace, 不分析根因]
         good_answer_hints: [先快速止血, 再分类根因, 最后定预防机制]
+        reviewed_acceptance_checks:
+          - check_id: reviewed:problem_solving.ai_agent_infinite_loop_diagnosis.runtime_circuit:must_cover:5c06f298:v1
+            source: must_cover
+            source_text: 现象观察
+            acceptance_check: 候选人针对「现象观察」给出排查或处置闭环，包含观察证据、判断依据、行动步骤和修复后验证，而不是直接跳到结论。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:problem_solving.ai_agent_infinite_loop_diagnosis.runtime_circuit:must_cover:4e748677:v1
+            source: must_cover
+            source_text: 根因分类
+            acceptance_check: 候选人针对「根因分类」给出排查或处置闭环，包含观察证据、判断依据、行动步骤和修复后验证，而不是直接跳到结论。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:problem_solving.ai_agent_infinite_loop_diagnosis.runtime_circuit:must_cover:2c0cec77:v1
+            source: must_cover
+            source_text: 熔断策略
+            acceptance_check: 候选人围绕「熔断策略」说明失败分类、触发条件、重试/降级/恢复策略和防止影响扩散的边界。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:problem_solving.ai_agent_infinite_loop_diagnosis.runtime_circuit:must_cover:a80c25d6:v1
+            source: must_cover
+            source_text: 复发预防
+            acceptance_check: 候选人针对「复发预防」给出排查或处置闭环，包含观察证据、判断依据、行动步骤和修复后验证，而不是直接跳到结论。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:problem_solving.ai_agent_infinite_loop_diagnosis.runtime_circuit:rubric_addition:19ee097c:v1
+            source: rubric_addition
+            source_text: 说明现场观察手段
+            acceptance_check: 候选人补充说明「说明现场观察手段」，并给出可复现证据、排查步骤、止血动作、修复验证或复盘改进中的至少一类具体内容。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:problem_solving.ai_agent_infinite_loop_diagnosis.runtime_circuit:rubric_addition:70f1d462:v1
+            source: rubric_addition
+            source_text: 说明根因分类
+            acceptance_check: 候选人补充说明「说明根因分类」，并给出可复现证据、排查步骤、止血动作、修复验证或复盘改进中的至少一类具体内容。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:problem_solving.ai_agent_infinite_loop_diagnosis.runtime_circuit:rubric_addition:82f3bb53:v1
+            source: rubric_addition
+            source_text: 说明熔断与降级动作
+            acceptance_check: 候选人补充说明「说明熔断与降级动作」，并给出可复现证据、排查步骤、止血动作、修复验证或复盘改进中的至少一类具体内容。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
         priority: 16
         status: active
       - id: problem_solving.ai_agent_infinite_loop_diagnosis.root_cause
@@ -760,6 +2398,84 @@ seeds:
         expected_signals: [能让 prompt 区分可重试与终止错误, 能让工具返回明确的失败语义, 能建死循环回归测试集]
         anti_patterns: [只改提示词不改工具协议, 不建测试集, 修一次复发一次]
         good_answer_hints: [先对齐工具语义, 再调 prompt, 最后建回归]
+        reviewed_acceptance_checks:
+          - check_id: reviewed:problem_solving.ai_agent_infinite_loop_diagnosis.root_cause:must_cover:6049c891:v1
+            source: must_cover
+            source_text: 现象观察
+            acceptance_check: 候选人针对「现象观察」给出排查或处置闭环，包含观察证据、判断依据、行动步骤和修复后验证，而不是直接跳到结论。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:problem_solving.ai_agent_infinite_loop_diagnosis.root_cause:must_cover:937a763f:v1
+            source: must_cover
+            source_text: 根因分类
+            acceptance_check: 候选人针对「根因分类」给出排查或处置闭环，包含观察证据、判断依据、行动步骤和修复后验证，而不是直接跳到结论。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:problem_solving.ai_agent_infinite_loop_diagnosis.root_cause:must_cover:568ca90b:v1
+            source: must_cover
+            source_text: 熔断策略
+            acceptance_check: 候选人围绕「熔断策略」说明失败分类、触发条件、重试/降级/恢复策略和防止影响扩散的边界。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:problem_solving.ai_agent_infinite_loop_diagnosis.root_cause:must_cover:c9bb007c:v1
+            source: must_cover
+            source_text: 复发预防
+            acceptance_check: 候选人针对「复发预防」给出排查或处置闭环，包含观察证据、判断依据、行动步骤和修复后验证，而不是直接跳到结论。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:problem_solving.ai_agent_infinite_loop_diagnosis.root_cause:rubric_addition:b50e3cc5:v1
+            source: rubric_addition
+            source_text: 说明 prompt 中错误处理逻辑
+            acceptance_check: 候选人补充说明「说明 prompt 中错误处理逻辑」，并给出可复现证据、排查步骤、止血动作、修复验证或复盘改进中的至少一类具体内容。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:problem_solving.ai_agent_infinite_loop_diagnosis.root_cause:rubric_addition:abd8c198:v1
+            source: rubric_addition
+            source_text: 说明工具协议明确性
+            acceptance_check: 候选人补充说明「说明工具协议明确性」，并给出可复现证据、排查步骤、止血动作、修复验证或复盘改进中的至少一类具体内容。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:problem_solving.ai_agent_infinite_loop_diagnosis.root_cause:rubric_addition:6c4b2b3a:v1
+            source: rubric_addition
+            source_text: 说明回归测试覆盖
+            acceptance_check: 候选人补充说明「说明回归测试覆盖」，并给出可复现证据、排查步骤、止血动作、修复验证或复盘改进中的至少一类具体内容。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
         priority: 14
         status: active
 
@@ -795,6 +2511,84 @@ seeds:
         expected_signals: [能选取代表性 case 做金标, 能用对比指标识别退化, 能把 replay 接入发布门槛]
         anti_patterns: [只看 sample 例子, 不做对比基线, 没有发布门槛]
         good_answer_hints: [先建金标, 再 replay 对比, 最后接发布门槛]
+        reviewed_acceptance_checks:
+          - check_id: reviewed:problem_solving.ai_agent_offline_replay_eval.replay_pipeline:must_cover:64115a5f:v1
+            source: must_cover
+            source_text: 评估数据集
+            acceptance_check: 候选人围绕「评估数据集」给出测试或评估设计，说明样例来源、覆盖边界、通过标准和回归/线上验证方式。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:problem_solving.ai_agent_offline_replay_eval.replay_pipeline:must_cover:a8a5650e:v1
+            source: must_cover
+            source_text: replay 流程
+            acceptance_check: 候选人针对「replay 流程」给出排查或处置闭环，包含观察证据、判断依据、行动步骤和修复后验证，而不是直接跳到结论。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:problem_solving.ai_agent_offline_replay_eval.replay_pipeline:must_cover:7193a679:v1
+            source: must_cover
+            source_text: 质量指标
+            acceptance_check: 候选人围绕「质量指标」给出可量化口径、采集位置、阈值或观察窗口，并说明这些指标如何触发定位、告警、发布或复盘动作。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:problem_solving.ai_agent_offline_replay_eval.replay_pipeline:must_cover:b47eebf4:v1
+            source: must_cover
+            source_text: 退化阻断
+            acceptance_check: 候选人针对「退化阻断」给出排查或处置闭环，包含观察证据、判断依据、行动步骤和修复后验证，而不是直接跳到结论。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:problem_solving.ai_agent_offline_replay_eval.replay_pipeline:rubric_addition:41f878ef:v1
+            source: rubric_addition
+            source_text: 说明金标集合构建
+            acceptance_check: 候选人补充说明「说明金标集合构建」，并给出可复现证据、排查步骤、止血动作、修复验证或复盘改进中的至少一类具体内容。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:problem_solving.ai_agent_offline_replay_eval.replay_pipeline:rubric_addition:b2596d10:v1
+            source: rubric_addition
+            source_text: 说明 replay 复用真实工具或 mock
+            acceptance_check: 候选人补充说明「说明 replay 复用真实工具或 mock」，并给出可复现证据、排查步骤、止血动作、修复验证或复盘改进中的至少一类具体内容。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:problem_solving.ai_agent_offline_replay_eval.replay_pipeline:rubric_addition:a4450515:v1
+            source: rubric_addition
+            source_text: 说明退化阻断机制
+            acceptance_check: 候选人补充说明「说明退化阻断机制」，并给出可复现证据、排查步骤、止血动作、修复验证或复盘改进中的至少一类具体内容。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
         priority: 15
         status: active
       - id: problem_solving.ai_agent_offline_replay_eval.evaluator_drift
@@ -811,6 +2605,84 @@ seeds:
         expected_signals: [能用对比固定 case 监控评分稳定性, 能保留固定比例人工抽检, 能动态调整自动评分置信度]
         anti_patterns: [完全信任自动评分, 不做人工抽检, 不监控评分一致性]
         good_answer_hints: [先做评分基线监控, 再做人工抽检, 最后动态调整置信度]
+        reviewed_acceptance_checks:
+          - check_id: reviewed:problem_solving.ai_agent_offline_replay_eval.evaluator_drift:must_cover:1eb4ec0c:v1
+            source: must_cover
+            source_text: 评估数据集
+            acceptance_check: 候选人围绕「评估数据集」给出测试或评估设计，说明样例来源、覆盖边界、通过标准和回归/线上验证方式。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:problem_solving.ai_agent_offline_replay_eval.evaluator_drift:must_cover:dbbe429d:v1
+            source: must_cover
+            source_text: replay 流程
+            acceptance_check: 候选人针对「replay 流程」给出排查或处置闭环，包含观察证据、判断依据、行动步骤和修复后验证，而不是直接跳到结论。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:problem_solving.ai_agent_offline_replay_eval.evaluator_drift:must_cover:315a7a9d:v1
+            source: must_cover
+            source_text: 质量指标
+            acceptance_check: 候选人围绕「质量指标」给出可量化口径、采集位置、阈值或观察窗口，并说明这些指标如何触发定位、告警、发布或复盘动作。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:problem_solving.ai_agent_offline_replay_eval.evaluator_drift:must_cover:6b7a2f6d:v1
+            source: must_cover
+            source_text: 退化阻断
+            acceptance_check: 候选人针对「退化阻断」给出排查或处置闭环，包含观察证据、判断依据、行动步骤和修复后验证，而不是直接跳到结论。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:problem_solving.ai_agent_offline_replay_eval.evaluator_drift:rubric_addition:a6f86c64:v1
+            source: rubric_addition
+            source_text: 说明评分校准方式
+            acceptance_check: 候选人补充说明「说明评分校准方式」，并给出可复现证据、排查步骤、止血动作、修复验证或复盘改进中的至少一类具体内容。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:problem_solving.ai_agent_offline_replay_eval.evaluator_drift:rubric_addition:d45f322f:v1
+            source: rubric_addition
+            source_text: 说明人工抽检比例
+            acceptance_check: 候选人补充说明「说明人工抽检比例」，并给出可复现证据、排查步骤、止血动作、修复验证或复盘改进中的至少一类具体内容。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:problem_solving.ai_agent_offline_replay_eval.evaluator_drift:rubric_addition:d1a9fdb4:v1
+            source: rubric_addition
+            source_text: 说明信任度衰减
+            acceptance_check: 候选人补充说明「说明信任度衰减」，并给出可复现证据、排查步骤、止血动作、修复验证或复盘改进中的至少一类具体内容。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
         priority: 13
         status: active
 
@@ -846,6 +2718,84 @@ seeds:
         expected_signals: [能区分检索缺失 / 检索不准 / 模型自由发挥, 能定位到具体根因层, 能补回归测试与监控]
         anti_patterns: [只改 Prompt 不查数据, 只换模型不查 RAG, 不补回归测试]
         good_answer_hints: [先分类现象, 再分层归因, 最后补监控]
+        reviewed_acceptance_checks:
+          - check_id: reviewed:problem_solving.ai_fullstack_hallucination_diagnosis.root_cause:must_cover:73cd568f:v1
+            source: must_cover
+            source_text: 现象分类
+            acceptance_check: 候选人针对「现象分类」给出排查或处置闭环，包含观察证据、判断依据、行动步骤和修复后验证，而不是直接跳到结论。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:problem_solving.ai_fullstack_hallucination_diagnosis.root_cause:must_cover:58df5460:v1
+            source: must_cover
+            source_text: 数据/模型/Prompt 三层归因
+            acceptance_check: 候选人围绕「数据/模型/Prompt 三层归因」说明模型输入输出、能力边界、质量风险、验证指标和兜底或迭代方式。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:problem_solving.ai_fullstack_hallucination_diagnosis.root_cause:must_cover:3c8d8946:v1
+            source: must_cover
+            source_text: 修复方案
+            acceptance_check: 候选人针对「修复方案」给出排查或处置闭环，包含观察证据、判断依据、行动步骤和修复后验证，而不是直接跳到结论。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:problem_solving.ai_fullstack_hallucination_diagnosis.root_cause:must_cover:3f0a245f:v1
+            source: must_cover
+            source_text: 监控告警
+            acceptance_check: 候选人围绕「监控告警」给出可量化口径、采集位置、阈值或观察窗口，并说明这些指标如何触发定位、告警、发布或复盘动作。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:problem_solving.ai_fullstack_hallucination_diagnosis.root_cause:rubric_addition:8dee04ee:v1
+            source: rubric_addition
+            source_text: 说明现象分类
+            acceptance_check: 候选人补充说明「说明现象分类」，并给出可复现证据、排查步骤、止血动作、修复验证或复盘改进中的至少一类具体内容。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:problem_solving.ai_fullstack_hallucination_diagnosis.root_cause:rubric_addition:fbec1a6e:v1
+            source: rubric_addition
+            source_text: 说明分层归因
+            acceptance_check: 候选人补充说明「说明分层归因」，并给出可复现证据、排查步骤、止血动作、修复验证或复盘改进中的至少一类具体内容。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:problem_solving.ai_fullstack_hallucination_diagnosis.root_cause:rubric_addition:d913bbde:v1
+            source: rubric_addition
+            source_text: 说明修复与监控
+            acceptance_check: 候选人补充说明「说明修复与监控」，并给出可复现证据、排查步骤、止血动作、修复验证或复盘改进中的至少一类具体内容。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
         priority: 13
         status: active
       - id: problem_solving.ai_fullstack_hallucination_diagnosis.rag_recall
@@ -862,6 +2812,84 @@ seeds:
         expected_signals: [能用召回质量监控感知变化, 能从 embedding / chunk / query 三层定位, 能用 query 分桶发现长尾问题]
         anti_patterns: [只换 embedding 模型, 只调 chunk size, 不监控召回质量]
         good_answer_hints: [先监控召回, 再分层定位, 最后修复并回归]
+        reviewed_acceptance_checks:
+          - check_id: reviewed:problem_solving.ai_fullstack_hallucination_diagnosis.rag_recall:must_cover:bc5f587f:v1
+            source: must_cover
+            source_text: 现象分类
+            acceptance_check: 候选人针对「现象分类」给出排查或处置闭环，包含观察证据、判断依据、行动步骤和修复后验证，而不是直接跳到结论。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:problem_solving.ai_fullstack_hallucination_diagnosis.rag_recall:must_cover:325f688a:v1
+            source: must_cover
+            source_text: 数据/模型/Prompt 三层归因
+            acceptance_check: 候选人围绕「数据/模型/Prompt 三层归因」说明模型输入输出、能力边界、质量风险、验证指标和兜底或迭代方式。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:problem_solving.ai_fullstack_hallucination_diagnosis.rag_recall:must_cover:b3ace0d5:v1
+            source: must_cover
+            source_text: 修复方案
+            acceptance_check: 候选人针对「修复方案」给出排查或处置闭环，包含观察证据、判断依据、行动步骤和修复后验证，而不是直接跳到结论。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:problem_solving.ai_fullstack_hallucination_diagnosis.rag_recall:must_cover:1217737e:v1
+            source: must_cover
+            source_text: 监控告警
+            acceptance_check: 候选人围绕「监控告警」给出可量化口径、采集位置、阈值或观察窗口，并说明这些指标如何触发定位、告警、发布或复盘动作。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:problem_solving.ai_fullstack_hallucination_diagnosis.rag_recall:rubric_addition:6b438680:v1
+            source: rubric_addition
+            source_text: 说明 embedding 版本管理
+            acceptance_check: 候选人补充说明「说明 embedding 版本管理」，并给出可复现证据、排查步骤、止血动作、修复验证或复盘改进中的至少一类具体内容。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:problem_solving.ai_fullstack_hallucination_diagnosis.rag_recall:rubric_addition:a44224eb:v1
+            source: rubric_addition
+            source_text: 说明 chunk 策略检查
+            acceptance_check: 候选人补充说明「说明 chunk 策略检查」，并给出可复现证据、排查步骤、止血动作、修复验证或复盘改进中的至少一类具体内容。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:problem_solving.ai_fullstack_hallucination_diagnosis.rag_recall:rubric_addition:fc0de63f:v1
+            source: rubric_addition
+            source_text: 说明 query 长尾发现
+            acceptance_check: 候选人补充说明「说明 query 长尾发现」，并给出可复现证据、排查步骤、止血动作、修复验证或复盘改进中的至少一类具体内容。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
         priority: 11
         status: active
 
@@ -897,6 +2925,84 @@ seeds:
         expected_signals: [能区分指标定义差异, 能查训练/线上特征分布偏差, 能查推荐/曝光链路差异]
         anti_patterns: [只看离线指标, 不查数据偏差, 不查链路]
         good_answer_hints: [先对齐指标, 再查数据偏差, 最后查链路]
+        reviewed_acceptance_checks:
+          - check_id: reviewed:problem_solving.ai_algorithm_online_offline_gap.attribution:must_cover:b64e0577:v1
+            source: must_cover
+            source_text: 指标定义
+            acceptance_check: 候选人围绕「指标定义」给出可量化口径、采集位置、阈值或观察窗口，并说明这些指标如何触发定位、告警、发布或复盘动作。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:problem_solving.ai_algorithm_online_offline_gap.attribution:must_cover:90aa99dc:v1
+            source: must_cover
+            source_text: 数据偏差
+            acceptance_check: 候选人围绕「数据偏差」说明数据、索引、检索或召回链路中的输入输出、质量风险、验证指标和修复/迭代方式。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:problem_solving.ai_algorithm_online_offline_gap.attribution:must_cover:06062f39:v1
+            source: must_cover
+            source_text: 业务侧因素
+            acceptance_check: 候选人针对「业务侧因素」给出排查或处置闭环，包含观察证据、判断依据、行动步骤和修复后验证，而不是直接跳到结论。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:problem_solving.ai_algorithm_online_offline_gap.attribution:must_cover:5cd8514e:v1
+            source: must_cover
+            source_text: 归因方法
+            acceptance_check: 候选人针对「归因方法」给出排查或处置闭环，包含观察证据、判断依据、行动步骤和修复后验证，而不是直接跳到结论。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:problem_solving.ai_algorithm_online_offline_gap.attribution:rubric_addition:f50617c8:v1
+            source: rubric_addition
+            source_text: 说明指标定义检查
+            acceptance_check: 候选人补充说明「说明指标定义检查」，并给出可复现证据、排查步骤、止血动作、修复验证或复盘改进中的至少一类具体内容。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:problem_solving.ai_algorithm_online_offline_gap.attribution:rubric_addition:a855d6f0:v1
+            source: rubric_addition
+            source_text: 说明数据偏差
+            acceptance_check: 候选人补充说明「说明数据偏差」，并给出可复现证据、排查步骤、止血动作、修复验证或复盘改进中的至少一类具体内容。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:problem_solving.ai_algorithm_online_offline_gap.attribution:rubric_addition:12698ccf:v1
+            source: rubric_addition
+            source_text: 说明链路对齐
+            acceptance_check: 候选人补充说明「说明链路对齐」，并给出可复现证据、排查步骤、止血动作、修复验证或复盘改进中的至少一类具体内容。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
         priority: 13
         status: active
       - id: problem_solving.ai_algorithm_online_offline_gap.experiment_design
@@ -913,6 +3019,84 @@ seeds:
         expected_signals: [能识别曝光偏差, 能用 IPS / DR 等方法修正, 能设计对照实验验证]
         anti_patterns: [继续用有偏数据训练, 没有修正方法, 不做对照]
         good_answer_hints: [先识别偏差, 再选修正方法, 最后对照验证]
+        reviewed_acceptance_checks:
+          - check_id: reviewed:problem_solving.ai_algorithm_online_offline_gap.experiment_design:must_cover:cea4865a:v1
+            source: must_cover
+            source_text: 指标定义
+            acceptance_check: 候选人围绕「指标定义」给出可量化口径、采集位置、阈值或观察窗口，并说明这些指标如何触发定位、告警、发布或复盘动作。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:problem_solving.ai_algorithm_online_offline_gap.experiment_design:must_cover:3e2c971d:v1
+            source: must_cover
+            source_text: 数据偏差
+            acceptance_check: 候选人围绕「数据偏差」说明数据、索引、检索或召回链路中的输入输出、质量风险、验证指标和修复/迭代方式。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:problem_solving.ai_algorithm_online_offline_gap.experiment_design:must_cover:eafd0614:v1
+            source: must_cover
+            source_text: 业务侧因素
+            acceptance_check: 候选人针对「业务侧因素」给出排查或处置闭环，包含观察证据、判断依据、行动步骤和修复后验证，而不是直接跳到结论。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:problem_solving.ai_algorithm_online_offline_gap.experiment_design:must_cover:1d9dfe6c:v1
+            source: must_cover
+            source_text: 归因方法
+            acceptance_check: 候选人针对「归因方法」给出排查或处置闭环，包含观察证据、判断依据、行动步骤和修复后验证，而不是直接跳到结论。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:problem_solving.ai_algorithm_online_offline_gap.experiment_design:rubric_addition:c13adbb0:v1
+            source: rubric_addition
+            source_text: 说明曝光偏差识别
+            acceptance_check: 候选人补充说明「说明曝光偏差识别」，并给出可复现证据、排查步骤、止血动作、修复验证或复盘改进中的至少一类具体内容。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:problem_solving.ai_algorithm_online_offline_gap.experiment_design:rubric_addition:7c8627e0:v1
+            source: rubric_addition
+            source_text: 说明 IPS / DR 等修正方法
+            acceptance_check: 候选人补充说明「说明 IPS / DR 等修正方法」，并给出可复现证据、排查步骤、止血动作、修复验证或复盘改进中的至少一类具体内容。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:problem_solving.ai_algorithm_online_offline_gap.experiment_design:rubric_addition:1e328684:v1
+            source: rubric_addition
+            source_text: 说明实验对照设计
+            acceptance_check: 候选人补充说明「说明实验对照设计」，并给出可复现证据、排查步骤、止血动作、修复验证或复盘改进中的至少一类具体内容。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
         priority: 11
         status: active
 
@@ -948,6 +3132,84 @@ seeds:
         expected_signals: [能用 KS / PSI 检测分布漂移, 能区分 label / feature / concept drift, 能定监控告警]
         anti_patterns: [只看效果指标下降, 不分类型, 没监控]
         good_answer_hints: [先定指标, 再分类型, 最后建监控]
+        reviewed_acceptance_checks:
+          - check_id: reviewed:problem_solving.ai_algorithm_distribution_drift.detection:must_cover:f88e49e0:v1
+            source: must_cover
+            source_text: 漂移类型
+            acceptance_check: 候选人针对「漂移类型」给出排查或处置闭环，包含观察证据、判断依据、行动步骤和修复后验证，而不是直接跳到结论。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:problem_solving.ai_algorithm_distribution_drift.detection:must_cover:97810a57:v1
+            source: must_cover
+            source_text: 检测指标
+            acceptance_check: 候选人围绕「检测指标」给出可量化口径、采集位置、阈值或观察窗口，并说明这些指标如何触发定位、告警、发布或复盘动作。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:problem_solving.ai_algorithm_distribution_drift.detection:must_cover:aad9e879:v1
+            source: must_cover
+            source_text: 触发动作
+            acceptance_check: 候选人针对「触发动作」给出排查或处置闭环，包含观察证据、判断依据、行动步骤和修复后验证，而不是直接跳到结论。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:problem_solving.ai_algorithm_distribution_drift.detection:must_cover:4cd78ee9:v1
+            source: must_cover
+            source_text: 重训节奏
+            acceptance_check: 候选人针对「重训节奏」给出排查或处置闭环，包含观察证据、判断依据、行动步骤和修复后验证，而不是直接跳到结论。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:problem_solving.ai_algorithm_distribution_drift.detection:rubric_addition:b48580f4:v1
+            source: rubric_addition
+            source_text: 说明三种漂移定义
+            acceptance_check: 候选人补充说明「说明三种漂移定义」，并给出可复现证据、排查步骤、止血动作、修复验证或复盘改进中的至少一类具体内容。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:problem_solving.ai_algorithm_distribution_drift.detection:rubric_addition:d0c77b76:v1
+            source: rubric_addition
+            source_text: 说明检测指标
+            acceptance_check: 候选人补充说明「说明检测指标」，并给出可复现证据、排查步骤、止血动作、修复验证或复盘改进中的至少一类具体内容。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:problem_solving.ai_algorithm_distribution_drift.detection:rubric_addition:efdd36a6:v1
+            source: rubric_addition
+            source_text: 说明区分方法
+            acceptance_check: 候选人补充说明「说明区分方法」，并给出可复现证据、排查步骤、止血动作、修复验证或复盘改进中的至少一类具体内容。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
         priority: 12
         status: active
       - id: problem_solving.ai_algorithm_distribution_drift.response
@@ -964,6 +3226,84 @@ seeds:
         expected_signals: [能选在线学习或滚动重训, 能定数据窗口和遗忘策略, 能定回滚机制]
         anti_patterns: [完全离线重训等不及, 全在线学习不可控, 没回滚]
         good_answer_hints: [先选学习模式, 再定窗口, 最后定回滚]
+        reviewed_acceptance_checks:
+          - check_id: reviewed:problem_solving.ai_algorithm_distribution_drift.response:must_cover:8902e3d1:v1
+            source: must_cover
+            source_text: 漂移类型
+            acceptance_check: 候选人针对「漂移类型」给出排查或处置闭环，包含观察证据、判断依据、行动步骤和修复后验证，而不是直接跳到结论。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:problem_solving.ai_algorithm_distribution_drift.response:must_cover:28e724fe:v1
+            source: must_cover
+            source_text: 检测指标
+            acceptance_check: 候选人围绕「检测指标」给出可量化口径、采集位置、阈值或观察窗口，并说明这些指标如何触发定位、告警、发布或复盘动作。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:problem_solving.ai_algorithm_distribution_drift.response:must_cover:0ddff10b:v1
+            source: must_cover
+            source_text: 触发动作
+            acceptance_check: 候选人针对「触发动作」给出排查或处置闭环，包含观察证据、判断依据、行动步骤和修复后验证，而不是直接跳到结论。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:problem_solving.ai_algorithm_distribution_drift.response:must_cover:e7e20659:v1
+            source: must_cover
+            source_text: 重训节奏
+            acceptance_check: 候选人针对「重训节奏」给出排查或处置闭环，包含观察证据、判断依据、行动步骤和修复后验证，而不是直接跳到结论。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:problem_solving.ai_algorithm_distribution_drift.response:rubric_addition:b37aff63:v1
+            source: rubric_addition
+            source_text: 说明在线学习取舍
+            acceptance_check: 候选人补充说明「说明在线学习取舍」，并给出可复现证据、排查步骤、止血动作、修复验证或复盘改进中的至少一类具体内容。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:problem_solving.ai_algorithm_distribution_drift.response:rubric_addition:4a6a8120:v1
+            source: rubric_addition
+            source_text: 说明时间窗口策略
+            acceptance_check: 候选人补充说明「说明时间窗口策略」，并给出可复现证据、排查步骤、止血动作、修复验证或复盘改进中的至少一类具体内容。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:problem_solving.ai_algorithm_distribution_drift.response:rubric_addition:2e7fc233:v1
+            source: rubric_addition
+            source_text: 说明回滚机制
+            acceptance_check: 候选人补充说明「说明回滚机制」，并给出可复现证据、排查步骤、止血动作、修复验证或复盘改进中的至少一类具体内容。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
         priority: 10
         status: active
 
@@ -999,6 +3339,84 @@ seeds:
         expected_signals: [能立即回滚或切流量止血, 能从数据/模型/链路分层定位, 能给出长期修复方案]
         anti_patterns: [先查模型不止血, 没回滚预案, 只甩锅给上游]
         good_answer_hints: [先止血, 再分层定位, 最后长期修复]
+        reviewed_acceptance_checks:
+          - check_id: reviewed:problem_solving.ai_algorithm_model_regression.firefighting:must_cover:698a0b4f:v1
+            source: must_cover
+            source_text: 紧急止血
+            acceptance_check: 候选人针对「紧急止血」给出排查或处置闭环，包含观察证据、判断依据、行动步骤和修复后验证，而不是直接跳到结论。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:problem_solving.ai_algorithm_model_regression.firefighting:must_cover:ccb60e06:v1
+            source: must_cover
+            source_text: 分层定位
+            acceptance_check: 候选人针对「分层定位」给出排查或处置闭环，包含观察证据、判断依据、行动步骤和修复后验证，而不是直接跳到结论。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:problem_solving.ai_algorithm_model_regression.firefighting:must_cover:9e2ee598:v1
+            source: must_cover
+            source_text: 修复方案
+            acceptance_check: 候选人针对「修复方案」给出排查或处置闭环，包含观察证据、判断依据、行动步骤和修复后验证，而不是直接跳到结论。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:problem_solving.ai_algorithm_model_regression.firefighting:must_cover:45b1e7c8:v1
+            source: must_cover
+            source_text: 复盘机制
+            acceptance_check: 候选人针对「复盘机制」给出排查或处置闭环，包含观察证据、判断依据、行动步骤和修复后验证，而不是直接跳到结论。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:problem_solving.ai_algorithm_model_regression.firefighting:rubric_addition:9757e909:v1
+            source: rubric_addition
+            source_text: 说明应急动作
+            acceptance_check: 候选人补充说明「说明应急动作」，并给出可复现证据、排查步骤、止血动作、修复验证或复盘改进中的至少一类具体内容。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:problem_solving.ai_algorithm_model_regression.firefighting:rubric_addition:fcda1145:v1
+            source: rubric_addition
+            source_text: 说明分层定位
+            acceptance_check: 候选人补充说明「说明分层定位」，并给出可复现证据、排查步骤、止血动作、修复验证或复盘改进中的至少一类具体内容。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:problem_solving.ai_algorithm_model_regression.firefighting:rubric_addition:730e4272:v1
+            source: rubric_addition
+            source_text: 说明长期修复
+            acceptance_check: 候选人补充说明「说明长期修复」，并给出可复现证据、排查步骤、止血动作、修复验证或复盘改进中的至少一类具体内容。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
         priority: 11
         status: active
       - id: problem_solving.ai_algorithm_model_regression.sop
@@ -1015,6 +3433,84 @@ seeds:
         expected_signals: [能定义 SOP 步骤与角色, 能补足监控告警覆盖, 能给出预防机制（影子模型/灰度等）]
         anti_patterns: [SOP 仅停留文档, 没监控告警, 没预防]
         good_answer_hints: [先定 SOP, 再补监控, 最后做预防]
+        reviewed_acceptance_checks:
+          - check_id: reviewed:problem_solving.ai_algorithm_model_regression.sop:must_cover:0bf3e039:v1
+            source: must_cover
+            source_text: 紧急止血
+            acceptance_check: 候选人针对「紧急止血」给出排查或处置闭环，包含观察证据、判断依据、行动步骤和修复后验证，而不是直接跳到结论。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:problem_solving.ai_algorithm_model_regression.sop:must_cover:9f810c76:v1
+            source: must_cover
+            source_text: 分层定位
+            acceptance_check: 候选人针对「分层定位」给出排查或处置闭环，包含观察证据、判断依据、行动步骤和修复后验证，而不是直接跳到结论。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:problem_solving.ai_algorithm_model_regression.sop:must_cover:9be04ce9:v1
+            source: must_cover
+            source_text: 修复方案
+            acceptance_check: 候选人针对「修复方案」给出排查或处置闭环，包含观察证据、判断依据、行动步骤和修复后验证，而不是直接跳到结论。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:problem_solving.ai_algorithm_model_regression.sop:must_cover:604500a2:v1
+            source: must_cover
+            source_text: 复盘机制
+            acceptance_check: 候选人针对「复盘机制」给出排查或处置闭环，包含观察证据、判断依据、行动步骤和修复后验证，而不是直接跳到结论。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:problem_solving.ai_algorithm_model_regression.sop:rubric_addition:650092d8:v1
+            source: rubric_addition
+            source_text: 说明 SOP 关键步骤
+            acceptance_check: 候选人补充说明「说明 SOP 关键步骤」，并给出可复现证据、排查步骤、止血动作、修复验证或复盘改进中的至少一类具体内容。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:problem_solving.ai_algorithm_model_regression.sop:rubric_addition:a1cfb9a9:v1
+            source: rubric_addition
+            source_text: 说明监控告警
+            acceptance_check: 候选人补充说明「说明监控告警」，并给出可复现证据、排查步骤、止血动作、修复验证或复盘改进中的至少一类具体内容。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:problem_solving.ai_algorithm_model_regression.sop:rubric_addition:5961078b:v1
+            source: rubric_addition
+            source_text: 说明预防机制
+            acceptance_check: 候选人补充说明「说明预防机制」，并给出可复现证据、排查步骤、止血动作、修复验证或复盘改进中的至少一类具体内容。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
         priority: 9
         status: active
 
@@ -1050,6 +3546,84 @@ seeds:
         expected_signals: [能用召回质量指标感知下降, 能从 embedding/chunk/query 三层定位, 能给出修复闭环]
         anti_patterns: [盲目换模型, 不监控召回, 不分层]
         good_answer_hints: [先看监控, 再分层定位, 最后修复闭环]
+        reviewed_acceptance_checks:
+          - check_id: reviewed:problem_solving.ai_fullstack_rag_recall_drift.layered_diagnosis:must_cover:3706d587:v1
+            source: must_cover
+            source_text: 召回质量监控
+            acceptance_check: 候选人围绕「召回质量监控」给出可量化口径、采集位置、阈值或观察窗口，并说明这些指标如何触发定位、告警、发布或复盘动作。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:problem_solving.ai_fullstack_rag_recall_drift.layered_diagnosis:must_cover:e74a42e1:v1
+            source: must_cover
+            source_text: 分层归因
+            acceptance_check: 候选人针对「分层归因」给出排查或处置闭环，包含观察证据、判断依据、行动步骤和修复后验证，而不是直接跳到结论。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:problem_solving.ai_fullstack_rag_recall_drift.layered_diagnosis:must_cover:18bfff80:v1
+            source: must_cover
+            source_text: 索引/查询/数据三维
+            acceptance_check: 候选人围绕「索引/查询/数据三维」说明数据、索引、检索或召回链路中的输入输出、质量风险、验证指标和修复/迭代方式。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:problem_solving.ai_fullstack_rag_recall_drift.layered_diagnosis:must_cover:4dc45ec6:v1
+            source: must_cover
+            source_text: 修复闭环
+            acceptance_check: 候选人针对「修复闭环」给出排查或处置闭环，包含观察证据、判断依据、行动步骤和修复后验证，而不是直接跳到结论。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:problem_solving.ai_fullstack_rag_recall_drift.layered_diagnosis:rubric_addition:815e35f2:v1
+            source: rubric_addition
+            source_text: 说明召回质量监控
+            acceptance_check: 候选人补充说明「说明召回质量监控」，并给出可复现证据、排查步骤、止血动作、修复验证或复盘改进中的至少一类具体内容。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:problem_solving.ai_fullstack_rag_recall_drift.layered_diagnosis:rubric_addition:5cc5f6de:v1
+            source: rubric_addition
+            source_text: 说明三层归因
+            acceptance_check: 候选人补充说明「说明三层归因」，并给出可复现证据、排查步骤、止血动作、修复验证或复盘改进中的至少一类具体内容。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:problem_solving.ai_fullstack_rag_recall_drift.layered_diagnosis:rubric_addition:79647d81:v1
+            source: rubric_addition
+            source_text: 说明修复路径
+            acceptance_check: 候选人补充说明「说明修复路径」，并给出可复现证据、排查步骤、止血动作、修复验证或复盘改进中的至少一类具体内容。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
         priority: 12
         status: active
       - id: problem_solving.ai_fullstack_rag_recall_drift.query_longtail
@@ -1066,6 +3640,84 @@ seeds:
         expected_signals: [能用 query 分桶发现长尾, 能用 alias / synonym / 增量 embedding 适配, 能用评估集验证]
         anti_patterns: [全量重训 embedding, 不识别长尾, 不验证效果]
         good_answer_hints: [先识别长尾, 再适配, 最后验证]
+        reviewed_acceptance_checks:
+          - check_id: reviewed:problem_solving.ai_fullstack_rag_recall_drift.query_longtail:must_cover:d46f0e38:v1
+            source: must_cover
+            source_text: 召回质量监控
+            acceptance_check: 候选人围绕「召回质量监控」给出可量化口径、采集位置、阈值或观察窗口，并说明这些指标如何触发定位、告警、发布或复盘动作。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:problem_solving.ai_fullstack_rag_recall_drift.query_longtail:must_cover:0f5801c3:v1
+            source: must_cover
+            source_text: 分层归因
+            acceptance_check: 候选人针对「分层归因」给出排查或处置闭环，包含观察证据、判断依据、行动步骤和修复后验证，而不是直接跳到结论。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:problem_solving.ai_fullstack_rag_recall_drift.query_longtail:must_cover:47c19745:v1
+            source: must_cover
+            source_text: 索引/查询/数据三维
+            acceptance_check: 候选人围绕「索引/查询/数据三维」说明数据、索引、检索或召回链路中的输入输出、质量风险、验证指标和修复/迭代方式。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:problem_solving.ai_fullstack_rag_recall_drift.query_longtail:must_cover:6c669227:v1
+            source: must_cover
+            source_text: 修复闭环
+            acceptance_check: 候选人针对「修复闭环」给出排查或处置闭环，包含观察证据、判断依据、行动步骤和修复后验证，而不是直接跳到结论。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:problem_solving.ai_fullstack_rag_recall_drift.query_longtail:rubric_addition:ff189751:v1
+            source: rubric_addition
+            source_text: 说明长尾识别
+            acceptance_check: 候选人补充说明「说明长尾识别」，并给出可复现证据、排查步骤、止血动作、修复验证或复盘改进中的至少一类具体内容。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:problem_solving.ai_fullstack_rag_recall_drift.query_longtail:rubric_addition:aaa46cc8:v1
+            source: rubric_addition
+            source_text: 说明动态适配方案
+            acceptance_check: 候选人补充说明「说明动态适配方案」，并给出可复现证据、排查步骤、止血动作、修复验证或复盘改进中的至少一类具体内容。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:problem_solving.ai_fullstack_rag_recall_drift.query_longtail:rubric_addition:688f3329:v1
+            source: rubric_addition
+            source_text: 说明效果评估
+            acceptance_check: 候选人补充说明「说明效果评估」，并给出可复现证据、排查步骤、止血动作、修复验证或复盘改进中的至少一类具体内容。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
         priority: 10
         status: active
 
@@ -1101,6 +3753,84 @@ seeds:
         expected_signals: [能用 sentry / 资源监控定位, 能用 fallback / 灰度回滚止血, 能补回归用例]
         anti_patterns: [直接刷新缓存, 不分类根因, 没回归]
         good_answer_hints: [先看监控, 再快速止血, 最后回归]
+        reviewed_acceptance_checks:
+          - check_id: reviewed:problem_solving.frontend_web_white_screen.triage:must_cover:084f9a26:v1
+            source: must_cover
+            source_text: 现象观察
+            acceptance_check: 候选人针对「现象观察」给出排查或处置闭环，包含观察证据、判断依据、行动步骤和修复后验证，而不是直接跳到结论。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:problem_solving.frontend_web_white_screen.triage:must_cover:4ca7bb8d:v1
+            source: must_cover
+            source_text: 根因分类
+            acceptance_check: 候选人针对「根因分类」给出排查或处置闭环，包含观察证据、判断依据、行动步骤和修复后验证，而不是直接跳到结论。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:problem_solving.frontend_web_white_screen.triage:must_cover:cfe533f5:v1
+            source: must_cover
+            source_text: 止血动作
+            acceptance_check: 候选人针对「止血动作」给出排查或处置闭环，包含观察证据、判断依据、行动步骤和修复后验证，而不是直接跳到结论。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:problem_solving.frontend_web_white_screen.triage:must_cover:8beac8b8:v1
+            source: must_cover
+            source_text: 长期修复
+            acceptance_check: 候选人针对「长期修复」给出排查或处置闭环，包含观察证据、判断依据、行动步骤和修复后验证，而不是直接跳到结论。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:problem_solving.frontend_web_white_screen.triage:rubric_addition:9a114484:v1
+            source: rubric_addition
+            source_text: 说明现场观察
+            acceptance_check: 候选人补充说明「说明现场观察」，并给出可复现证据、排查步骤、止血动作、修复验证或复盘改进中的至少一类具体内容。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:problem_solving.frontend_web_white_screen.triage:rubric_addition:3da245cb:v1
+            source: rubric_addition
+            source_text: 说明根因分类
+            acceptance_check: 候选人补充说明「说明根因分类」，并给出可复现证据、排查步骤、止血动作、修复验证或复盘改进中的至少一类具体内容。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:problem_solving.frontend_web_white_screen.triage:rubric_addition:34bb78ab:v1
+            source: rubric_addition
+            source_text: 说明长期修复
+            acceptance_check: 候选人补充说明「说明长期修复」，并给出可复现证据、排查步骤、止血动作、修复验证或复盘改进中的至少一类具体内容。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
         priority: 11
         status: active
       - id: problem_solving.frontend_web_white_screen.memory_leak
@@ -1117,6 +3847,84 @@ seeds:
         expected_signals: [能用 heap snapshot 比对找泄漏, 能识别闭包/事件/定时器泄漏, 能用回归脚本验证]
         anti_patterns: [只升级浏览器, 不用工具, 不做回归]
         good_answer_hints: [先工具定位, 再修常见泄漏, 最后回归]
+        reviewed_acceptance_checks:
+          - check_id: reviewed:problem_solving.frontend_web_white_screen.memory_leak:must_cover:c52053b7:v1
+            source: must_cover
+            source_text: 现象观察
+            acceptance_check: 候选人针对「现象观察」给出排查或处置闭环，包含观察证据、判断依据、行动步骤和修复后验证，而不是直接跳到结论。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:problem_solving.frontend_web_white_screen.memory_leak:must_cover:61f47de0:v1
+            source: must_cover
+            source_text: 根因分类
+            acceptance_check: 候选人针对「根因分类」给出排查或处置闭环，包含观察证据、判断依据、行动步骤和修复后验证，而不是直接跳到结论。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:problem_solving.frontend_web_white_screen.memory_leak:must_cover:cff6ce99:v1
+            source: must_cover
+            source_text: 止血动作
+            acceptance_check: 候选人针对「止血动作」给出排查或处置闭环，包含观察证据、判断依据、行动步骤和修复后验证，而不是直接跳到结论。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:problem_solving.frontend_web_white_screen.memory_leak:must_cover:b3171776:v1
+            source: must_cover
+            source_text: 长期修复
+            acceptance_check: 候选人针对「长期修复」给出排查或处置闭环，包含观察证据、判断依据、行动步骤和修复后验证，而不是直接跳到结论。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:problem_solving.frontend_web_white_screen.memory_leak:rubric_addition:2c867cae:v1
+            source: rubric_addition
+            source_text: 说明工具使用
+            acceptance_check: 候选人补充说明「说明工具使用」，并给出可复现证据、排查步骤、止血动作、修复验证或复盘改进中的至少一类具体内容。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:problem_solving.frontend_web_white_screen.memory_leak:rubric_addition:8105e2c2:v1
+            source: rubric_addition
+            source_text: 说明常见泄漏来源
+            acceptance_check: 候选人补充说明「说明常见泄漏来源」，并给出可复现证据、排查步骤、止血动作、修复验证或复盘改进中的至少一类具体内容。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:problem_solving.frontend_web_white_screen.memory_leak:rubric_addition:19b5228e:v1
+            source: rubric_addition
+            source_text: 说明回归验证
+            acceptance_check: 候选人补充说明「说明回归验证」，并给出可复现证据、排查步骤、止血动作、修复验证或复盘改进中的至少一类具体内容。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
         priority: 9
         status: active
 
@@ -1152,6 +3960,84 @@ seeds:
         expected_signals: [能区分 API / 样式 / 网络兼容差异, 能用远程调试复现, 能选 polyfill / 渐进增强]
         anti_patterns: [只在桌面 Chrome 测, 不复现, 全 polyfill]
         good_answer_hints: [先分类, 再复现, 最后选修复]
+        reviewed_acceptance_checks:
+          - check_id: reviewed:problem_solving.frontend_web_cross_browser.diagnosis:must_cover:a98a86ef:v1
+            source: must_cover
+            source_text: 问题分类
+            acceptance_check: 候选人针对「问题分类」给出排查或处置闭环，包含观察证据、判断依据、行动步骤和修复后验证，而不是直接跳到结论。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:problem_solving.frontend_web_cross_browser.diagnosis:must_cover:6f7f5889:v1
+            source: must_cover
+            source_text: 现场复现
+            acceptance_check: 候选人针对「现场复现」给出排查或处置闭环，包含观察证据、判断依据、行动步骤和修复后验证，而不是直接跳到结论。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:problem_solving.frontend_web_cross_browser.diagnosis:must_cover:db0f64a7:v1
+            source: must_cover
+            source_text: 修复策略
+            acceptance_check: 候选人针对「修复策略」给出排查或处置闭环，包含观察证据、判断依据、行动步骤和修复后验证，而不是直接跳到结论。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:problem_solving.frontend_web_cross_browser.diagnosis:must_cover:3527969b:v1
+            source: must_cover
+            source_text: 长期保护
+            acceptance_check: 候选人针对「长期保护」给出排查或处置闭环，包含观察证据、判断依据、行动步骤和修复后验证，而不是直接跳到结论。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:problem_solving.frontend_web_cross_browser.diagnosis:rubric_addition:94673d4a:v1
+            source: rubric_addition
+            source_text: 说明问题分类
+            acceptance_check: 候选人补充说明「说明问题分类」，并给出可复现证据、排查步骤、止血动作、修复验证或复盘改进中的至少一类具体内容。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:problem_solving.frontend_web_cross_browser.diagnosis:rubric_addition:cf240ab0:v1
+            source: rubric_addition
+            source_text: 说明现场复现
+            acceptance_check: 候选人补充说明「说明现场复现」，并给出可复现证据、排查步骤、止血动作、修复验证或复盘改进中的至少一类具体内容。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:problem_solving.frontend_web_cross_browser.diagnosis:rubric_addition:736365b7:v1
+            source: rubric_addition
+            source_text: 说明修复策略
+            acceptance_check: 候选人补充说明「说明修复策略」，并给出可复现证据、排查步骤、止血动作、修复验证或复盘改进中的至少一类具体内容。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
         priority: 10
         status: active
       - id: problem_solving.frontend_web_cross_browser.test_matrix
@@ -1168,6 +4054,84 @@ seeds:
         expected_signals: [能定义重点设备/浏览器矩阵, 能结合真机与云测, 能用真实用户监控发现新问题]
         anti_patterns: [全靠 manual QA, 只测主流, 不监控真实用户]
         good_answer_hints: [先定矩阵, 再选工具, 最后接监控]
+        reviewed_acceptance_checks:
+          - check_id: reviewed:problem_solving.frontend_web_cross_browser.test_matrix:must_cover:b4058507:v1
+            source: must_cover
+            source_text: 问题分类
+            acceptance_check: 候选人针对「问题分类」给出排查或处置闭环，包含观察证据、判断依据、行动步骤和修复后验证，而不是直接跳到结论。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:problem_solving.frontend_web_cross_browser.test_matrix:must_cover:05df45eb:v1
+            source: must_cover
+            source_text: 现场复现
+            acceptance_check: 候选人针对「现场复现」给出排查或处置闭环，包含观察证据、判断依据、行动步骤和修复后验证，而不是直接跳到结论。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:problem_solving.frontend_web_cross_browser.test_matrix:must_cover:49343630:v1
+            source: must_cover
+            source_text: 修复策略
+            acceptance_check: 候选人针对「修复策略」给出排查或处置闭环，包含观察证据、判断依据、行动步骤和修复后验证，而不是直接跳到结论。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:problem_solving.frontend_web_cross_browser.test_matrix:must_cover:53488b6b:v1
+            source: must_cover
+            source_text: 长期保护
+            acceptance_check: 候选人针对「长期保护」给出排查或处置闭环，包含观察证据、判断依据、行动步骤和修复后验证，而不是直接跳到结论。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:problem_solving.frontend_web_cross_browser.test_matrix:rubric_addition:2d78b7d1:v1
+            source: rubric_addition
+            source_text: 说明矩阵覆盖
+            acceptance_check: 候选人补充说明「说明矩阵覆盖」，并给出可复现证据、排查步骤、止血动作、修复验证或复盘改进中的至少一类具体内容。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:problem_solving.frontend_web_cross_browser.test_matrix:rubric_addition:7f379119:v1
+            source: rubric_addition
+            source_text: 说明真机/云测组合
+            acceptance_check: 候选人补充说明「说明真机/云测组合」，并给出可复现证据、排查步骤、止血动作、修复验证或复盘改进中的至少一类具体内容。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:problem_solving.frontend_web_cross_browser.test_matrix:rubric_addition:9187a56f:v1
+            source: rubric_addition
+            source_text: 说明监控告警
+            acceptance_check: 候选人补充说明「说明监控告警」，并给出可复现证据、排查步骤、止血动作、修复验证或复盘改进中的至少一类具体内容。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
         priority: 8
         status: active
 
@@ -1203,6 +4167,84 @@ seeds:
         expected_signals: [能立即降级或限流止血, 能用 trace/log 定位, 能在事后做复盘]
         anti_patterns: [先查代码不止血, 不通知 stakeholders, 没复盘]
         good_answer_hints: [先止血, 再定位, 最后复盘]
+        reviewed_acceptance_checks:
+          - check_id: reviewed:problem_solving.sre_5xx_surge.firefighting:must_cover:a26815c2:v1
+            source: must_cover
+            source_text: 应急流程
+            acceptance_check: 候选人针对「应急流程」给出排查或处置闭环，包含观察证据、判断依据、行动步骤和修复后验证，而不是直接跳到结论。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:problem_solving.sre_5xx_surge.firefighting:must_cover:89365851:v1
+            source: must_cover
+            source_text: 现场观察
+            acceptance_check: 候选人针对「现场观察」给出排查或处置闭环，包含观察证据、判断依据、行动步骤和修复后验证，而不是直接跳到结论。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:problem_solving.sre_5xx_surge.firefighting:must_cover:a3ada13c:v1
+            source: must_cover
+            source_text: 止血动作
+            acceptance_check: 候选人针对「止血动作」给出排查或处置闭环，包含观察证据、判断依据、行动步骤和修复后验证，而不是直接跳到结论。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:problem_solving.sre_5xx_surge.firefighting:must_cover:6180b760:v1
+            source: must_cover
+            source_text: 复盘
+            acceptance_check: 候选人针对「复盘」给出排查或处置闭环，包含观察证据、判断依据、行动步骤和修复后验证，而不是直接跳到结论。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:problem_solving.sre_5xx_surge.firefighting:rubric_addition:e8be79a5:v1
+            source: rubric_addition
+            source_text: 说明应急流程
+            acceptance_check: 候选人补充说明「说明应急流程」，并给出可复现证据、排查步骤、止血动作、修复验证或复盘改进中的至少一类具体内容。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:problem_solving.sre_5xx_surge.firefighting:rubric_addition:4f3433fb:v1
+            source: rubric_addition
+            source_text: 说明现场观察
+            acceptance_check: 候选人补充说明「说明现场观察」，并给出可复现证据、排查步骤、止血动作、修复验证或复盘改进中的至少一类具体内容。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:problem_solving.sre_5xx_surge.firefighting:rubric_addition:03356eb1:v1
+            source: rubric_addition
+            source_text: 说明止血动作
+            acceptance_check: 候选人补充说明「说明止血动作」，并给出可复现证据、排查步骤、止血动作、修复验证或复盘改进中的至少一类具体内容。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
         priority: 11
         status: active
       - id: problem_solving.sre_5xx_surge.cascading
@@ -1219,6 +4261,84 @@ seeds:
         expected_signals: [能设计熔断阈值与恢复, 能用限流防雪崩, 能用 bulkhead 隔离依赖]
         anti_patterns: [只重启服务, 无熔断, 不做隔离]
         good_answer_hints: [先熔断, 再限流, 最后隔离]
+        reviewed_acceptance_checks:
+          - check_id: reviewed:problem_solving.sre_5xx_surge.cascading:must_cover:49d70025:v1
+            source: must_cover
+            source_text: 应急流程
+            acceptance_check: 候选人针对「应急流程」给出排查或处置闭环，包含观察证据、判断依据、行动步骤和修复后验证，而不是直接跳到结论。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:problem_solving.sre_5xx_surge.cascading:must_cover:4524b1df:v1
+            source: must_cover
+            source_text: 现场观察
+            acceptance_check: 候选人针对「现场观察」给出排查或处置闭环，包含观察证据、判断依据、行动步骤和修复后验证，而不是直接跳到结论。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:problem_solving.sre_5xx_surge.cascading:must_cover:8ec94653:v1
+            source: must_cover
+            source_text: 止血动作
+            acceptance_check: 候选人针对「止血动作」给出排查或处置闭环，包含观察证据、判断依据、行动步骤和修复后验证，而不是直接跳到结论。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:problem_solving.sre_5xx_surge.cascading:must_cover:de90ac1a:v1
+            source: must_cover
+            source_text: 复盘
+            acceptance_check: 候选人针对「复盘」给出排查或处置闭环，包含观察证据、判断依据、行动步骤和修复后验证，而不是直接跳到结论。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:problem_solving.sre_5xx_surge.cascading:rubric_addition:53a1ffa4:v1
+            source: rubric_addition
+            source_text: 说明熔断设计
+            acceptance_check: 候选人补充说明「说明熔断设计」，并给出可复现证据、排查步骤、止血动作、修复验证或复盘改进中的至少一类具体内容。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:problem_solving.sre_5xx_surge.cascading:rubric_addition:2d5ae2f3:v1
+            source: rubric_addition
+            source_text: 说明限流策略
+            acceptance_check: 候选人补充说明「说明限流策略」，并给出可复现证据、排查步骤、止血动作、修复验证或复盘改进中的至少一类具体内容。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:problem_solving.sre_5xx_surge.cascading:rubric_addition:8b765836:v1
+            source: rubric_addition
+            source_text: 说明依赖隔离
+            acceptance_check: 候选人补充说明「说明依赖隔离」，并给出可复现证据、排查步骤、止血动作、修复验证或复盘改进中的至少一类具体内容。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
         priority: 9
         status: active
 
@@ -1254,6 +4374,84 @@ seeds:
         expected_signals: [能区分 P50/P99 含义, 能用 trace 定位慢段, 能分应用/中间件/网络四层]
         anti_patterns: [只看 P50, 没 trace, 不分层]
         good_answer_hints: [先看指标, 再 trace, 最后分层]
+        reviewed_acceptance_checks:
+          - check_id: reviewed:problem_solving.sre_tail_latency.diagnosis:must_cover:dddc04b0:v1
+            source: must_cover
+            source_text: 指标识别
+            acceptance_check: 候选人围绕「指标识别」给出可量化口径、采集位置、阈值或观察窗口，并说明这些指标如何触发定位、告警、发布或复盘动作。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:problem_solving.sre_tail_latency.diagnosis:must_cover:6704de14:v1
+            source: must_cover
+            source_text: 链路追踪
+            acceptance_check: 候选人针对「链路追踪」给出排查或处置闭环，包含观察证据、判断依据、行动步骤和修复后验证，而不是直接跳到结论。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:problem_solving.sre_tail_latency.diagnosis:must_cover:993bb355:v1
+            source: must_cover
+            source_text: 根因分类
+            acceptance_check: 候选人针对「根因分类」给出排查或处置闭环，包含观察证据、判断依据、行动步骤和修复后验证，而不是直接跳到结论。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:problem_solving.sre_tail_latency.diagnosis:must_cover:da9fa2e7:v1
+            source: must_cover
+            source_text: 优化方向
+            acceptance_check: 候选人针对「优化方向」给出排查或处置闭环，包含观察证据、判断依据、行动步骤和修复后验证，而不是直接跳到结论。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:problem_solving.sre_tail_latency.diagnosis:rubric_addition:1ee1a4b3:v1
+            source: rubric_addition
+            source_text: 说明指标识别
+            acceptance_check: 候选人补充说明「说明指标识别」，并给出可复现证据、排查步骤、止血动作、修复验证或复盘改进中的至少一类具体内容。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:problem_solving.sre_tail_latency.diagnosis:rubric_addition:cd2ca286:v1
+            source: rubric_addition
+            source_text: 说明链路追踪
+            acceptance_check: 候选人补充说明「说明链路追踪」，并给出可复现证据、排查步骤、止血动作、修复验证或复盘改进中的至少一类具体内容。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:problem_solving.sre_tail_latency.diagnosis:rubric_addition:f98b50a5:v1
+            source: rubric_addition
+            source_text: 说明根因分类
+            acceptance_check: 候选人补充说明「说明根因分类」，并给出可复现证据、排查步骤、止血动作、修复验证或复盘改进中的至少一类具体内容。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
         priority: 9
         status: active
       - id: problem_solving.sre_tail_latency.gc_jitter
@@ -1270,6 +4468,84 @@ seeds:
         expected_signals: [能区分 GC/JIT/调度抖动, 能选合适 GC / 调度策略, 能用回归监控验证]
         anti_patterns: [换硬件, 不调 GC, 不监控]
         good_answer_hints: [先分类, 再调运行时, 最后监控]
+        reviewed_acceptance_checks:
+          - check_id: reviewed:problem_solving.sre_tail_latency.gc_jitter:must_cover:27a33d5e:v1
+            source: must_cover
+            source_text: 指标识别
+            acceptance_check: 候选人围绕「指标识别」给出可量化口径、采集位置、阈值或观察窗口，并说明这些指标如何触发定位、告警、发布或复盘动作。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:problem_solving.sre_tail_latency.gc_jitter:must_cover:14f74c70:v1
+            source: must_cover
+            source_text: 链路追踪
+            acceptance_check: 候选人针对「链路追踪」给出排查或处置闭环，包含观察证据、判断依据、行动步骤和修复后验证，而不是直接跳到结论。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:problem_solving.sre_tail_latency.gc_jitter:must_cover:9d838dad:v1
+            source: must_cover
+            source_text: 根因分类
+            acceptance_check: 候选人针对「根因分类」给出排查或处置闭环，包含观察证据、判断依据、行动步骤和修复后验证，而不是直接跳到结论。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:problem_solving.sre_tail_latency.gc_jitter:must_cover:5d666bdf:v1
+            source: must_cover
+            source_text: 优化方向
+            acceptance_check: 候选人针对「优化方向」给出排查或处置闭环，包含观察证据、判断依据、行动步骤和修复后验证，而不是直接跳到结论。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:problem_solving.sre_tail_latency.gc_jitter:rubric_addition:aea845e6:v1
+            source: rubric_addition
+            source_text: 说明运行时分类
+            acceptance_check: 候选人补充说明「说明运行时分类」，并给出可复现证据、排查步骤、止血动作、修复验证或复盘改进中的至少一类具体内容。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:problem_solving.sre_tail_latency.gc_jitter:rubric_addition:0e3fe269:v1
+            source: rubric_addition
+            source_text: 说明调优手段
+            acceptance_check: 候选人补充说明「说明调优手段」，并给出可复现证据、排查步骤、止血动作、修复验证或复盘改进中的至少一类具体内容。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:problem_solving.sre_tail_latency.gc_jitter:rubric_addition:27d9ddc2:v1
+            source: rubric_addition
+            source_text: 说明回归监控
+            acceptance_check: 候选人补充说明「说明回归监控」，并给出可复现证据、排查步骤、止血动作、修复验证或复盘改进中的至少一类具体内容。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
         priority: 7
         status: active
 
@@ -1305,6 +4581,84 @@ seeds:
         expected_signals: [能区分 native / JVM / OOM / ANR 等类型, 能用堆栈聚类归因, 能按用户影响排序优先级]
         anti_patterns: [一律重启, 不聚类, 没优先级]
         good_answer_hints: [先分类, 再归因, 最后排优先级]
+        reviewed_acceptance_checks:
+          - check_id: reviewed:problem_solving.mobile_crash_attribution.triage:must_cover:d636ecff:v1
+            source: must_cover
+            source_text: 崩溃类型
+            acceptance_check: 候选人针对「崩溃类型」给出排查或处置闭环，包含观察证据、判断依据、行动步骤和修复后验证，而不是直接跳到结论。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:problem_solving.mobile_crash_attribution.triage:must_cover:8f07d89c:v1
+            source: must_cover
+            source_text: 归因路径
+            acceptance_check: 候选人针对「归因路径」给出排查或处置闭环，包含观察证据、判断依据、行动步骤和修复后验证，而不是直接跳到结论。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:problem_solving.mobile_crash_attribution.triage:must_cover:155c7d33:v1
+            source: must_cover
+            source_text: 修复优先级
+            acceptance_check: 候选人针对「修复优先级」给出排查或处置闭环，包含观察证据、判断依据、行动步骤和修复后验证，而不是直接跳到结论。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:problem_solving.mobile_crash_attribution.triage:must_cover:efc29bde:v1
+            source: must_cover
+            source_text: 长期保护
+            acceptance_check: 候选人针对「长期保护」给出排查或处置闭环，包含观察证据、判断依据、行动步骤和修复后验证，而不是直接跳到结论。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:problem_solving.mobile_crash_attribution.triage:rubric_addition:b1b862ef:v1
+            source: rubric_addition
+            source_text: 说明崩溃类型
+            acceptance_check: 候选人补充说明「说明崩溃类型」，并给出可复现证据、排查步骤、止血动作、修复验证或复盘改进中的至少一类具体内容。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:problem_solving.mobile_crash_attribution.triage:rubric_addition:1f6b0479:v1
+            source: rubric_addition
+            source_text: 说明归因路径
+            acceptance_check: 候选人补充说明「说明归因路径」，并给出可复现证据、排查步骤、止血动作、修复验证或复盘改进中的至少一类具体内容。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:problem_solving.mobile_crash_attribution.triage:rubric_addition:473c9a30:v1
+            source: rubric_addition
+            source_text: 说明优先级排序
+            acceptance_check: 候选人补充说明「说明优先级排序」，并给出可复现证据、排查步骤、止血动作、修复验证或复盘改进中的至少一类具体内容。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
         priority: 10
         status: active
       - id: problem_solving.mobile_crash_attribution.silent_anr
@@ -1321,6 +4675,84 @@ seeds:
         expected_signals: [能区分 input/service/broadcast ANR, 能用 systrace/perfetto 等深度采集, 能加守护代码避免复发]
         anti_patterns: [只看 logcat, 不深度采集, 不补保护]
         good_answer_hints: [先分类 ANR, 再深度采集, 最后补保护]
+        reviewed_acceptance_checks:
+          - check_id: reviewed:problem_solving.mobile_crash_attribution.silent_anr:must_cover:072f95e3:v1
+            source: must_cover
+            source_text: 崩溃类型
+            acceptance_check: 候选人针对「崩溃类型」给出排查或处置闭环，包含观察证据、判断依据、行动步骤和修复后验证，而不是直接跳到结论。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:problem_solving.mobile_crash_attribution.silent_anr:must_cover:d2d23189:v1
+            source: must_cover
+            source_text: 归因路径
+            acceptance_check: 候选人针对「归因路径」给出排查或处置闭环，包含观察证据、判断依据、行动步骤和修复后验证，而不是直接跳到结论。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:problem_solving.mobile_crash_attribution.silent_anr:must_cover:4a0fcc3f:v1
+            source: must_cover
+            source_text: 修复优先级
+            acceptance_check: 候选人针对「修复优先级」给出排查或处置闭环，包含观察证据、判断依据、行动步骤和修复后验证，而不是直接跳到结论。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:problem_solving.mobile_crash_attribution.silent_anr:must_cover:1a7a5ae6:v1
+            source: must_cover
+            source_text: 长期保护
+            acceptance_check: 候选人针对「长期保护」给出排查或处置闭环，包含观察证据、判断依据、行动步骤和修复后验证，而不是直接跳到结论。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:problem_solving.mobile_crash_attribution.silent_anr:rubric_addition:ba61d329:v1
+            source: rubric_addition
+            source_text: 说明 ANR 类型
+            acceptance_check: 候选人补充说明「说明 ANR 类型」，并给出可复现证据、排查步骤、止血动作、修复验证或复盘改进中的至少一类具体内容。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:problem_solving.mobile_crash_attribution.silent_anr:rubric_addition:011e9d10:v1
+            source: rubric_addition
+            source_text: 说明额外采集
+            acceptance_check: 候选人补充说明「说明额外采集」，并给出可复现证据、排查步骤、止血动作、修复验证或复盘改进中的至少一类具体内容。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:problem_solving.mobile_crash_attribution.silent_anr:rubric_addition:9c50b04d:v1
+            source: rubric_addition
+            source_text: 说明回归保护
+            acceptance_check: 候选人补充说明「说明回归保护」，并给出可复现证据、排查步骤、止血动作、修复验证或复盘改进中的至少一类具体内容。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
         priority: 8
         status: active
 
@@ -1356,6 +4788,84 @@ seeds:
         expected_signals: [能用 systrace/instruments 定位, 能区分布局/异步/IO 三类卡顿, 能给可量化优化]
         anti_patterns: [只升级硬件, 没工具, 不分根因]
         good_answer_hints: [先识别指标, 再工具定位, 最后优化]
+        reviewed_acceptance_checks:
+          - check_id: reviewed:problem_solving.mobile_jank_optimization.fps_diagnosis:must_cover:00221d63:v1
+            source: must_cover
+            source_text: 指标识别
+            acceptance_check: 候选人围绕「指标识别」给出可量化口径、采集位置、阈值或观察窗口，并说明这些指标如何触发定位、告警、发布或复盘动作。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:problem_solving.mobile_jank_optimization.fps_diagnosis:must_cover:1c542dbd:v1
+            source: must_cover
+            source_text: 工具使用
+            acceptance_check: 候选人针对「工具使用」给出排查或处置闭环，包含观察证据、判断依据、行动步骤和修复后验证，而不是直接跳到结论。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:problem_solving.mobile_jank_optimization.fps_diagnosis:must_cover:dd6ee43b:v1
+            source: must_cover
+            source_text: 根因分类
+            acceptance_check: 候选人针对「根因分类」给出排查或处置闭环，包含观察证据、判断依据、行动步骤和修复后验证，而不是直接跳到结论。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:problem_solving.mobile_jank_optimization.fps_diagnosis:must_cover:05a13d2d:v1
+            source: must_cover
+            source_text: 优化策略
+            acceptance_check: 候选人针对「优化策略」给出排查或处置闭环，包含观察证据、判断依据、行动步骤和修复后验证，而不是直接跳到结论。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:problem_solving.mobile_jank_optimization.fps_diagnosis:rubric_addition:e2b31ffb:v1
+            source: rubric_addition
+            source_text: 说明指标识别
+            acceptance_check: 候选人补充说明「说明指标识别」，并给出可复现证据、排查步骤、止血动作、修复验证或复盘改进中的至少一类具体内容。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:problem_solving.mobile_jank_optimization.fps_diagnosis:rubric_addition:a754b7f3:v1
+            source: rubric_addition
+            source_text: 说明工具使用
+            acceptance_check: 候选人补充说明「说明工具使用」，并给出可复现证据、排查步骤、止血动作、修复验证或复盘改进中的至少一类具体内容。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:problem_solving.mobile_jank_optimization.fps_diagnosis:rubric_addition:bea40cd3:v1
+            source: rubric_addition
+            source_text: 说明优化方向
+            acceptance_check: 候选人补充说明「说明优化方向」，并给出可复现证据、排查步骤、止血动作、修复验证或复盘改进中的至少一类具体内容。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
         priority: 9
         status: active
       - id: problem_solving.mobile_jank_optimization.long_term
@@ -1372,5 +4882,83 @@ seeds:
         expected_signals: [能定性能预算, 能用 CI benchmark 守护, 能用真机/真实用户监控发现回归]
         anti_patterns: [只看本地数据, 无 CI 守护, 无真实监控]
         good_answer_hints: [先定预算, 再 CI 守护, 最后监控]
+        reviewed_acceptance_checks:
+          - check_id: reviewed:problem_solving.mobile_jank_optimization.long_term:must_cover:0bcb304f:v1
+            source: must_cover
+            source_text: 指标识别
+            acceptance_check: 候选人围绕「指标识别」给出可量化口径、采集位置、阈值或观察窗口，并说明这些指标如何触发定位、告警、发布或复盘动作。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:problem_solving.mobile_jank_optimization.long_term:must_cover:0e642872:v1
+            source: must_cover
+            source_text: 工具使用
+            acceptance_check: 候选人针对「工具使用」给出排查或处置闭环，包含观察证据、判断依据、行动步骤和修复后验证，而不是直接跳到结论。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:problem_solving.mobile_jank_optimization.long_term:must_cover:a91b65f9:v1
+            source: must_cover
+            source_text: 根因分类
+            acceptance_check: 候选人针对「根因分类」给出排查或处置闭环，包含观察证据、判断依据、行动步骤和修复后验证，而不是直接跳到结论。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:problem_solving.mobile_jank_optimization.long_term:must_cover:b13d0a4f:v1
+            source: must_cover
+            source_text: 优化策略
+            acceptance_check: 候选人针对「优化策略」给出排查或处置闭环，包含观察证据、判断依据、行动步骤和修复后验证，而不是直接跳到结论。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:problem_solving.mobile_jank_optimization.long_term:rubric_addition:3a2fdc4a:v1
+            source: rubric_addition
+            source_text: 说明性能预算
+            acceptance_check: 候选人补充说明「说明性能预算」，并给出可复现证据、排查步骤、止血动作、修复验证或复盘改进中的至少一类具体内容。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:problem_solving.mobile_jank_optimization.long_term:rubric_addition:12048a95:v1
+            source: rubric_addition
+            source_text: 说明 CI 守护
+            acceptance_check: 候选人补充说明「说明 CI 守护」，并给出可复现证据、排查步骤、止血动作、修复验证或复盘改进中的至少一类具体内容。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:problem_solving.mobile_jank_optimization.long_term:rubric_addition:b2f2d5c6:v1
+            source: rubric_addition
+            source_text: 说明真实用户监控
+            acceptance_check: 候选人补充说明「说明真实用户监控」，并给出可复现证据、排查步骤、止血动作、修复验证或复盘改进中的至少一类具体内容。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
         priority: 7
         status: active

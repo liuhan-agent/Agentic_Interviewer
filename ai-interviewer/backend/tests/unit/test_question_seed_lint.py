@@ -102,6 +102,17 @@ def test_question_seed_quality_lint_passes_valid_reviewed_acceptance_checks(
             reviewed_variant_version: 1
             reviewed_by: qa-lead
             reviewed_at: "2026-06-01"
+          - check_id: reviewed:cache-consistency:support:v1
+            source: rubric_addition
+            source_text: Mention consistency windows
+            acceptance_check: Answer explains the consistency window.
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: qa-lead
+            reviewed_at: "2026-06-01"
         priority: 10
         status: active""",
         1,
@@ -170,6 +181,57 @@ def test_question_seed_quality_lint_flags_bad_reviewed_acceptance_checks(
     assert "reviewed_check_duplicate_id" in codes
     assert "review_stale" in codes
     assert "generic_reviewed_acceptance_check" in codes
+
+
+def test_question_seed_quality_lint_flags_reviewed_core_contract_mismatch(
+    tmp_path: Path,
+) -> None:
+    seed_dir = tmp_path / "question_seeds"
+    reviewed_yaml = _valid_yaml().replace(
+        "    rubric: {must_cover: [consistency]}",
+        "    rubric: {must_cover: [consistency, repair]}",
+    ).replace(
+        "        rubric_additions: [Mention consistency windows]",
+        "        rubric_additions: [Mention consistency windows]",
+        1,
+    ).replace(
+        "        priority: 10\n        status: active",
+        """
+        reviewed_acceptance_checks:
+          - check_id: reviewed:cache-consistency:core-consistency:v1
+            source: must_cover
+            source_text: consistency
+            acceptance_check: Answer defines the target consistency level.
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: qa-lead
+            reviewed_at: "2026-06-01"
+          - check_id: reviewed:cache-consistency:misplaced-repair:v1
+            source: must_cover
+            source_text: repair
+            acceptance_check: Answer explains the repair flow.
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: qa-lead
+            reviewed_at: "2026-06-01"
+        priority: 10
+        status: active""",
+        1,
+    )
+    _write_seed_file(seed_dir, reviewed_yaml)
+
+    result = lint_question_seed_dir(seed_dir, strict=True, check_role_coverage=False)
+
+    assert result.passed is False
+    assert any(issue.code == "reviewed_contract_alignment" for issue in result.issues)
+    messages = "\n".join(issue.message for issue in result.issues)
+    assert "reviewed core source_text must match must_cover" in messages
 
 
 def test_question_seed_quality_lint_warns_and_strict_fails(tmp_path: Path) -> None:
@@ -248,6 +310,214 @@ def test_question_seed_quality_lint_passes_bundled_batch2_coverage() -> None:
         "architect",
     ):
         assert role not in messages
+
+
+def test_bundled_java_ai_communication_variants_have_reviewed_contracts() -> None:
+    from app.services.question_seed_import import parse_question_seed_dir
+
+    seed_dir = Path(__file__).resolve().parents[2] / "knowledge" / "question_seeds"
+    target_variants = {
+        "communication.java_technical_tradeoff_explanation.consistency_tradeoff",
+        "communication.java_technical_tradeoff_explanation.performance_risk",
+        "communication.java_cross_team_incident_alignment.permission_change_rollout",
+        "communication.java_cross_team_incident_alignment.mq_incident_alignment",
+        "communication.ai_fullstack_cross_role_alignment.quality_expectation",
+        "communication.ai_fullstack_cross_role_alignment.data_permission",
+        "communication.ai_agent_risk_alignment.tool_permission",
+        "communication.ai_agent_risk_alignment.effect_review",
+        "communication.ai_algorithm_metric_explanation.offline_online_gap",
+        "communication.ai_algorithm_metric_explanation.risk_tradeoff",
+        "communication.ai_agent_failure_alignment.metric_consensus",
+        "communication.ai_agent_failure_alignment.post_incident",
+        "communication.ai_fullstack_failure_explanation.cross_role_briefing",
+        "communication.ai_fullstack_failure_explanation.expectation_reset",
+        "communication.ai_algorithm_dumb_explanation.attribution",
+        "communication.ai_algorithm_dumb_explanation.expectation_reset",
+    }
+
+    seeds, variants = parse_question_seed_dir(seed_dir)
+    seeds_by_id = {seed.values["id"]: seed.values for seed in seeds}
+    variants_by_id = {variant.values["id"]: variant.values for variant in variants}
+
+    for variant_id in sorted(target_variants):
+        variant = variants_by_id[variant_id]
+        seed = seeds_by_id[variant["seed_id"]]
+        reviewed = [
+            check
+            for check in variant.get("reviewed_acceptance_checks") or []
+            if check.get("review_status") == "reviewed"
+        ]
+        core = [
+            check.get("source_text")
+            for check in reviewed
+            if check.get("source") == "must_cover"
+            and check.get("severity") == "core"
+        ]
+        supporting = [
+            check.get("source_text")
+            for check in reviewed
+            if check.get("source") == "rubric_addition"
+            and check.get("severity") == "supporting"
+        ]
+
+        assert len(reviewed) == 7, variant_id
+        assert sorted(core) == sorted((seed.get("rubric") or {})["must_cover"])
+        assert sorted(supporting) == sorted(variant["rubric_additions"])
+        assert all(variant_id in check["check_id"] for check in reviewed)
+
+
+def test_bundled_ai_product_thinking_variants_have_reviewed_contracts() -> None:
+    from app.services.question_seed_import import parse_question_seed_dir
+
+    seed_dir = Path(__file__).resolve().parents[2] / "knowledge" / "question_seeds"
+    target_variants = {
+        "product_thinking.ai_agent_effect_loop.support_resolution",
+        "product_thinking.ai_agent_effect_loop.user_control",
+        "product_thinking.ai_fullstack_experience_metrics.ai_copilot",
+        "product_thinking.ai_fullstack_experience_metrics.latency_quality_tradeoff",
+        "product_thinking.ai_algorithm_business_metric.recommendation_ctr",
+        "product_thinking.ai_algorithm_business_metric.risk_metric",
+        "product_thinking.ai_agent_negative_scope.refusal_design",
+        "product_thinking.ai_agent_negative_scope.boundary_evolution",
+        "product_thinking.ai_agent_trace_transparency.user_view",
+        "product_thinking.ai_agent_trace_transparency.audit_view",
+        "product_thinking.ai_fullstack_explainable_ux.first_use",
+        "product_thinking.ai_fullstack_explainable_ux.failure_recovery",
+        "product_thinking.ai_fullstack_scope_judgement.decision_framework",
+        "product_thinking.ai_fullstack_scope_judgement.business_alignment",
+        "product_thinking.ai_algorithm_metric_to_outcome.translation",
+        "product_thinking.ai_algorithm_metric_to_outcome.calibration",
+        "product_thinking.ai_algorithm_commitment_boundary.scope",
+        "product_thinking.ai_algorithm_commitment_boundary.risk_plan",
+    }
+
+    seeds, variants = parse_question_seed_dir(seed_dir)
+    seeds_by_id = {seed.values["id"]: seed.values for seed in seeds}
+    variants_by_id = {variant.values["id"]: variant.values for variant in variants}
+
+    for variant_id in sorted(target_variants):
+        variant = variants_by_id[variant_id]
+        seed = seeds_by_id[variant["seed_id"]]
+        reviewed = [
+            check
+            for check in variant.get("reviewed_acceptance_checks") or []
+            if check.get("review_status") == "reviewed"
+        ]
+        core = [
+            check.get("source_text")
+            for check in reviewed
+            if check.get("source") == "must_cover"
+            and check.get("severity") == "core"
+        ]
+        supporting = [
+            check.get("source_text")
+            for check in reviewed
+            if check.get("source") == "rubric_addition"
+            and check.get("severity") == "supporting"
+        ]
+
+        assert len(reviewed) == 7, variant_id
+        assert sorted(core) == sorted((seed.get("rubric") or {})["must_cover"])
+        assert sorted(supporting) == sorted(variant["rubric_additions"])
+        assert all(variant_id in check["check_id"] for check in reviewed)
+
+
+def test_bundled_remaining_technical_product_variants_have_reviewed_contracts() -> None:
+    from app.services.question_seed_import import parse_question_seed_dir
+
+    seed_dir = Path(__file__).resolve().parents[2] / "knowledge" / "question_seeds"
+    target_variants = {
+        "communication.frontend_design_backend_alignment.design_tradeoff",
+        "communication.frontend_design_backend_alignment.api_contract",
+        "communication.sre_incident_stakeholder_alignment.incident_update",
+        "communication.sre_incident_stakeholder_alignment.postmortem_alignment",
+        "communication.mobile_release_alignment.version_scope",
+        "communication.mobile_release_alignment.backend_contract",
+        "communication.architect_review_alignment.risk_explanation",
+        "communication.architect_review_alignment.disagreement_resolution",
+        "communication.frontend_web_cross_role_alignment_round2.shared_consensus",
+        "communication.frontend_web_cross_role_alignment_round2.timeline_risk",
+        "communication.sre_stability_governance.alignment",
+        "communication.sre_stability_governance.escalation",
+        "communication.mobile_cross_role_coordination.shared_consensus",
+        "communication.mobile_cross_role_coordination.deadline",
+        "product_thinking.frontend_experience_resilience.dashboard",
+        "product_thinking.frontend_experience_resilience.checkout",
+        "product_thinking.frontend_web_micro_interaction.state_design",
+        "product_thinking.frontend_web_micro_interaction.long_polling",
+        "product_thinking.frontend_web_ab_test.frontend_impl",
+        "product_thinking.frontend_web_ab_test.data_trust",
+    }
+
+    seeds, variants = parse_question_seed_dir(seed_dir)
+    seeds_by_id = {seed.values["id"]: seed.values for seed in seeds}
+    variants_by_id = {variant.values["id"]: variant.values for variant in variants}
+
+    for variant_id in sorted(target_variants):
+        variant = variants_by_id[variant_id]
+        seed = seeds_by_id[variant["seed_id"]]
+        reviewed = [
+            check
+            for check in variant.get("reviewed_acceptance_checks") or []
+            if check.get("review_status") == "reviewed"
+        ]
+        core = [
+            check.get("source_text")
+            for check in reviewed
+            if check.get("source") == "must_cover"
+            and check.get("severity") == "core"
+        ]
+        supporting = [
+            check.get("source_text")
+            for check in reviewed
+            if check.get("source") == "rubric_addition"
+            and check.get("severity") == "supporting"
+        ]
+
+        assert len(reviewed) == 7, variant_id
+        assert sorted(core) == sorted((seed.get("rubric") or {})["must_cover"])
+        assert sorted(supporting) == sorted(variant["rubric_additions"])
+        assert all(variant_id in check["check_id"] for check in reviewed)
+
+
+def test_bundled_leadership_architect_variants_have_reviewed_contracts() -> None:
+    from app.services.question_seed_import import parse_question_seed_dir
+
+    seed_dir = Path(__file__).resolve().parents[2] / "knowledge" / "question_seeds"
+    target_variants = {
+        "leadership.architect_technical_governance.arch_review",
+        "leadership.architect_technical_governance.cross_team_standard",
+    }
+
+    seeds, variants = parse_question_seed_dir(seed_dir)
+    seeds_by_id = {seed.values["id"]: seed.values for seed in seeds}
+    variants_by_id = {variant.values["id"]: variant.values for variant in variants}
+
+    for variant_id in sorted(target_variants):
+        variant = variants_by_id[variant_id]
+        seed = seeds_by_id[variant["seed_id"]]
+        reviewed = [
+            check
+            for check in variant.get("reviewed_acceptance_checks") or []
+            if check.get("review_status") == "reviewed"
+        ]
+        core = [
+            check.get("source_text")
+            for check in reviewed
+            if check.get("source") == "must_cover"
+            and check.get("severity") == "core"
+        ]
+        supporting = [
+            check.get("source_text")
+            for check in reviewed
+            if check.get("source") == "rubric_addition"
+            and check.get("severity") == "supporting"
+        ]
+
+        assert len(reviewed) == 7, variant_id
+        assert sorted(core) == sorted((seed.get("rubric") or {})["must_cover"])
+        assert sorted(supporting) == sorted(variant["rubric_additions"])
+        assert all(variant_id in check["check_id"] for check in reviewed)
 
 
 def test_question_seed_quality_lint_flags_missing_batch2_role_coverage(

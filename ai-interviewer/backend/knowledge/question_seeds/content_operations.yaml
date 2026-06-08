@@ -32,6 +32,84 @@ seeds:
         expected_signals: [能结合用户反馈和数据, 能区分流量题和业务题, 能建立选题池]
         anti_patterns: [只追热点, 只靠个人审美, 不复盘内容效果]
         good_answer_hints: [先确定目标用户, 再建立选题输入, 最后按效果复盘]
+        reviewed_acceptance_checks:
+          - check_id: reviewed:content_operations.content_strategy_loop.topic_selection:must_cover:b30e1988:v1
+            source: must_cover
+            source_text: 选题来源
+            acceptance_check: 候选人围绕「选题来源」说明内容运营目标、标准流程、协作动作、质量风险和效果反馈。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:content_operations.content_strategy_loop.topic_selection:must_cover:0372d1ba:v1
+            source: must_cover
+            source_text: 生产流程
+            acceptance_check: 候选人围绕「生产流程」说明内容运营目标、标准流程、协作动作、质量风险和效果反馈。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:content_operations.content_strategy_loop.topic_selection:must_cover:bf4358d7:v1
+            source: must_cover
+            source_text: 分发反馈
+            acceptance_check: 候选人围绕「分发反馈」说明内容运营目标、标准流程、协作动作、质量风险和效果反馈。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:content_operations.content_strategy_loop.topic_selection:must_cover:3d0f9a69:v1
+            source: must_cover
+            source_text: 质量复盘
+            acceptance_check: 候选人围绕「质量复盘」说明验证方式、反馈来源、复盘结论和下一步改进动作。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:content_operations.content_strategy_loop.topic_selection:rubric_addition:30c549a7:v1
+            source: rubric_addition
+            source_text: 说明选题输入来源
+            acceptance_check: 候选人补充说明「说明选题输入来源」，并落到数据、案例、客户/用户反馈、流程证据、协作动作或验证方式中的至少一类具体证据。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:content_operations.content_strategy_loop.topic_selection:rubric_addition:05f7865c:v1
+            source: rubric_addition
+            source_text: 说明用户兴趣证据
+            acceptance_check: 候选人补充说明「说明用户兴趣证据」，并落到数据、案例、客户/用户反馈、流程证据、协作动作或验证方式中的至少一类具体证据。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:content_operations.content_strategy_loop.topic_selection:rubric_addition:011d3fc5:v1
+            source: rubric_addition
+            source_text: 说明复盘和迭代机制
+            acceptance_check: 候选人补充说明「说明复盘和迭代机制」，并落到数据、案例、客户/用户反馈、流程证据、协作动作或验证方式中的至少一类具体证据。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
         priority: 17
         status: active
       - id: content_operations.content_strategy_loop.production_quality
@@ -48,5 +126,83 @@ seeds:
         expected_signals: [能定义质量门槛, 能识别流程或激励问题, 能平衡量和质]
         anti_patterns: [只喊提高质量, 不改流程, 不看完成率和互动质量]
         good_answer_hints: [先定义质量, 再定位瓶颈, 最后调整流程和激励]
+        reviewed_acceptance_checks:
+          - check_id: reviewed:content_operations.content_strategy_loop.production_quality:must_cover:e7c0a2c0:v1
+            source: must_cover
+            source_text: 选题来源
+            acceptance_check: 候选人围绕「选题来源」说明内容运营目标、标准流程、协作动作、质量风险和效果反馈。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:content_operations.content_strategy_loop.production_quality:must_cover:d6fe43f1:v1
+            source: must_cover
+            source_text: 生产流程
+            acceptance_check: 候选人围绕「生产流程」说明内容运营目标、标准流程、协作动作、质量风险和效果反馈。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:content_operations.content_strategy_loop.production_quality:must_cover:5b370662:v1
+            source: must_cover
+            source_text: 分发反馈
+            acceptance_check: 候选人围绕「分发反馈」说明内容运营目标、标准流程、协作动作、质量风险和效果反馈。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:content_operations.content_strategy_loop.production_quality:must_cover:25179b46:v1
+            source: must_cover
+            source_text: 质量复盘
+            acceptance_check: 候选人围绕「质量复盘」说明验证方式、反馈来源、复盘结论和下一步改进动作。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:content_operations.content_strategy_loop.production_quality:rubric_addition:2f7936d0:v1
+            source: rubric_addition
+            source_text: 说明质量指标
+            acceptance_check: 候选人补充说明「说明质量指标」，并落到数据、案例、客户/用户反馈、流程证据、协作动作或验证方式中的至少一类具体证据。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:content_operations.content_strategy_loop.production_quality:rubric_addition:3ae8ddc3:v1
+            source: rubric_addition
+            source_text: 说明生产流程瓶颈
+            acceptance_check: 候选人补充说明「说明生产流程瓶颈」，并落到数据、案例、客户/用户反馈、流程证据、协作动作或验证方式中的至少一类具体证据。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:content_operations.content_strategy_loop.production_quality:rubric_addition:96b5e30b:v1
+            source: rubric_addition
+            source_text: 说明机制调整
+            acceptance_check: 候选人补充说明「说明机制调整」，并落到数据、案例、客户/用户反馈、流程证据、协作动作或验证方式中的至少一类具体证据。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
         priority: 16
         status: active

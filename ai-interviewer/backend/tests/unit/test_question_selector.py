@@ -13,7 +13,7 @@ from app.models.question_bank import (
     QuestionVariant,
 )
 from app.services import question_selector
-from app.services.question_fit_profile import build_question_fit_profile
+from app.services.question_fit_profile import QuestionFitProfile, build_question_fit_profile
 from app.services.question_seed_import import import_question_seed_dir
 from app.services.question_selector import select_question_candidates
 
@@ -1107,6 +1107,72 @@ def test_bundled_java_backend_junior_mainline_dimensions_return_structured_candi
         assert all(candidate.dimension != "backend_systems" for candidate in result.candidates)
         assert "role_tag:java_backend" in result.candidates[0].match_reasons
         assert "direction_tag:internet_tech" in result.candidates[0].match_reasons
+
+
+def test_bundled_java_ai_project_experience_prefers_ai_workflow_seed() -> None:
+    seed_dir = Path(__file__).resolve().parents[2] / "knowledge" / "question_seeds"
+    fit_profile = QuestionFitProfile(
+        dimension="project_experience",
+        turn_intent="recovery",
+        direction_tags=["internet_tech"],
+        role_tags=["java_backend"],
+        candidate_projects=[{"name": "AI集成与应用能力"}],
+        candidate_skills=[
+            "java",
+            "spring",
+            "springboot",
+            "springai",
+            "langchainj",
+            "rag",
+            "ai",
+            "workflow",
+        ],
+        job_core_skills=[
+            "java",
+            "spring_ai",
+            "langchainj",
+            "rag",
+            "function_calling",
+        ],
+        target_skills=["langchainj", "spring_ai"],
+        failure_categories=["unclear_architecture"],
+        anchor_confidence="high",
+        generic_risk="medium",
+        resume_anchor_terms=["ai", "rag", "langchainj", "springai", "workflow"],
+    )
+
+    session_local = _session_factory()
+    with session_local() as sess:
+        import_question_seed_dir(seed_dir, session=sess)
+
+        result = select_question_candidates(
+            sess,
+            dimension="project_experience",
+            job_level="junior",
+            target_skills=["langchainj", "spring-ai"],
+            failure_categories=["unclear_architecture"],
+            direction_tags=["internet_tech"],
+            role_tags=["java_backend"],
+            resume_anchor_text=(
+                "AI集成与应用能力 LangChainJ Spring-AI RAG function calling "
+                "Java Spring workflow SpringAI"
+            ),
+            probe_intent="recovery",
+            difficulty="deep_probe",
+            fit_profile=fit_profile,
+            top_k=5,
+        )
+
+    top = result.candidates[0]
+    assert top.seed_id == "project_experience.java_ai_workflow_delivery"
+    assert top.reviewed_acceptance_checks
+    assert top.reviewed_acceptance_checks[0]["check_id"].startswith(
+        "reviewed:project_experience.java_ai_workflow_delivery."
+    )
+    assert {
+        "target_skill:langchainj",
+        "target_skill:spring_ai",
+    } & set(top.match_reasons)
 
 
 def test_bundled_non_java_tech_roles_return_junior_mainline_candidates() -> None:

@@ -32,6 +32,84 @@ seeds:
         expected_signals: [Uses evidence, names acceptable risk, plans monitoring]
         anti_patterns: [Chooses speed or quality absolutely, hides risk, gives no decision criteria]
         good_answer_hints: [Frame options, quantify impact, choose with guardrails]
+        reviewed_acceptance_checks:
+          - check_id: reviewed:decision_making.management_tradeoff_decision.speed_quality_conflict:must_cover:f7074a55:v1
+            source: must_cover
+            source_text: decision_context
+            acceptance_check: 候选人围绕「decision_context」说明决策问题、信息来源、备选方案、取舍依据和决策后验证。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:decision_making.management_tradeoff_decision.speed_quality_conflict:must_cover:286745d5:v1
+            source: must_cover
+            source_text: options
+            acceptance_check: 候选人围绕「options」说明决策问题、信息来源、备选方案、取舍依据和决策后验证。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:decision_making.management_tradeoff_decision.speed_quality_conflict:must_cover:31539535:v1
+            source: must_cover
+            source_text: risk_tradeoff
+            acceptance_check: 候选人围绕「risk_tradeoff」说明决策问题、信息来源、备选方案、取舍依据和决策后验证。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:decision_making.management_tradeoff_decision.speed_quality_conflict:must_cover:fc08387e:v1
+            source: must_cover
+            source_text: communication
+            acceptance_check: 候选人围绕「communication」说明决策问题、信息来源、备选方案、取舍依据和决策后验证。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:decision_making.management_tradeoff_decision.speed_quality_conflict:rubric_addition:44e73bf5:v1
+            source: rubric_addition
+            source_text: Compare options and impact
+            acceptance_check: 候选人补充说明「Compare options and impact」，并落到数据、案例、客户/用户反馈、流程证据、协作动作或验证方式中的至少一类具体证据。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:decision_making.management_tradeoff_decision.speed_quality_conflict:rubric_addition:61caa453:v1
+            source: rubric_addition
+            source_text: define risk controls
+            acceptance_check: 候选人补充说明「define risk controls」，并落到数据、案例、客户/用户反馈、流程证据、协作动作或验证方式中的至少一类具体证据。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:decision_making.management_tradeoff_decision.speed_quality_conflict:rubric_addition:e057fbde:v1
+            source: rubric_addition
+            source_text: communicate rationale
+            acceptance_check: 候选人补充说明「communicate rationale」，并落到数据、案例、客户/用户反馈、流程证据、协作动作或验证方式中的至少一类具体证据。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
         priority: 17
         status: active
       - id: decision_making.management_tradeoff_decision.incomplete_data
@@ -48,5 +126,83 @@ seeds:
         expected_signals: [Names assumptions, designs rollback or correction, communicates uncertainty]
         anti_patterns: [Waits for perfect data, acts without safeguards, hides uncertainty]
         good_answer_hints: [Separate known and unknown, decide reversible path, monitor leading indicators]
+        reviewed_acceptance_checks:
+          - check_id: reviewed:decision_making.management_tradeoff_decision.incomplete_data:must_cover:a3f7a7d2:v1
+            source: must_cover
+            source_text: decision_context
+            acceptance_check: 候选人围绕「decision_context」说明决策问题、信息来源、备选方案、取舍依据和决策后验证。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:decision_making.management_tradeoff_decision.incomplete_data:must_cover:3bf94d39:v1
+            source: must_cover
+            source_text: options
+            acceptance_check: 候选人围绕「options」说明决策问题、信息来源、备选方案、取舍依据和决策后验证。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:decision_making.management_tradeoff_decision.incomplete_data:must_cover:5b24d834:v1
+            source: must_cover
+            source_text: risk_tradeoff
+            acceptance_check: 候选人围绕「risk_tradeoff」说明决策问题、信息来源、备选方案、取舍依据和决策后验证。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:decision_making.management_tradeoff_decision.incomplete_data:must_cover:f349d3f2:v1
+            source: must_cover
+            source_text: communication
+            acceptance_check: 候选人围绕「communication」说明决策问题、信息来源、备选方案、取舍依据和决策后验证。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:decision_making.management_tradeoff_decision.incomplete_data:rubric_addition:e4fc1ebc:v1
+            source: rubric_addition
+            source_text: State assumptions
+            acceptance_check: 候选人补充说明「State assumptions」，并落到数据、案例、客户/用户反馈、流程证据、协作动作或验证方式中的至少一类具体证据。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:decision_making.management_tradeoff_decision.incomplete_data:rubric_addition:e9b5c5e1:v1
+            source: rubric_addition
+            source_text: identify reversible parts
+            acceptance_check: 候选人补充说明「identify reversible parts」，并落到数据、案例、客户/用户反馈、流程证据、协作动作或验证方式中的至少一类具体证据。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:decision_making.management_tradeoff_decision.incomplete_data:rubric_addition:8c89cdda:v1
+            source: rubric_addition
+            source_text: set early warning metrics
+            acceptance_check: 候选人补充说明「set early warning metrics」，并落到数据、案例、客户/用户反馈、流程证据、协作动作或验证方式中的至少一类具体证据。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
         priority: 15
         status: active

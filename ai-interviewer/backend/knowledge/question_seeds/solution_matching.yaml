@@ -32,6 +32,84 @@ seeds:
         expected_signals: [能聚焦高价值场景, 能定义可验收标准, 能控制 POC 成本]
         anti_patterns: [客户要什么都试, POC 没有成功标准, 只展示功能]
         good_answer_hints: [先锁痛点, 再定最小场景, 最后约定成功指标]
+        reviewed_acceptance_checks:
+          - check_id: reviewed:solution_matching.customer_value_proposal.poc_scope:must_cover:6dae62cf:v1
+            source: must_cover
+            source_text: 客户场景
+            acceptance_check: 候选人围绕「客户场景」说明对象分层、真实诉求、证据来源和后续业务动作。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:solution_matching.customer_value_proposal.poc_scope:must_cover:e264c239:v1
+            source: must_cover
+            source_text: 产品能力
+            acceptance_check: 候选人围绕「产品能力」说明客户需求、方案匹配依据、取舍边界和本人推动动作，避免只罗列产品功能。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:solution_matching.customer_value_proposal.poc_scope:must_cover:0a8dab90:v1
+            source: must_cover
+            source_text: 价值量化
+            acceptance_check: 候选人围绕「价值量化」说明客户需求、方案匹配依据、取舍边界和本人推动动作，避免只罗列产品功能。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:solution_matching.customer_value_proposal.poc_scope:must_cover:b2125da2:v1
+            source: must_cover
+            source_text: POC 范围
+            acceptance_check: 候选人围绕「POC 范围」说明客户需求、方案匹配依据、取舍边界和本人推动动作，避免只罗列产品功能。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:solution_matching.customer_value_proposal.poc_scope:rubric_addition:3c988974:v1
+            source: rubric_addition
+            source_text: 说明 POC 成功标准
+            acceptance_check: 候选人补充说明「说明 POC 成功标准」，并落到数据、案例、客户/用户反馈、流程证据、协作动作或验证方式中的至少一类具体证据。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:solution_matching.customer_value_proposal.poc_scope:rubric_addition:a119013a:v1
+            source: rubric_addition
+            source_text: 说明最小验证场景
+            acceptance_check: 候选人补充说明「说明最小验证场景」，并落到数据、案例、客户/用户反馈、流程证据、协作动作或验证方式中的至少一类具体证据。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:solution_matching.customer_value_proposal.poc_scope:rubric_addition:08c2c57a:v1
+            source: rubric_addition
+            source_text: 说明资源和客户配合
+            acceptance_check: 候选人补充说明「说明资源和客户配合」，并落到数据、案例、客户/用户反馈、流程证据、协作动作或验证方式中的至少一类具体证据。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
         priority: 17
         status: active
       - id: solution_matching.customer_value_proposal.roi_challenge
@@ -48,5 +126,83 @@ seeds:
         expected_signals: [能把价值拆成收入成本风险, 能接受客户挑战并修正, 能用数据或试点验证]
         anti_patterns: [强辩原估算, 只说客户案例, 没有下一步验证]
         good_answer_hints: [先拆假设, 再校准证据, 最后设计验证路径]
+        reviewed_acceptance_checks:
+          - check_id: reviewed:solution_matching.customer_value_proposal.roi_challenge:must_cover:fb0e15ef:v1
+            source: must_cover
+            source_text: 客户场景
+            acceptance_check: 候选人围绕「客户场景」说明对象分层、真实诉求、证据来源和后续业务动作。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:solution_matching.customer_value_proposal.roi_challenge:must_cover:2a801745:v1
+            source: must_cover
+            source_text: 产品能力
+            acceptance_check: 候选人围绕「产品能力」说明客户需求、方案匹配依据、取舍边界和本人推动动作，避免只罗列产品功能。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:solution_matching.customer_value_proposal.roi_challenge:must_cover:73256df9:v1
+            source: must_cover
+            source_text: 价值量化
+            acceptance_check: 候选人围绕「价值量化」说明客户需求、方案匹配依据、取舍边界和本人推动动作，避免只罗列产品功能。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:solution_matching.customer_value_proposal.roi_challenge:must_cover:a0c894d8:v1
+            source: must_cover
+            source_text: POC 范围
+            acceptance_check: 候选人围绕「POC 范围」说明客户需求、方案匹配依据、取舍边界和本人推动动作，避免只罗列产品功能。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:solution_matching.customer_value_proposal.roi_challenge:rubric_addition:25a07e09:v1
+            source: rubric_addition
+            source_text: 说明 ROI 假设来源
+            acceptance_check: 候选人补充说明「说明 ROI 假设来源」，并落到数据、案例、客户/用户反馈、流程证据、协作动作或验证方式中的至少一类具体证据。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:solution_matching.customer_value_proposal.roi_challenge:rubric_addition:7b19c756:v1
+            source: rubric_addition
+            source_text: 说明保守和乐观情景
+            acceptance_check: 候选人补充说明「说明保守和乐观情景」，并落到数据、案例、客户/用户反馈、流程证据、协作动作或验证方式中的至少一类具体证据。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:solution_matching.customer_value_proposal.roi_challenge:rubric_addition:82e9b09b:v1
+            source: rubric_addition
+            source_text: 说明下一步验证
+            acceptance_check: 候选人补充说明「说明下一步验证」，并落到数据、案例、客户/用户反馈、流程证据、协作动作或验证方式中的至少一类具体证据。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
         priority: 16
         status: active

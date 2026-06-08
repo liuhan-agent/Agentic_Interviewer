@@ -32,6 +32,84 @@ seeds:
         expected_signals: [Names each team's incentive, creates decision criteria, communicates final tradeoff]
         anti_patterns: [Lets seniority decide, avoids conflict, treats alignment as one meeting]
         good_answer_hints: [Map goals, define tradeoff criteria, name decision owner and follow up]
+        reviewed_acceptance_checks:
+          - check_id: reviewed:cross_functional_alignment.management_cross_team_conflict.product_sales_ops_conflict:must_cover:0ecc8c9b:v1
+            source: must_cover
+            source_text: stakeholder_goal
+            acceptance_check: 候选人围绕「stakeholder_goal」说明跨团队目标、分歧点、对齐动作、责任边界和推进结果。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:cross_functional_alignment.management_cross_team_conflict.product_sales_ops_conflict:must_cover:ee8fa313:v1
+            source: must_cover
+            source_text: conflict_source
+            acceptance_check: 候选人围绕「conflict_source」说明跨团队目标、分歧点、对齐动作、责任边界和推进结果。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:cross_functional_alignment.management_cross_team_conflict.product_sales_ops_conflict:must_cover:13b59af5:v1
+            source: must_cover
+            source_text: alignment_mechanism
+            acceptance_check: 候选人围绕「alignment_mechanism」说明跨团队目标、分歧点、对齐动作、责任边界和推进结果。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:cross_functional_alignment.management_cross_team_conflict.product_sales_ops_conflict:must_cover:92b1db63:v1
+            source: must_cover
+            source_text: decision_owner
+            acceptance_check: 候选人围绕「decision_owner」说明跨团队目标、分歧点、对齐动作、责任边界和推进结果。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:cross_functional_alignment.management_cross_team_conflict.product_sales_ops_conflict:rubric_addition:cefa592f:v1
+            source: rubric_addition
+            source_text: Map stakeholder goals
+            acceptance_check: 候选人补充说明「Map stakeholder goals」，并落到数据、案例、客户/用户反馈、流程证据、协作动作或验证方式中的至少一类具体证据。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:cross_functional_alignment.management_cross_team_conflict.product_sales_ops_conflict:rubric_addition:38d59d4a:v1
+            source: rubric_addition
+            source_text: surface tradeoffs
+            acceptance_check: 候选人补充说明「surface tradeoffs」，并落到数据、案例、客户/用户反馈、流程证据、协作动作或验证方式中的至少一类具体证据。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:cross_functional_alignment.management_cross_team_conflict.product_sales_ops_conflict:rubric_addition:6a4f1415:v1
+            source: rubric_addition
+            source_text: define decision owner
+            acceptance_check: 候选人补充说明「define decision owner」，并落到数据、案例、客户/用户反馈、流程证据、协作动作或验证方式中的至少一类具体证据。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
         priority: 17
         status: active
       - id: cross_functional_alignment.management_cross_team_conflict.repeated_alignment_breakdown
@@ -48,5 +126,94 @@ seeds:
         expected_signals: [Creates decision log, defines owner, escalates unresolved tradeoffs]
         anti_patterns: [Adds more meetings only, relies on memory, avoids naming owner]
         good_answer_hints: [Record decisions, assign owner, make reopening conditions explicit]
+        reviewed_acceptance_checks:
+          - check_id: reviewed:cross_functional_alignment.management_cross_team_conflict.repeated_alignment_breakdown:must_cover:cd34f33f:v1
+            source: must_cover
+            source_text: stakeholder_goal
+            acceptance_check: 候选人围绕「stakeholder_goal」说明跨团队目标、分歧点、对齐动作、责任边界和推进结果。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:cross_functional_alignment.management_cross_team_conflict.repeated_alignment_breakdown:must_cover:003ddc31:v1
+            source: must_cover
+            source_text: conflict_source
+            acceptance_check: 候选人围绕「conflict_source」说明跨团队目标、分歧点、对齐动作、责任边界和推进结果。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:cross_functional_alignment.management_cross_team_conflict.repeated_alignment_breakdown:must_cover:f09f9507:v1
+            source: must_cover
+            source_text: alignment_mechanism
+            acceptance_check: 候选人围绕「alignment_mechanism」说明跨团队目标、分歧点、对齐动作、责任边界和推进结果。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:cross_functional_alignment.management_cross_team_conflict.repeated_alignment_breakdown:must_cover:e2d59a2d:v1
+            source: must_cover
+            source_text: decision_owner
+            acceptance_check: 候选人围绕「decision_owner」说明跨团队目标、分歧点、对齐动作、责任边界和推进结果。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:cross_functional_alignment.management_cross_team_conflict.repeated_alignment_breakdown:rubric_addition:415e2ee9:v1
+            source: rubric_addition
+            source_text: Clarify decision record
+            acceptance_check: 候选人补充说明「Clarify decision record」，并落到数据、案例、客户/用户反馈、流程证据、协作动作或验证方式中的至少一类具体证据。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:cross_functional_alignment.management_cross_team_conflict.repeated_alignment_breakdown:rubric_addition:4e70243d:v1
+            source: rubric_addition
+            source_text: owner
+            acceptance_check: 候选人补充说明「owner」，并落到数据、案例、客户/用户反馈、流程证据、协作动作或验证方式中的至少一类具体证据。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:cross_functional_alignment.management_cross_team_conflict.repeated_alignment_breakdown:rubric_addition:2b0caef1:v1
+            source: rubric_addition
+            source_text: escalation path
+            acceptance_check: 候选人补充说明「escalation path」，并落到数据、案例、客户/用户反馈、流程证据、协作动作或验证方式中的至少一类具体证据。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:cross_functional_alignment.management_cross_team_conflict.repeated_alignment_breakdown:rubric_addition:6a1c4935:v1
+            source: rubric_addition
+            source_text: and review rhythm
+            acceptance_check: 候选人补充说明「and review rhythm」，并落到数据、案例、客户/用户反馈、流程证据、协作动作或验证方式中的至少一类具体证据。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
         priority: 15
         status: active

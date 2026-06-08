@@ -32,6 +32,84 @@ seeds:
         expected_signals: [能从用户认知出发, 能保护既有品牌资产, 能设计过渡节奏]
         anti_patterns: [只换 slogan, 不解释变化原因, 忽略老用户]
         good_answer_hints: [先定义定位变化, 再分人群沟通, 最后跟踪认知指标]
+        reviewed_acceptance_checks:
+          - check_id: reviewed:brand_strategy.positioning_message.repositioning:must_cover:c656e3c3:v1
+            source: must_cover
+            source_text: 目标人群
+            acceptance_check: 候选人围绕「目标人群」说明目标或问题背景、关键约束、涉及对象和本人澄清/拆解动作。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:brand_strategy.positioning_message.repositioning:must_cover:6011a229:v1
+            source: must_cover
+            source_text: 差异化定位
+            acceptance_check: 候选人围绕「差异化定位」说明品牌目标、人群洞察、定位取舍和效果验证，避免只讲创意偏好。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:brand_strategy.positioning_message.repositioning:must_cover:f5ef7ad4:v1
+            source: must_cover
+            source_text: 传播主张
+            acceptance_check: 候选人围绕「传播主张」说明品牌目标、人群洞察、定位取舍和效果验证，避免只讲创意偏好。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:brand_strategy.positioning_message.repositioning:must_cover:f8551d9e:v1
+            source: must_cover
+            source_text: 一致性管理
+            acceptance_check: 候选人围绕「一致性管理」说明品牌目标、人群洞察、定位取舍和效果验证，避免只讲创意偏好。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:brand_strategy.positioning_message.repositioning:rubric_addition:d80d6bfd:v1
+            source: rubric_addition
+            source_text: 说明定位依据
+            acceptance_check: 候选人补充说明「说明定位依据」，并落到数据、案例、客户/用户反馈、流程证据、协作动作或验证方式中的至少一类具体证据。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:brand_strategy.positioning_message.repositioning:rubric_addition:26c9bdbe:v1
+            source: rubric_addition
+            source_text: 说明新老用户沟通差异
+            acceptance_check: 候选人补充说明「说明新老用户沟通差异」，并落到数据、案例、客户/用户反馈、流程证据、协作动作或验证方式中的至少一类具体证据。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:brand_strategy.positioning_message.repositioning:rubric_addition:47c0e007:v1
+            source: rubric_addition
+            source_text: 说明节奏和风险
+            acceptance_check: 候选人补充说明「说明节奏和风险」，并落到数据、案例、客户/用户反馈、流程证据、协作动作或验证方式中的至少一类具体证据。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
         priority: 17
         status: active
       - id: brand_strategy.positioning_message.brand_consistency
@@ -48,5 +126,83 @@ seeds:
         expected_signals: [能区分调性底线和创意空间, 能建立 review 机制, 能看长期品牌指标]
         anti_patterns: [所有文案统一模板, 只看短期转化, 只靠口头提醒]
         good_answer_hints: [先定底线, 再给渠道空间, 最后用机制和指标治理]
+        reviewed_acceptance_checks:
+          - check_id: reviewed:brand_strategy.positioning_message.brand_consistency:must_cover:994c04d5:v1
+            source: must_cover
+            source_text: 目标人群
+            acceptance_check: 候选人围绕「目标人群」说明目标或问题背景、关键约束、涉及对象和本人澄清/拆解动作。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:brand_strategy.positioning_message.brand_consistency:must_cover:881a9db0:v1
+            source: must_cover
+            source_text: 差异化定位
+            acceptance_check: 候选人围绕「差异化定位」说明品牌目标、人群洞察、定位取舍和效果验证，避免只讲创意偏好。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:brand_strategy.positioning_message.brand_consistency:must_cover:acf2e1e9:v1
+            source: must_cover
+            source_text: 传播主张
+            acceptance_check: 候选人围绕「传播主张」说明品牌目标、人群洞察、定位取舍和效果验证，避免只讲创意偏好。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:brand_strategy.positioning_message.brand_consistency:must_cover:5f257a15:v1
+            source: must_cover
+            source_text: 一致性管理
+            acceptance_check: 候选人围绕「一致性管理」说明品牌目标、人群洞察、定位取舍和效果验证，避免只讲创意偏好。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:brand_strategy.positioning_message.brand_consistency:rubric_addition:e26d427e:v1
+            source: rubric_addition
+            source_text: 说明品牌底线
+            acceptance_check: 候选人补充说明「说明品牌底线」，并落到数据、案例、客户/用户反馈、流程证据、协作动作或验证方式中的至少一类具体证据。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:brand_strategy.positioning_message.brand_consistency:rubric_addition:7a03da7b:v1
+            source: rubric_addition
+            source_text: 说明渠道自由度
+            acceptance_check: 候选人补充说明「说明渠道自由度」，并落到数据、案例、客户/用户反馈、流程证据、协作动作或验证方式中的至少一类具体证据。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:brand_strategy.positioning_message.brand_consistency:rubric_addition:2c112c3d:v1
+            source: rubric_addition
+            source_text: 说明治理和指标
+            acceptance_check: 候选人补充说明「说明治理和指标」，并落到数据、案例、客户/用户反馈、流程证据、协作动作或验证方式中的至少一类具体证据。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
         priority: 16
         status: active

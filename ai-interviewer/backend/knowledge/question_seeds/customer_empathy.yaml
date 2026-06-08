@@ -32,6 +32,84 @@ seeds:
         expected_signals: [Listens before solution, asks impact questions, sets clear next step]
         anti_patterns: [Defends the team first, promises instant fix, ignores customer emotion]
         good_answer_hints: [Acknowledge emotion, ask impact and timeline, define follow up owner]
+        reviewed_acceptance_checks:
+          - check_id: reviewed:customer_empathy.customer_emotion_context.angry_enterprise_admin:must_cover:cb49a1e0:v1
+            source: must_cover
+            source_text: customer_context
+            acceptance_check: 候选人围绕「customer_context」说明业务场景中的目标/背景、本人动作、判断依据、关键取舍或风险，并给出结果或复盘线索。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:customer_empathy.customer_emotion_context.angry_enterprise_admin:must_cover:db5b2409:v1
+            source: must_cover
+            source_text: emotional_state
+            acceptance_check: 候选人围绕「emotional_state」说明业务场景中的目标/背景、本人动作、判断依据、关键取舍或风险，并给出结果或复盘线索。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:customer_empathy.customer_emotion_context.angry_enterprise_admin:must_cover:0d6d6d2a:v1
+            source: must_cover
+            source_text: business_impact
+            acceptance_check: 候选人围绕「business_impact」说明业务场景中的目标/背景、本人动作、判断依据、关键取舍或风险，并给出结果或复盘线索。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:customer_empathy.customer_emotion_context.angry_enterprise_admin:must_cover:66367865:v1
+            source: must_cover
+            source_text: response_boundary
+            acceptance_check: 候选人围绕「response_boundary」说明业务场景中的目标/背景、本人动作、判断依据、关键取舍或风险，并给出结果或复盘线索。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:customer_empathy.customer_emotion_context.angry_enterprise_admin:rubric_addition:e8f84be8:v1
+            source: rubric_addition
+            source_text: Acknowledge emotion
+            acceptance_check: 候选人补充说明「Acknowledge emotion」，并落到数据、案例、客户/用户反馈、流程证据、协作动作或验证方式中的至少一类具体证据。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:customer_empathy.customer_emotion_context.angry_enterprise_admin:rubric_addition:24a7af2b:v1
+            source: rubric_addition
+            source_text: clarify business impact
+            acceptance_check: 候选人补充说明「clarify business impact」，并落到数据、案例、客户/用户反馈、流程证据、协作动作或验证方式中的至少一类具体证据。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:customer_empathy.customer_emotion_context.angry_enterprise_admin:rubric_addition:6a947d84:v1
+            source: rubric_addition
+            source_text: avoid overpromising
+            acceptance_check: 候选人补充说明「avoid overpromising」，并落到数据、案例、客户/用户反馈、流程证据、协作动作或验证方式中的至少一类具体证据。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
         priority: 18
         status: active
       - id: customer_empathy.customer_emotion_context.low_satisfaction_pattern
@@ -48,5 +126,83 @@ seeds:
         expected_signals: [Looks beyond SLA, analyzes feedback text, identifies experience gaps]
         anti_patterns: [Says SLA is enough, ignores qualitative feedback, blames customer expectations]
         good_answer_hints: [Read customer words, inspect moments of friction, improve communication and closure standard]
+        reviewed_acceptance_checks:
+          - check_id: reviewed:customer_empathy.customer_emotion_context.low_satisfaction_pattern:must_cover:a1d62b16:v1
+            source: must_cover
+            source_text: customer_context
+            acceptance_check: 候选人围绕「customer_context」说明业务场景中的目标/背景、本人动作、判断依据、关键取舍或风险，并给出结果或复盘线索。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:customer_empathy.customer_emotion_context.low_satisfaction_pattern:must_cover:8867dd6c:v1
+            source: must_cover
+            source_text: emotional_state
+            acceptance_check: 候选人围绕「emotional_state」说明业务场景中的目标/背景、本人动作、判断依据、关键取舍或风险，并给出结果或复盘线索。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:customer_empathy.customer_emotion_context.low_satisfaction_pattern:must_cover:7e9ec3fd:v1
+            source: must_cover
+            source_text: business_impact
+            acceptance_check: 候选人围绕「business_impact」说明业务场景中的目标/背景、本人动作、判断依据、关键取舍或风险，并给出结果或复盘线索。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:customer_empathy.customer_emotion_context.low_satisfaction_pattern:must_cover:22018395:v1
+            source: must_cover
+            source_text: response_boundary
+            acceptance_check: 候选人围绕「response_boundary」说明业务场景中的目标/背景、本人动作、判断依据、关键取舍或风险，并给出结果或复盘线索。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:customer_empathy.customer_emotion_context.low_satisfaction_pattern:rubric_addition:a53257bd:v1
+            source: rubric_addition
+            source_text: Compare process metrics with sentiment
+            acceptance_check: 候选人补充说明「Compare process metrics with sentiment」，并落到数据、案例、客户/用户反馈、流程证据、协作动作或验证方式中的至少一类具体证据。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:customer_empathy.customer_emotion_context.low_satisfaction_pattern:rubric_addition:27eb89b3:v1
+            source: rubric_addition
+            source_text: sample interactions
+            acceptance_check: 候选人补充说明「sample interactions」，并落到数据、案例、客户/用户反馈、流程证据、协作动作或验证方式中的至少一类具体证据。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:customer_empathy.customer_emotion_context.low_satisfaction_pattern:rubric_addition:2cf8cc3a:v1
+            source: rubric_addition
+            source_text: define improvement loop
+            acceptance_check: 候选人补充说明「define improvement loop」，并落到数据、案例、客户/用户反馈、流程证据、协作动作或验证方式中的至少一类具体证据。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
         priority: 16
         status: active

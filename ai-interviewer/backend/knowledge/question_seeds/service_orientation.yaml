@@ -32,6 +32,84 @@ seeds:
         expected_signals: [Prioritizes by risk and impact, gives clear timeline, uses simple tracking]
         anti_patterns: [Handles whoever shouts loudest, gives no timeline, ignores repeated pattern]
         good_answer_hints: [Classify by risk, commit response windows, review repeated causes]
+        reviewed_acceptance_checks:
+          - check_id: reviewed:service_orientation.hr_internal_service_triage.multiple_urgent_requests:must_cover:f066fe6d:v1
+            source: must_cover
+            source_text: service_priority
+            acceptance_check: 候选人围绕「service_priority」说明服务对象、真实需求、响应动作、边界管理和满意度/反馈闭环。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:service_orientation.hr_internal_service_triage.multiple_urgent_requests:must_cover:cb717f96:v1
+            source: must_cover
+            source_text: response_sla
+            acceptance_check: 候选人围绕「response_sla」说明服务对象、真实需求、响应动作、边界管理和满意度/反馈闭环。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:service_orientation.hr_internal_service_triage.multiple_urgent_requests:must_cover:47c8accb:v1
+            source: must_cover
+            source_text: expectation_management
+            acceptance_check: 候选人围绕「expectation_management」说明服务对象、真实需求、响应动作、边界管理和满意度/反馈闭环。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:service_orientation.hr_internal_service_triage.multiple_urgent_requests:must_cover:593244d7:v1
+            source: must_cover
+            source_text: continuous_improvement
+            acceptance_check: 候选人围绕「continuous_improvement」说明服务对象、真实需求、响应动作、边界管理和满意度/反馈闭环。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:service_orientation.hr_internal_service_triage.multiple_urgent_requests:rubric_addition:b35c3507:v1
+            source: rubric_addition
+            source_text: Define urgency criteria
+            acceptance_check: 候选人补充说明「Define urgency criteria」，并落到数据、案例、客户/用户反馈、流程证据、协作动作或验证方式中的至少一类具体证据。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:service_orientation.hr_internal_service_triage.multiple_urgent_requests:rubric_addition:5a5d0990:v1
+            source: rubric_addition
+            source_text: communicate response rhythm
+            acceptance_check: 候选人补充说明「communicate response rhythm」，并落到数据、案例、客户/用户反馈、流程证据、协作动作或验证方式中的至少一类具体证据。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:service_orientation.hr_internal_service_triage.multiple_urgent_requests:rubric_addition:28f36dbb:v1
+            source: rubric_addition
+            source_text: track closure
+            acceptance_check: 候选人补充说明「track closure」，并落到数据、案例、客户/用户反馈、流程证据、协作动作或验证方式中的至少一类具体证据。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
         priority: 16
         status: active
       - id: service_orientation.hr_internal_service_triage.repeated_policy_questions
@@ -48,5 +126,83 @@ seeds:
         expected_signals: [Builds FAQ or workflow, clarifies ownership, tracks response time and satisfaction]
         anti_patterns: [Only asks managers to be patient, creates complex process, does not measure effect]
         good_answer_hints: [Find repeat cases, standardize first answer, monitor cycle time]
+        reviewed_acceptance_checks:
+          - check_id: reviewed:service_orientation.hr_internal_service_triage.repeated_policy_questions:must_cover:9dad2945:v1
+            source: must_cover
+            source_text: service_priority
+            acceptance_check: 候选人围绕「service_priority」说明服务对象、真实需求、响应动作、边界管理和满意度/反馈闭环。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:service_orientation.hr_internal_service_triage.repeated_policy_questions:must_cover:f2640030:v1
+            source: must_cover
+            source_text: response_sla
+            acceptance_check: 候选人围绕「response_sla」说明服务对象、真实需求、响应动作、边界管理和满意度/反馈闭环。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:service_orientation.hr_internal_service_triage.repeated_policy_questions:must_cover:3c62485a:v1
+            source: must_cover
+            source_text: expectation_management
+            acceptance_check: 候选人围绕「expectation_management」说明服务对象、真实需求、响应动作、边界管理和满意度/反馈闭环。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:service_orientation.hr_internal_service_triage.repeated_policy_questions:must_cover:95d56091:v1
+            source: must_cover
+            source_text: continuous_improvement
+            acceptance_check: 候选人围绕「continuous_improvement」说明服务对象、真实需求、响应动作、边界管理和满意度/反馈闭环。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:service_orientation.hr_internal_service_triage.repeated_policy_questions:rubric_addition:fcbcb437:v1
+            source: rubric_addition
+            source_text: Identify repeated demand
+            acceptance_check: 候选人补充说明「Identify repeated demand」，并落到数据、案例、客户/用户反馈、流程证据、协作动作或验证方式中的至少一类具体证据。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:service_orientation.hr_internal_service_triage.repeated_policy_questions:rubric_addition:f862cdf9:v1
+            source: rubric_addition
+            source_text: standardize response
+            acceptance_check: 候选人补充说明「standardize response」，并落到数据、案例、客户/用户反馈、流程证据、协作动作或验证方式中的至少一类具体证据。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:service_orientation.hr_internal_service_triage.repeated_policy_questions:rubric_addition:6e90343c:v1
+            source: rubric_addition
+            source_text: measure service improvement
+            acceptance_check: 候选人补充说明「measure service improvement」，并落到数据、案例、客户/用户反馈、流程证据、协作动作或验证方式中的至少一类具体证据。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
         priority: 14
         status: active

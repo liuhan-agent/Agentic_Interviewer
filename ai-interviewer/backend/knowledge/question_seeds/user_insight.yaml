@@ -32,6 +32,84 @@ seeds:
         expected_signals: [能分清用户表述和真实任务, 能结合行为数据与访谈, 能指出误判痛点的后果]
         anti_patterns: [只描述功能流程, 用自己想象替代用户证据, 不区分用户分层]
         good_answer_hints: [先拆用户与场景, 再收集证据, 最后判断关键痛点]
+        reviewed_acceptance_checks:
+          - check_id: reviewed:user_insight.user_journey_pain_point.cross_channel_onboarding:must_cover:ebe12b57:v1
+            source: must_cover
+            source_text: 目标用户
+            acceptance_check: 候选人围绕「目标用户」说明目标或问题背景、关键约束、涉及对象和本人澄清/拆解动作。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:user_insight.user_journey_pain_point.cross_channel_onboarding:must_cover:31befa23:v1
+            source: must_cover
+            source_text: 使用场景
+            acceptance_check: 候选人围绕「使用场景」说明用户问题、证据来源、洞察形成过程和对产品决策的影响。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:user_insight.user_journey_pain_point.cross_channel_onboarding:must_cover:56cd981e:v1
+            source: must_cover
+            source_text: 真实痛点
+            acceptance_check: 候选人围绕「真实痛点」说明用户问题、证据来源、洞察形成过程和对产品决策的影响。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:user_insight.user_journey_pain_point.cross_channel_onboarding:must_cover:2d31c4d2:v1
+            source: must_cover
+            source_text: 证据来源
+            acceptance_check: 候选人围绕「证据来源」说明用户问题、证据来源、洞察形成过程和对产品决策的影响。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:user_insight.user_journey_pain_point.cross_channel_onboarding:rubric_addition:496045f9:v1
+            source: rubric_addition
+            source_text: 说明不同入口用户的任务和动机
+            acceptance_check: 候选人补充说明「说明不同入口用户的任务和动机」，并落到数据、案例、客户/用户反馈、流程证据、协作动作或验证方式中的至少一类具体证据。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:user_insight.user_journey_pain_point.cross_channel_onboarding:rubric_addition:65d8dd7b:v1
+            source: rubric_addition
+            source_text: 说明访谈或数据证据
+            acceptance_check: 候选人补充说明「说明访谈或数据证据」，并落到数据、案例、客户/用户反馈、流程证据、协作动作或验证方式中的至少一类具体证据。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:user_insight.user_journey_pain_point.cross_channel_onboarding:rubric_addition:dd143346:v1
+            source: rubric_addition
+            source_text: 说明痛点优先级判断
+            acceptance_check: 候选人补充说明「说明痛点优先级判断」，并落到数据、案例、客户/用户反馈、流程证据、协作动作或验证方式中的至少一类具体证据。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
         priority: 18
         status: active
       - id: user_insight.user_journey_pain_point.segment_noise
@@ -48,5 +126,83 @@ seeds:
         expected_signals: [能识别高声量不等于高价值, 能用数据校准反馈, 能说明取舍后的验证方式]
         anti_patterns: [谁声音大听谁, 完全忽略核心用户, 没有后续验证]
         good_answer_hints: [先判断用户价值, 再看诉求代表性, 最后设计低成本验证]
+        reviewed_acceptance_checks:
+          - check_id: reviewed:user_insight.user_journey_pain_point.segment_noise:must_cover:66f666f5:v1
+            source: must_cover
+            source_text: 目标用户
+            acceptance_check: 候选人围绕「目标用户」说明目标或问题背景、关键约束、涉及对象和本人澄清/拆解动作。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:user_insight.user_journey_pain_point.segment_noise:must_cover:da5bbb2a:v1
+            source: must_cover
+            source_text: 使用场景
+            acceptance_check: 候选人围绕「使用场景」说明用户问题、证据来源、洞察形成过程和对产品决策的影响。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:user_insight.user_journey_pain_point.segment_noise:must_cover:5727392e:v1
+            source: must_cover
+            source_text: 真实痛点
+            acceptance_check: 候选人围绕「真实痛点」说明用户问题、证据来源、洞察形成过程和对产品决策的影响。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:user_insight.user_journey_pain_point.segment_noise:must_cover:aa57eb57:v1
+            source: must_cover
+            source_text: 证据来源
+            acceptance_check: 候选人围绕「证据来源」说明用户问题、证据来源、洞察形成过程和对产品决策的影响。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:user_insight.user_journey_pain_point.segment_noise:rubric_addition:bc5bba5c:v1
+            source: rubric_addition
+            source_text: 说明样本偏差风险
+            acceptance_check: 候选人补充说明「说明样本偏差风险」，并落到数据、案例、客户/用户反馈、流程证据、协作动作或验证方式中的至少一类具体证据。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:user_insight.user_journey_pain_point.segment_noise:rubric_addition:d4eb8121:v1
+            source: rubric_addition
+            source_text: 说明用户价值和规模判断
+            acceptance_check: 候选人补充说明「说明用户价值和规模判断」，并落到数据、案例、客户/用户反馈、流程证据、协作动作或验证方式中的至少一类具体证据。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:user_insight.user_journey_pain_point.segment_noise:rubric_addition:14f19f93:v1
+            source: rubric_addition
+            source_text: 说明最终取舍与验证
+            acceptance_check: 候选人补充说明「说明最终取舍与验证」，并落到数据、案例、客户/用户反馈、流程证据、协作动作或验证方式中的至少一类具体证据。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
         priority: 16
         status: active

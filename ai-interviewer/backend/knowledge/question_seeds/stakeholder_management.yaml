@@ -32,6 +32,84 @@ seeds:
         expected_signals: [能区分反对表象和风险实质, 能用范围或验收标准收敛, 能维护协作关系]
         anti_patterns: [用职级压研发, 只让业务方拍板, 不处理风险]
         good_answer_hints: [先听清关切, 再用证据缩范围, 最后确认责任和时间点]
+        reviewed_acceptance_checks:
+          - check_id: reviewed:stakeholder_management.cross_team_alignment.engineering_pushback:must_cover:b47972e1:v1
+            source: must_cover
+            source_text: 目标差异
+            acceptance_check: 候选人围绕「目标差异」说明目标或问题背景、关键约束、涉及对象和本人澄清/拆解动作。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:stakeholder_management.cross_team_alignment.engineering_pushback:must_cover:299e446a:v1
+            source: must_cover
+            source_text: 证据对齐
+            acceptance_check: 候选人围绕「证据对齐」说明相关方诉求、分歧点、沟通动作、责任边界和对齐结果。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:stakeholder_management.cross_team_alignment.engineering_pushback:must_cover:d596468e:v1
+            source: must_cover
+            source_text: 冲突处理
+            acceptance_check: 候选人围绕「冲突处理」说明关键干系人诉求、冲突点、沟通动作和达成共识的证据。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:stakeholder_management.cross_team_alignment.engineering_pushback:must_cover:d1c42b8d:v1
+            source: must_cover
+            source_text: 后续机制
+            acceptance_check: 候选人围绕「后续机制」说明关键干系人诉求、冲突点、沟通动作和达成共识的证据。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:stakeholder_management.cross_team_alignment.engineering_pushback:rubric_addition:cd33b167:v1
+            source: rubric_addition
+            source_text: 说明研发真实关切
+            acceptance_check: 候选人补充说明「说明研发真实关切」，并落到数据、案例、客户/用户反馈、流程证据、协作动作或验证方式中的至少一类具体证据。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:stakeholder_management.cross_team_alignment.engineering_pushback:rubric_addition:a9059a12:v1
+            source: rubric_addition
+            source_text: 说明用证据对齐范围
+            acceptance_check: 候选人补充说明「说明用证据对齐范围」，并落到数据、案例、客户/用户反馈、流程证据、协作动作或验证方式中的至少一类具体证据。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:stakeholder_management.cross_team_alignment.engineering_pushback:rubric_addition:c8ec8c93:v1
+            source: rubric_addition
+            source_text: 说明后续跟进机制
+            acceptance_check: 候选人补充说明「说明后续跟进机制」，并落到数据、案例、客户/用户反馈、流程证据、协作动作或验证方式中的至少一类具体证据。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
         priority: 16
         status: active
       - id: stakeholder_management.cross_team_alignment.multi_team_conflict
@@ -48,5 +126,83 @@ seeds:
         expected_signals: [能画清责任边界, 能设计节奏和升级路径, 能平衡目标和关系]
         anti_patterns: [只开会不决策, 责任人不清, 风险暴露太晚]
         good_answer_hints: [先对齐共同目标, 再明确责任节奏, 最后设置风险升级]
+        reviewed_acceptance_checks:
+          - check_id: reviewed:stakeholder_management.cross_team_alignment.multi_team_conflict:must_cover:5c2417cd:v1
+            source: must_cover
+            source_text: 目标差异
+            acceptance_check: 候选人围绕「目标差异」说明目标或问题背景、关键约束、涉及对象和本人澄清/拆解动作。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:stakeholder_management.cross_team_alignment.multi_team_conflict:must_cover:61da97bf:v1
+            source: must_cover
+            source_text: 证据对齐
+            acceptance_check: 候选人围绕「证据对齐」说明相关方诉求、分歧点、沟通动作、责任边界和对齐结果。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:stakeholder_management.cross_team_alignment.multi_team_conflict:must_cover:75d32171:v1
+            source: must_cover
+            source_text: 冲突处理
+            acceptance_check: 候选人围绕「冲突处理」说明关键干系人诉求、冲突点、沟通动作和达成共识的证据。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:stakeholder_management.cross_team_alignment.multi_team_conflict:must_cover:bedfe843:v1
+            source: must_cover
+            source_text: 后续机制
+            acceptance_check: 候选人围绕「后续机制」说明关键干系人诉求、冲突点、沟通动作和达成共识的证据。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:stakeholder_management.cross_team_alignment.multi_team_conflict:rubric_addition:365f5422:v1
+            source: rubric_addition
+            source_text: 说明各方 KPI 和约束
+            acceptance_check: 候选人补充说明「说明各方 KPI 和约束」，并落到数据、案例、客户/用户反馈、流程证据、协作动作或验证方式中的至少一类具体证据。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:stakeholder_management.cross_team_alignment.multi_team_conflict:rubric_addition:625ecf2c:v1
+            source: rubric_addition
+            source_text: 说明共同目标和 RACI
+            acceptance_check: 候选人补充说明「说明共同目标和 RACI」，并落到数据、案例、客户/用户反馈、流程证据、协作动作或验证方式中的至少一类具体证据。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:stakeholder_management.cross_team_alignment.multi_team_conflict:rubric_addition:ccdf0b7b:v1
+            source: rubric_addition
+            source_text: 说明风险升级机制
+            acceptance_check: 候选人补充说明「说明风险升级机制」，并落到数据、案例、客户/用户反馈、流程证据、协作动作或验证方式中的至少一类具体证据。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
         priority: 15
         status: active

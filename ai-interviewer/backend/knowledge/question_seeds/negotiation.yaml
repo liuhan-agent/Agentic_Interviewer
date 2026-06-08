@@ -32,6 +32,84 @@ seeds:
         expected_signals: [能把让步当交换, 能守住底线, 能用价值而非价格推进]
         anti_patterns: [无条件降价, 只追成交, 不考虑后续续约和交付]
         good_answer_hints: [先判断成交概率, 再设让步底线, 最后换承诺或范围]
+        reviewed_acceptance_checks:
+          - check_id: reviewed:negotiation.contract_terms_tradeoff.discount_exchange:must_cover:fa68f2fd:v1
+            source: must_cover
+            source_text: 谈判目标
+            acceptance_check: 候选人围绕「谈判目标」说明目标或问题背景、关键约束、涉及对象和本人澄清/拆解动作。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:negotiation.contract_terms_tradeoff.discount_exchange:must_cover:d292347c:v1
+            source: must_cover
+            source_text: 让步条件
+            acceptance_check: 候选人围绕「让步条件」说明谈判目标、对方诉求、让步边界、风险控制和推进结果，体现可复盘的业务判断。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:negotiation.contract_terms_tradeoff.discount_exchange:must_cover:add7565a:v1
+            source: must_cover
+            source_text: 合同风险
+            acceptance_check: 候选人围绕「合同风险」说明风险或边界条件、处理原则、升级/兜底动作和复盘跟进。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:negotiation.contract_terms_tradeoff.discount_exchange:must_cover:2319fb67:v1
+            source: must_cover
+            source_text: 多方节奏
+            acceptance_check: 候选人围绕「多方节奏」说明谈判目标、对方诉求、让步边界、风险控制和推进结果，体现可复盘的业务判断。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:negotiation.contract_terms_tradeoff.discount_exchange:rubric_addition:c765c124:v1
+            source: rubric_addition
+            source_text: 说明让步底线
+            acceptance_check: 候选人补充说明「说明让步底线」，并落到数据、案例、客户/用户反馈、流程证据、协作动作或验证方式中的至少一类具体证据。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:negotiation.contract_terms_tradeoff.discount_exchange:rubric_addition:838d3f38:v1
+            source: rubric_addition
+            source_text: 说明交换条件
+            acceptance_check: 候选人补充说明「说明交换条件」，并落到数据、案例、客户/用户反馈、流程证据、协作动作或验证方式中的至少一类具体证据。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:negotiation.contract_terms_tradeoff.discount_exchange:rubric_addition:8abb0295:v1
+            source: rubric_addition
+            source_text: 说明客户和内部收益
+            acceptance_check: 候选人补充说明「说明客户和内部收益」，并落到数据、案例、客户/用户反馈、流程证据、协作动作或验证方式中的至少一类具体证据。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
         priority: 17
         status: active
       - id: negotiation.contract_terms_tradeoff.legal_procurement
@@ -48,5 +126,83 @@ seeds:
         expected_signals: [能区分原则和谈判空间, 能管理采购法务节奏, 能同步内部风险]
         anti_patterns: [为了签单忽略条款, 绕过法务, 不管理业务方预期]
         good_answer_hints: [先分条款风险, 再协调多方, 最后升级关键分歧]
+        reviewed_acceptance_checks:
+          - check_id: reviewed:negotiation.contract_terms_tradeoff.legal_procurement:must_cover:f58bc4cd:v1
+            source: must_cover
+            source_text: 谈判目标
+            acceptance_check: 候选人围绕「谈判目标」说明目标或问题背景、关键约束、涉及对象和本人澄清/拆解动作。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:negotiation.contract_terms_tradeoff.legal_procurement:must_cover:39217917:v1
+            source: must_cover
+            source_text: 让步条件
+            acceptance_check: 候选人围绕「让步条件」说明谈判目标、对方诉求、让步边界、风险控制和推进结果，体现可复盘的业务判断。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:negotiation.contract_terms_tradeoff.legal_procurement:must_cover:dd27532e:v1
+            source: must_cover
+            source_text: 合同风险
+            acceptance_check: 候选人围绕「合同风险」说明风险或边界条件、处理原则、升级/兜底动作和复盘跟进。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:negotiation.contract_terms_tradeoff.legal_procurement:must_cover:cabcba6b:v1
+            source: must_cover
+            source_text: 多方节奏
+            acceptance_check: 候选人围绕「多方节奏」说明谈判目标、对方诉求、让步边界、风险控制和推进结果，体现可复盘的业务判断。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:negotiation.contract_terms_tradeoff.legal_procurement:rubric_addition:db6272c9:v1
+            source: rubric_addition
+            source_text: 说明条款风险级别
+            acceptance_check: 候选人补充说明「说明条款风险级别」，并落到数据、案例、客户/用户反馈、流程证据、协作动作或验证方式中的至少一类具体证据。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:negotiation.contract_terms_tradeoff.legal_procurement:rubric_addition:1d187f44:v1
+            source: rubric_addition
+            source_text: 说明多方节奏管理
+            acceptance_check: 候选人补充说明「说明多方节奏管理」，并落到数据、案例、客户/用户反馈、流程证据、协作动作或验证方式中的至少一类具体证据。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:negotiation.contract_terms_tradeoff.legal_procurement:rubric_addition:134e97f7:v1
+            source: rubric_addition
+            source_text: 说明升级或替代方案
+            acceptance_check: 候选人补充说明「说明升级或替代方案」，并落到数据、案例、客户/用户反馈、流程证据、协作动作或验证方式中的至少一类具体证据。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
         priority: 16
         status: active

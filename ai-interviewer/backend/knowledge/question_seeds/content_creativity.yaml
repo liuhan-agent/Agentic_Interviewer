@@ -32,6 +32,84 @@ seeds:
         expected_signals: [能从用户语言中找创意, 能设计 A/B 或小样本测试, 能看互动质量]
         anti_patterns: [只凭审美拍板, 只追热点, 不测试表达]
         good_answer_hints: [先找用户语言, 再形成表达假设, 最后小规模测试]
+        reviewed_acceptance_checks:
+          - check_id: reviewed:content_creativity.campaign_content_system.creative_source:must_cover:4b719c35:v1
+            source: must_cover
+            source_text: 创意来源
+            acceptance_check: 候选人围绕「创意来源」说明内容创意的用户洞察、表达策略、渠道适配和反馈验证。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:content_creativity.campaign_content_system.creative_source:must_cover:f5822a2d:v1
+            source: must_cover
+            source_text: 表达策略
+            acceptance_check: 候选人围绕「表达策略」说明内容创意的用户洞察、表达策略、渠道适配和反馈验证。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:content_creativity.campaign_content_system.creative_source:must_cover:66d3cf6e:v1
+            source: must_cover
+            source_text: 效果指标
+            acceptance_check: 候选人围绕「效果指标」说明业务指标或结果口径、证据来源、归因边界和如何影响下一步判断。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:content_creativity.campaign_content_system.creative_source:must_cover:ce7d2d79:v1
+            source: must_cover
+            source_text: 复用沉淀
+            acceptance_check: 候选人围绕「复用沉淀」说明内容创意的用户洞察、表达策略、渠道适配和反馈验证。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:content_creativity.campaign_content_system.creative_source:rubric_addition:55070ee8:v1
+            source: rubric_addition
+            source_text: 说明创意输入来源
+            acceptance_check: 候选人补充说明「说明创意输入来源」，并落到数据、案例、客户/用户反馈、流程证据、协作动作或验证方式中的至少一类具体证据。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:content_creativity.campaign_content_system.creative_source:rubric_addition:66edc5fd:v1
+            source: rubric_addition
+            source_text: 说明目标用户和表达假设
+            acceptance_check: 候选人补充说明「说明目标用户和表达假设」，并落到数据、案例、客户/用户反馈、流程证据、协作动作或验证方式中的至少一类具体证据。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:content_creativity.campaign_content_system.creative_source:rubric_addition:ea1d4372:v1
+            source: rubric_addition
+            source_text: 说明测试和指标
+            acceptance_check: 候选人补充说明「说明测试和指标」，并落到数据、案例、客户/用户反馈、流程证据、协作动作或验证方式中的至少一类具体证据。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
         priority: 16
         status: active
       - id: content_creativity.campaign_content_system.viral_attribution
@@ -48,5 +126,83 @@ seeds:
         expected_signals: [能看选题表达分发时机, 能承认偶然性, 能沉淀可复用素材或模板]
         anti_patterns: [爆了就复制同款, 不看渠道机制, 不分析用户评论质量]
         good_answer_hints: [先拆爆发链路, 再区分可控和偶然, 最后沉淀下一轮实验]
+        reviewed_acceptance_checks:
+          - check_id: reviewed:content_creativity.campaign_content_system.viral_attribution:must_cover:67170944:v1
+            source: must_cover
+            source_text: 创意来源
+            acceptance_check: 候选人围绕「创意来源」说明内容创意的用户洞察、表达策略、渠道适配和反馈验证。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:content_creativity.campaign_content_system.viral_attribution:must_cover:35407f3d:v1
+            source: must_cover
+            source_text: 表达策略
+            acceptance_check: 候选人围绕「表达策略」说明内容创意的用户洞察、表达策略、渠道适配和反馈验证。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:content_creativity.campaign_content_system.viral_attribution:must_cover:8f870cb0:v1
+            source: must_cover
+            source_text: 效果指标
+            acceptance_check: 候选人围绕「效果指标」说明业务指标或结果口径、证据来源、归因边界和如何影响下一步判断。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:content_creativity.campaign_content_system.viral_attribution:must_cover:c631d22b:v1
+            source: must_cover
+            source_text: 复用沉淀
+            acceptance_check: 候选人围绕「复用沉淀」说明内容创意的用户洞察、表达策略、渠道适配和反馈验证。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:content_creativity.campaign_content_system.viral_attribution:rubric_addition:1fe50466:v1
+            source: rubric_addition
+            source_text: 说明爆发因素拆解
+            acceptance_check: 候选人补充说明「说明爆发因素拆解」，并落到数据、案例、客户/用户反馈、流程证据、协作动作或验证方式中的至少一类具体证据。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:content_creativity.campaign_content_system.viral_attribution:rubric_addition:fc37a034:v1
+            source: rubric_addition
+            source_text: 说明偶然和可复用因素
+            acceptance_check: 候选人补充说明「说明偶然和可复用因素」，并落到数据、案例、客户/用户反馈、流程证据、协作动作或验证方式中的至少一类具体证据。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:content_creativity.campaign_content_system.viral_attribution:rubric_addition:28ac9151:v1
+            source: rubric_addition
+            source_text: 说明后续内容机制
+            acceptance_check: 候选人补充说明「说明后续内容机制」，并落到数据、案例、客户/用户反馈、流程证据、协作动作或验证方式中的至少一类具体证据。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
         priority: 15
         status: active

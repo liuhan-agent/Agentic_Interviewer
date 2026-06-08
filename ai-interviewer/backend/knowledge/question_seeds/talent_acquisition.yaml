@@ -32,6 +32,84 @@ seeds:
         expected_signals: [Separates must have and nice to have, uses intake meeting evidence, defines funnel feedback loop]
         anti_patterns: [Only reposts JD keywords, screens by years alone, ignores hiring manager calibration]
         good_answer_hints: [Start from role outcome, define observable signals, calibrate with examples]
+        reviewed_acceptance_checks:
+          - check_id: reviewed:talent_acquisition.hr_role_qualification.new_role_kickoff:must_cover:525d920f:v1
+            source: must_cover
+            source_text: role_requirements
+            acceptance_check: 候选人围绕「role_requirements」说明招聘目标、候选人或岗位画像、筛选依据、协作动作和结果复盘。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:talent_acquisition.hr_role_qualification.new_role_kickoff:must_cover:b27d0d9a:v1
+            source: must_cover
+            source_text: sourcing_signal
+            acceptance_check: 候选人围绕「sourcing_signal」说明招聘目标、候选人或岗位画像、筛选依据、协作动作和结果复盘。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:talent_acquisition.hr_role_qualification.new_role_kickoff:must_cover:8421a78f:v1
+            source: must_cover
+            source_text: interview_calibration
+            acceptance_check: 候选人围绕「interview_calibration」说明招聘目标、候选人或岗位画像、筛选依据、协作动作和结果复盘。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:talent_acquisition.hr_role_qualification.new_role_kickoff:must_cover:c512a78e:v1
+            source: must_cover
+            source_text: conversion_risk
+            acceptance_check: 候选人围绕「conversion_risk」说明招聘目标、候选人或岗位画像、筛选依据、协作动作和结果复盘。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:talent_acquisition.hr_role_qualification.new_role_kickoff:rubric_addition:d4abbe74:v1
+            source: rubric_addition
+            source_text: Clarify business context
+            acceptance_check: 候选人补充说明「Clarify business context」，并落到数据、案例、客户/用户反馈、流程证据、协作动作或验证方式中的至少一类具体证据。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:talent_acquisition.hr_role_qualification.new_role_kickoff:rubric_addition:5cef9c71:v1
+            source: rubric_addition
+            source_text: define must have signals
+            acceptance_check: 候选人补充说明「define must have signals」，并落到数据、案例、客户/用户反馈、流程证据、协作动作或验证方式中的至少一类具体证据。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:talent_acquisition.hr_role_qualification.new_role_kickoff:rubric_addition:a21b6188:v1
+            source: rubric_addition
+            source_text: align interview questions with role criteria
+            acceptance_check: 候选人补充说明「align interview questions with role criteria」，并落到数据、案例、客户/用户反馈、流程证据、协作动作或验证方式中的至少一类具体证据。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
         priority: 18
         status: active
       - id: talent_acquisition.hr_role_qualification.funnel_quality_drop
@@ -48,5 +126,83 @@ seeds:
         expected_signals: [Uses data by stage, checks requirement drift, proposes calibration review]
         anti_patterns: [Blames candidate quality only, adds more channels without diagnosis, ignores interviewer feedback]
         good_answer_hints: [Read funnel data first, sample interview feedback, adjust sourcing and screening together]
+        reviewed_acceptance_checks:
+          - check_id: reviewed:talent_acquisition.hr_role_qualification.funnel_quality_drop:must_cover:81cb60b6:v1
+            source: must_cover
+            source_text: role_requirements
+            acceptance_check: 候选人围绕「role_requirements」说明招聘目标、候选人或岗位画像、筛选依据、协作动作和结果复盘。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:talent_acquisition.hr_role_qualification.funnel_quality_drop:must_cover:7da45f3b:v1
+            source: must_cover
+            source_text: sourcing_signal
+            acceptance_check: 候选人围绕「sourcing_signal」说明招聘目标、候选人或岗位画像、筛选依据、协作动作和结果复盘。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:talent_acquisition.hr_role_qualification.funnel_quality_drop:must_cover:bdf55d2b:v1
+            source: must_cover
+            source_text: interview_calibration
+            acceptance_check: 候选人围绕「interview_calibration」说明招聘目标、候选人或岗位画像、筛选依据、协作动作和结果复盘。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:talent_acquisition.hr_role_qualification.funnel_quality_drop:must_cover:7ce340f0:v1
+            source: must_cover
+            source_text: conversion_risk
+            acceptance_check: 候选人围绕「conversion_risk」说明招聘目标、候选人或岗位画像、筛选依据、协作动作和结果复盘。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:talent_acquisition.hr_role_qualification.funnel_quality_drop:rubric_addition:a6b8f8b8:v1
+            source: rubric_addition
+            source_text: Use funnel conversion data
+            acceptance_check: 候选人补充说明「Use funnel conversion data」，并落到数据、案例、客户/用户反馈、流程证据、协作动作或验证方式中的至少一类具体证据。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:talent_acquisition.hr_role_qualification.funnel_quality_drop:rubric_addition:428d91ca:v1
+            source: rubric_addition
+            source_text: compare pass reasons and rejection reasons
+            acceptance_check: 候选人补充说明「compare pass reasons and rejection reasons」，并落到数据、案例、客户/用户反馈、流程证据、协作动作或验证方式中的至少一类具体证据。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:talent_acquisition.hr_role_qualification.funnel_quality_drop:rubric_addition:e4b678da:v1
+            source: rubric_addition
+            source_text: propose adjustment cycle
+            acceptance_check: 候选人补充说明「propose adjustment cycle」，并落到数据、案例、客户/用户反馈、流程证据、协作动作或验证方式中的至少一类具体证据。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
         priority: 16
         status: active

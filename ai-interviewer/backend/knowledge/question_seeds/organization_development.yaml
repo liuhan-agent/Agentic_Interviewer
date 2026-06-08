@@ -32,6 +32,84 @@ seeds:
         expected_signals: [Uses manager behavior evidence, links to delivery outcomes, plans reinforcement]
         anti_patterns: [Only suggests generic training, ignores manager context, measures attendance only]
         good_answer_hints: [Start with observed behaviors, design practice plus feedback, track business and behavior signals]
+        reviewed_acceptance_checks:
+          - check_id: reviewed:organization_development.hr_performance_development.manager_capability_gap:must_cover:cba96834:v1
+            source: must_cover
+            source_text: diagnosis
+            acceptance_check: 候选人围绕「diagnosis」说明组织问题、诊断依据、方案取舍、推进动作和效果观察。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:organization_development.hr_performance_development.manager_capability_gap:must_cover:a34325bc:v1
+            source: must_cover
+            source_text: development_need
+            acceptance_check: 候选人围绕「development_need」说明组织问题、诊断依据、方案取舍、推进动作和效果观察。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:organization_development.hr_performance_development.manager_capability_gap:must_cover:6563d33c:v1
+            source: must_cover
+            source_text: manager_enablement
+            acceptance_check: 候选人围绕「manager_enablement」说明组织问题、诊断依据、方案取舍、推进动作和效果观察。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:organization_development.hr_performance_development.manager_capability_gap:must_cover:33d5d41c:v1
+            source: must_cover
+            source_text: outcome_measure
+            acceptance_check: 候选人围绕「outcome_measure」说明组织问题、诊断依据、方案取舍、推进动作和效果观察。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:organization_development.hr_performance_development.manager_capability_gap:rubric_addition:deb19e32:v1
+            source: rubric_addition
+            source_text: Diagnose behavior gap
+            acceptance_check: 候选人补充说明「Diagnose behavior gap」，并落到数据、案例、客户/用户反馈、流程证据、协作动作或验证方式中的至少一类具体证据。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:organization_development.hr_performance_development.manager_capability_gap:rubric_addition:f37cf204:v1
+            source: rubric_addition
+            source_text: choose targeted intervention
+            acceptance_check: 候选人补充说明「choose targeted intervention」，并落到数据、案例、客户/用户反馈、流程证据、协作动作或验证方式中的至少一类具体证据。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:organization_development.hr_performance_development.manager_capability_gap:rubric_addition:8bf8d103:v1
+            source: rubric_addition
+            source_text: define measurable follow up
+            acceptance_check: 候选人补充说明「define measurable follow up」，并落到数据、案例、客户/用户反馈、流程证据、协作动作或验证方式中的至少一类具体证据。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
         priority: 17
         status: active
       - id: organization_development.hr_performance_development.performance_cycle_bias
@@ -48,5 +126,83 @@ seeds:
         expected_signals: [Defines calibration criteria, challenges unsupported ratings, documents decisions]
         anti_patterns: [Lets senior voice decide, changes ratings without evidence, ignores manager education]
         good_answer_hints: [Set evidence rules, compare across teams, close with process improvement]
+        reviewed_acceptance_checks:
+          - check_id: reviewed:organization_development.hr_performance_development.performance_cycle_bias:must_cover:4996a32d:v1
+            source: must_cover
+            source_text: diagnosis
+            acceptance_check: 候选人围绕「diagnosis」说明组织问题、诊断依据、方案取舍、推进动作和效果观察。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:organization_development.hr_performance_development.performance_cycle_bias:must_cover:20939c20:v1
+            source: must_cover
+            source_text: development_need
+            acceptance_check: 候选人围绕「development_need」说明组织问题、诊断依据、方案取舍、推进动作和效果观察。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:organization_development.hr_performance_development.performance_cycle_bias:must_cover:dba4a194:v1
+            source: must_cover
+            source_text: manager_enablement
+            acceptance_check: 候选人围绕「manager_enablement」说明组织问题、诊断依据、方案取舍、推进动作和效果观察。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:organization_development.hr_performance_development.performance_cycle_bias:must_cover:6f7be566:v1
+            source: must_cover
+            source_text: outcome_measure
+            acceptance_check: 候选人围绕「outcome_measure」说明组织问题、诊断依据、方案取舍、推进动作和效果观察。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:organization_development.hr_performance_development.performance_cycle_bias:rubric_addition:9bf11d22:v1
+            source: rubric_addition
+            source_text: Require evidence standards
+            acceptance_check: 候选人补充说明「Require evidence standards」，并落到数据、案例、客户/用户反馈、流程证据、协作动作或验证方式中的至少一类具体证据。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:organization_development.hr_performance_development.performance_cycle_bias:rubric_addition:3f2371bd:v1
+            source: rubric_addition
+            source_text: reduce rating drift
+            acceptance_check: 候选人补充说明「reduce rating drift」，并落到数据、案例、客户/用户反馈、流程证据、协作动作或验证方式中的至少一类具体证据。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:organization_development.hr_performance_development.performance_cycle_bias:rubric_addition:77c7a2c5:v1
+            source: rubric_addition
+            source_text: create manager accountability
+            acceptance_check: 候选人补充说明「create manager accountability」，并落到数据、案例、客户/用户反馈、流程证据、协作动作或验证方式中的至少一类具体证据。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
         priority: 15
         status: active

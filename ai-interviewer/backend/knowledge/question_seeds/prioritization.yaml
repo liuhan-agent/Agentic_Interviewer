@@ -32,6 +32,84 @@ seeds:
         expected_signals: [能构造排序框架, 能说明非选择项, 能承认信息变化会改变排序]
         anti_patterns: [只按老板要求排序, 不讲放弃什么, 没有复盘]
         good_answer_hints: [先列约束, 再比较候选项, 最后定义复盘信号]
+        reviewed_acceptance_checks:
+          - check_id: reviewed:prioritization.roadmap_tradeoff.limited_sprint:must_cover:ae0229b8:v1
+            source: must_cover
+            source_text: 用户价值
+            acceptance_check: 候选人围绕「用户价值」说明对象分层、真实诉求、证据来源和后续业务动作。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:prioritization.roadmap_tradeoff.limited_sprint:must_cover:89dcd66d:v1
+            source: must_cover
+            source_text: 业务收益
+            acceptance_check: 候选人围绕「业务收益」说明优先级目标、判断标准、取舍理由、风险和沟通结果。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:prioritization.roadmap_tradeoff.limited_sprint:must_cover:9794db82:v1
+            source: must_cover
+            source_text: 成本风险
+            acceptance_check: 候选人围绕「成本风险」说明风险或边界条件、处理原则、升级/兜底动作和复盘跟进。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:prioritization.roadmap_tradeoff.limited_sprint:must_cover:5cb12cfe:v1
+            source: must_cover
+            source_text: 时间窗口
+            acceptance_check: 候选人围绕「时间窗口」说明优先级目标、判断标准、取舍理由、风险和沟通结果。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:prioritization.roadmap_tradeoff.limited_sprint:rubric_addition:4e869d77:v1
+            source: rubric_addition
+            source_text: 说明排序维度
+            acceptance_check: 候选人补充说明「说明排序维度」，并落到数据、案例、客户/用户反馈、流程证据、协作动作或验证方式中的至少一类具体证据。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:prioritization.roadmap_tradeoff.limited_sprint:rubric_addition:78377de3:v1
+            source: rubric_addition
+            source_text: 说明被延后项的理由
+            acceptance_check: 候选人补充说明「说明被延后项的理由」，并落到数据、案例、客户/用户反馈、流程证据、协作动作或验证方式中的至少一类具体证据。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:prioritization.roadmap_tradeoff.limited_sprint:rubric_addition:9d87ffed:v1
+            source: rubric_addition
+            source_text: 说明后续复盘方式
+            acceptance_check: 候选人补充说明「说明后续复盘方式」，并落到数据、案例、客户/用户反馈、流程证据、协作动作或验证方式中的至少一类具体证据。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
         priority: 17
         status: active
       - id: prioritization.roadmap_tradeoff.strategic_vs_short_term
@@ -48,5 +126,83 @@ seeds:
         expected_signals: [能量化短期和长期价值, 能处理业务压力, 能设计阶段性里程碑]
         anti_patterns: [只讲愿景不看结果, 只追短期 KPI, 不沟通风险]
         good_answer_hints: [先拆收益周期, 再做阶段性方案, 最后用里程碑对齐]
+        reviewed_acceptance_checks:
+          - check_id: reviewed:prioritization.roadmap_tradeoff.strategic_vs_short_term:must_cover:654b0159:v1
+            source: must_cover
+            source_text: 用户价值
+            acceptance_check: 候选人围绕「用户价值」说明对象分层、真实诉求、证据来源和后续业务动作。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:prioritization.roadmap_tradeoff.strategic_vs_short_term:must_cover:ac313bb3:v1
+            source: must_cover
+            source_text: 业务收益
+            acceptance_check: 候选人围绕「业务收益」说明优先级目标、判断标准、取舍理由、风险和沟通结果。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:prioritization.roadmap_tradeoff.strategic_vs_short_term:must_cover:4fee8d7d:v1
+            source: must_cover
+            source_text: 成本风险
+            acceptance_check: 候选人围绕「成本风险」说明风险或边界条件、处理原则、升级/兜底动作和复盘跟进。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:prioritization.roadmap_tradeoff.strategic_vs_short_term:must_cover:554b5dff:v1
+            source: must_cover
+            source_text: 时间窗口
+            acceptance_check: 候选人围绕「时间窗口」说明优先级目标、判断标准、取舍理由、风险和沟通结果。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:prioritization.roadmap_tradeoff.strategic_vs_short_term:rubric_addition:0f5e0786:v1
+            source: rubric_addition
+            source_text: 说明短期与长期指标
+            acceptance_check: 候选人补充说明「说明短期与长期指标」，并落到数据、案例、客户/用户反馈、流程证据、协作动作或验证方式中的至少一类具体证据。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:prioritization.roadmap_tradeoff.strategic_vs_short_term:rubric_addition:5157801d:v1
+            source: rubric_addition
+            source_text: 说明机会成本
+            acceptance_check: 候选人补充说明「说明机会成本」，并落到数据、案例、客户/用户反馈、流程证据、协作动作或验证方式中的至少一类具体证据。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:prioritization.roadmap_tradeoff.strategic_vs_short_term:rubric_addition:d199e9ce:v1
+            source: rubric_addition
+            source_text: 说明对齐和验证机制
+            acceptance_check: 候选人补充说明「说明对齐和验证机制」，并落到数据、案例、客户/用户反馈、流程证据、协作动作或验证方式中的至少一类具体证据。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
         priority: 16
         status: active

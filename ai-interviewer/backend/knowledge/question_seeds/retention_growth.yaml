@@ -32,6 +32,84 @@ seeds:
         expected_signals: [Checks health data, maps decision makers, proposes value recovery plan]
         anti_patterns: [Trusts relationship only, waits until renewal call, pushes discount first]
         good_answer_hints: [Read health signals, find value gap, act before renewal deadline]
+        reviewed_acceptance_checks:
+          - check_id: reviewed:retention_growth.customer_renewal_risk.low_usage_before_renewal:must_cover:2fc630ed:v1
+            source: must_cover
+            source_text: health_signal
+            acceptance_check: 候选人围绕「health_signal」说明客户留存目标、风险信号、干预动作、协作机制和结果验证。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:retention_growth.customer_renewal_risk.low_usage_before_renewal:must_cover:79bf11f4:v1
+            source: must_cover
+            source_text: value_realization
+            acceptance_check: 候选人围绕「value_realization」说明客户留存目标、风险信号、干预动作、协作机制和结果验证。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:retention_growth.customer_renewal_risk.low_usage_before_renewal:must_cover:3fb392a7:v1
+            source: must_cover
+            source_text: stakeholder_map
+            acceptance_check: 候选人围绕「stakeholder_map」说明客户留存目标、风险信号、干预动作、协作机制和结果验证。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:retention_growth.customer_renewal_risk.low_usage_before_renewal:must_cover:5493437c:v1
+            source: must_cover
+            source_text: renewal_action
+            acceptance_check: 候选人围绕「renewal_action」说明客户留存目标、风险信号、干预动作、协作机制和结果验证。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:retention_growth.customer_renewal_risk.low_usage_before_renewal:rubric_addition:b2a8faa5:v1
+            source: rubric_addition
+            source_text: Use usage and stakeholder signals
+            acceptance_check: 候选人补充说明「Use usage and stakeholder signals」，并落到数据、案例、客户/用户反馈、流程证据、协作动作或验证方式中的至少一类具体证据。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:retention_growth.customer_renewal_risk.low_usage_before_renewal:rubric_addition:92c7b4e5:v1
+            source: rubric_addition
+            source_text: identify value gap
+            acceptance_check: 候选人补充说明「identify value gap」，并落到数据、案例、客户/用户反馈、流程证据、协作动作或验证方式中的至少一类具体证据。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:retention_growth.customer_renewal_risk.low_usage_before_renewal:rubric_addition:045f7f9d:v1
+            source: rubric_addition
+            source_text: prioritize recovery actions
+            acceptance_check: 候选人补充说明「prioritize recovery actions」，并落到数据、案例、客户/用户反馈、流程证据、协作动作或验证方式中的至少一类具体证据。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
         priority: 18
         status: active
       - id: retention_growth.customer_renewal_risk.expansion_vs_retention
@@ -48,5 +126,83 @@ seeds:
         expected_signals: [Uses adoption evidence, explains tradeoff, sets expansion readiness criteria]
         anti_patterns: [Always follows sales target, avoids revenue discussion, ignores current value gap]
         good_answer_hints: [Assess readiness, align internal incentives, protect long term account health]
+        reviewed_acceptance_checks:
+          - check_id: reviewed:retention_growth.customer_renewal_risk.expansion_vs_retention:must_cover:1abfd487:v1
+            source: must_cover
+            source_text: health_signal
+            acceptance_check: 候选人围绕「health_signal」说明客户留存目标、风险信号、干预动作、协作机制和结果验证。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:retention_growth.customer_renewal_risk.expansion_vs_retention:must_cover:66c8d714:v1
+            source: must_cover
+            source_text: value_realization
+            acceptance_check: 候选人围绕「value_realization」说明客户留存目标、风险信号、干预动作、协作机制和结果验证。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:retention_growth.customer_renewal_risk.expansion_vs_retention:must_cover:8dcdd165:v1
+            source: must_cover
+            source_text: stakeholder_map
+            acceptance_check: 候选人围绕「stakeholder_map」说明客户留存目标、风险信号、干预动作、协作机制和结果验证。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:retention_growth.customer_renewal_risk.expansion_vs_retention:must_cover:5a79c6f3:v1
+            source: must_cover
+            source_text: renewal_action
+            acceptance_check: 候选人围绕「renewal_action」说明客户留存目标、风险信号、干预动作、协作机制和结果验证。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:retention_growth.customer_renewal_risk.expansion_vs_retention:rubric_addition:d38ee234:v1
+            source: rubric_addition
+            source_text: Compare account readiness
+            acceptance_check: 候选人补充说明「Compare account readiness」，并落到数据、案例、客户/用户反馈、流程证据、协作动作或验证方式中的至少一类具体证据。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:retention_growth.customer_renewal_risk.expansion_vs_retention:rubric_addition:d8e0fb3b:v1
+            source: rubric_addition
+            source_text: align sales and success
+            acceptance_check: 候选人补充说明「align sales and success」，并落到数据、案例、客户/用户反馈、流程证据、协作动作或验证方式中的至少一类具体证据。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:retention_growth.customer_renewal_risk.expansion_vs_retention:rubric_addition:2930bb1e:v1
+            source: rubric_addition
+            source_text: define customer value condition
+            acceptance_check: 候选人补充说明「define customer value condition」，并落到数据、案例、客户/用户反馈、流程证据、协作动作或验证方式中的至少一类具体证据。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
         priority: 16
         status: active

@@ -32,6 +32,84 @@ seeds:
         expected_signals: [能拆里程碑, 能识别依赖和缓冲, 能设计 check-in 机制]
         anti_patterns: [只列待办清单, 没有负责人, 风险到上线才暴露]
         good_answer_hints: [先拆目标和节点, 再明确责任, 最后设置风险预案]
+        reviewed_acceptance_checks:
+          - check_id: reviewed:campaign_execution.campaign_launch_review.launch_timeline:must_cover:0b2af465:v1
+            source: must_cover
+            source_text: 活动目标
+            acceptance_check: 候选人围绕「活动目标」说明目标或问题背景、关键约束、涉及对象和本人澄清/拆解动作。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:campaign_execution.campaign_launch_review.launch_timeline:must_cover:e21418d9:v1
+            source: must_cover
+            source_text: 执行节点
+            acceptance_check: 候选人围绕「执行节点」说明执行目标、节奏拆解、风险预案、协作推进和上线后复盘。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:campaign_execution.campaign_launch_review.launch_timeline:must_cover:68efd4cc:v1
+            source: must_cover
+            source_text: 风险预案
+            acceptance_check: 候选人围绕「风险预案」说明风险或边界条件、处理原则、升级/兜底动作和复盘跟进。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:campaign_execution.campaign_launch_review.launch_timeline:must_cover:ae8ec9a2:v1
+            source: must_cover
+            source_text: 复盘归因
+            acceptance_check: 候选人围绕「复盘归因」说明验证方式、反馈来源、复盘结论和下一步改进动作。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:campaign_execution.campaign_launch_review.launch_timeline:rubric_addition:62169319:v1
+            source: rubric_addition
+            source_text: 说明时间节点和责任人
+            acceptance_check: 候选人补充说明「说明时间节点和责任人」，并落到数据、案例、客户/用户反馈、流程证据、协作动作或验证方式中的至少一类具体证据。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:campaign_execution.campaign_launch_review.launch_timeline:rubric_addition:4749a269:v1
+            source: rubric_addition
+            source_text: 说明关键风险和预案
+            acceptance_check: 候选人补充说明「说明关键风险和预案」，并落到数据、案例、客户/用户反馈、流程证据、协作动作或验证方式中的至少一类具体证据。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:campaign_execution.campaign_launch_review.launch_timeline:rubric_addition:07d68604:v1
+            source: rubric_addition
+            source_text: 说明复盘指标
+            acceptance_check: 候选人补充说明「说明复盘指标」，并落到数据、案例、客户/用户反馈、流程证据、协作动作或验证方式中的至少一类具体证据。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
         priority: 17
         status: active
       - id: campaign_execution.campaign_launch_review.incident_response
@@ -48,5 +126,83 @@ seeds:
         expected_signals: [能先保护用户和业务, 能同步关键方, 能把事故转成 SOP 改进]
         anti_patterns: [先追责不止损, 隐瞒影响, 复盘没有行动]
         good_answer_hints: [先止损, 再沟通补偿, 最后复盘改流程]
+        reviewed_acceptance_checks:
+          - check_id: reviewed:campaign_execution.campaign_launch_review.incident_response:must_cover:cc8e199b:v1
+            source: must_cover
+            source_text: 活动目标
+            acceptance_check: 候选人围绕「活动目标」说明目标或问题背景、关键约束、涉及对象和本人澄清/拆解动作。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:campaign_execution.campaign_launch_review.incident_response:must_cover:b3170b21:v1
+            source: must_cover
+            source_text: 执行节点
+            acceptance_check: 候选人围绕「执行节点」说明执行目标、节奏拆解、风险预案、协作推进和上线后复盘。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:campaign_execution.campaign_launch_review.incident_response:must_cover:bee45c12:v1
+            source: must_cover
+            source_text: 风险预案
+            acceptance_check: 候选人围绕「风险预案」说明风险或边界条件、处理原则、升级/兜底动作和复盘跟进。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:campaign_execution.campaign_launch_review.incident_response:must_cover:64b3edf8:v1
+            source: must_cover
+            source_text: 复盘归因
+            acceptance_check: 候选人围绕「复盘归因」说明验证方式、反馈来源、复盘结论和下一步改进动作。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:campaign_execution.campaign_launch_review.incident_response:rubric_addition:caad7d5a:v1
+            source: rubric_addition
+            source_text: 说明止损优先级
+            acceptance_check: 候选人补充说明「说明止损优先级」，并落到数据、案例、客户/用户反馈、流程证据、协作动作或验证方式中的至少一类具体证据。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:campaign_execution.campaign_launch_review.incident_response:rubric_addition:379e31e6:v1
+            source: rubric_addition
+            source_text: 说明对用户和内部沟通
+            acceptance_check: 候选人补充说明「说明对用户和内部沟通」，并落到数据、案例、客户/用户反馈、流程证据、协作动作或验证方式中的至少一类具体证据。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:campaign_execution.campaign_launch_review.incident_response:rubric_addition:89fb2056:v1
+            source: rubric_addition
+            source_text: 说明复盘机制
+            acceptance_check: 候选人补充说明「说明复盘机制」，并落到数据、案例、客户/用户反馈、流程证据、协作动作或验证方式中的至少一类具体证据。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
         priority: 16
         status: active

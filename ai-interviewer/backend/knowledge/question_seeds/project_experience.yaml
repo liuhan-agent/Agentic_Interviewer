@@ -32,6 +32,84 @@ seeds:
         expected_signals: [能说清个人贡献边界, 能解释复杂页面拆分, 能给出上线质量或效率结果]
         anti_patterns: [只讲页面做完了, 不讲协作和风险, 没有结果反馈]
         good_answer_hints: [先讲业务目标, 再讲前端拆分和协作, 最后讲结果和复盘]
+        reviewed_acceptance_checks:
+          - check_id: reviewed:project_experience.frontend_complex_page_delivery.admin_console:must_cover:4e177319:v1
+            source: must_cover
+            source_text: 需求背景
+            acceptance_check: 候选人结合真实项目说明「需求背景」，包含本人动作、约束取舍、落地结果或复盘证据，避免只讲团队泛泛经历。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:project_experience.frontend_complex_page_delivery.admin_console:must_cover:62b5eed9:v1
+            source: must_cover
+            source_text: 页面拆分
+            acceptance_check: 候选人结合真实项目说明「页面拆分」，包含本人动作、约束取舍、落地结果或复盘证据，避免只讲团队泛泛经历。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:project_experience.frontend_complex_page_delivery.admin_console:must_cover:6d147ba2:v1
+            source: must_cover
+            source_text: 协作联调
+            acceptance_check: 候选人结合真实项目说明「协作联调」，包含本人动作、约束取舍、落地结果或复盘证据，避免只讲团队泛泛经历。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:project_experience.frontend_complex_page_delivery.admin_console:must_cover:8531c8b2:v1
+            source: must_cover
+            source_text: 上线结果
+            acceptance_check: 候选人结合真实项目说明「上线结果」，包含本人动作、约束取舍、落地结果或复盘证据，避免只讲团队泛泛经历。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:project_experience.frontend_complex_page_delivery.admin_console:rubric_addition:091da104:v1
+            source: rubric_addition
+            source_text: 说明本人职责
+            acceptance_check: 候选人补充说明「说明本人职责」，并落到本人职责、协作动作、量化结果、上线验证或复盘改进中的至少一类真实项目证据。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:project_experience.frontend_complex_page_delivery.admin_console:rubric_addition:5edb54f3:v1
+            source: rubric_addition
+            source_text: 说明页面和组件拆分
+            acceptance_check: 候选人补充说明「说明页面和组件拆分」，并落到本人职责、协作动作、量化结果、上线验证或复盘改进中的至少一类真实项目证据。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:project_experience.frontend_complex_page_delivery.admin_console:rubric_addition:18cfb9dd:v1
+            source: rubric_addition
+            source_text: 说明联调测试和上线结果
+            acceptance_check: 候选人补充说明「说明联调测试和上线结果」，并落到本人职责、协作动作、量化结果、上线验证或复盘改进中的至少一类真实项目证据。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
         priority: 15
         status: active
       - id: project_experience.frontend_complex_page_delivery.mobile_h5_campaign
@@ -48,6 +126,84 @@ seeds:
         expected_signals: [能按风险优先级安排验证, 能覆盖多端兼容和埋点, 能准备灰度或回滚动作]
         anti_patterns: [只靠手工点一遍, 不做埋点验收, 上线后不观察]
         good_answer_hints: [先识别活动关键路径, 再安排测试和验收, 最后做上线监控]
+        reviewed_acceptance_checks:
+          - check_id: reviewed:project_experience.frontend_complex_page_delivery.mobile_h5_campaign:must_cover:9770470e:v1
+            source: must_cover
+            source_text: 需求背景
+            acceptance_check: 候选人结合真实项目说明「需求背景」，包含本人动作、约束取舍、落地结果或复盘证据，避免只讲团队泛泛经历。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:project_experience.frontend_complex_page_delivery.mobile_h5_campaign:must_cover:dfc18f42:v1
+            source: must_cover
+            source_text: 页面拆分
+            acceptance_check: 候选人结合真实项目说明「页面拆分」，包含本人动作、约束取舍、落地结果或复盘证据，避免只讲团队泛泛经历。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:project_experience.frontend_complex_page_delivery.mobile_h5_campaign:must_cover:f8e290de:v1
+            source: must_cover
+            source_text: 协作联调
+            acceptance_check: 候选人结合真实项目说明「协作联调」，包含本人动作、约束取舍、落地结果或复盘证据，避免只讲团队泛泛经历。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:project_experience.frontend_complex_page_delivery.mobile_h5_campaign:must_cover:2705344a:v1
+            source: must_cover
+            source_text: 上线结果
+            acceptance_check: 候选人结合真实项目说明「上线结果」，包含本人动作、约束取舍、落地结果或复盘证据，避免只讲团队泛泛经历。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:project_experience.frontend_complex_page_delivery.mobile_h5_campaign:rubric_addition:43c9834f:v1
+            source: rubric_addition
+            source_text: 说明质量风险清单
+            acceptance_check: 候选人补充说明「说明质量风险清单」，并落到本人职责、协作动作、量化结果、上线验证或复盘改进中的至少一类真实项目证据。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:project_experience.frontend_complex_page_delivery.mobile_h5_campaign:rubric_addition:f09581a9:v1
+            source: rubric_addition
+            source_text: 说明兼容和性能验证
+            acceptance_check: 候选人补充说明「说明兼容和性能验证」，并落到本人职责、协作动作、量化结果、上线验证或复盘改进中的至少一类真实项目证据。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:project_experience.frontend_complex_page_delivery.mobile_h5_campaign:rubric_addition:cebb35fb:v1
+            source: rubric_addition
+            source_text: 说明上线观察和回滚
+            acceptance_check: 候选人补充说明「说明上线观察和回滚」，并落到本人职责、协作动作、量化结果、上线验证或复盘改进中的至少一类真实项目证据。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
         priority: 13
         status: active
 
@@ -83,6 +239,84 @@ seeds:
         expected_signals: [能限制操作范围, 能保留审计记录, 能验证执行前后服务状态]
         anti_patterns: [全量直接执行, 无审批无审计, 失败后不知道执行到哪一步]
         good_answer_hints: [先限定影响范围, 再做灰度和 dry run, 最后补审计和回滚]
+        reviewed_acceptance_checks:
+          - check_id: reviewed:project_experience.sre_automation_safety_rollout.restart_runbook:must_cover:71e072bb:v1
+            source: must_cover
+            source_text: 问题背景
+            acceptance_check: 候选人结合真实项目说明「问题背景」，包含本人动作、约束取舍、落地结果或复盘证据，避免只讲团队泛泛经历。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:project_experience.sre_automation_safety_rollout.restart_runbook:must_cover:d2ae40f2:v1
+            source: must_cover
+            source_text: 自动化边界
+            acceptance_check: 候选人结合真实项目说明「自动化边界」，包含本人动作、约束取舍、落地结果或复盘证据，避免只讲团队泛泛经历。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:project_experience.sre_automation_safety_rollout.restart_runbook:must_cover:60d00433:v1
+            source: must_cover
+            source_text: 灰度验证
+            acceptance_check: 候选人围绕「灰度验证」说明兼容、灰度、回滚或迁移边界，包含触发条件、风险控制和验证方式。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:project_experience.sre_automation_safety_rollout.restart_runbook:must_cover:850eae77:v1
+            source: must_cover
+            source_text: 风险兜底
+            acceptance_check: 候选人结合真实项目说明「风险兜底」，包含本人动作、约束取舍、落地结果或复盘证据，避免只讲团队泛泛经历。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:project_experience.sre_automation_safety_rollout.restart_runbook:rubric_addition:cf2afe65:v1
+            source: rubric_addition
+            source_text: 说明目标和影响范围
+            acceptance_check: 候选人补充说明「说明目标和影响范围」，并落到本人职责、协作动作、量化结果、上线验证或复盘改进中的至少一类真实项目证据。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:project_experience.sre_automation_safety_rollout.restart_runbook:rubric_addition:69ee5b1e:v1
+            source: rubric_addition
+            source_text: 说明 dry run 与权限控制
+            acceptance_check: 候选人补充说明「说明 dry run 与权限控制」，并落到本人职责、协作动作、量化结果、上线验证或复盘改进中的至少一类真实项目证据。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:project_experience.sre_automation_safety_rollout.restart_runbook:rubric_addition:7586e3e5:v1
+            source: rubric_addition
+            source_text: 说明上线验证和审计
+            acceptance_check: 候选人补充说明「说明上线验证和审计」，并落到本人职责、协作动作、量化结果、上线验证或复盘改进中的至少一类真实项目证据。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
         priority: 16
         status: active
       - id: project_experience.sre_automation_safety_rollout.config_change
@@ -99,6 +333,84 @@ seeds:
         expected_signals: [能阻断非法配置, 能按服务风险分批, 能追踪每次变更结果]
         anti_patterns: [全量直接改, 无法回滚, 没有配置校验]
         good_answer_hints: [先做配置校验和影响分析, 再灰度执行, 最后验证告警和服务指标]
+        reviewed_acceptance_checks:
+          - check_id: reviewed:project_experience.sre_automation_safety_rollout.config_change:must_cover:4c08a063:v1
+            source: must_cover
+            source_text: 问题背景
+            acceptance_check: 候选人结合真实项目说明「问题背景」，包含本人动作、约束取舍、落地结果或复盘证据，避免只讲团队泛泛经历。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:project_experience.sre_automation_safety_rollout.config_change:must_cover:ae137d90:v1
+            source: must_cover
+            source_text: 自动化边界
+            acceptance_check: 候选人结合真实项目说明「自动化边界」，包含本人动作、约束取舍、落地结果或复盘证据，避免只讲团队泛泛经历。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:project_experience.sre_automation_safety_rollout.config_change:must_cover:8888b4c9:v1
+            source: must_cover
+            source_text: 灰度验证
+            acceptance_check: 候选人围绕「灰度验证」说明兼容、灰度、回滚或迁移边界，包含触发条件、风险控制和验证方式。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:project_experience.sre_automation_safety_rollout.config_change:must_cover:f49dba2c:v1
+            source: must_cover
+            source_text: 风险兜底
+            acceptance_check: 候选人结合真实项目说明「风险兜底」，包含本人动作、约束取舍、落地结果或复盘证据，避免只讲团队泛泛经历。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:project_experience.sre_automation_safety_rollout.config_change:rubric_addition:d0141340:v1
+            source: rubric_addition
+            source_text: 说明配置 schema 校验
+            acceptance_check: 候选人补充说明「说明配置 schema 校验」，并落到本人职责、协作动作、量化结果、上线验证或复盘改进中的至少一类真实项目证据。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:project_experience.sre_automation_safety_rollout.config_change:rubric_addition:22f2da8b:v1
+            source: rubric_addition
+            source_text: 说明分批灰度和回滚
+            acceptance_check: 候选人补充说明「说明分批灰度和回滚」，并落到本人职责、协作动作、量化结果、上线验证或复盘改进中的至少一类真实项目证据。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:project_experience.sre_automation_safety_rollout.config_change:rubric_addition:932a8b06:v1
+            source: rubric_addition
+            source_text: 说明告警验证和复盘
+            acceptance_check: 候选人补充说明「说明告警验证和复盘」，并落到本人职责、协作动作、量化结果、上线验证或复盘改进中的至少一类真实项目证据。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
         priority: 14
         status: active
 
@@ -134,6 +446,84 @@ seeds:
         expected_signals: [能说清个人贡献边界, 能解释关键技术取舍, 能给出结果指标或业务反馈]
         anti_patterns: [只讲团队做了什么, 没有本人动作, 没有上线结果]
         good_answer_hints: [先讲背景目标, 再讲自己的模块和取舍, 最后讲结果和复盘]
+        reviewed_acceptance_checks:
+          - check_id: reviewed:project_experience.java_backend_project_delivery.eldercare_workflow:must_cover:8de53cc0:v1
+            source: must_cover
+            source_text: 目标背景
+            acceptance_check: 候选人说明项目目标、业务背景、约束条件和成功标准，让后续技术方案有明确评价上下文。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:project_experience.java_backend_project_delivery.eldercare_workflow:must_cover:f87771e2:v1
+            source: must_cover
+            source_text: 本人职责
+            acceptance_check: 候选人清楚划分自己负责的模块、决策、代码或协作边界，避免把团队成果笼统算作个人贡献。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:project_experience.java_backend_project_delivery.eldercare_workflow:must_cover:37fe9ca5:v1
+            source: must_cover
+            source_text: 技术方案
+            acceptance_check: 候选人说明关键技术方案、架构取舍、数据流或接口设计，并解释为什么适合该项目约束。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:project_experience.java_backend_project_delivery.eldercare_workflow:must_cover:2884b915:v1
+            source: must_cover
+            source_text: 结果复盘
+            acceptance_check: 候选人给出上线结果、指标变化、用户/业务反馈、故障复盘或后续改进，而不是只说项目已完成。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:project_experience.java_backend_project_delivery.eldercare_workflow:rubric_addition:b9b04d5b:v1
+            source: rubric_addition
+            source_text: 说明项目目标和约束
+            acceptance_check: 候选人补充说明「说明项目目标和约束」，并给出可验证的指标、动作、样例或取舍，能对应到本题具体场景。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:project_experience.java_backend_project_delivery.eldercare_workflow:rubric_addition:5bc98a02:v1
+            source: rubric_addition
+            source_text: 说明本人负责的模块
+            acceptance_check: 候选人补充说明「说明本人负责的模块」，并给出可验证的指标、动作、样例或取舍，能对应到本题具体场景。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:project_experience.java_backend_project_delivery.eldercare_workflow:rubric_addition:052fa858:v1
+            source: rubric_addition
+            source_text: 说明上线效果和复盘改进
+            acceptance_check: 候选人补充说明「说明上线效果和复盘改进」，并给出可验证的指标、动作、样例或取舍，能对应到本题具体场景。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
         priority: 17
         status: active
       - id: project_experience.java_backend_project_delivery.education_order_loop
@@ -150,6 +540,84 @@ seeds:
         expected_signals: [能主动澄清边界条件, 能推动跨端联调, 能用指标验证上线效果]
         anti_patterns: [等别人给明确方案, 只在本地自测, 上线后不观察]
         good_answer_hints: [先对齐接口和验收, 再推进联调和灰度, 最后用数据确认]
+        reviewed_acceptance_checks:
+          - check_id: reviewed:project_experience.java_backend_project_delivery.education_order_loop:must_cover:9b9f6c44:v1
+            source: must_cover
+            source_text: 目标背景
+            acceptance_check: 候选人说明项目目标、业务背景、约束条件和成功标准，让后续技术方案有明确评价上下文。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:project_experience.java_backend_project_delivery.education_order_loop:must_cover:84ea2099:v1
+            source: must_cover
+            source_text: 本人职责
+            acceptance_check: 候选人清楚划分自己负责的模块、决策、代码或协作边界，避免把团队成果笼统算作个人贡献。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:project_experience.java_backend_project_delivery.education_order_loop:must_cover:2ea3f60b:v1
+            source: must_cover
+            source_text: 技术方案
+            acceptance_check: 候选人说明关键技术方案、架构取舍、数据流或接口设计，并解释为什么适合该项目约束。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:project_experience.java_backend_project_delivery.education_order_loop:must_cover:afdfc43a:v1
+            source: must_cover
+            source_text: 结果复盘
+            acceptance_check: 候选人给出上线结果、指标变化、用户/业务反馈、故障复盘或后续改进，而不是只说项目已完成。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:project_experience.java_backend_project_delivery.education_order_loop:rubric_addition:147c3534:v1
+            source: rubric_addition
+            source_text: 说明需求和接口对齐
+            acceptance_check: 候选人补充说明「说明需求和接口对齐」，并给出可验证的指标、动作、样例或取舍，能对应到本题具体场景。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:project_experience.java_backend_project_delivery.education_order_loop:rubric_addition:75627629:v1
+            source: rubric_addition
+            source_text: 说明联调与测试策略
+            acceptance_check: 候选人补充说明「说明联调与测试策略」，并给出可验证的指标、动作、样例或取舍，能对应到本题具体场景。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:project_experience.java_backend_project_delivery.education_order_loop:rubric_addition:16c61a1d:v1
+            source: rubric_addition
+            source_text: 说明灰度和监控验证
+            acceptance_check: 候选人补充说明「说明灰度和监控验证」，并给出可验证的指标、动作、样例或取舍，能对应到本题具体场景。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
         priority: 15
         status: active
 
@@ -185,6 +653,84 @@ seeds:
         expected_signals: [能给出 P95 QPS 错误率等指标, 能说明瓶颈来源, 能评估缓存索引异步化等方案取舍]
         anti_patterns: [只说加缓存, 没有量化指标, 不知道优化是否有效]
         good_answer_hints: [先讲症状和指标, 再讲定位过程和方案, 最后讲验证和回滚]
+        reviewed_acceptance_checks:
+          - check_id: reviewed:project_experience.java_performance_optimization_review.coupon_stock_optimization:must_cover:09099866:v1
+            source: must_cover
+            source_text: 瓶颈证据
+            acceptance_check: 候选人用监控、压测、慢查询、火焰图、日志或业务指标证明性能瓶颈，而不是凭经验下结论。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:project_experience.java_performance_optimization_review.coupon_stock_optimization:must_cover:51aaef39:v1
+            source: must_cover
+            source_text: 优化方案
+            acceptance_check: 候选人说明具体优化动作、适用条件和副作用，如索引、缓存、批处理、异步化、拆分或代码路径优化。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:project_experience.java_performance_optimization_review.coupon_stock_optimization:must_cover:d7a3724e:v1
+            source: must_cover
+            source_text: 验证指标
+            acceptance_check: 候选人给出优化前后的延迟、吞吐、错误率、资源消耗或业务成功率对比，并说明验证环境。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:project_experience.java_performance_optimization_review.coupon_stock_optimization:must_cover:aabf92d4:v1
+            source: must_cover
+            source_text: 风险控制
+            acceptance_check: 候选人说明灰度、回滚、数据校验、监控告警和兼容策略，避免优化引入一致性或稳定性问题。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:project_experience.java_performance_optimization_review.coupon_stock_optimization:rubric_addition:43fecc2c:v1
+            source: rubric_addition
+            source_text: 说明优化前指标
+            acceptance_check: 候选人补充说明「说明优化前指标」，并给出可验证的指标、动作、样例或取舍，能对应到本题具体场景。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:project_experience.java_performance_optimization_review.coupon_stock_optimization:rubric_addition:b059f5cd:v1
+            source: rubric_addition
+            source_text: 说明定位证据
+            acceptance_check: 候选人补充说明「说明定位证据」，并给出可验证的指标、动作、样例或取舍，能对应到本题具体场景。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:project_experience.java_performance_optimization_review.coupon_stock_optimization:rubric_addition:b8a5e503:v1
+            source: rubric_addition
+            source_text: 说明优化后对比和副作用
+            acceptance_check: 候选人补充说明「说明优化后对比和副作用」，并给出可验证的指标、动作、样例或取舍，能对应到本题具体场景。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
         priority: 16
         status: active
       - id: project_experience.java_performance_optimization_review.database_write_reduction
@@ -201,6 +747,84 @@ seeds:
         expected_signals: [能分析写入频率和峰值, 能处理延迟写入带来的数据一致性, 能设计灰度验证]
         anti_patterns: [只减少写入不考虑丢数据, 不做压测, 不设置补偿]
         good_answer_hints: [先量化写入压力, 再设计安全降载方案, 最后验证一致性和性能]
+        reviewed_acceptance_checks:
+          - check_id: reviewed:project_experience.java_performance_optimization_review.database_write_reduction:must_cover:762ac9e1:v1
+            source: must_cover
+            source_text: 瓶颈证据
+            acceptance_check: 候选人用监控、压测、慢查询、火焰图、日志或业务指标证明性能瓶颈，而不是凭经验下结论。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:project_experience.java_performance_optimization_review.database_write_reduction:must_cover:027417ad:v1
+            source: must_cover
+            source_text: 优化方案
+            acceptance_check: 候选人说明至少一种与数据库写入减少相关的具体优化动作，并说明它适用在什么业务或数据条件下。
+            severity: core
+            review_status: reviewed
+            version: 2
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:project_experience.java_performance_optimization_review.database_write_reduction:must_cover:77ed0882:v1
+            source: must_cover
+            source_text: 验证指标
+            acceptance_check: 候选人给出优化前后的延迟、吞吐、错误率、资源消耗或业务成功率对比，并说明验证环境。
+            severity: core
+            review_status: reviewed
+            version: 2
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:project_experience.java_performance_optimization_review.database_write_reduction:must_cover:a6e28f72:v1
+            source: must_cover
+            source_text: 风险控制
+            acceptance_check: 候选人说明灰度、回滚、数据校验、监控告警和兼容策略，避免优化引入一致性或稳定性问题。
+            severity: core
+            review_status: reviewed
+            version: 2
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:project_experience.java_performance_optimization_review.database_write_reduction:rubric_addition:99a6c0a4:v1
+            source: rubric_addition
+            source_text: 说明写入放大的来源
+            acceptance_check: 候选人补充说明「说明写入放大的来源」，并给出可验证的指标、动作、样例或取舍，能对应到本题具体场景。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:project_experience.java_performance_optimization_review.database_write_reduction:rubric_addition:19a79b6d:v1
+            source: rubric_addition
+            source_text: 说明异步或批量的一致性边界
+            acceptance_check: 候选人补充说明「说明异步或批量的一致性边界」，并给出可验证的指标、动作、样例或取舍，能对应到本题具体场景。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:project_experience.java_performance_optimization_review.database_write_reduction:rubric_addition:8f0063ee:v1
+            source: rubric_addition
+            source_text: 说明压测和监控验证
+            acceptance_check: 候选人补充说明「说明压测和监控验证」，并给出可验证的指标、动作、样例或取舍，能对应到本题具体场景。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
         priority: 14
         status: active
 
@@ -209,7 +833,7 @@ seeds:
     title: Java AI 应用后端工作流交付
     dimension: project_experience
     job_levels: [junior, mid, senior]
-    skill_tags: [java, ai_application, workflow, rag, observability]
+    skill_tags: [java, ai_application, workflow, rag, observability, langchainj, spring_ai, springai, function_calling, tool_calling]
     direction_tags: [internet_tech]
     role_tags: [java_backend]
     rubric:
@@ -229,13 +853,91 @@ seeds:
         scenario_brief: 候选人参与过智能评估、报告生成、知识问答或自动化工作流后端。
         question_stem: 请复盘一个 Java 后端支撑 AI 应用或自动化工作流的项目，你负责了哪些关键链路？
         prompt_template: 结合候选人的 AI 应用或 Java 后端经历，生成一道项目经验题，要求追问任务状态、模型调用、结果校验、失败恢复和监控。
-        scenario_skill_tags: [java, ai application, workflow, task status, observability]
-        resume_anchor_hints: [java, llm, rag, workflow, report]
+        scenario_skill_tags: [java, ai application, workflow, task status, observability, langchainj, spring_ai, springai, rag, function_calling, tool_calling]
+        resume_anchor_hints: [java, llm, rag, workflow, report, langchainj, spring_ai, springai, function_calling, tool_calling]
         failure_categories: [vague_ownership, missing_observability, missing_edge_case]
         rubric_additions: [说明任务链路和本人职责, 说明模型调用失败处理, 说明结果校验和上线观察]
         expected_signals: [能把 AI 链路拆成后端状态和接口, 能处理异步任务和失败恢复, 能关注成本和质量指标]
         anti_patterns: [只说调模型接口, 不处理失败状态, 不记录输入输出证据]
         good_answer_hints: [先拆业务流程, 再讲后端任务和模型调用, 最后讲质量和观测]
+        reviewed_acceptance_checks:
+          - check_id: reviewed:project_experience.java_ai_workflow_delivery.health_assessment_pipeline:must_cover:13e64938:v1
+            source: must_cover
+            source_text: 业务场景
+            acceptance_check: 候选人说明 Java AI/RAG 工作流服务的业务目标、输入输出、用户场景和失败影响，避免只谈模型能力。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:project_experience.java_ai_workflow_delivery.health_assessment_pipeline:must_cover:1f2349a4:v1
+            source: must_cover
+            source_text: 后端链路
+            acceptance_check: 候选人描述 Java 后端任务编排、状态存储、LangChainJ/Spring-AI 模型调用、RAG 检索、Tool Calling、回调或结果落库的完整链路。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:project_experience.java_ai_workflow_delivery.health_assessment_pipeline:must_cover:c16674fa:v1
+            source: must_cover
+            source_text: 异常处理
+            acceptance_check: 候选人说明模型超时、RAG 检索为空、Tool Calling 失败、输出异常、下游失败、重试、兜底和人工介入策略。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:project_experience.java_ai_workflow_delivery.health_assessment_pipeline:must_cover:cba2ab25:v1
+            source: must_cover
+            source_text: 线上观察
+            acceptance_check: 候选人说明线上监控、成本、质量、延迟、模型失败率、检索命中率、人工复核或灰度指标如何持续观察。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:project_experience.java_ai_workflow_delivery.health_assessment_pipeline:rubric_addition:6a8bca0f:v1
+            source: rubric_addition
+            source_text: 说明任务链路和本人职责
+            acceptance_check: 候选人补充说明自己在任务编排、模型/RAG/工具调用、状态流转或结果落库中的职责边界，并给出可验证的动作、样例或取舍。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:project_experience.java_ai_workflow_delivery.health_assessment_pipeline:rubric_addition:fa6d80f2:v1
+            source: rubric_addition
+            source_text: 说明模型调用失败处理
+            acceptance_check: 候选人补充说明模型调用、RAG 检索或 Tool Calling 失败时的重试、降级、人工介入、告警或补偿动作。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:project_experience.java_ai_workflow_delivery.health_assessment_pipeline:rubric_addition:152d4015:v1
+            source: rubric_addition
+            source_text: 说明结果校验和上线观察
+            acceptance_check: 候选人补充说明 AI 结果校验、线上质量观察、成本/延迟监控和用户反馈闭环。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
         priority: 14
         status: active
       - id: project_experience.java_ai_workflow_delivery.agent_route_rollout
@@ -245,13 +947,91 @@ seeds:
         scenario_brief: AI 工作流需要灰度替换旧规则链路，用户体验和成本都要可控。
         question_stem: 当 Java 后端把旧规则链路灰度迁移到 AI 工作流时，你会如何控制风险？
         prompt_template: 生成一道 Java AI 工作流交付深挖题，要求候选人说明灰度路由、对照实验、回滚、审计和成本观测。
-        scenario_skill_tags: [java, ai workflow, gray release, fallback, metrics]
-        resume_anchor_hints: [java, gray, ai, workflow, fallback]
+        scenario_skill_tags: [java, ai workflow, gray release, fallback, metrics, langchainj, spring_ai, springai, rag, function_calling, tool_calling]
+        resume_anchor_hints: [java, gray, ai, workflow, fallback, langchainj, spring_ai, springai, rag, function_calling, tool_calling]
         failure_categories: [missing_tradeoff, missing_action, vague_metrics]
         rubric_additions: [说明灰度范围和回滚条件, 说明新旧链路对照指标, 说明成本和异常观测]
         expected_signals: [能保留旧链路兜底, 能设计小流量验证, 能关注模型质量和成本]
         anti_patterns: [一次性全量切换, 没有质量对照, 回滚依赖手工改库]
         good_answer_hints: [先定义灰度对象和指标, 再保留回滚路径, 最后沉淀对照数据]
+        reviewed_acceptance_checks:
+          - check_id: reviewed:project_experience.java_ai_workflow_delivery.agent_route_rollout:must_cover:ff960f28:v1
+            source: must_cover
+            source_text: 业务场景
+            acceptance_check: 候选人说明 Java AI/RAG 工作流灰度迁移的业务目标、输入输出、用户场景和失败影响，避免只谈模型能力。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:project_experience.java_ai_workflow_delivery.agent_route_rollout:must_cover:683041f2:v1
+            source: must_cover
+            source_text: 后端链路
+            acceptance_check: 候选人描述 Java 后端新旧链路路由、状态存储、LangChainJ/Spring-AI 模型调用、RAG 检索、Tool Calling、回调或结果落库的完整链路。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:project_experience.java_ai_workflow_delivery.agent_route_rollout:must_cover:84fd2ea7:v1
+            source: must_cover
+            source_text: 异常处理
+            acceptance_check: 候选人说明模型超时、RAG 检索为空、Tool Calling 失败、输出异常、下游失败、旧链路兜底、重试和人工介入策略。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:project_experience.java_ai_workflow_delivery.agent_route_rollout:must_cover:cb61c536:v1
+            source: must_cover
+            source_text: 线上观察
+            acceptance_check: 候选人说明灰度期间的线上监控、成本、质量、延迟、模型失败率、检索命中率、人工复核或回滚指标如何持续观察。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:project_experience.java_ai_workflow_delivery.agent_route_rollout:rubric_addition:4fb84930:v1
+            source: rubric_addition
+            source_text: 说明灰度范围和回滚条件
+            acceptance_check: 候选人补充说明 AI 工作流灰度范围、流量比例、触发回滚的质量/成本/延迟条件，以及旧链路兜底动作。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:project_experience.java_ai_workflow_delivery.agent_route_rollout:rubric_addition:7c5fdf3d:v1
+            source: rubric_addition
+            source_text: 说明新旧链路对照指标
+            acceptance_check: 候选人补充说明新旧规则链路与 AI/RAG 链路的效果、失败率、人工接管率、延迟或成本对照指标。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:project_experience.java_ai_workflow_delivery.agent_route_rollout:rubric_addition:bdbca6a0:v1
+            source: rubric_addition
+            source_text: 说明成本和异常观测
+            acceptance_check: 候选人补充说明模型调用成本、Token/延迟、异常率、RAG 命中率或工具调用失败率的观测与告警。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
         priority: 12
         status: active
 
@@ -287,6 +1067,84 @@ seeds:
         expected_signals: [能说清负责模块, 能解释方案选择, 能给出效果和问题]
         anti_patterns: [只说项目背景, 不说个人贡献, 没有上线结果]
         good_answer_hints: [先讲目标和职责, 再讲关键决策, 最后讲结果和复盘]
+        reviewed_acceptance_checks:
+          - check_id: reviewed:project_experience.ai_fullstack_end_to_end_delivery.internal_copilot:must_cover:88c91706:v1
+            source: must_cover
+            source_text: 需求拆解
+            acceptance_check: 候选人结合真实项目说明「需求拆解」，包含本人动作、约束取舍、落地结果或复盘证据，避免只讲团队泛泛经历。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:project_experience.ai_fullstack_end_to_end_delivery.internal_copilot:must_cover:9c3c4569:v1
+            source: must_cover
+            source_text: 技术落地
+            acceptance_check: 候选人结合真实项目说明「技术落地」，包含本人动作、约束取舍、落地结果或复盘证据，避免只讲团队泛泛经历。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:project_experience.ai_fullstack_end_to_end_delivery.internal_copilot:must_cover:d0f5b167:v1
+            source: must_cover
+            source_text: 联调上线
+            acceptance_check: 候选人结合真实项目说明「联调上线」，包含本人动作、约束取舍、落地结果或复盘证据，避免只讲团队泛泛经历。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:project_experience.ai_fullstack_end_to_end_delivery.internal_copilot:must_cover:dd621531:v1
+            source: must_cover
+            source_text: 效果复盘
+            acceptance_check: 候选人结合真实项目说明「效果复盘」，包含本人动作、约束取舍、落地结果或复盘证据，避免只讲团队泛泛经历。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:project_experience.ai_fullstack_end_to_end_delivery.internal_copilot:rubric_addition:e58faadc:v1
+            source: rubric_addition
+            source_text: 说明本人职责
+            acceptance_check: 候选人补充说明「说明本人职责」，并落到本人职责、协作动作、量化结果、上线验证或复盘改进中的至少一类真实项目证据。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:project_experience.ai_fullstack_end_to_end_delivery.internal_copilot:rubric_addition:27998fc1:v1
+            source: rubric_addition
+            source_text: 说明关键技术取舍
+            acceptance_check: 候选人补充说明「说明关键技术取舍」，并落到本人职责、协作动作、量化结果、上线验证或复盘改进中的至少一类真实项目证据。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:project_experience.ai_fullstack_end_to_end_delivery.internal_copilot:rubric_addition:b8b91638:v1
+            source: rubric_addition
+            source_text: 说明上线效果和复盘
+            acceptance_check: 候选人补充说明「说明上线效果和复盘」，并落到本人职责、协作动作、量化结果、上线验证或复盘改进中的至少一类真实项目证据。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
         priority: 15
         status: active
       - id: project_experience.ai_fullstack_end_to_end_delivery.feedback_iteration
@@ -303,6 +1161,84 @@ seeds:
         expected_signals: [能把反馈转成样本和指标, 能拆模型和产品问题, 能小步灰度验证]
         anti_patterns: [只改 prompt, 不收集样本, 不验证迭代效果]
         good_answer_hints: [先收集典型反馈, 再拆根因, 最后用样本和指标验证]
+        reviewed_acceptance_checks:
+          - check_id: reviewed:project_experience.ai_fullstack_end_to_end_delivery.feedback_iteration:must_cover:5c19d258:v1
+            source: must_cover
+            source_text: 需求拆解
+            acceptance_check: 候选人结合真实项目说明「需求拆解」，包含本人动作、约束取舍、落地结果或复盘证据，避免只讲团队泛泛经历。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:project_experience.ai_fullstack_end_to_end_delivery.feedback_iteration:must_cover:2a8b3b77:v1
+            source: must_cover
+            source_text: 技术落地
+            acceptance_check: 候选人结合真实项目说明「技术落地」，包含本人动作、约束取舍、落地结果或复盘证据，避免只讲团队泛泛经历。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:project_experience.ai_fullstack_end_to_end_delivery.feedback_iteration:must_cover:7d1646e2:v1
+            source: must_cover
+            source_text: 联调上线
+            acceptance_check: 候选人结合真实项目说明「联调上线」，包含本人动作、约束取舍、落地结果或复盘证据，避免只讲团队泛泛经历。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:project_experience.ai_fullstack_end_to_end_delivery.feedback_iteration:must_cover:069f45eb:v1
+            source: must_cover
+            source_text: 效果复盘
+            acceptance_check: 候选人结合真实项目说明「效果复盘」，包含本人动作、约束取舍、落地结果或复盘证据，避免只讲团队泛泛经历。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:project_experience.ai_fullstack_end_to_end_delivery.feedback_iteration:rubric_addition:72d13b56:v1
+            source: rubric_addition
+            source_text: 说明反馈来源
+            acceptance_check: 候选人补充说明「说明反馈来源」，并落到本人职责、协作动作、量化结果、上线验证或复盘改进中的至少一类真实项目证据。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:project_experience.ai_fullstack_end_to_end_delivery.feedback_iteration:rubric_addition:c2c5d2cc:v1
+            source: rubric_addition
+            source_text: 说明问题拆解
+            acceptance_check: 候选人补充说明「说明问题拆解」，并落到本人职责、协作动作、量化结果、上线验证或复盘改进中的至少一类真实项目证据。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:project_experience.ai_fullstack_end_to_end_delivery.feedback_iteration:rubric_addition:caf81c11:v1
+            source: rubric_addition
+            source_text: 说明迭代验证和风险控制
+            acceptance_check: 候选人补充说明「说明迭代验证和风险控制」，并落到本人职责、协作动作、量化结果、上线验证或复盘改进中的至少一类真实项目证据。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
         priority: 14
         status: active
   - id: project_experience.mobile_release_gray_monitoring
@@ -337,6 +1273,84 @@ seeds:
         expected_signals: [能说明灰度比例和渠道, 能看 crash free 和核心转化, 能处理异常发布]
         anti_patterns: [全量发布后再观察, 不看版本指标, 没有应急预案]
         good_answer_hints: [先讲发布策略, 再讲监控指标, 最后讲异常处理]
+        reviewed_acceptance_checks:
+          - check_id: reviewed:project_experience.mobile_release_gray_monitoring.version_rollout:must_cover:513b7558:v1
+            source: must_cover
+            source_text: 版本发布
+            acceptance_check: 候选人围绕「版本发布」说明兼容、灰度、回滚或迁移边界，包含触发条件、风险控制和验证方式。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:project_experience.mobile_release_gray_monitoring.version_rollout:must_cover:8b2a35c3:v1
+            source: must_cover
+            source_text: 灰度策略
+            acceptance_check: 候选人围绕「灰度策略」说明兼容、灰度、回滚或迁移边界，包含触发条件、风险控制和验证方式。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:project_experience.mobile_release_gray_monitoring.version_rollout:must_cover:2048e145:v1
+            source: must_cover
+            source_text: 质量指标
+            acceptance_check: 候选人围绕「质量指标」给出可量化口径、采集位置、阈值或观察窗口，并说明这些指标如何触发定位、告警、发布或复盘动作。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:project_experience.mobile_release_gray_monitoring.version_rollout:must_cover:271e08b2:v1
+            source: must_cover
+            source_text: 回滚预案
+            acceptance_check: 候选人围绕「回滚预案」说明兼容、灰度、回滚或迁移边界，包含触发条件、风险控制和验证方式。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:project_experience.mobile_release_gray_monitoring.version_rollout:rubric_addition:976dc2a6:v1
+            source: rubric_addition
+            source_text: 说明发布节奏
+            acceptance_check: 候选人补充说明「说明发布节奏」，并落到本人职责、协作动作、量化结果、上线验证或复盘改进中的至少一类真实项目证据。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:project_experience.mobile_release_gray_monitoring.version_rollout:rubric_addition:f3e5c770:v1
+            source: rubric_addition
+            source_text: 说明崩溃和核心链路指标
+            acceptance_check: 候选人补充说明「说明崩溃和核心链路指标」，并落到本人职责、协作动作、量化结果、上线验证或复盘改进中的至少一类真实项目证据。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:project_experience.mobile_release_gray_monitoring.version_rollout:rubric_addition:42c490a2:v1
+            source: rubric_addition
+            source_text: 说明暂停或回滚预案
+            acceptance_check: 候选人补充说明「说明暂停或回滚预案」，并落到本人职责、协作动作、量化结果、上线验证或复盘改进中的至少一类真实项目证据。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
         priority: 15
         status: active
       - id: project_experience.mobile_release_gray_monitoring.hotfix_review
@@ -353,6 +1367,84 @@ seeds:
         expected_signals: [能考虑平台审核和热修限制, 能做最小修复, 能验证核心链路]
         anti_patterns: [盲目热修, 不考虑审核周期, 不验证修复风险]
         good_answer_hints: [先判断影响和时效, 再选修复路径, 最后做验证和沟通]
+        reviewed_acceptance_checks:
+          - check_id: reviewed:project_experience.mobile_release_gray_monitoring.hotfix_review:must_cover:9512b2ec:v1
+            source: must_cover
+            source_text: 版本发布
+            acceptance_check: 候选人围绕「版本发布」说明兼容、灰度、回滚或迁移边界，包含触发条件、风险控制和验证方式。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:project_experience.mobile_release_gray_monitoring.hotfix_review:must_cover:debad3c4:v1
+            source: must_cover
+            source_text: 灰度策略
+            acceptance_check: 候选人围绕「灰度策略」说明兼容、灰度、回滚或迁移边界，包含触发条件、风险控制和验证方式。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:project_experience.mobile_release_gray_monitoring.hotfix_review:must_cover:5cc8f905:v1
+            source: must_cover
+            source_text: 质量指标
+            acceptance_check: 候选人围绕「质量指标」给出可量化口径、采集位置、阈值或观察窗口，并说明这些指标如何触发定位、告警、发布或复盘动作。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:project_experience.mobile_release_gray_monitoring.hotfix_review:must_cover:3e9d1f96:v1
+            source: must_cover
+            source_text: 回滚预案
+            acceptance_check: 候选人围绕「回滚预案」说明兼容、灰度、回滚或迁移边界，包含触发条件、风险控制和验证方式。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:project_experience.mobile_release_gray_monitoring.hotfix_review:rubric_addition:44b2d3d0:v1
+            source: rubric_addition
+            source_text: 说明修复方式取舍
+            acceptance_check: 候选人补充说明「说明修复方式取舍」，并落到本人职责、协作动作、量化结果、上线验证或复盘改进中的至少一类真实项目证据。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:project_experience.mobile_release_gray_monitoring.hotfix_review:rubric_addition:765d5715:v1
+            source: rubric_addition
+            source_text: 说明验证和灰度
+            acceptance_check: 候选人补充说明「说明验证和灰度」，并落到本人职责、协作动作、量化结果、上线验证或复盘改进中的至少一类真实项目证据。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:project_experience.mobile_release_gray_monitoring.hotfix_review:rubric_addition:380a911b:v1
+            source: rubric_addition
+            source_text: 说明用户影响和沟通
+            acceptance_check: 候选人补充说明「说明用户影响和沟通」，并落到本人职责、协作动作、量化结果、上线验证或复盘改进中的至少一类真实项目证据。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
         priority: 13
         status: active
   - id: project_experience.ai_algorithm_online_delivery
@@ -387,6 +1479,84 @@ seeds:
         expected_signals: [能说明模型目标和数据, 能解释实验设计, 能给出上线效果]
         anti_patterns: [只讲模型名称, 不讲数据和指标, 不知道线上结果]
         good_answer_hints: [先讲业务目标, 再讲模型和实验, 最后讲线上效果]
+        reviewed_acceptance_checks:
+          - check_id: reviewed:project_experience.ai_algorithm_online_delivery.recommendation_launch:must_cover:65b01349:v1
+            source: must_cover
+            source_text: 模型目标
+            acceptance_check: 候选人围绕「模型目标」说明模型输入输出、能力边界、质量风险、验证指标和兜底或迭代方式。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:project_experience.ai_algorithm_online_delivery.recommendation_launch:must_cover:bf9859be:v1
+            source: must_cover
+            source_text: 工程协作
+            acceptance_check: 候选人结合真实项目说明「工程协作」，包含本人动作、约束取舍、落地结果或复盘证据，避免只讲团队泛泛经历。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:project_experience.ai_algorithm_online_delivery.recommendation_launch:must_cover:fd2e4379:v1
+            source: must_cover
+            source_text: 灰度实验
+            acceptance_check: 候选人围绕「灰度实验」说明兼容、灰度、回滚或迁移边界，包含触发条件、风险控制和验证方式。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:project_experience.ai_algorithm_online_delivery.recommendation_launch:must_cover:d832e043:v1
+            source: must_cover
+            source_text: 效果复盘
+            acceptance_check: 候选人结合真实项目说明「效果复盘」，包含本人动作、约束取舍、落地结果或复盘证据，避免只讲团队泛泛经历。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:project_experience.ai_algorithm_online_delivery.recommendation_launch:rubric_addition:67dcb2f0:v1
+            source: rubric_addition
+            source_text: 说明本人职责和目标
+            acceptance_check: 候选人补充说明「说明本人职责和目标」，并落到本人职责、协作动作、量化结果、上线验证或复盘改进中的至少一类真实项目证据。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:project_experience.ai_algorithm_online_delivery.recommendation_launch:rubric_addition:3a1a4b4b:v1
+            source: rubric_addition
+            source_text: 说明实验和灰度
+            acceptance_check: 候选人补充说明「说明实验和灰度」，并落到本人职责、协作动作、量化结果、上线验证或复盘改进中的至少一类真实项目证据。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:project_experience.ai_algorithm_online_delivery.recommendation_launch:rubric_addition:63872fa9:v1
+            source: rubric_addition
+            source_text: 说明线上指标和复盘
+            acceptance_check: 候选人补充说明「说明线上指标和复盘」，并落到本人职责、协作动作、量化结果、上线验证或复盘改进中的至少一类真实项目证据。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
         priority: 15
         status: active
       - id: project_experience.ai_algorithm_online_delivery.cross_team_iteration
@@ -403,6 +1573,84 @@ seeds:
         expected_signals: [能推动埋点和数据质量, 能对齐业务指标, 能处理工程上线依赖]
         anti_patterns: [只交模型文件, 不关心埋点, 指标口径不一致]
         good_answer_hints: [先对齐目标和口径, 再拆协作依赖, 最后建立反馈节奏]
+        reviewed_acceptance_checks:
+          - check_id: reviewed:project_experience.ai_algorithm_online_delivery.cross_team_iteration:must_cover:bee8a7a6:v1
+            source: must_cover
+            source_text: 模型目标
+            acceptance_check: 候选人围绕「模型目标」说明模型输入输出、能力边界、质量风险、验证指标和兜底或迭代方式。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:project_experience.ai_algorithm_online_delivery.cross_team_iteration:must_cover:2ee0564d:v1
+            source: must_cover
+            source_text: 工程协作
+            acceptance_check: 候选人结合真实项目说明「工程协作」，包含本人动作、约束取舍、落地结果或复盘证据，避免只讲团队泛泛经历。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:project_experience.ai_algorithm_online_delivery.cross_team_iteration:must_cover:c07fa57c:v1
+            source: must_cover
+            source_text: 灰度实验
+            acceptance_check: 候选人围绕「灰度实验」说明兼容、灰度、回滚或迁移边界，包含触发条件、风险控制和验证方式。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:project_experience.ai_algorithm_online_delivery.cross_team_iteration:must_cover:3da3d111:v1
+            source: must_cover
+            source_text: 效果复盘
+            acceptance_check: 候选人结合真实项目说明「效果复盘」，包含本人动作、约束取舍、落地结果或复盘证据，避免只讲团队泛泛经历。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:project_experience.ai_algorithm_online_delivery.cross_team_iteration:rubric_addition:7828d09f:v1
+            source: rubric_addition
+            source_text: 说明数据和埋点协作
+            acceptance_check: 候选人补充说明「说明数据和埋点协作」，并落到本人职责、协作动作、量化结果、上线验证或复盘改进中的至少一类真实项目证据。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:project_experience.ai_algorithm_online_delivery.cross_team_iteration:rubric_addition:4fb4d783:v1
+            source: rubric_addition
+            source_text: 说明指标口径对齐
+            acceptance_check: 候选人补充说明「说明指标口径对齐」，并落到本人职责、协作动作、量化结果、上线验证或复盘改进中的至少一类真实项目证据。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:project_experience.ai_algorithm_online_delivery.cross_team_iteration:rubric_addition:10d10c19:v1
+            source: rubric_addition
+            source_text: 说明问题推进和复盘
+            acceptance_check: 候选人补充说明「说明问题推进和复盘」，并落到本人职责、协作动作、量化结果、上线验证或复盘改进中的至少一类真实项目证据。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
         priority: 14
         status: active
 
@@ -438,6 +1686,84 @@ seeds:
         expected_signals: [能列出 POC 与生产差距, 能定义 SLO / 监控 / 安全的生产化清单, 能给出业务量化指标]
         anti_patterns: [只讲 demo, 不区分生产/POC, 没有结果指标]
         good_answer_hints: [先讲 POC 差距, 再讲生产化清单, 最后讲结果]
+        reviewed_acceptance_checks:
+          - check_id: reviewed:project_experience.ai_fullstack_poc_to_production.iteration_record:must_cover:6ab784f8:v1
+            source: must_cover
+            source_text: POC 边界
+            acceptance_check: 候选人结合真实项目说明「POC 边界」，包含本人动作、约束取舍、落地结果或复盘证据，避免只讲团队泛泛经历。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:project_experience.ai_fullstack_poc_to_production.iteration_record:must_cover:294fc584:v1
+            source: must_cover
+            source_text: 生产化清单
+            acceptance_check: 候选人结合真实项目说明「生产化清单」，包含本人动作、约束取舍、落地结果或复盘证据，避免只讲团队泛泛经历。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:project_experience.ai_fullstack_poc_to_production.iteration_record:must_cover:a026dbe3:v1
+            source: must_cover
+            source_text: 监控完备
+            acceptance_check: 候选人围绕「监控完备」给出可量化口径、采集位置、阈值或观察窗口，并说明这些指标如何触发定位、告警、发布或复盘动作。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:project_experience.ai_fullstack_poc_to_production.iteration_record:must_cover:705af15e:v1
+            source: must_cover
+            source_text: 业务结果
+            acceptance_check: 候选人结合真实项目说明「业务结果」，包含本人动作、约束取舍、落地结果或复盘证据，避免只讲团队泛泛经历。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:project_experience.ai_fullstack_poc_to_production.iteration_record:rubric_addition:b1fe9545:v1
+            source: rubric_addition
+            source_text: 说明 POC 与生产差异
+            acceptance_check: 候选人补充说明「说明 POC 与生产差异」，并落到本人职责、协作动作、量化结果、上线验证或复盘改进中的至少一类真实项目证据。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:project_experience.ai_fullstack_poc_to_production.iteration_record:rubric_addition:4063988a:v1
+            source: rubric_addition
+            source_text: 说明生产化清单
+            acceptance_check: 候选人补充说明「说明生产化清单」，并落到本人职责、协作动作、量化结果、上线验证或复盘改进中的至少一类真实项目证据。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:project_experience.ai_fullstack_poc_to_production.iteration_record:rubric_addition:bd92678e:v1
+            source: rubric_addition
+            source_text: 说明量化业务结果
+            acceptance_check: 候选人补充说明「说明量化业务结果」，并落到本人职责、协作动作、量化结果、上线验证或复盘改进中的至少一类真实项目证据。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
         priority: 14
         status: active
       - id: project_experience.ai_fullstack_poc_to_production.tradeoff_review
@@ -454,6 +1780,84 @@ seeds:
         expected_signals: [能描述至少 2 个候选方案, 能讲出当时数据/约束, 能给出今天会怎么改]
         anti_patterns: [只夸自己决定对, 不讲替代方案, 没反思]
         good_answer_hints: [先列方案, 再讲决策依据, 最后反思]
+        reviewed_acceptance_checks:
+          - check_id: reviewed:project_experience.ai_fullstack_poc_to_production.tradeoff_review:must_cover:c8762f22:v1
+            source: must_cover
+            source_text: POC 边界
+            acceptance_check: 候选人结合真实项目说明「POC 边界」，包含本人动作、约束取舍、落地结果或复盘证据，避免只讲团队泛泛经历。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:project_experience.ai_fullstack_poc_to_production.tradeoff_review:must_cover:2028602b:v1
+            source: must_cover
+            source_text: 生产化清单
+            acceptance_check: 候选人结合真实项目说明「生产化清单」，包含本人动作、约束取舍、落地结果或复盘证据，避免只讲团队泛泛经历。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:project_experience.ai_fullstack_poc_to_production.tradeoff_review:must_cover:a25289d8:v1
+            source: must_cover
+            source_text: 监控完备
+            acceptance_check: 候选人围绕「监控完备」给出可量化口径、采集位置、阈值或观察窗口，并说明这些指标如何触发定位、告警、发布或复盘动作。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:project_experience.ai_fullstack_poc_to_production.tradeoff_review:must_cover:59ff4c79:v1
+            source: must_cover
+            source_text: 业务结果
+            acceptance_check: 候选人结合真实项目说明「业务结果」，包含本人动作、约束取舍、落地结果或复盘证据，避免只讲团队泛泛经历。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:project_experience.ai_fullstack_poc_to_production.tradeoff_review:rubric_addition:f19a5d5a:v1
+            source: rubric_addition
+            source_text: 说明权衡选项
+            acceptance_check: 候选人补充说明「说明权衡选项」，并落到本人职责、协作动作、量化结果、上线验证或复盘改进中的至少一类真实项目证据。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:project_experience.ai_fullstack_poc_to_production.tradeoff_review:rubric_addition:191bbba3:v1
+            source: rubric_addition
+            source_text: 说明决策依据
+            acceptance_check: 候选人补充说明「说明决策依据」，并落到本人职责、协作动作、量化结果、上线验证或复盘改进中的至少一类真实项目证据。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:project_experience.ai_fullstack_poc_to_production.tradeoff_review:rubric_addition:d4e614a9:v1
+            source: rubric_addition
+            source_text: 说明反思与改进
+            acceptance_check: 候选人补充说明「说明反思与改进」，并落到本人职责、协作动作、量化结果、上线验证或复盘改进中的至少一类真实项目证据。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
         priority: 12
         status: active
 
@@ -489,6 +1893,84 @@ seeds:
         expected_signals: [能定义灰度比例与升级节奏, 能用质量/成本/SLA 指标监控, 能定明确回滚触发条件]
         anti_patterns: [一次性切流量, 只看成功率不看质量, 没回滚机制]
         good_answer_hints: [先设灰度节奏, 再定监控指标, 最后明确回滚]
+        reviewed_acceptance_checks:
+          - check_id: reviewed:project_experience.ai_fullstack_canary_rollback.gradient_release:must_cover:e18c6545:v1
+            source: must_cover
+            source_text: 灰度策略
+            acceptance_check: 候选人围绕「灰度策略」说明兼容、灰度、回滚或迁移边界，包含触发条件、风险控制和验证方式。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:project_experience.ai_fullstack_canary_rollback.gradient_release:must_cover:17d69498:v1
+            source: must_cover
+            source_text: 监控指标
+            acceptance_check: 候选人围绕「监控指标」给出可量化口径、采集位置、阈值或观察窗口，并说明这些指标如何触发定位、告警、发布或复盘动作。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:project_experience.ai_fullstack_canary_rollback.gradient_release:must_cover:a6a43d69:v1
+            source: must_cover
+            source_text: 回滚触发
+            acceptance_check: 候选人围绕「回滚触发」说明兼容、灰度、回滚或迁移边界，包含触发条件、风险控制和验证方式。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:project_experience.ai_fullstack_canary_rollback.gradient_release:must_cover:d970676f:v1
+            source: must_cover
+            source_text: 复盘流程
+            acceptance_check: 候选人结合真实项目说明「复盘流程」，包含本人动作、约束取舍、落地结果或复盘证据，避免只讲团队泛泛经历。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:project_experience.ai_fullstack_canary_rollback.gradient_release:rubric_addition:cdc1533c:v1
+            source: rubric_addition
+            source_text: 说明灰度策略
+            acceptance_check: 候选人补充说明「说明灰度策略」，并落到本人职责、协作动作、量化结果、上线验证或复盘改进中的至少一类真实项目证据。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:project_experience.ai_fullstack_canary_rollback.gradient_release:rubric_addition:215cf010:v1
+            source: rubric_addition
+            source_text: 说明监控指标
+            acceptance_check: 候选人补充说明「说明监控指标」，并落到本人职责、协作动作、量化结果、上线验证或复盘改进中的至少一类真实项目证据。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:project_experience.ai_fullstack_canary_rollback.gradient_release:rubric_addition:e31093d8:v1
+            source: rubric_addition
+            source_text: 说明回滚触发
+            acceptance_check: 候选人补充说明「说明回滚触发」，并落到本人职责、协作动作、量化结果、上线验证或复盘改进中的至少一类真实项目证据。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
         priority: 12
         status: active
       - id: project_experience.ai_fullstack_canary_rollback.postmortem
@@ -505,6 +1987,84 @@ seeds:
         expected_signals: [能给出多层根因, 能区分立刻修复与长期改进, 能落地预防机制]
         anti_patterns: [只甩锅, 没修复路径, 没预防]
         good_answer_hints: [先分层根因, 再讲修复, 最后讲预防]
+        reviewed_acceptance_checks:
+          - check_id: reviewed:project_experience.ai_fullstack_canary_rollback.postmortem:must_cover:346f16d3:v1
+            source: must_cover
+            source_text: 灰度策略
+            acceptance_check: 候选人围绕「灰度策略」说明兼容、灰度、回滚或迁移边界，包含触发条件、风险控制和验证方式。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:project_experience.ai_fullstack_canary_rollback.postmortem:must_cover:8bc2f98f:v1
+            source: must_cover
+            source_text: 监控指标
+            acceptance_check: 候选人围绕「监控指标」给出可量化口径、采集位置、阈值或观察窗口，并说明这些指标如何触发定位、告警、发布或复盘动作。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:project_experience.ai_fullstack_canary_rollback.postmortem:must_cover:051801e4:v1
+            source: must_cover
+            source_text: 回滚触发
+            acceptance_check: 候选人围绕「回滚触发」说明兼容、灰度、回滚或迁移边界，包含触发条件、风险控制和验证方式。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:project_experience.ai_fullstack_canary_rollback.postmortem:must_cover:1e80443d:v1
+            source: must_cover
+            source_text: 复盘流程
+            acceptance_check: 候选人结合真实项目说明「复盘流程」，包含本人动作、约束取舍、落地结果或复盘证据，避免只讲团队泛泛经历。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:project_experience.ai_fullstack_canary_rollback.postmortem:rubric_addition:eba9e1af:v1
+            source: rubric_addition
+            source_text: 说明根因分析
+            acceptance_check: 候选人补充说明「说明根因分析」，并落到本人职责、协作动作、量化结果、上线验证或复盘改进中的至少一类真实项目证据。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:project_experience.ai_fullstack_canary_rollback.postmortem:rubric_addition:85061ce9:v1
+            source: rubric_addition
+            source_text: 说明修复路径
+            acceptance_check: 候选人补充说明「说明修复路径」，并落到本人职责、协作动作、量化结果、上线验证或复盘改进中的至少一类真实项目证据。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:project_experience.ai_fullstack_canary_rollback.postmortem:rubric_addition:a6e3c37d:v1
+            source: rubric_addition
+            source_text: 说明下次预防
+            acceptance_check: 候选人补充说明「说明下次预防」，并落到本人职责、协作动作、量化结果、上线验证或复盘改进中的至少一类真实项目证据。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
         priority: 10
         status: active
 
@@ -540,6 +2100,84 @@ seeds:
         expected_signals: [能选择对比基线, 能给出有节奏的迭代记录, 能给出业务量化结果]
         anti_patterns: [无基线对比, 一次性大改, 没结果指标]
         good_answer_hints: [先讲基线, 再讲迭代, 最后讲结果]
+        reviewed_acceptance_checks:
+          - check_id: reviewed:project_experience.ai_algorithm_baseline_to_online.full_iteration:must_cover:cd5076a5:v1
+            source: must_cover
+            source_text: 基线选择
+            acceptance_check: 候选人结合真实项目说明「基线选择」，包含本人动作、约束取舍、落地结果或复盘证据，避免只讲团队泛泛经历。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:project_experience.ai_algorithm_baseline_to_online.full_iteration:must_cover:41a80d2d:v1
+            source: must_cover
+            source_text: 迭代节奏
+            acceptance_check: 候选人结合真实项目说明「迭代节奏」，包含本人动作、约束取舍、落地结果或复盘证据，避免只讲团队泛泛经历。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:project_experience.ai_algorithm_baseline_to_online.full_iteration:must_cover:57afe8fd:v1
+            source: must_cover
+            source_text: 验证方法
+            acceptance_check: 候选人围绕「验证方法」给出测试或评估设计，说明样例来源、覆盖边界、通过标准和回归/线上验证方式。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:project_experience.ai_algorithm_baseline_to_online.full_iteration:must_cover:7a0f054d:v1
+            source: must_cover
+            source_text: 业务结果
+            acceptance_check: 候选人结合真实项目说明「业务结果」，包含本人动作、约束取舍、落地结果或复盘证据，避免只讲团队泛泛经历。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:project_experience.ai_algorithm_baseline_to_online.full_iteration:rubric_addition:8c95351f:v1
+            source: rubric_addition
+            source_text: 说明基线选择
+            acceptance_check: 候选人补充说明「说明基线选择」，并落到本人职责、协作动作、量化结果、上线验证或复盘改进中的至少一类真实项目证据。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:project_experience.ai_algorithm_baseline_to_online.full_iteration:rubric_addition:bb5b9d3b:v1
+            source: rubric_addition
+            source_text: 说明迭代节奏
+            acceptance_check: 候选人补充说明「说明迭代节奏」，并落到本人职责、协作动作、量化结果、上线验证或复盘改进中的至少一类真实项目证据。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:project_experience.ai_algorithm_baseline_to_online.full_iteration:rubric_addition:f9387d92:v1
+            source: rubric_addition
+            source_text: 说明业务量化结果
+            acceptance_check: 候选人补充说明「说明业务量化结果」，并落到本人职责、协作动作、量化结果、上线验证或复盘改进中的至少一类真实项目证据。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
         priority: 11
         status: active
       - id: project_experience.ai_algorithm_baseline_to_online.tradeoff
@@ -556,6 +2194,84 @@ seeds:
         expected_signals: [能描述至少 2 个候选方案, 能讲出当时数据/约束, 能给出今天会怎么改]
         anti_patterns: [只夸自己决定对, 不讲替代, 没反思]
         good_answer_hints: [先列候选, 再讲依据, 最后反思]
+        reviewed_acceptance_checks:
+          - check_id: reviewed:project_experience.ai_algorithm_baseline_to_online.tradeoff:must_cover:692841d5:v1
+            source: must_cover
+            source_text: 基线选择
+            acceptance_check: 候选人结合真实项目说明「基线选择」，包含本人动作、约束取舍、落地结果或复盘证据，避免只讲团队泛泛经历。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:project_experience.ai_algorithm_baseline_to_online.tradeoff:must_cover:6b1d6bff:v1
+            source: must_cover
+            source_text: 迭代节奏
+            acceptance_check: 候选人结合真实项目说明「迭代节奏」，包含本人动作、约束取舍、落地结果或复盘证据，避免只讲团队泛泛经历。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:project_experience.ai_algorithm_baseline_to_online.tradeoff:must_cover:98a54cb2:v1
+            source: must_cover
+            source_text: 验证方法
+            acceptance_check: 候选人围绕「验证方法」给出测试或评估设计，说明样例来源、覆盖边界、通过标准和回归/线上验证方式。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:project_experience.ai_algorithm_baseline_to_online.tradeoff:must_cover:8a000e07:v1
+            source: must_cover
+            source_text: 业务结果
+            acceptance_check: 候选人结合真实项目说明「业务结果」，包含本人动作、约束取舍、落地结果或复盘证据，避免只讲团队泛泛经历。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:project_experience.ai_algorithm_baseline_to_online.tradeoff:rubric_addition:484e15e4:v1
+            source: rubric_addition
+            source_text: 说明取舍候选
+            acceptance_check: 候选人补充说明「说明取舍候选」，并落到本人职责、协作动作、量化结果、上线验证或复盘改进中的至少一类真实项目证据。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:project_experience.ai_algorithm_baseline_to_online.tradeoff:rubric_addition:84b3546a:v1
+            source: rubric_addition
+            source_text: 说明决策依据
+            acceptance_check: 候选人补充说明「说明决策依据」，并落到本人职责、协作动作、量化结果、上线验证或复盘改进中的至少一类真实项目证据。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:project_experience.ai_algorithm_baseline_to_online.tradeoff:rubric_addition:307ef9a8:v1
+            source: rubric_addition
+            source_text: 说明反思与改进
+            acceptance_check: 候选人补充说明「说明反思与改进」，并落到本人职责、协作动作、量化结果、上线验证或复盘改进中的至少一类真实项目证据。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
         priority: 9
         status: active
 
@@ -591,6 +2307,84 @@ seeds:
         expected_signals: [能定义多渠道 badcase 收集, 能定标注质量门槛, 能定重训触发条件]
         anti_patterns: [只信用户反馈, 不做标注质量, 没回归测试]
         good_answer_hints: [先建收集, 再做标注, 最后定重训]
+        reviewed_acceptance_checks:
+          - check_id: reviewed:project_experience.ai_algorithm_badcase_loop.collection:must_cover:481e8dfd:v1
+            source: must_cover
+            source_text: badcase 收集
+            acceptance_check: 候选人结合真实项目说明「badcase 收集」，包含本人动作、约束取舍、落地结果或复盘证据，避免只讲团队泛泛经历。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:project_experience.ai_algorithm_badcase_loop.collection:must_cover:0ea83815:v1
+            source: must_cover
+            source_text: 标注流程
+            acceptance_check: 候选人结合真实项目说明「标注流程」，包含本人动作、约束取舍、落地结果或复盘证据，避免只讲团队泛泛经历。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:project_experience.ai_algorithm_badcase_loop.collection:must_cover:3c9f56b8:v1
+            source: must_cover
+            source_text: 重训触发
+            acceptance_check: 候选人结合真实项目说明「重训触发」，包含本人动作、约束取舍、落地结果或复盘证据，避免只讲团队泛泛经历。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:project_experience.ai_algorithm_badcase_loop.collection:must_cover:7a9b8ec4:v1
+            source: must_cover
+            source_text: 验收回归
+            acceptance_check: 候选人围绕「验收回归」给出测试或评估设计，说明样例来源、覆盖边界、通过标准和回归/线上验证方式。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:project_experience.ai_algorithm_badcase_loop.collection:rubric_addition:7030af4b:v1
+            source: rubric_addition
+            source_text: 说明收集来源
+            acceptance_check: 候选人补充说明「说明收集来源」，并落到本人职责、协作动作、量化结果、上线验证或复盘改进中的至少一类真实项目证据。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:project_experience.ai_algorithm_badcase_loop.collection:rubric_addition:0173dc49:v1
+            source: rubric_addition
+            source_text: 说明标注流程
+            acceptance_check: 候选人补充说明「说明标注流程」，并落到本人职责、协作动作、量化结果、上线验证或复盘改进中的至少一类真实项目证据。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:project_experience.ai_algorithm_badcase_loop.collection:rubric_addition:dae92ab1:v1
+            source: rubric_addition
+            source_text: 说明重训触发
+            acceptance_check: 候选人补充说明「说明重训触发」，并落到本人职责、协作动作、量化结果、上线验证或复盘改进中的至少一类真实项目证据。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
         priority: 10
         status: active
       - id: project_experience.ai_algorithm_badcase_loop.acceptance
@@ -607,6 +2401,84 @@ seeds:
         expected_signals: [能维护历史 badcase 回归集, 能用对照实验确认无退化, 能定上线门槛]
         anti_patterns: [无回归测试, 不做对照, 直接全量发布]
         good_answer_hints: [先回归集, 再做对照, 最后定门槛]
+        reviewed_acceptance_checks:
+          - check_id: reviewed:project_experience.ai_algorithm_badcase_loop.acceptance:must_cover:0cdb5d20:v1
+            source: must_cover
+            source_text: badcase 收集
+            acceptance_check: 候选人结合真实项目说明「badcase 收集」，包含本人动作、约束取舍、落地结果或复盘证据，避免只讲团队泛泛经历。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:project_experience.ai_algorithm_badcase_loop.acceptance:must_cover:9f2f9871:v1
+            source: must_cover
+            source_text: 标注流程
+            acceptance_check: 候选人结合真实项目说明「标注流程」，包含本人动作、约束取舍、落地结果或复盘证据，避免只讲团队泛泛经历。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:project_experience.ai_algorithm_badcase_loop.acceptance:must_cover:25fa2a87:v1
+            source: must_cover
+            source_text: 重训触发
+            acceptance_check: 候选人结合真实项目说明「重训触发」，包含本人动作、约束取舍、落地结果或复盘证据，避免只讲团队泛泛经历。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:project_experience.ai_algorithm_badcase_loop.acceptance:must_cover:3ec0afea:v1
+            source: must_cover
+            source_text: 验收回归
+            acceptance_check: 候选人围绕「验收回归」给出测试或评估设计，说明样例来源、覆盖边界、通过标准和回归/线上验证方式。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:project_experience.ai_algorithm_badcase_loop.acceptance:rubric_addition:57bf879e:v1
+            source: rubric_addition
+            source_text: 说明回归测试集
+            acceptance_check: 候选人补充说明「说明回归测试集」，并落到本人职责、协作动作、量化结果、上线验证或复盘改进中的至少一类真实项目证据。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:project_experience.ai_algorithm_badcase_loop.acceptance:rubric_addition:98f0e634:v1
+            source: rubric_addition
+            source_text: 说明对照实验
+            acceptance_check: 候选人补充说明「说明对照实验」，并落到本人职责、协作动作、量化结果、上线验证或复盘改进中的至少一类真实项目证据。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:project_experience.ai_algorithm_badcase_loop.acceptance:rubric_addition:9ca1eb06:v1
+            source: rubric_addition
+            source_text: 说明上线门槛
+            acceptance_check: 候选人补充说明「说明上线门槛」，并落到本人职责、协作动作、量化结果、上线验证或复盘改进中的至少一类真实项目证据。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
         priority: 8
         status: active
 
@@ -642,6 +2514,84 @@ seeds:
         expected_signals: [能讲清项目目标和约束, 能给出里程碑节奏, 能给出业务量化结果]
         anti_patterns: [只讲技术细节, 没有里程碑, 没有业务结果]
         good_answer_hints: [先讲背景, 再讲里程碑, 最后讲结果]
+        reviewed_acceptance_checks:
+          - check_id: reviewed:project_experience.frontend_web_end_to_end_delivery.full_cycle:must_cover:4d8b38f0:v1
+            source: must_cover
+            source_text: 项目背景
+            acceptance_check: 候选人结合真实项目说明「项目背景」，包含本人动作、约束取舍、落地结果或复盘证据，避免只讲团队泛泛经历。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:project_experience.frontend_web_end_to_end_delivery.full_cycle:must_cover:139cbe12:v1
+            source: must_cover
+            source_text: 里程碑
+            acceptance_check: 候选人结合真实项目说明「里程碑」，包含本人动作、约束取舍、落地结果或复盘证据，避免只讲团队泛泛经历。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:project_experience.frontend_web_end_to_end_delivery.full_cycle:must_cover:d7a3c8f1:v1
+            source: must_cover
+            source_text: 协作机制
+            acceptance_check: 候选人结合真实项目说明「协作机制」，包含本人动作、约束取舍、落地结果或复盘证据，避免只讲团队泛泛经历。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:project_experience.frontend_web_end_to_end_delivery.full_cycle:must_cover:52d7e67d:v1
+            source: must_cover
+            source_text: 业务结果
+            acceptance_check: 候选人结合真实项目说明「业务结果」，包含本人动作、约束取舍、落地结果或复盘证据，避免只讲团队泛泛经历。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:project_experience.frontend_web_end_to_end_delivery.full_cycle:rubric_addition:714317e9:v1
+            source: rubric_addition
+            source_text: 说明项目背景
+            acceptance_check: 候选人补充说明「说明项目背景」，并落到本人职责、协作动作、量化结果、上线验证或复盘改进中的至少一类真实项目证据。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:project_experience.frontend_web_end_to_end_delivery.full_cycle:rubric_addition:476f9b5b:v1
+            source: rubric_addition
+            source_text: 说明里程碑
+            acceptance_check: 候选人补充说明「说明里程碑」，并落到本人职责、协作动作、量化结果、上线验证或复盘改进中的至少一类真实项目证据。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:project_experience.frontend_web_end_to_end_delivery.full_cycle:rubric_addition:9736c20a:v1
+            source: rubric_addition
+            source_text: 说明业务结果
+            acceptance_check: 候选人补充说明「说明业务结果」，并落到本人职责、协作动作、量化结果、上线验证或复盘改进中的至少一类真实项目证据。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
         priority: 11
         status: active
       - id: project_experience.frontend_web_end_to_end_delivery.collaboration
@@ -658,6 +2608,84 @@ seeds:
         expected_signals: [能描述周会/同步机制, 能讲出典型冲突, 能给出共识达成路径]
         anti_patterns: [只讲自己工作, 不提冲突, 没共识机制]
         good_answer_hints: [先讲机制, 再讲冲突, 最后讲共识]
+        reviewed_acceptance_checks:
+          - check_id: reviewed:project_experience.frontend_web_end_to_end_delivery.collaboration:must_cover:a813dbe4:v1
+            source: must_cover
+            source_text: 项目背景
+            acceptance_check: 候选人结合真实项目说明「项目背景」，包含本人动作、约束取舍、落地结果或复盘证据，避免只讲团队泛泛经历。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:project_experience.frontend_web_end_to_end_delivery.collaboration:must_cover:63e72d74:v1
+            source: must_cover
+            source_text: 里程碑
+            acceptance_check: 候选人结合真实项目说明「里程碑」，包含本人动作、约束取舍、落地结果或复盘证据，避免只讲团队泛泛经历。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:project_experience.frontend_web_end_to_end_delivery.collaboration:must_cover:2f05c0aa:v1
+            source: must_cover
+            source_text: 协作机制
+            acceptance_check: 候选人结合真实项目说明「协作机制」，包含本人动作、约束取舍、落地结果或复盘证据，避免只讲团队泛泛经历。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:project_experience.frontend_web_end_to_end_delivery.collaboration:must_cover:23a52907:v1
+            source: must_cover
+            source_text: 业务结果
+            acceptance_check: 候选人结合真实项目说明「业务结果」，包含本人动作、约束取舍、落地结果或复盘证据，避免只讲团队泛泛经历。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:project_experience.frontend_web_end_to_end_delivery.collaboration:rubric_addition:3586486a:v1
+            source: rubric_addition
+            source_text: 说明协作机制
+            acceptance_check: 候选人补充说明「说明协作机制」，并落到本人职责、协作动作、量化结果、上线验证或复盘改进中的至少一类真实项目证据。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:project_experience.frontend_web_end_to_end_delivery.collaboration:rubric_addition:9957d0b5:v1
+            source: rubric_addition
+            source_text: 说明冲突类型
+            acceptance_check: 候选人补充说明「说明冲突类型」，并落到本人职责、协作动作、量化结果、上线验证或复盘改进中的至少一类真实项目证据。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:project_experience.frontend_web_end_to_end_delivery.collaboration:rubric_addition:29f93220:v1
+            source: rubric_addition
+            source_text: 说明解决路径
+            acceptance_check: 候选人补充说明「说明解决路径」，并落到本人职责、协作动作、量化结果、上线验证或复盘改进中的至少一类真实项目证据。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
         priority: 9
         status: active
 
@@ -693,6 +2721,84 @@ seeds:
         expected_signals: [能定义基线与目标, 能给出改造清单与优先级, 能给出真实用户监控数据]
         anti_patterns: [只讲技术手段, 没指标, 没真实数据]
         good_answer_hints: [先讲基线, 再讲改造, 最后讲数据]
+        reviewed_acceptance_checks:
+          - check_id: reviewed:project_experience.frontend_web_perf_overhaul.before_after:must_cover:9fb2ce9c:v1
+            source: must_cover
+            source_text: 指标基线
+            acceptance_check: 候选人围绕「指标基线」给出可量化口径、采集位置、阈值或观察窗口，并说明这些指标如何触发定位、告警、发布或复盘动作。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:project_experience.frontend_web_perf_overhaul.before_after:must_cover:b771c9c3:v1
+            source: must_cover
+            source_text: 改造动作
+            acceptance_check: 候选人结合真实项目说明「改造动作」，包含本人动作、约束取舍、落地结果或复盘证据，避免只讲团队泛泛经历。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:project_experience.frontend_web_perf_overhaul.before_after:must_cover:b81b6126:v1
+            source: must_cover
+            source_text: 验证方法
+            acceptance_check: 候选人围绕「验证方法」给出测试或评估设计，说明样例来源、覆盖边界、通过标准和回归/线上验证方式。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:project_experience.frontend_web_perf_overhaul.before_after:must_cover:a9356a77:v1
+            source: must_cover
+            source_text: 业务结果
+            acceptance_check: 候选人结合真实项目说明「业务结果」，包含本人动作、约束取舍、落地结果或复盘证据，避免只讲团队泛泛经历。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:project_experience.frontend_web_perf_overhaul.before_after:rubric_addition:010a21d3:v1
+            source: rubric_addition
+            source_text: 说明基线指标
+            acceptance_check: 候选人补充说明「说明基线指标」，并落到本人职责、协作动作、量化结果、上线验证或复盘改进中的至少一类真实项目证据。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:project_experience.frontend_web_perf_overhaul.before_after:rubric_addition:8b7ba324:v1
+            source: rubric_addition
+            source_text: 说明关键改造
+            acceptance_check: 候选人补充说明「说明关键改造」，并落到本人职责、协作动作、量化结果、上线验证或复盘改进中的至少一类真实项目证据。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:project_experience.frontend_web_perf_overhaul.before_after:rubric_addition:d0919348:v1
+            source: rubric_addition
+            source_text: 说明业务结果
+            acceptance_check: 候选人补充说明「说明业务结果」，并落到本人职责、协作动作、量化结果、上线验证或复盘改进中的至少一类真实项目证据。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
         priority: 10
         status: active
       - id: project_experience.frontend_web_perf_overhaul.regression_guard
@@ -709,6 +2815,84 @@ seeds:
         expected_signals: [能定义 budget 与守护, 能用真实监控发现回归, 能讲出真实拦截案例]
         anti_patterns: [只看本地数据, 无 CI 守护, 无真实案例]
         good_answer_hints: [先建守护, 再监控, 最后讲案例]
+        reviewed_acceptance_checks:
+          - check_id: reviewed:project_experience.frontend_web_perf_overhaul.regression_guard:must_cover:4cc87948:v1
+            source: must_cover
+            source_text: 指标基线
+            acceptance_check: 候选人围绕「指标基线」给出可量化口径、采集位置、阈值或观察窗口，并说明这些指标如何触发定位、告警、发布或复盘动作。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:project_experience.frontend_web_perf_overhaul.regression_guard:must_cover:7fb53a5b:v1
+            source: must_cover
+            source_text: 改造动作
+            acceptance_check: 候选人结合真实项目说明「改造动作」，包含本人动作、约束取舍、落地结果或复盘证据，避免只讲团队泛泛经历。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:project_experience.frontend_web_perf_overhaul.regression_guard:must_cover:842745c8:v1
+            source: must_cover
+            source_text: 验证方法
+            acceptance_check: 候选人围绕「验证方法」给出测试或评估设计，说明样例来源、覆盖边界、通过标准和回归/线上验证方式。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:project_experience.frontend_web_perf_overhaul.regression_guard:must_cover:6b4f539a:v1
+            source: must_cover
+            source_text: 业务结果
+            acceptance_check: 候选人结合真实项目说明「业务结果」，包含本人动作、约束取舍、落地结果或复盘证据，避免只讲团队泛泛经历。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:project_experience.frontend_web_perf_overhaul.regression_guard:rubric_addition:1a65dba3:v1
+            source: rubric_addition
+            source_text: 说明 CI 守护
+            acceptance_check: 候选人补充说明「说明 CI 守护」，并落到本人职责、协作动作、量化结果、上线验证或复盘改进中的至少一类真实项目证据。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:project_experience.frontend_web_perf_overhaul.regression_guard:rubric_addition:8e445d77:v1
+            source: rubric_addition
+            source_text: 说明真实用户监控
+            acceptance_check: 候选人补充说明「说明真实用户监控」，并落到本人职责、协作动作、量化结果、上线验证或复盘改进中的至少一类真实项目证据。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:project_experience.frontend_web_perf_overhaul.regression_guard:rubric_addition:67a7e210:v1
+            source: rubric_addition
+            source_text: 说明拦截案例
+            acceptance_check: 候选人补充说明「说明拦截案例」，并落到本人职责、协作动作、量化结果、上线验证或复盘改进中的至少一类真实项目证据。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
         priority: 8
         status: active
 
@@ -744,6 +2928,84 @@ seeds:
         expected_signals: [能讲清事件影响, 能给出多层根因, 能落地长期改进]
         anti_patterns: [只甩锅, 没根因, 没长期改进]
         good_answer_hints: [先讲背景, 再讲根因, 最后讲改进]
+        reviewed_acceptance_checks:
+          - check_id: reviewed:project_experience.sre_incident_postmortem.full_loop:must_cover:693de73f:v1
+            source: must_cover
+            source_text: 事件背景
+            acceptance_check: 候选人结合真实项目说明「事件背景」，包含本人动作、约束取舍、落地结果或复盘证据，避免只讲团队泛泛经历。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:project_experience.sre_incident_postmortem.full_loop:must_cover:20f5af6a:v1
+            source: must_cover
+            source_text: 根因分析
+            acceptance_check: 候选人结合真实项目说明「根因分析」，包含本人动作、约束取舍、落地结果或复盘证据，避免只讲团队泛泛经历。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:project_experience.sre_incident_postmortem.full_loop:must_cover:27307734:v1
+            source: must_cover
+            source_text: 改进项目
+            acceptance_check: 候选人结合真实项目说明「改进项目」，包含本人动作、约束取舍、落地结果或复盘证据，避免只讲团队泛泛经历。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:project_experience.sre_incident_postmortem.full_loop:must_cover:de1e5dd8:v1
+            source: must_cover
+            source_text: 长期效果
+            acceptance_check: 候选人结合真实项目说明「长期效果」，包含本人动作、约束取舍、落地结果或复盘证据，避免只讲团队泛泛经历。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:project_experience.sre_incident_postmortem.full_loop:rubric_addition:90d684f8:v1
+            source: rubric_addition
+            source_text: 说明事件背景
+            acceptance_check: 候选人补充说明「说明事件背景」，并落到本人职责、协作动作、量化结果、上线验证或复盘改进中的至少一类真实项目证据。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:project_experience.sre_incident_postmortem.full_loop:rubric_addition:f672215f:v1
+            source: rubric_addition
+            source_text: 说明根因分析
+            acceptance_check: 候选人补充说明「说明根因分析」，并落到本人职责、协作动作、量化结果、上线验证或复盘改进中的至少一类真实项目证据。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:project_experience.sre_incident_postmortem.full_loop:rubric_addition:2d517034:v1
+            source: rubric_addition
+            source_text: 说明改进效果
+            acceptance_check: 候选人补充说明「说明改进效果」，并落到本人职责、协作动作、量化结果、上线验证或复盘改进中的至少一类真实项目证据。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
         priority: 10
         status: active
       - id: project_experience.sre_incident_postmortem.culture
@@ -760,6 +3022,84 @@ seeds:
         expected_signals: [能讲文化设计原则, 能用机制（如固定模板/中立主持）保障, 能给真实改进案例]
         anti_patterns: [只讲口号, 没机制, 没案例]
         good_answer_hints: [先讲文化, 再讲机制, 最后讲案例]
+        reviewed_acceptance_checks:
+          - check_id: reviewed:project_experience.sre_incident_postmortem.culture:must_cover:8e7a9597:v1
+            source: must_cover
+            source_text: 事件背景
+            acceptance_check: 候选人结合真实项目说明「事件背景」，包含本人动作、约束取舍、落地结果或复盘证据，避免只讲团队泛泛经历。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:project_experience.sre_incident_postmortem.culture:must_cover:7753ce53:v1
+            source: must_cover
+            source_text: 根因分析
+            acceptance_check: 候选人结合真实项目说明「根因分析」，包含本人动作、约束取舍、落地结果或复盘证据，避免只讲团队泛泛经历。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:project_experience.sre_incident_postmortem.culture:must_cover:c835a757:v1
+            source: must_cover
+            source_text: 改进项目
+            acceptance_check: 候选人结合真实项目说明「改进项目」，包含本人动作、约束取舍、落地结果或复盘证据，避免只讲团队泛泛经历。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:project_experience.sre_incident_postmortem.culture:must_cover:fbacd269:v1
+            source: must_cover
+            source_text: 长期效果
+            acceptance_check: 候选人结合真实项目说明「长期效果」，包含本人动作、约束取舍、落地结果或复盘证据，避免只讲团队泛泛经历。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:project_experience.sre_incident_postmortem.culture:rubric_addition:a61caa5e:v1
+            source: rubric_addition
+            source_text: 说明文化设计
+            acceptance_check: 候选人补充说明「说明文化设计」，并落到本人职责、协作动作、量化结果、上线验证或复盘改进中的至少一类真实项目证据。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:project_experience.sre_incident_postmortem.culture:rubric_addition:ad4b6271:v1
+            source: rubric_addition
+            source_text: 说明机制保障
+            acceptance_check: 候选人补充说明「说明机制保障」，并落到本人职责、协作动作、量化结果、上线验证或复盘改进中的至少一类真实项目证据。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:project_experience.sre_incident_postmortem.culture:rubric_addition:6126c3a3:v1
+            source: rubric_addition
+            source_text: 说明真实成果
+            acceptance_check: 候选人补充说明「说明真实成果」，并落到本人职责、协作动作、量化结果、上线验证或复盘改进中的至少一类真实项目证据。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
         priority: 8
         status: active
 
@@ -795,6 +3135,84 @@ seeds:
         expected_signals: [能选合适监控架构, 能定关键指标, 能用业务量化结果]
         anti_patterns: [只装工具, 没指标, 没结果]
         good_answer_hints: [先选架构, 再定指标, 最后讲结果]
+        reviewed_acceptance_checks:
+          - check_id: reviewed:project_experience.sre_monitoring_buildup.zero_to_one:must_cover:752a70ee:v1
+            source: must_cover
+            source_text: 架构选型
+            acceptance_check: 候选人结合真实项目说明「架构选型」，包含本人动作、约束取舍、落地结果或复盘证据，避免只讲团队泛泛经历。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:project_experience.sre_monitoring_buildup.zero_to_one:must_cover:d4053cf6:v1
+            source: must_cover
+            source_text: 指标设计
+            acceptance_check: 候选人围绕「指标设计」给出可量化口径、采集位置、阈值或观察窗口，并说明这些指标如何触发定位、告警、发布或复盘动作。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:project_experience.sre_monitoring_buildup.zero_to_one:must_cover:fb3fe59c:v1
+            source: must_cover
+            source_text: 告警治理
+            acceptance_check: 候选人围绕「告警治理」给出可量化口径、采集位置、阈值或观察窗口，并说明这些指标如何触发定位、告警、发布或复盘动作。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:project_experience.sre_monitoring_buildup.zero_to_one:must_cover:3f580d35:v1
+            source: must_cover
+            source_text: 业务结果
+            acceptance_check: 候选人结合真实项目说明「业务结果」，包含本人动作、约束取舍、落地结果或复盘证据，避免只讲团队泛泛经历。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:project_experience.sre_monitoring_buildup.zero_to_one:rubric_addition:47360f14:v1
+            source: rubric_addition
+            source_text: 说明架构选型
+            acceptance_check: 候选人补充说明「说明架构选型」，并落到本人职责、协作动作、量化结果、上线验证或复盘改进中的至少一类真实项目证据。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:project_experience.sre_monitoring_buildup.zero_to_one:rubric_addition:08e253e5:v1
+            source: rubric_addition
+            source_text: 说明指标设计
+            acceptance_check: 候选人补充说明「说明指标设计」，并落到本人职责、协作动作、量化结果、上线验证或复盘改进中的至少一类真实项目证据。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:project_experience.sre_monitoring_buildup.zero_to_one:rubric_addition:572b8fa6:v1
+            source: rubric_addition
+            source_text: 说明业务结果
+            acceptance_check: 候选人补充说明「说明业务结果」，并落到本人职责、协作动作、量化结果、上线验证或复盘改进中的至少一类真实项目证据。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
         priority: 9
         status: active
       - id: project_experience.sre_monitoring_buildup.alert_noise
@@ -811,6 +3229,84 @@ seeds:
         expected_signals: [能用 severity 分级, 能定告警抑制规则, 能用关联分析合并]
         anti_patterns: [一刀切关告警, 不分级, 不关联]
         good_answer_hints: [先分级, 再抑制, 最后关联]
+        reviewed_acceptance_checks:
+          - check_id: reviewed:project_experience.sre_monitoring_buildup.alert_noise:must_cover:35cd75e7:v1
+            source: must_cover
+            source_text: 架构选型
+            acceptance_check: 候选人结合真实项目说明「架构选型」，包含本人动作、约束取舍、落地结果或复盘证据，避免只讲团队泛泛经历。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:project_experience.sre_monitoring_buildup.alert_noise:must_cover:f7172e43:v1
+            source: must_cover
+            source_text: 指标设计
+            acceptance_check: 候选人围绕「指标设计」给出可量化口径、采集位置、阈值或观察窗口，并说明这些指标如何触发定位、告警、发布或复盘动作。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:project_experience.sre_monitoring_buildup.alert_noise:must_cover:e3ffb3e3:v1
+            source: must_cover
+            source_text: 告警治理
+            acceptance_check: 候选人围绕「告警治理」给出可量化口径、采集位置、阈值或观察窗口，并说明这些指标如何触发定位、告警、发布或复盘动作。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:project_experience.sre_monitoring_buildup.alert_noise:must_cover:a33a2f45:v1
+            source: must_cover
+            source_text: 业务结果
+            acceptance_check: 候选人结合真实项目说明「业务结果」，包含本人动作、约束取舍、落地结果或复盘证据，避免只讲团队泛泛经历。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:project_experience.sre_monitoring_buildup.alert_noise:rubric_addition:ea97bcf1:v1
+            source: rubric_addition
+            source_text: 说明分级机制
+            acceptance_check: 候选人补充说明「说明分级机制」，并落到本人职责、协作动作、量化结果、上线验证或复盘改进中的至少一类真实项目证据。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:project_experience.sre_monitoring_buildup.alert_noise:rubric_addition:d1e95018:v1
+            source: rubric_addition
+            source_text: 说明抑制策略
+            acceptance_check: 候选人补充说明「说明抑制策略」，并落到本人职责、协作动作、量化结果、上线验证或复盘改进中的至少一类真实项目证据。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:project_experience.sre_monitoring_buildup.alert_noise:rubric_addition:5e6af4c4:v1
+            source: rubric_addition
+            source_text: 说明关联分析
+            acceptance_check: 候选人补充说明「说明关联分析」，并落到本人职责、协作动作、量化结果、上线验证或复盘改进中的至少一类真实项目证据。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
         priority: 7
         status: active
 
@@ -846,6 +3342,84 @@ seeds:
         expected_signals: [能选合适灰度比例, 能定监控指标, 能用业务量化结果]
         anti_patterns: [一次全量, 没监控, 没结果]
         good_answer_hints: [先选灰度, 再定监控, 最后讲结果]
+        reviewed_acceptance_checks:
+          - check_id: reviewed:project_experience.mobile_release_management.canary:must_cover:1ad9362e:v1
+            source: must_cover
+            source_text: 发布策略
+            acceptance_check: 候选人围绕「发布策略」说明兼容、灰度、回滚或迁移边界，包含触发条件、风险控制和验证方式。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:project_experience.mobile_release_management.canary:must_cover:8f439fcc:v1
+            source: must_cover
+            source_text: 灰度机制
+            acceptance_check: 候选人围绕「灰度机制」说明兼容、灰度、回滚或迁移边界，包含触发条件、风险控制和验证方式。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:project_experience.mobile_release_management.canary:must_cover:f4e9471f:v1
+            source: must_cover
+            source_text: 回滚预案
+            acceptance_check: 候选人围绕「回滚预案」说明兼容、灰度、回滚或迁移边界，包含触发条件、风险控制和验证方式。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:project_experience.mobile_release_management.canary:must_cover:49b97e3f:v1
+            source: must_cover
+            source_text: 业务结果
+            acceptance_check: 候选人结合真实项目说明「业务结果」，包含本人动作、约束取舍、落地结果或复盘证据，避免只讲团队泛泛经历。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:project_experience.mobile_release_management.canary:rubric_addition:28a202e5:v1
+            source: rubric_addition
+            source_text: 说明发布策略
+            acceptance_check: 候选人补充说明「说明发布策略」，并落到本人职责、协作动作、量化结果、上线验证或复盘改进中的至少一类真实项目证据。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:project_experience.mobile_release_management.canary:rubric_addition:023bb6b6:v1
+            source: rubric_addition
+            source_text: 说明灰度机制
+            acceptance_check: 候选人补充说明「说明灰度机制」，并落到本人职责、协作动作、量化结果、上线验证或复盘改进中的至少一类真实项目证据。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:project_experience.mobile_release_management.canary:rubric_addition:74e625ff:v1
+            source: rubric_addition
+            source_text: 说明业务结果
+            acceptance_check: 候选人补充说明「说明业务结果」，并落到本人职责、协作动作、量化结果、上线验证或复盘改进中的至少一类真实项目证据。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
         priority: 9
         status: active
       - id: project_experience.mobile_release_management.crisis
@@ -862,6 +3436,84 @@ seeds:
         expected_signals: [能讲清回滚触发条件, 能讲过程关键决策, 能给长期改进措施]
         anti_patterns: [只甩锅, 没改进, 没机制]
         good_answer_hints: [先讲触发, 再讲过程, 最后讲改进]
+        reviewed_acceptance_checks:
+          - check_id: reviewed:project_experience.mobile_release_management.crisis:must_cover:e920dbfd:v1
+            source: must_cover
+            source_text: 发布策略
+            acceptance_check: 候选人围绕「发布策略」说明兼容、灰度、回滚或迁移边界，包含触发条件、风险控制和验证方式。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:project_experience.mobile_release_management.crisis:must_cover:cb230f7e:v1
+            source: must_cover
+            source_text: 灰度机制
+            acceptance_check: 候选人围绕「灰度机制」说明兼容、灰度、回滚或迁移边界，包含触发条件、风险控制和验证方式。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:project_experience.mobile_release_management.crisis:must_cover:7128e413:v1
+            source: must_cover
+            source_text: 回滚预案
+            acceptance_check: 候选人围绕「回滚预案」说明兼容、灰度、回滚或迁移边界，包含触发条件、风险控制和验证方式。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:project_experience.mobile_release_management.crisis:must_cover:4b81e75a:v1
+            source: must_cover
+            source_text: 业务结果
+            acceptance_check: 候选人结合真实项目说明「业务结果」，包含本人动作、约束取舍、落地结果或复盘证据，避免只讲团队泛泛经历。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:project_experience.mobile_release_management.crisis:rubric_addition:c78d72ee:v1
+            source: rubric_addition
+            source_text: 说明决策依据
+            acceptance_check: 候选人补充说明「说明决策依据」，并落到本人职责、协作动作、量化结果、上线验证或复盘改进中的至少一类真实项目证据。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:project_experience.mobile_release_management.crisis:rubric_addition:a7258737:v1
+            source: rubric_addition
+            source_text: 说明回滚过程
+            acceptance_check: 候选人补充说明「说明回滚过程」，并落到本人职责、协作动作、量化结果、上线验证或复盘改进中的至少一类真实项目证据。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:project_experience.mobile_release_management.crisis:rubric_addition:970b01e6:v1
+            source: rubric_addition
+            source_text: 说明长期改进
+            acceptance_check: 候选人补充说明「说明长期改进」，并落到本人职责、协作动作、量化结果、上线验证或复盘改进中的至少一类真实项目证据。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
         priority: 7
         status: active
 
@@ -897,6 +3549,84 @@ seeds:
         expected_signals: [能讲资源管理与翻译流程, 能讲文化/法规差异, 能给出运营机制]
         anti_patterns: [只换文案, 不考虑文化, 没运营]
         good_answer_hints: [先讲资源, 再讲文化, 最后讲运营]
+        reviewed_acceptance_checks:
+          - check_id: reviewed:project_experience.mobile_i18n_localization.expansion:must_cover:58446ea7:v1
+            source: must_cover
+            source_text: 资源管理
+            acceptance_check: 候选人围绕「资源管理」给出容量、资源或成本假设，说明估算方法、瓶颈来源、扩缩容触发条件和验证指标。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:project_experience.mobile_i18n_localization.expansion:must_cover:c7a4e386:v1
+            source: must_cover
+            source_text: 文化适配
+            acceptance_check: 候选人结合真实项目说明「文化适配」，包含本人动作、约束取舍、落地结果或复盘证据，避免只讲团队泛泛经历。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:project_experience.mobile_i18n_localization.expansion:must_cover:5b98f9ea:v1
+            source: must_cover
+            source_text: 法规合规
+            acceptance_check: 候选人围绕「法规合规」明确权限、安全或合规边界，说明准入规则、最小披露/最小权限、审计或异常兜底，避免把敏感风险留给默认行为。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:project_experience.mobile_i18n_localization.expansion:must_cover:c5e80897:v1
+            source: must_cover
+            source_text: 长期运营
+            acceptance_check: 候选人结合真实项目说明「长期运营」，包含本人动作、约束取舍、落地结果或复盘证据，避免只讲团队泛泛经历。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:project_experience.mobile_i18n_localization.expansion:rubric_addition:261ecf8e:v1
+            source: rubric_addition
+            source_text: 说明资源管理
+            acceptance_check: 候选人补充说明「说明资源管理」，并落到本人职责、协作动作、量化结果、上线验证或复盘改进中的至少一类真实项目证据。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:project_experience.mobile_i18n_localization.expansion:rubric_addition:8e890a8d:v1
+            source: rubric_addition
+            source_text: 说明文化适配
+            acceptance_check: 候选人补充说明「说明文化适配」，并落到本人职责、协作动作、量化结果、上线验证或复盘改进中的至少一类真实项目证据。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:project_experience.mobile_i18n_localization.expansion:rubric_addition:abe04900:v1
+            source: rubric_addition
+            source_text: 说明运营机制
+            acceptance_check: 候选人补充说明「说明运营机制」，并落到本人职责、协作动作、量化结果、上线验证或复盘改进中的至少一类真实项目证据。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
         priority: 8
         status: active
       - id: project_experience.mobile_i18n_localization.compliance
@@ -913,5 +3643,83 @@ seeds:
         expected_signals: [能识别核心法规要求, 能给改造路径, 能定长期合规机制]
         anti_patterns: [只追功能, 不查合规, 没长期机制]
         good_answer_hints: [先识别, 再改造, 最后长期]
+        reviewed_acceptance_checks:
+          - check_id: reviewed:project_experience.mobile_i18n_localization.compliance:must_cover:c76200da:v1
+            source: must_cover
+            source_text: 资源管理
+            acceptance_check: 候选人围绕「资源管理」给出容量、资源或成本假设，说明估算方法、瓶颈来源、扩缩容触发条件和验证指标。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:project_experience.mobile_i18n_localization.compliance:must_cover:1e2a4a70:v1
+            source: must_cover
+            source_text: 文化适配
+            acceptance_check: 候选人结合真实项目说明「文化适配」，包含本人动作、约束取舍、落地结果或复盘证据，避免只讲团队泛泛经历。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:project_experience.mobile_i18n_localization.compliance:must_cover:52e86824:v1
+            source: must_cover
+            source_text: 法规合规
+            acceptance_check: 候选人围绕「法规合规」明确权限、安全或合规边界，说明准入规则、最小披露/最小权限、审计或异常兜底，避免把敏感风险留给默认行为。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:project_experience.mobile_i18n_localization.compliance:must_cover:c3a924f8:v1
+            source: must_cover
+            source_text: 长期运营
+            acceptance_check: 候选人结合真实项目说明「长期运营」，包含本人动作、约束取舍、落地结果或复盘证据，避免只讲团队泛泛经历。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:project_experience.mobile_i18n_localization.compliance:rubric_addition:fa02df5c:v1
+            source: rubric_addition
+            source_text: 说明法规识别
+            acceptance_check: 候选人补充说明「说明法规识别」，并落到本人职责、协作动作、量化结果、上线验证或复盘改进中的至少一类真实项目证据。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:project_experience.mobile_i18n_localization.compliance:rubric_addition:a1840ed0:v1
+            source: rubric_addition
+            source_text: 说明改造路径
+            acceptance_check: 候选人补充说明「说明改造路径」，并落到本人职责、协作动作、量化结果、上线验证或复盘改进中的至少一类真实项目证据。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:project_experience.mobile_i18n_localization.compliance:rubric_addition:2f92c764:v1
+            source: rubric_addition
+            source_text: 说明长期合规
+            acceptance_check: 候选人补充说明「说明长期合规」，并落到本人职责、协作动作、量化结果、上线验证或复盘改进中的至少一类真实项目证据。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
         priority: 6
         status: active

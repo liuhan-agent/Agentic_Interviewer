@@ -32,6 +32,84 @@ seeds:
         expected_signals: [Collects logs or screenshots, checks affected scope, prepares internal handoff]
         anti_patterns: [Asks customer to try again only, escalates without evidence, ignores business impact]
         good_answer_hints: [Clarify who and when, collect evidence, judge severity from impact]
+        reviewed_acceptance_checks:
+          - check_id: reviewed:issue_diagnosis.customer_issue_reproduction.intermittent_login_failure:must_cover:b9f24916:v1
+            source: must_cover
+            source_text: symptom_capture
+            acceptance_check: 候选人围绕「symptom_capture」说明问题现象、事实证据、原因判断、处理动作和复盘防复发。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:issue_diagnosis.customer_issue_reproduction.intermittent_login_failure:must_cover:49f5d65f:v1
+            source: must_cover
+            source_text: reproduction_path
+            acceptance_check: 候选人围绕「reproduction_path」说明问题现象、事实证据、原因判断、处理动作和复盘防复发。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:issue_diagnosis.customer_issue_reproduction.intermittent_login_failure:must_cover:e0939dba:v1
+            source: must_cover
+            source_text: severity_judgment
+            acceptance_check: 候选人围绕「severity_judgment」说明问题现象、事实证据、原因判断、处理动作和复盘防复发。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:issue_diagnosis.customer_issue_reproduction.intermittent_login_failure:must_cover:debff444:v1
+            source: must_cover
+            source_text: handoff_evidence
+            acceptance_check: 候选人围绕「handoff_evidence」说明问题现象、事实证据、原因判断、处理动作和复盘防复发。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:issue_diagnosis.customer_issue_reproduction.intermittent_login_failure:rubric_addition:13432a8b:v1
+            source: rubric_addition
+            source_text: Capture environment and timeline
+            acceptance_check: 候选人补充说明「Capture environment and timeline」，并落到数据、案例、客户/用户反馈、流程证据、协作动作或验证方式中的至少一类具体证据。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:issue_diagnosis.customer_issue_reproduction.intermittent_login_failure:rubric_addition:c4fd3d72:v1
+            source: rubric_addition
+            source_text: ask for reproducible path
+            acceptance_check: 候选人补充说明「ask for reproducible path」，并落到数据、案例、客户/用户反馈、流程证据、协作动作或验证方式中的至少一类具体证据。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:issue_diagnosis.customer_issue_reproduction.intermittent_login_failure:rubric_addition:7c8423f8:v1
+            source: rubric_addition
+            source_text: classify severity
+            acceptance_check: 候选人补充说明「classify severity」，并落到数据、案例、客户/用户反馈、流程证据、协作动作或验证方式中的至少一类具体证据。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
         priority: 17
         status: active
       - id: issue_diagnosis.customer_issue_reproduction.multi_team_handoff
@@ -48,5 +126,83 @@ seeds:
         expected_signals: [Creates concise issue packet, tracks owner, keeps customer updated]
         anti_patterns: [Forwards long chat logs, loses customer context, lets teams debate without owner]
         good_answer_hints: [Package facts, list hypotheses, set owner and next update]
+        reviewed_acceptance_checks:
+          - check_id: reviewed:issue_diagnosis.customer_issue_reproduction.multi_team_handoff:must_cover:8b2a727d:v1
+            source: must_cover
+            source_text: symptom_capture
+            acceptance_check: 候选人围绕「symptom_capture」说明问题现象、事实证据、原因判断、处理动作和复盘防复发。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:issue_diagnosis.customer_issue_reproduction.multi_team_handoff:must_cover:2820624d:v1
+            source: must_cover
+            source_text: reproduction_path
+            acceptance_check: 候选人围绕「reproduction_path」说明问题现象、事实证据、原因判断、处理动作和复盘防复发。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:issue_diagnosis.customer_issue_reproduction.multi_team_handoff:must_cover:1a627307:v1
+            source: must_cover
+            source_text: severity_judgment
+            acceptance_check: 候选人围绕「severity_judgment」说明问题现象、事实证据、原因判断、处理动作和复盘防复发。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:issue_diagnosis.customer_issue_reproduction.multi_team_handoff:must_cover:200d5e95:v1
+            source: must_cover
+            source_text: handoff_evidence
+            acceptance_check: 候选人围绕「handoff_evidence」说明问题现象、事实证据、原因判断、处理动作和复盘防复发。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:issue_diagnosis.customer_issue_reproduction.multi_team_handoff:rubric_addition:0eb8f2f3:v1
+            source: rubric_addition
+            source_text: Summarize evidence
+            acceptance_check: 候选人补充说明「Summarize evidence」，并落到数据、案例、客户/用户反馈、流程证据、协作动作或验证方式中的至少一类具体证据。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:issue_diagnosis.customer_issue_reproduction.multi_team_handoff:rubric_addition:1c9127e1:v1
+            source: rubric_addition
+            source_text: separate hypotheses
+            acceptance_check: 候选人补充说明「separate hypotheses」，并落到数据、案例、客户/用户反馈、流程证据、协作动作或验证方式中的至少一类具体证据。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:issue_diagnosis.customer_issue_reproduction.multi_team_handoff:rubric_addition:8d80da64:v1
+            source: rubric_addition
+            source_text: define owner and next check
+            acceptance_check: 候选人补充说明「define owner and next check」，并落到数据、案例、客户/用户反馈、流程证据、协作动作或验证方式中的至少一类具体证据。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
         priority: 15
         status: active

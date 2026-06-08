@@ -32,6 +32,84 @@ seeds:
         expected_signals: [能比较信号质量, 能承认不确定性, 能把洞察转成动作]
         anti_patterns: [只引用单一报告, 迎合团队预设, 没有策略落地]
         good_answer_hints: [先分信号来源, 再判断可信度, 最后落到策略选择]
+        reviewed_acceptance_checks:
+          - check_id: reviewed:market_insight.competitor_trend_analysis.contrarian_research:must_cover:573f2aed:v1
+            source: must_cover
+            source_text: 洞察来源
+            acceptance_check: 候选人围绕「洞察来源」说明市场或用户洞察的来源、判断依据、业务含义和落地影响。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:market_insight.competitor_trend_analysis.contrarian_research:must_cover:b92348f0:v1
+            source: must_cover
+            source_text: 竞品分析
+            acceptance_check: 候选人围绕「竞品分析」说明市场或用户洞察的来源、判断依据、业务含义和落地影响。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:market_insight.competitor_trend_analysis.contrarian_research:must_cover:4055e1ea:v1
+            source: must_cover
+            source_text: 用户变化
+            acceptance_check: 候选人围绕「用户变化」说明对象分层、真实诉求、证据来源和后续业务动作。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:market_insight.competitor_trend_analysis.contrarian_research:must_cover:d98134ea:v1
+            source: must_cover
+            source_text: 策略影响
+            acceptance_check: 候选人围绕「策略影响」说明市场或用户洞察的来源、判断依据、业务含义和落地影响。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:market_insight.competitor_trend_analysis.contrarian_research:rubric_addition:c4c9fc6c:v1
+            source: rubric_addition
+            source_text: 说明洞察来源
+            acceptance_check: 候选人补充说明「说明洞察来源」，并落到数据、案例、客户/用户反馈、流程证据、协作动作或验证方式中的至少一类具体证据。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:market_insight.competitor_trend_analysis.contrarian_research:rubric_addition:cdaaea89:v1
+            source: rubric_addition
+            source_text: 说明冲突信号处理
+            acceptance_check: 候选人补充说明「说明冲突信号处理」，并落到数据、案例、客户/用户反馈、流程证据、协作动作或验证方式中的至少一类具体证据。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:market_insight.competitor_trend_analysis.contrarian_research:rubric_addition:1bc28d0e:v1
+            source: rubric_addition
+            source_text: 说明策略影响
+            acceptance_check: 候选人补充说明「说明策略影响」，并落到数据、案例、客户/用户反馈、流程证据、协作动作或验证方式中的至少一类具体证据。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
         priority: 18
         status: active
       - id: market_insight.competitor_trend_analysis.competitor_shift
@@ -48,5 +126,83 @@ seeds:
         expected_signals: [能区分价格战和定位变化, 能识别受影响用户, 能避免盲目跟随]
         anti_patterns: [竞品变就照抄, 只看声量不看转化, 不分析自身定位]
         good_answer_hints: [先拆竞品动作, 再看用户迁移, 最后决定防守或差异化]
+        reviewed_acceptance_checks:
+          - check_id: reviewed:market_insight.competitor_trend_analysis.competitor_shift:must_cover:9955c617:v1
+            source: must_cover
+            source_text: 洞察来源
+            acceptance_check: 候选人围绕「洞察来源」说明市场或用户洞察的来源、判断依据、业务含义和落地影响。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:market_insight.competitor_trend_analysis.competitor_shift:must_cover:7ed3791d:v1
+            source: must_cover
+            source_text: 竞品分析
+            acceptance_check: 候选人围绕「竞品分析」说明市场或用户洞察的来源、判断依据、业务含义和落地影响。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:market_insight.competitor_trend_analysis.competitor_shift:must_cover:a28fa2a3:v1
+            source: must_cover
+            source_text: 用户变化
+            acceptance_check: 候选人围绕「用户变化」说明对象分层、真实诉求、证据来源和后续业务动作。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:market_insight.competitor_trend_analysis.competitor_shift:must_cover:50a76731:v1
+            source: must_cover
+            source_text: 策略影响
+            acceptance_check: 候选人围绕「策略影响」说明市场或用户洞察的来源、判断依据、业务含义和落地影响。
+            severity: core
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:market_insight.competitor_trend_analysis.competitor_shift:rubric_addition:313b8a2e:v1
+            source: rubric_addition
+            source_text: 说明竞品变化拆解
+            acceptance_check: 候选人补充说明「说明竞品变化拆解」，并落到数据、案例、客户/用户反馈、流程证据、协作动作或验证方式中的至少一类具体证据。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:market_insight.competitor_trend_analysis.competitor_shift:rubric_addition:84a6a023:v1
+            source: rubric_addition
+            source_text: 说明影响人群
+            acceptance_check: 候选人补充说明「说明影响人群」，并落到数据、案例、客户/用户反馈、流程证据、协作动作或验证方式中的至少一类具体证据。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
+          - check_id: reviewed:market_insight.competitor_trend_analysis.competitor_shift:rubric_addition:6f9e8c55:v1
+            source: rubric_addition
+            source_text: 说明是否跟进和验证
+            acceptance_check: 候选人补充说明「说明是否跟进和验证」，并落到数据、案例、客户/用户反馈、流程证据、协作动作或验证方式中的至少一类具体证据。
+            severity: supporting
+            review_status: reviewed
+            version: 1
+            reviewed_seed_version: 1
+            reviewed_variant_version: 1
+            reviewed_by: codex
+            reviewed_at: '2026-06-08'
         priority: 16
         status: active
