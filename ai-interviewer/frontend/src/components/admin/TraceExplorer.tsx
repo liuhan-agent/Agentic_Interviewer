@@ -6706,65 +6706,88 @@ function ContractGateResultPanel({
     enforcement?.contract_gate_enforcement_reason,
   );
   const failedCheckIds = stringList(enforcement?.contract_gate_failed_check_ids);
+  const eligibleCount = formatCountValue(result.eligible_count);
+  const satisfiedCount = formatCountValue(result.satisfied_count);
+  const failedCount = formatCountValue(result.failed_count);
+  const partialCount = formatCountValue(result.partial_count);
+  const noCount = formatCountValue(result.no_count);
+  const missingCount = formatCountValue(result.missing_count);
+  const mode = stringValue(result.mode) || "shadow";
   const badgeVariant =
     status === "failed" ? "warn" : status === "passed" ? "success" : "outline";
+  const summaryText =
+    status === "passed"
+      ? `核心底线全部通过：${satisfiedCount}/${eligibleCount}`
+      : status === "failed"
+        ? `核心底线未通过：失败 ${failedCount} 项`
+        : "本轮没有可用的 reviewed/core 条款";
+  const enforcedText = enforced
+    ? "已强制改为追问"
+    : status === "passed"
+      ? "未触发强制"
+      : "未强制";
 
   return (
     <details className="rounded-md border border-amber-500/25 bg-amber-500/[0.035] p-2">
       <summary className="cursor-pointer select-none font-medium">
-        Reviewed core gate{" "}
-        <span className="font-mono">contract_gate_result</span>
+        核心底线校验{" "}
+        <span className="font-mono">Reviewed core gate / contract_gate_result</span>
       </summary>
-      <div className="mt-2 grid gap-2 md:grid-cols-2 lg:grid-cols-3">
-        <NodeFact label="status" value={status} />
-        <NodeFact
-          label="would_pass"
+      <p className="mt-1.5 text-[11px] leading-snug text-muted-foreground">
+        只读取 <span className="font-mono">reviewed/core</span> 条款。
+        enforce 模式下，核心条款失败才会覆盖最终通过/追问结果。
+      </p>
+      <div className="mt-2 flex flex-wrap items-center gap-1.5">
+        <Badge variant={badgeVariant} className="font-mono text-[9px]">
+          {gateStatusLabel(status)}
+        </Badge>
+        <Badge variant="outline" className="font-mono text-[9px]">
+          {mode}
+        </Badge>
+        <span className="text-[11px] font-medium">{summaryText}</span>
+        <span className="text-[11px] text-muted-foreground">{enforcedText}</span>
+      </div>
+      <div className="mt-2 grid gap-1.5 md:grid-cols-3">
+        <ReadableMetric
+          label="核心条款"
+          techKey="eligible / satisfied"
+          value={`${satisfiedCount} / ${eligibleCount}`}
+          tone={status === "passed" ? "success" : "default"}
+        />
+        <ReadableMetric
+          label="失败条款"
+          techKey="failed"
+          value={failedCount}
+          tone={status === "failed" ? "warn" : "default"}
+        />
+        <ReadableMetric
+          label="强制覆盖"
+          techKey="contract_gate_enforced"
+          value={enforced ? "是" : "否"}
+          tone={enforced ? "warn" : "default"}
+        />
+        <ReadableMetric
+          label="预判结果"
+          techKey="would_pass"
           value={
             typeof wouldPass === "boolean"
-              ? formatBooleanValue(wouldPass)
-              : "not_applicable"
+              ? (wouldPass ? "会通过" : "不会通过")
+              : "不适用"
           }
         />
-        <NodeFact label="mode" value={stringValue(result.mode) || "shadow"} />
-        <NodeFact
-          label="contract_gate_enforced"
-          value={formatBooleanValue(enforced)}
+        <ReadableMetric label="部分通过" techKey="partial" value={partialCount} />
+        <ReadableMetric
+          label="未通过/缺失"
+          techKey="no / missing"
+          value={`${noCount} / ${missingCount}`}
         />
-        {enforcementReason && (
-          <NodeFact
-            label="contract_gate_enforcement_reason"
-            value={enforcementReason}
-          />
-        )}
-        <NodeFact
-          label="eligible"
-          value={formatCountValue(result.eligible_count)}
-        />
-        <NodeFact
-          label="satisfied"
-          value={formatCountValue(result.satisfied_count)}
-        />
-        <NodeFact label="failed" value={formatCountValue(result.failed_count)} />
       </div>
-      <div className="mt-2 flex flex-wrap gap-1.5">
-        <Badge variant={badgeVariant} className="font-mono text-[10px]">
-          {status}
-        </Badge>
-        <Badge variant="outline" className="font-mono text-[10px]">
-          partial {formatCountValue(result.partial_count)}
-        </Badge>
-        <Badge variant="outline" className="font-mono text-[10px]">
-          no {formatCountValue(result.no_count)}
-        </Badge>
-        <Badge variant="outline" className="font-mono text-[10px]">
-          missing {formatCountValue(result.missing_count)}
-        </Badge>
-        {enforced && (
-          <Badge variant="warn" className="font-mono text-[10px]">
-            enforced
-          </Badge>
-        )}
-      </div>
+      {enforcementReason && (
+        <p className="mt-2 rounded-md border bg-background/50 p-1.5 text-[11px]">
+          <span className="text-muted-foreground">覆盖原因：</span>
+          <span className="font-mono">{enforcementReason}</span>
+        </p>
+      )}
       {failedCheckIds.length > 0 && (
         <EvidenceList
           label="contract_gate_failed_check_ids"
@@ -6776,17 +6799,17 @@ function ContractGateResultPanel({
           {failedItems.map((item, idx) => (
             <div
               key={`${stringValue(item.check_id) || stringValue(item.text)}-${idx}`}
-              className="rounded-md border bg-background/50 p-2"
+              className="rounded-md border bg-background/50 p-1.5"
             >
               <div className="flex flex-wrap items-start justify-between gap-2">
-                <p className="min-w-0 flex-1 break-words font-medium">
+                <p className="min-w-0 flex-1 break-words text-[11px] font-medium">
                   {stringValue(item.text) || "gate item"}
                 </p>
-                <Badge variant="warn" className="font-mono text-[10px]">
+                <Badge variant="warn" className="font-mono text-[9px]">
                   {stringValue(item.reason) || "failed"}
                 </Badge>
               </div>
-              <p className="mt-1 break-words font-mono text-[10px] text-muted-foreground">
+              <p className="mt-1 break-words font-mono text-[9px] text-muted-foreground">
                 {[
                   stringValue(item.check_id)
                     ? `check_id: ${stringValue(item.check_id)}`
@@ -6820,12 +6843,27 @@ function GateCalibrationSummaryPanel({
   const hasHighScoreFailure = summary.high_score_gate_failed === true;
   const hasPartialOnlyFailure = summary.partial_only_gate_failed === true;
   const hasHardFailure = summary.hard_failure_gate_failed === true;
+  const hasStandardScoreFailure = summary.standard_score_gate_failed === true;
+  const scoreBand = stringValue(summary.score_band) || "unknown";
+  const gateStatus = stringValue(summary.gate_status) || "-";
+  const score = formatDiagnosticScalar(summary.score);
+  const yesCount = formatCountValue(reviewedCore.yes);
+  const partialCount = formatCountValue(reviewedCore.partial);
+  const noCount = formatCountValue(reviewedCore.no);
+  const missingCount = formatCountValue(reviewedCore.missing);
   const badgeVariant =
     hasHighScoreFailure || hasHardFailure
       ? "warn"
       : hasPartialOnlyFailure
         ? "outline"
         : "secondary";
+  const signalSummary = calibrationSignalSummary({
+    hasHighScoreFailure,
+    hasPartialOnlyFailure,
+    hasHardFailure,
+    hasStandardScoreFailure,
+    signals,
+  });
 
   return (
     <details
@@ -6836,48 +6874,51 @@ function GateCalibrationSummaryPanel({
         Gate 校准审计{" "}
         <span className="font-mono">gate_calibration_summary</span>
       </summary>
-      <p className="mt-1 text-[11px] leading-relaxed text-muted-foreground">
+      <p className="mt-1.5 text-[11px] leading-snug text-muted-foreground">
         Audit-only strictness signals; this panel does not change passed,
         routing, reward, or reviewed/core gate policy.
       </p>
-      <div className="mt-2 grid gap-2 md:grid-cols-2 lg:grid-cols-4">
-        <NodeFact label="mode" value={mode || "audit"} />
-        <NodeFact label="score_band" value={stringValue(summary.score_band) || "unknown"} />
-        <NodeFact label="score" value={formatDiagnosticScalar(summary.score)} />
-        <NodeFact label="gate_status" value={stringValue(summary.gate_status) || "—"} />
-        <NodeFact
-          label="high_score_gate_failed"
-          value={formatBooleanValue(hasHighScoreFailure)}
+      <div className="mt-2 flex flex-wrap items-center gap-1.5">
+        <Badge variant={badgeVariant} className="font-mono text-[9px]">
+          {signalSummary.badge}
+        </Badge>
+        <span className="text-[11px] font-medium">{signalSummary.text}</span>
+      </div>
+      <div className="mt-2 grid gap-1.5 md:grid-cols-4">
+        <ReadableMetric
+          label="分数"
+          techKey="score / score_band"
+          value={`${score} · ${scoreBand}`}
         />
-        <NodeFact
-          label="partial_only_gate_failed"
-          value={formatBooleanValue(hasPartialOnlyFailure)}
-        />
-        <NodeFact
-          label="hard_failure_gate_failed"
-          value={formatBooleanValue(hasHardFailure)}
-        />
-        <NodeFact
-          label="standard_score_gate_failed"
-          value={formatBooleanValue(summary.standard_score_gate_failed === true)}
+        <ReadableMetric label="Gate 状态" techKey="gate_status" value={gateStatus} />
+        <ReadableMetric label="校准模式" techKey="mode" value={mode || "audit"} />
+        <ReadableMetric
+          label="核心结果"
+          techKey="yes / partial / no / missing"
+          value={`${yesCount} / ${partialCount} / ${noCount} / ${missingCount}`}
         />
       </div>
-      <div className="mt-2 flex flex-wrap gap-1.5">
-        <Badge variant={badgeVariant} className="font-mono text-[10px]">
-          {signals.length > 0 ? `${signals.length} signals` : "no signal"}
-        </Badge>
-        <Badge variant="outline" className="font-mono text-[10px]">
-          yes {formatCountValue(reviewedCore.yes)}
-        </Badge>
-        <Badge variant="outline" className="font-mono text-[10px]">
-          partial {formatCountValue(reviewedCore.partial)}
-        </Badge>
-        <Badge variant="outline" className="font-mono text-[10px]">
-          no {formatCountValue(reviewedCore.no)}
-        </Badge>
-        <Badge variant="outline" className="font-mono text-[10px]">
-          missing {formatCountValue(reviewedCore.missing)}
-        </Badge>
+      <div className="mt-2 grid gap-1.5 md:grid-cols-2 lg:grid-cols-4">
+        <CalibrationFlag
+          label="高分却失败"
+          active={hasHighScoreFailure}
+          techKey="high_score_gate_failed"
+        />
+        <CalibrationFlag
+          label="仅 partial 卡住"
+          active={hasPartialOnlyFailure}
+          techKey="partial_only_gate_failed"
+        />
+        <CalibrationFlag
+          label="硬失败卡住"
+          active={hasHardFailure}
+          techKey="hard_failure_gate_failed"
+        />
+        <CalibrationFlag
+          label="标准分段失败"
+          active={hasStandardScoreFailure}
+          techKey="standard_score_gate_failed"
+        />
       </div>
       <EvidenceList label="signals" values={signals} />
       <EvidenceList
@@ -6889,17 +6930,17 @@ function GateCalibrationSummaryPanel({
           {failedItems.map((item, idx) => (
             <div
               key={`${stringValue(item.check_id) || stringValue(item.text)}-${idx}`}
-              className="rounded-md border bg-background/50 p-2"
+              className="rounded-md border bg-background/50 p-1.5"
             >
               <div className="flex flex-wrap items-start justify-between gap-2">
-                <p className="min-w-0 flex-1 break-words font-medium">
+                <p className="min-w-0 flex-1 break-words text-[11px] font-medium">
                   {stringValue(item.text) || stringValue(item.check_id) || "gate item"}
                 </p>
-                <Badge variant="outline" className="font-mono text-[10px]">
+                <Badge variant="outline" className="font-mono text-[9px]">
                   {stringValue(item.reason) || stringValue(item.verdict) || "missing"}
                 </Badge>
               </div>
-              <p className="mt-1 break-words font-mono text-[10px] text-muted-foreground">
+              <p className="mt-1 break-words font-mono text-[9px] text-muted-foreground">
                 {[stringValue(item.check_id), stringValue(item.verdict)]
                   .filter(Boolean)
                   .join(" | ")}
@@ -6910,6 +6951,114 @@ function GateCalibrationSummaryPanel({
       )}
     </details>
   );
+}
+
+function ReadableMetric({
+  label,
+  techKey,
+  value,
+  tone = "default",
+}: {
+  label: string;
+  techKey: string;
+  value: string;
+  tone?: "default" | "success" | "warn";
+}) {
+  const toneClass =
+    tone === "success"
+      ? "border-emerald-500/20 bg-emerald-500/[0.045]"
+      : tone === "warn"
+        ? "border-amber-500/25 bg-amber-500/[0.055]"
+        : "border-border/70 bg-background/60";
+  return (
+    <div className={`min-w-0 rounded-md border p-1.5 ${toneClass}`}>
+      <div className="flex flex-wrap items-baseline justify-between gap-2">
+        <p className="text-[11px] font-medium">{label}</p>
+        <span className="font-mono text-[9px] text-muted-foreground">{techKey}</span>
+      </div>
+      <p className="mt-1 min-w-0 break-words font-mono text-[11px] leading-snug">
+        {value}
+      </p>
+    </div>
+  );
+}
+
+function CalibrationFlag({
+  label,
+  active,
+  techKey,
+}: {
+  label: string;
+  active: boolean;
+  techKey: string;
+}) {
+  return (
+    <div
+      className={`min-w-0 rounded-md border p-1.5 ${
+        active
+          ? "border-amber-500/25 bg-amber-500/[0.055]"
+          : "border-border/70 bg-background/60"
+      }`}
+    >
+      <div className="flex flex-wrap items-baseline justify-between gap-2">
+        <p className="text-[11px] font-medium">{label}</p>
+        <span className="font-mono text-[9px] text-muted-foreground">{techKey}</span>
+      </div>
+      <p className="mt-1 font-mono text-[11px] leading-snug">
+        {active ? "有信号" : "无"}
+      </p>
+    </div>
+  );
+}
+
+function gateStatusLabel(status: string): string {
+  if (status === "passed") return "通过 passed";
+  if (status === "failed") return "未通过 failed";
+  if (status === "not_applicable") return "不适用 not_applicable";
+  return status || "未知";
+}
+
+function calibrationSignalSummary({
+  hasHighScoreFailure,
+  hasPartialOnlyFailure,
+  hasHardFailure,
+  hasStandardScoreFailure,
+  signals,
+}: {
+  hasHighScoreFailure: boolean;
+  hasPartialOnlyFailure: boolean;
+  hasHardFailure: boolean;
+  hasStandardScoreFailure: boolean;
+  signals: string[];
+}): { badge: string; text: string } {
+  if (hasHighScoreFailure) {
+    return {
+      badge: "需要校准",
+      text: "高分回答被核心 gate 卡住，建议检查条款是否过严或证据是否漏判。",
+    };
+  }
+  if (hasHardFailure) {
+    return {
+      badge: "硬失败",
+      text: "存在 no/missing 级别的核心失败，当前 gate 严格度看起来合理。",
+    };
+  }
+  if (hasPartialOnlyFailure) {
+    return {
+      badge: "偏严格",
+      text: "主要由 partial 触发失败，适合观察是否需要细化条款措辞。",
+    };
+  }
+  if (hasStandardScoreFailure) {
+    return {
+      badge: "标准分失败",
+      text: "分数进入标准区间但 gate 未过，建议结合失败条款判断是否正常。",
+    };
+  }
+  return {
+    badge: signals.length > 0 ? `${signals.length} signals` : "无校准异常",
+    text: "分数、核心条款和 gate 结果一致，没有明显严格度异常。",
+  };
 }
 
 function AcceptanceCheckResultItemsList({
