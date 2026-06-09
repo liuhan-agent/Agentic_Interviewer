@@ -2217,10 +2217,10 @@ export function SetupForm() {
               initial={{ opacity: 0, y: 8, scale: 0.98 }}
               animate={{ opacity: 1, y: 0, scale: 1 }}
               exit={{ opacity: 0, y: 4, scale: 0.99 }}
-              className="w-full max-w-sm rounded-lg border border-emerald-500/30 bg-card p-4 shadow-2xl"
+              className="flex min-h-40 w-full max-w-sm items-center rounded-lg border border-emerald-500/30 bg-card p-5 shadow-2xl"
             >
-              <div className="flex items-start gap-3">
-                <div className="mt-0.5 flex h-9 w-9 items-center justify-center rounded-lg bg-emerald-500/10">
+              <div className="flex items-center gap-4">
+                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-emerald-500/10">
                   <Loader2 className="h-5 w-5 animate-spin text-emerald-400" />
                 </div>
                 <div>
@@ -2229,9 +2229,6 @@ export function SetupForm() {
                     正在保存配置并打开面试页面，准备好后会自动进入。
                   </p>
                 </div>
-              </div>
-              <div className="mt-4 h-1.5 overflow-hidden rounded-full bg-muted">
-                <div className="h-full w-2/3 rounded-full animate-shimmer bg-shimmer bg-emerald-500/80" />
               </div>
             </motion.div>
           </motion.div>

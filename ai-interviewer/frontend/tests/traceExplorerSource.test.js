@@ -272,6 +272,9 @@ test("trace explorer productizes structured scoring contract display", () => {
   assert.match(component, /ContractAcceptanceGroup/);
   assert.match(component, /ContractAcceptanceLayerGuide/);
   assert.match(component, /ContractSemanticsSummaryPanel/);
+  assert.match(component, /hasContractSemanticsSummaryPayload/);
+  assert.match(component, /hasSemanticsSummary &&/);
+  assert.match(component, /recordArray\(bucket\.failed_items\)/);
   assert.match(component, /GateCalibrationSummaryPanel/);
   assert.match(component, /gate_calibration_summary/);
   assert.match(component, /gate_calibration_summaries/);
