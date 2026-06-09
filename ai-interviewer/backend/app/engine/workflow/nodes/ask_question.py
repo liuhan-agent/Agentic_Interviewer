@@ -45,6 +45,11 @@ from app.engine.contracts.acceptance_items import (
     ensure_contract_acceptance_items,
 )
 from app.engine.contracts.seed_contract import build_locked_core_contract
+from app.engine.contracts.soft_followup_context import (
+    SOFT_FOLLOWUP_PROMPT_MODES,
+    build_soft_followup_advisory_payload,
+    build_soft_followup_context,
+)
 from app.engine.context.history_context import build_history_context
 from app.engine.context.prompt_budget import (
     estimate_auxiliary_prompt_budget,
@@ -157,6 +162,12 @@ _CONTRACT_ACCEPTANCE_MODES = {
     "append_locked",
     "reviewed_shadow",
     "reviewed_append",
+}
+_SOFT_FOLLOWUP_PROMPT_MODES = set(SOFT_FOLLOWUP_PROMPT_MODES)
+_HISTORY_SECTION_LABELS = {
+    "history_summary_projection": "INTERVIEW_HISTORY_SUMMARY",
+    "recent_qa_prompt_view": "RECENT_QA",
+    "current_gaps": "CURRENT_GAPS",
 }
 _PROMPT_SLOT_TEXT_LIMIT = 2000
 _PROMPT_SLOT_PLACEHOLDER_REASONS = {
@@ -566,6 +577,9 @@ def _build_selection_artifacts(ctx: dict[str, Any]) -> dict[str, Any]:
         artifacts["candidate_anchor"] = ctx["candidate_anchor_artifact"]
     if ctx.get("question_decision_basis") is not None:
         artifacts["question_decision_basis"] = ctx["question_decision_basis"]
+    current_gaps_shadow = ctx.get("current_gaps_shadow")
+    if isinstance(current_gaps_shadow, dict) and current_gaps_shadow:
+        artifacts["current_gaps"] = current_gaps_shadow
     depth_followup = ctx.get("depth_followup")
     if isinstance(depth_followup, dict) and depth_followup:
         artifacts["depth_followup"] = dict(depth_followup)
@@ -631,6 +645,21 @@ def _resolve_contract_acceptance_mode(
     mode = str(raw or "shadow").strip().lower()
     if mode not in _CONTRACT_ACCEPTANCE_MODES:
         return "shadow", ["invalid_acceptance_mode_fallback"]
+    return mode, []
+
+
+def _resolve_soft_followup_prompt_mode(
+    *,
+    runtime_config: dict[str, Any] | None,
+    settings: Any,
+) -> tuple[str, list[str]]:
+    runtime = runtime_config or {}
+    raw = runtime.get("soft_followup_prompt_mode")
+    if raw is None:
+        raw = getattr(settings, "soft_followup_prompt_mode", "off")
+    mode = str(raw or "off").strip().lower()
+    if mode not in _SOFT_FOLLOWUP_PROMPT_MODES:
+        return "off", ["invalid_soft_followup_prompt_mode_fallback"]
     return mode, []
 
 
@@ -1105,6 +1134,143 @@ def _prompt_slots_for_trace(
         if isinstance(slot, dict)
     ]
     return [*history_slots, *rendered_slots]
+
+
+def _apply_soft_followup_advisory_to_history_context(
+    history_context: dict[str, Any],
+    soft_followup_context: dict[str, Any],
+) -> None:
+    """Inject advisory hints into the existing CURRENT_GAPS prompt slot."""
+
+    if soft_followup_context.get("mode") != "advisory":
+        return
+    advisory = build_soft_followup_advisory_payload(soft_followup_context)
+    if not advisory:
+        soft_followup_context["applied"] = False
+        soft_followup_context["not_applied_reason"] = (
+            soft_followup_context.get("empty_reason") or "no_advisory_payload"
+        )
+        return
+    prompt_slots = [
+        dict(slot)
+        for slot in (history_context.get("prompt_slots") or [])
+        if isinstance(slot, dict)
+    ]
+    current_gaps_slot = next(
+        (slot for slot in prompt_slots if slot.get("source_key") == "current_gaps"),
+        None,
+    )
+    if current_gaps_slot is None:
+        soft_followup_context["applied"] = False
+        soft_followup_context["not_applied_reason"] = "current_gaps_slot_missing"
+        return
+
+    current_gaps = history_context.get("current_gaps")
+    if not isinstance(current_gaps, list):
+        current_gaps = current_gaps_slot.get("value")
+    if not isinstance(current_gaps, list):
+        current_gaps = []
+    prompt_value = {
+        "current_gaps": list(current_gaps),
+        "soft_followup_hints": advisory,
+    }
+    prompt_text = json.dumps(
+        prompt_value,
+        ensure_ascii=False,
+        separators=(",", ":"),
+    )
+    current_gaps_slot.update(
+        {
+            "text": prompt_text,
+            "value": prompt_value,
+            "chars": len(prompt_text),
+            "injected": True,
+            "empty_reason": None,
+        }
+    )
+
+    history_section = _history_section_from_prompt_slots(prompt_slots)
+    budget = _history_budget_chars(history_context)
+    if budget > 0 and len(history_section) > budget:
+        soft_followup_context["applied"] = False
+        soft_followup_context["not_applied_reason"] = "prompt_budget_exceeded"
+        soft_followup_context["applied_to_slot"] = None
+        soft_followup_context["prompt_budget_chars"] = budget
+        soft_followup_context["prompt_candidate_chars"] = len(history_section)
+        return
+
+    history_context["prompt_slots"] = prompt_slots
+    history_context["history_section"] = history_section
+    history_context["current_gaps_advisory"] = advisory
+    history_context["current_gaps_prompt_value"] = prompt_value
+    soft_followup_context["applied"] = True
+    soft_followup_context["applied_to_slot"] = "CURRENT_GAPS"
+    soft_followup_context["not_applied_reason"] = None
+    soft_followup_context["empty_reason"] = None
+
+
+def _current_question_refs_for_soft_followup(ctx: dict[str, Any]) -> dict[str, str]:
+    items = [
+        item
+        for item in (ctx.get("question_items") or [])
+        if isinstance(item, dict)
+    ]
+    preferred = [
+        item
+        for item in items
+        if item.get("injected") is True and _rank_is_one(item.get("rank"))
+    ]
+    if not preferred:
+        preferred = [item for item in items if item.get("injected") is True]
+    if preferred:
+        seed_id = str(preferred[0].get("seed_id") or "").strip()
+        variant_id = str(preferred[0].get("variant_id") or "").strip()
+        if seed_id or variant_id:
+            return {"seed_id": seed_id, "variant_id": variant_id}
+
+    question_seed = (ctx.get("contract_hints") or {}).get("question_seed", {})
+    if isinstance(question_seed, dict):
+        seed_id = str(question_seed.get("seed_id") or "").strip()
+        variant_id = str(question_seed.get("variant_id") or "").strip()
+        if seed_id or variant_id:
+            return {"seed_id": seed_id, "variant_id": variant_id}
+    return {}
+
+
+def _rank_is_one(value: Any) -> bool:
+    if isinstance(value, bool):
+        return False
+    try:
+        return int(value) == 1
+    except (TypeError, ValueError):
+        return False
+
+
+def _history_section_from_prompt_slots(prompt_slots: list[dict[str, Any]]) -> str:
+    by_source = {
+        str(slot.get("source_key") or ""): str(slot.get("text") or "")
+        for slot in prompt_slots
+    }
+    lines = []
+    for source_key in (
+        "history_summary_projection",
+        "recent_qa_prompt_view",
+        "current_gaps",
+    ):
+        lines.append(
+            f"{_HISTORY_SECTION_LABELS[source_key]} = {by_source.get(source_key, '')}"
+        )
+    return "\n".join(lines)
+
+
+def _history_budget_chars(history_context: dict[str, Any]) -> int:
+    stats = history_context.get("stats")
+    if not isinstance(stats, dict):
+        return 0
+    try:
+        return int(stats.get("budget_chars") or 0)
+    except (TypeError, ValueError):
+        return 0
 
 
 def _step_retrieve_candidate_anchors(
@@ -2847,6 +3013,13 @@ def ask_question_node(state: InterviewState) -> dict[str, Any]:
         runtime_config=runtime_config,
         settings=settings,
     )
+    (
+        soft_followup_prompt_mode,
+        soft_followup_prompt_mode_warnings,
+    ) = _resolve_soft_followup_prompt_mode(
+        runtime_config=runtime_config,
+        settings=settings,
+    )
     dimension = (
         state.get("current_dimension")
         or (state.get("dimensions") or ["general"])[0]
@@ -2927,6 +3100,8 @@ def ask_question_node(state: InterviewState) -> dict[str, Any]:
         "contract_acceptance_mode_warnings": contract_acceptance_mode_warnings,
         "compiled_acceptance_checks": [],
         "reviewed_acceptance_checks": [],
+        "soft_followup_prompt_mode": soft_followup_prompt_mode,
+        "soft_followup_prompt_mode_warnings": soft_followup_prompt_mode_warnings,
     }
     if depth_metadata:
         ctx["depth_followup"] = depth_metadata
@@ -2976,6 +3151,27 @@ def ask_question_node(state: InterviewState) -> dict[str, Any]:
     ctx["probe_intent"] = probe_intent
 
     _step_select_structured_question(state, ctx, probe_intent=probe_intent)
+    soft_followup_context = build_soft_followup_context(
+        qa_history=state.get("qa_history", []),
+        current_dimension=dimension,
+        current_question_refs=_current_question_refs_for_soft_followup(ctx),
+        ask_plan=plan,
+        refine_mode=bool(state.get("refine_mode")) or bool(depth_followup_slot),
+        prompt_mode=soft_followup_prompt_mode,
+        warnings=soft_followup_prompt_mode_warnings,
+    )
+    _apply_soft_followup_advisory_to_history_context(
+        history_context,
+        soft_followup_context,
+    )
+    ctx["current_gaps_shadow"] = {
+        "soft_followup_hints": soft_followup_context,
+    }
+    history_context["current_gaps_shadow"] = ctx["current_gaps_shadow"]
+    ctx["history_context"] = history_context
+    ctx["history_section"] = history_context.get("history_section", "")
+    ctx["history_selector_summary"] = history_context.get("selector_summary", "")
+    ctx["history_prompt_slots"] = history_context.get("prompt_slots", [])
     _run_plan(plan, state, ctx)
 
     question_payload: dict[str, Any] = ctx.get("question_payload") or {}
@@ -3205,6 +3401,12 @@ def ask_question_node(state: InterviewState) -> dict[str, Any]:
                     runtime_config=runtime_config,
                 ),
                 "history_context": ctx.get("history_context") or {},
+                "current_gaps_shadow": ctx.get("current_gaps_shadow") or {},
+                "soft_followup_prompt_mode": ctx.get("soft_followup_prompt_mode"),
+                "soft_followup_prompt_mode_warnings": ctx.get(
+                    "soft_followup_prompt_mode_warnings"
+                )
+                or [],
                 "qa_summary_projection": update.get("qa_summary_projection") or {},
                 "history_prompt_slots": ctx.get("history_prompt_slots") or [],
                 "prompt_budget_diagnostics": ctx.get(
