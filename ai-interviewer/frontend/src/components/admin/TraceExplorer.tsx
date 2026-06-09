@@ -5548,6 +5548,8 @@ function ContractAcceptanceOverview({
   const usingLegacyChecks = visibleItems.length === 0;
   const usingLegacyResults =
     resultItems.length === 0 && Object.keys(fallbackResults).length > 0;
+  const hasSemanticsSummary =
+    hasContractSemanticsSummaryPayload(semanticsSummary);
 
   if (usingLegacyChecks) {
     return (
@@ -5631,7 +5633,9 @@ function ContractAcceptanceOverview({
             <ContractAcceptanceLayerGuide />
           </div>
 
-          <ContractSemanticsSummaryPanel summary={semanticsSummary} />
+          {hasSemanticsSummary && (
+            <ContractSemanticsSummaryPanel summary={semanticsSummary} />
+          )}
         </div>
       </div>
 
@@ -5758,6 +5762,38 @@ function ContractSemanticsSummaryPanel({
       </div>
     </div>
   );
+}
+
+function hasContractSemanticsSummaryPayload(
+  summary: Record<string, unknown>,
+): boolean {
+  if (Object.keys(summary).length === 0) return false;
+  const reviewedCore = recordFromUnknown(summary.reviewed_core);
+  const reviewedSupporting = recordFromUnknown(summary.reviewed_supporting);
+  const adaptiveContext = recordFromUnknown(summary.adaptive_context);
+  const evaluatorExtra = recordFromUnknown(summary.evaluator_extra);
+  const buckets = [
+    reviewedCore,
+    reviewedSupporting,
+    adaptiveContext,
+    evaluatorExtra,
+  ];
+  if (
+    buckets.some(
+      (bucket) =>
+        typeof bucket.total === "number" ||
+        recordArray(bucket.failed_items).length > 0 ||
+        recordArray(bucket.gap_items).length > 0 ||
+        recordArray(bucket.items).length > 0,
+    )
+  ) {
+    return true;
+  }
+  return [
+    summary.hard_gap_count,
+    summary.soft_quality_gap_count,
+    summary.context_gap_count,
+  ].some((value) => typeof value === "number");
 }
 
 function hasSoftGapTrainingSuggestionPayload(

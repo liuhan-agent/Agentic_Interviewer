@@ -247,8 +247,10 @@ test("setup form locks the start action while creating the interview session", (
   assert.match(source, /aria-busy=\{isStartingInterview\}/);
   assert.match(source, /document\.body\.style\.overflow = "hidden"/);
   assert.match(source, /正在创建面试环境/);
-  assert.match(source, /animate-shimmer bg-shimmer/);
-  assert.match(source, /w-2\/3/);
+  assert.match(source, /min-h-40/);
+  assert.match(source, /items-center gap-4/);
+  assert.doesNotMatch(source, /animate-shimmer bg-shimmer/);
+  assert.doesNotMatch(source, /w-2\/3/);
   assert.doesNotMatch(source, /animate=\{\{ width: \[/);
   assert.doesNotMatch(source, /repeat: Number\.POSITIVE_INFINITY/);
   assert.match(source, /disabled=\{isStartingInterview \|\| resumeFieldsLocked \|\| startGate\.disabled\}/);
