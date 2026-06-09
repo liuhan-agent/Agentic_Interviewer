@@ -2423,6 +2423,595 @@ def test_prompt_slots_record_final_generator_inputs_and_truncation() -> None:
     assert by_label["INTERVIEW_SKILLS"]["empty_reason"] == "no_relevant_interview_skills"
 
 
+def test_ask_question_records_soft_followup_context_shadow_without_prompt_injection(
+    monkeypatch,
+) -> None:
+    captured_trace = _install_default_patches(
+        monkeypatch,
+        retrieval=_make_retrieval(docs=[]),
+        strategies=[],
+        skills=[],
+    )
+    generator_kwargs: dict[str, Any] = {}
+
+    def fake_generate_question(**kwargs):
+        generator_kwargs.update(kwargs)
+        return _fake_generate_question(**kwargs)
+
+    monkeypatch.setattr(ask_mod, "generate_question", fake_generate_question)
+
+    quality_hint = {
+        "hint_id": "soft_followup:quality",
+        "suggestion_id": "soft_gap:quality",
+        "source": "reviewed_supporting",
+        "intent": "probe_quality_gap",
+        "check_id": "reviewed:support:retry_boundary",
+        "verdict": "partial",
+        "reason": "partial",
+        "text": "Ask for retry boundary details.",
+        "focus": "Probe quality gap without treating it as a hard gate: Ask for retry boundary details.",
+        "evidence_count": 1,
+    }
+    context_hint = {
+        "hint_id": "soft_followup:context",
+        "suggestion_id": "soft_gap:context",
+        "source": "adaptive_context",
+        "intent": "probe_context_gap",
+        "check_id": "adaptive:resume:payment-project",
+        "verdict": "no",
+        "reason": "no",
+        "text": "Tie the answer to the payment migration project.",
+        "focus": "Probe context gap without overriding reviewed core: Tie the answer to the payment migration project.",
+        "evidence_count": 0,
+    }
+
+    out = ask_mod.ask_question_node(
+        _base_state(
+            turn_idx=2,
+            formal_turn_idx=1,
+            runtime_config={
+                "rag_mode": "vector",
+                "rag_top_k": 2,
+                "soft_followup_prompt_mode": "shadow",
+            },
+            selected_action={"id": "plan_deep_probe", "plan_template": "deep_probe"},
+            qa_history=[
+                {
+                    "turn_idx": 1,
+                    "dimension": "system_design",
+                    "question": "How would you handle retries?",
+                    "answer": "I would retry.",
+                    "evaluation": {
+                        "passed": False,
+                        "recommended_next": "refine",
+                        "soft_followup_hints": {
+                            "present": True,
+                            "mode": "shadow",
+                            "applied": False,
+                            "source": "soft_gap_training_suggestions",
+                            "quality_hints": [quality_hint],
+                            "context_hints": [context_hint],
+                            "priority_order": [
+                                "soft_followup:quality",
+                                "soft_followup:context",
+                            ],
+                            "counts": {"quality": 1, "context": 1, "total": 2},
+                        },
+                    },
+                }
+            ],
+        )
+    )  # type: ignore[arg-type]
+
+    shadow = captured_trace["current_gaps_shadow"]["soft_followup_hints"]
+    assert shadow["present"] is True
+    assert shadow["mode"] == "shadow"
+    assert shadow["applied"] is False
+    assert shadow["not_applied_reason"] == "prompt_shadow"
+    assert shadow["selected_hint_ids"] == [
+        "soft_followup:quality",
+        "soft_followup:context",
+    ]
+    assert shadow["quality_hints"][0]["check_id"] == "reviewed:support:retry_boundary"
+    assert shadow["context_hints"][0]["source"] == "adaptive_context"
+    assert shadow["constraints"]["do_not_override_seed"] is True
+
+    artifacts = out["current_question"]["selection_artifacts"]
+    assert artifacts["current_gaps"]["soft_followup_hints"] == shadow
+    assert captured_trace["selection_artifacts"] == artifacts
+    assert captured_trace["history_context"]["current_gaps_shadow"] == {
+        "soft_followup_hints": shadow
+    }
+
+    prompt_text = "\n".join(
+        str(slot.get("text") or "") for slot in captured_trace["prompt_slots"]
+    )
+    assert "Ask for retry boundary details." not in prompt_text
+    assert "payment migration project" not in prompt_text
+    assert "Ask for retry boundary details." not in str(
+        generator_kwargs.get("history_section_override") or ""
+    )
+    assert len(out["current_contract"]["acceptance_checks"]) == 1
+    assert out["current_contract"]["signed_by"] == ["generator", "evaluator"]
+
+
+def test_ask_question_defaults_soft_followup_prompt_mode_off(monkeypatch) -> None:
+    captured_trace = _install_default_patches(
+        monkeypatch,
+        retrieval=_make_retrieval(docs=[]),
+        strategies=[],
+        skills=[],
+    )
+
+    ask_mod.ask_question_node(
+        _base_state(
+            turn_idx=2,
+            formal_turn_idx=1,
+            selected_action={"id": "plan_deep_probe", "plan_template": "deep_probe"},
+            qa_history=[
+                {
+                    "turn_idx": 1,
+                    "dimension": "system_design",
+                    "evaluation": {
+                        "soft_followup_hints": {
+                            "present": True,
+                            "mode": "shadow",
+                            "applied": False,
+                            "quality_hints": [
+                                {
+                                    "hint_id": "soft_followup:quality",
+                                    "text": "Ask for retry boundary details.",
+                                }
+                            ],
+                            "context_hints": [],
+                            "priority_order": ["soft_followup:quality"],
+                            "counts": {"quality": 1, "context": 0, "total": 1},
+                        }
+                    },
+                }
+            ],
+        )
+    )  # type: ignore[arg-type]
+
+    shadow = captured_trace["current_gaps_shadow"]["soft_followup_hints"]
+    assert shadow["mode"] == "off"
+    assert shadow["present"] is False
+    assert shadow["applied"] is False
+    assert shadow["not_applied_reason"] == "disabled"
+    assert "Ask for retry boundary details." not in "\n".join(
+        str(slot.get("text") or "") for slot in captured_trace["prompt_slots"]
+    )
+
+
+def test_ask_question_advisory_mode_injects_soft_hints_into_current_gaps_only(
+    monkeypatch,
+) -> None:
+    captured_trace = _install_default_patches(
+        monkeypatch,
+        retrieval=_make_retrieval(docs=[]),
+        strategies=[],
+        skills=[],
+    )
+    generator_kwargs: dict[str, Any] = {}
+
+    def fake_generate_question(**kwargs):
+        generator_kwargs.update(kwargs)
+        return _fake_generate_question(**kwargs)
+
+    monkeypatch.setattr(ask_mod, "generate_question", fake_generate_question)
+
+    out = ask_mod.ask_question_node(
+        _base_state(
+            turn_idx=2,
+            formal_turn_idx=1,
+            runtime_config={
+                "rag_mode": "vector",
+                "rag_top_k": 2,
+                "soft_followup_prompt_mode": "advisory",
+            },
+            selected_action={"id": "plan_deep_probe", "plan_template": "deep_probe"},
+            qa_history=[
+                {
+                    "turn_idx": 1,
+                    "dimension": "system_design",
+                    "question": "How would you handle retries?",
+                    "answer": "I would retry.",
+                    "evaluation": {
+                        "passed": False,
+                        "recommended_next": "refine",
+                        "soft_followup_hints": {
+                            "present": True,
+                            "mode": "shadow",
+                            "applied": False,
+                            "source": "soft_gap_training_suggestions",
+                            "quality_hints": [
+                                {
+                                    "hint_id": "soft_followup:quality",
+                                    "suggestion_id": "soft_gap:quality",
+                                    "source": "reviewed_supporting",
+                                    "intent": "probe_quality_gap",
+                                    "check_id": "reviewed:support:retry_boundary",
+                                    "verdict": "partial",
+                                    "reason": "partial",
+                                    "text": "Ask for retry boundary details.",
+                                    "focus": "Ask for retry boundary details.",
+                                }
+                            ],
+                            "context_hints": [
+                                {
+                                    "hint_id": "soft_followup:context",
+                                    "suggestion_id": "soft_gap:context",
+                                    "source": "adaptive_context",
+                                    "intent": "probe_context_gap",
+                                    "check_id": "adaptive:resume:payment-project",
+                                    "verdict": "no",
+                                    "reason": "no",
+                                    "text": "Tie the answer to the payment migration project.",
+                                    "focus": "Tie the answer to the payment migration project.",
+                                }
+                            ],
+                            "priority_order": [
+                                "soft_followup:quality",
+                                "soft_followup:context",
+                            ],
+                            "counts": {"quality": 1, "context": 1, "total": 2},
+                        },
+                    },
+                }
+            ],
+        )
+    )  # type: ignore[arg-type]
+
+    shadow = captured_trace["current_gaps_shadow"]["soft_followup_hints"]
+    assert shadow["mode"] == "advisory"
+    assert shadow["present"] is True
+    assert shadow["applied"] is True
+    assert shadow["applied_to_slot"] == "CURRENT_GAPS"
+    assert shadow["not_applied_reason"] is None
+    assert shadow["selected_hint_ids"] == [
+        "soft_followup:quality",
+        "soft_followup:context",
+    ]
+    assert captured_trace["soft_followup_prompt_mode"] == "advisory"
+    artifacts = out["current_question"]["selection_artifacts"]
+    assert artifacts["current_gaps"]["soft_followup_hints"] == shadow
+
+    current_gaps_slot = next(
+        slot
+        for slot in captured_trace["prompt_slots"]
+        if slot["prompt_label"] == "CURRENT_GAPS"
+    )
+    assert isinstance(current_gaps_slot["value"], dict)
+    assert current_gaps_slot["value"]["soft_followup_hints"]["mode"] == "advisory"
+    assert current_gaps_slot["value"]["soft_followup_hints"]["advisory_only"] is True
+    assert "Ask for retry boundary details." in current_gaps_slot["text"]
+    assert "Tie the answer to the payment migration project." in current_gaps_slot["text"]
+    assert "Ask for retry boundary details." in str(
+        generator_kwargs.get("history_section_override") or ""
+    )
+    assert out["current_contract"]["signed_by"] == ["generator", "evaluator"]
+
+
+def test_ask_question_advisory_topic_affinity_rejects_cross_seed_hints(
+    monkeypatch,
+) -> None:
+    captured_trace = _install_default_patches(
+        monkeypatch,
+        retrieval=_make_retrieval(docs=[]),
+        strategies=[],
+        skills=[],
+    )
+    generator_kwargs: dict[str, Any] = {}
+
+    def fake_generate_question(**kwargs):
+        generator_kwargs.update(kwargs)
+        return _fake_generate_question(**kwargs)
+
+    monkeypatch.setattr(ask_mod, "generate_question", fake_generate_question)
+    monkeypatch.setattr(
+        ask_mod,
+        "select_question_candidates",
+        lambda **_kwargs: QuestionSelectionResult(
+            candidates=[
+                _ascii_question_candidate(
+                    seed_id="coding_quality.java_service_testability",
+                    variant_id=(
+                        "coding_quality.java_service_testability."
+                        "transaction_service_boundary"
+                    ),
+                    dimension="coding_quality",
+                )
+            ]
+        ),
+    )
+    monkeypatch.setattr(ask_mod, "record_question_usages", lambda **_kwargs: None)
+
+    ask_mod.ask_question_node(
+        _base_state(
+            current_dimension="coding_quality",
+            dimensions=["coding_quality"],
+            dimension_status={"coding_quality": "active"},
+            turn_idx=9,
+            formal_turn_idx=8,
+            runtime_config={
+                "rag_mode": "vector",
+                "rag_top_k": 2,
+                "question_selector_mode": "structured_primary",
+                "soft_followup_prompt_mode": "advisory",
+            },
+            selected_action={"id": "plan_deep_probe", "plan_template": "deep_probe"},
+            qa_history=[
+                {
+                    "turn_idx": 8,
+                    "dimension": "coding_quality",
+                    "selection_artifacts": {
+                        "question_items": [
+                            {
+                                "seed_id": (
+                                    "coding_quality.java_api_contract_idempotency"
+                                ),
+                                "variant_id": (
+                                    "coding_quality.java_api_contract_idempotency."
+                                    "payment_create_retry"
+                                ),
+                                "rank": 1,
+                                "injected": True,
+                            }
+                        ]
+                    },
+                    "evaluation": {
+                        "soft_followup_hints": {
+                            "present": True,
+                            "mode": "shadow",
+                            "applied": False,
+                            "quality_hints": [
+                                {
+                                    "hint_id": "soft_followup:quality",
+                                    "source": "reviewed_supporting",
+                                    "intent": "probe_quality_gap",
+                                    "check_id": "reviewed:cq:idempotency",
+                                    "text": "Ask for idempotency key scope.",
+                                    "focus": "Ask for idempotency key scope.",
+                                    "verdict": "partial",
+                                }
+                            ],
+                            "context_hints": [],
+                            "priority_order": ["soft_followup:quality"],
+                            "counts": {"quality": 1, "context": 0, "total": 1},
+                        }
+                    },
+                }
+            ],
+        )
+    )  # type: ignore[arg-type]
+
+    shadow = captured_trace["current_gaps_shadow"]["soft_followup_hints"]
+    assert shadow["mode"] == "advisory"
+    assert shadow["present"] is False
+    assert shadow["applied"] is False
+    assert shadow["selected_hint_ids"] == []
+    assert shadow["rejected_reasons"] == {"topic_affinity_mismatch": 1}
+    assert shadow["topic_affinity_policy"] == "balanced"
+    assert shadow["topic_affinity_rejected_count"] == 1
+    assert shadow["topic_affinity_rejected_reasons"] == {
+        "topic_affinity_mismatch": 1
+    }
+
+    artifacts = captured_trace["selection_artifacts"]
+    assert artifacts["current_gaps"]["soft_followup_hints"] == shadow
+    prompt_text = "\n".join(
+        str(slot.get("text") or "") for slot in captured_trace["prompt_slots"]
+    )
+    assert "Ask for idempotency key scope." not in prompt_text
+    assert "Ask for idempotency key scope." not in str(
+        generator_kwargs.get("history_section_override") or ""
+    )
+
+
+def test_ask_question_advisory_topic_affinity_allows_same_seed_variant_family(
+    monkeypatch,
+) -> None:
+    captured_trace = _install_default_patches(
+        monkeypatch,
+        retrieval=_make_retrieval(docs=[]),
+        strategies=[],
+        skills=[],
+    )
+    generator_kwargs: dict[str, Any] = {}
+
+    def fake_generate_question(**kwargs):
+        generator_kwargs.update(kwargs)
+        return _fake_generate_question(**kwargs)
+
+    monkeypatch.setattr(ask_mod, "generate_question", fake_generate_question)
+    monkeypatch.setattr(
+        ask_mod,
+        "select_question_candidates",
+        lambda **_kwargs: QuestionSelectionResult(
+            candidates=[
+                _ascii_question_candidate(
+                    seed_id="coding_quality.java_service_testability",
+                    variant_id=(
+                        "coding_quality.java_service_testability."
+                        "transaction_service_boundary"
+                    ),
+                    dimension="coding_quality",
+                )
+            ]
+        ),
+    )
+    monkeypatch.setattr(ask_mod, "record_question_usages", lambda **_kwargs: None)
+
+    ask_mod.ask_question_node(
+        _base_state(
+            current_dimension="coding_quality",
+            dimensions=["coding_quality"],
+            dimension_status={"coding_quality": "active"},
+            turn_idx=9,
+            formal_turn_idx=8,
+            runtime_config={
+                "rag_mode": "vector",
+                "rag_top_k": 2,
+                "question_selector_mode": "structured_primary",
+                "soft_followup_prompt_mode": "advisory",
+            },
+            selected_action={"id": "plan_deep_probe", "plan_template": "deep_probe"},
+            qa_history=[
+                {
+                    "turn_idx": 8,
+                    "dimension": "coding_quality",
+                    "selection_artifacts": {
+                        "question_items": [
+                            {
+                                "seed_id": "coding_quality.java_service_testability",
+                                "variant_id": (
+                                    "coding_quality.java_service_testability."
+                                    "async_job_test"
+                                ),
+                                "rank": 1,
+                                "injected": True,
+                            }
+                        ]
+                    },
+                    "evaluation": {
+                        "soft_followup_hints": {
+                            "present": True,
+                            "mode": "shadow",
+                            "applied": False,
+                            "quality_hints": [
+                                {
+                                    "hint_id": "soft_followup:quality",
+                                    "source": "reviewed_supporting",
+                                    "intent": "probe_quality_gap",
+                                    "check_id": "reviewed:cq:testability",
+                                    "text": "Ask for test seam details.",
+                                    "focus": "Ask for test seam details.",
+                                    "verdict": "partial",
+                                }
+                            ],
+                            "context_hints": [],
+                            "priority_order": ["soft_followup:quality"],
+                            "counts": {"quality": 1, "context": 0, "total": 1},
+                        }
+                    },
+                }
+            ],
+        )
+    )  # type: ignore[arg-type]
+
+    shadow = captured_trace["current_gaps_shadow"]["soft_followup_hints"]
+    assert shadow["mode"] == "advisory"
+    assert shadow["present"] is True
+    assert shadow["applied"] is True
+    assert shadow["applied_to_slot"] == "CURRENT_GAPS"
+    assert shadow["selected_hint_ids"] == ["soft_followup:quality"]
+    assert shadow["quality_hints"][0]["topic_affinity"] == "same_seed"
+    assert shadow["quality_hints"][0]["source_seed_id"] == (
+        "coding_quality.java_service_testability"
+    )
+
+    artifacts = captured_trace["selection_artifacts"]
+    assert artifacts["current_gaps"]["soft_followup_hints"] == shadow
+    current_gaps_slot = next(
+        slot
+        for slot in captured_trace["prompt_slots"]
+        if slot["prompt_label"] == "CURRENT_GAPS"
+    )
+    assert "Ask for test seam details." in current_gaps_slot["text"]
+    assert "Ask for test seam details." in str(
+        generator_kwargs.get("history_section_override") or ""
+    )
+
+
+def test_ask_question_advisory_mode_does_not_cross_dimension_inject(
+    monkeypatch,
+) -> None:
+    captured_trace = _install_default_patches(
+        monkeypatch,
+        retrieval=_make_retrieval(docs=[]),
+        strategies=[],
+        skills=[],
+    )
+
+    ask_mod.ask_question_node(
+        _base_state(
+            turn_idx=2,
+            formal_turn_idx=1,
+            runtime_config={
+                "rag_mode": "vector",
+                "rag_top_k": 2,
+                "soft_followup_prompt_mode": "advisory",
+            },
+            current_dimension="coding_quality",
+            dimensions=["coding_quality"],
+            dimension_status={"coding_quality": "active"},
+            selected_action={"id": "plan_deep_probe", "plan_template": "deep_probe"},
+            qa_history=[
+                {
+                    "turn_idx": 1,
+                    "dimension": "system_design",
+                    "evaluation": {
+                        "soft_followup_hints": {
+                            "present": True,
+                            "mode": "shadow",
+                            "applied": False,
+                            "quality_hints": [
+                                {
+                                    "hint_id": "soft_followup:quality",
+                                    "text": "Ask for retry boundary details.",
+                                }
+                            ],
+                            "context_hints": [],
+                            "priority_order": ["soft_followup:quality"],
+                            "counts": {"quality": 1, "context": 0, "total": 1},
+                        }
+                    },
+                }
+            ],
+        )
+    )  # type: ignore[arg-type]
+
+    shadow = captured_trace["current_gaps_shadow"]["soft_followup_hints"]
+    assert shadow["mode"] == "advisory"
+    assert shadow["present"] is False
+    assert shadow["applied"] is False
+    assert shadow["not_applied_reason"] == "no_eligible_hints"
+    assert shadow["rejected_reasons"] == {"dimension_mismatch": 1}
+    prompt_text = "\n".join(
+        str(slot.get("text") or "") for slot in captured_trace["prompt_slots"]
+    )
+    assert "Ask for retry boundary details." not in prompt_text
+
+
+def test_ask_question_invalid_soft_followup_prompt_mode_falls_back_off(
+    monkeypatch,
+) -> None:
+    captured_trace = _install_default_patches(
+        monkeypatch,
+        retrieval=_make_retrieval(docs=[]),
+        strategies=[],
+        skills=[],
+    )
+
+    ask_mod.ask_question_node(
+        _base_state(
+            runtime_config={
+                "rag_mode": "vector",
+                "rag_top_k": 2,
+                "soft_followup_prompt_mode": "surprise",
+            }
+        )
+    )  # type: ignore[arg-type]
+
+    shadow = captured_trace["current_gaps_shadow"]["soft_followup_hints"]
+    assert captured_trace["soft_followup_prompt_mode"] == "off"
+    assert captured_trace["soft_followup_prompt_mode_warnings"] == [
+        "invalid_soft_followup_prompt_mode_fallback"
+    ]
+    assert shadow["mode"] == "off"
+    assert shadow["warnings"] == ["invalid_soft_followup_prompt_mode_fallback"]
+
+
 def test_prompt_slots_include_strategy_skill_runtime_diagnostics() -> None:
     ctx = {
         "structured_primary_seed_hit": False,

@@ -605,6 +605,7 @@ class Settings(BaseSettings):
         "reviewed_append",
     ] = "shadow"
     contract_gate_mode: Literal["shadow", "enforce"] = "shadow"
+    soft_followup_prompt_mode: Literal["off", "shadow", "advisory"] = "off"
     enable_question_fit_profile: bool = True
     enable_question_reranker_shadow: bool = False
     question_reranker_timeout_ms: int = 4000
