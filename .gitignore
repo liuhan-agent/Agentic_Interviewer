@@ -46,6 +46,7 @@ ai-interviewer/docs/learning-cases/
 
 # Local demo video raw files and rendered drafts; publish final media externally.
 demo-video/
+ai-interviewer/docs/assets/cover-sources/
 
 # Local synced agent skills
 .agents/skills/deploy-to-vercel/
