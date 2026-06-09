@@ -15,6 +15,7 @@
 - [本地开发命令速查](<./本地开发命令速查.md>)：常用 Docker、后端、前端、测试和排障命令。
 - [Production Readiness Runbook](./PRODUCTION_READINESS_RUNBOOK.md)：生产环境变量、预检规则、smoke drill、排障和回滚建议。
 - [Session Anchor RAG Rollout Runbook](./RESUME_RAG_ROLLOUT.md)：候选人材料 RAG 的 rollout、shadow 指标、缓存和回滚策略。
+- [Evaluation Baseline Hook](./EVALUATION_BASELINE_HOOK.md)：记录“拒绝玄学自评”的后续评估层接入点，等真人标注样本具备后再做基线对比。
 
 ### 简历与面试准备
 

@@ -6,11 +6,35 @@
 
 问镜（Agentic Interviewer）不是普通聊天机器人，也不是“套一层简历问题 prompt”的 Demo。它围绕一次完整模拟面试构建真实 workflow：采集上下文、生成问题、等待用户回答、评分、验证、奖励回填、决定追问或下一题，最后生成报告和复练计划。
 
-项目的重点是展示：**如何把 agentic workflow 从一次 LLM 调用，工程化成可恢复、可观测、可复盘、可运营的产品系统。**
+项目的重点是展示：**如何把 agentic workflow 从一次 LLM 调用，工程化成可恢复、可观测、可复盘、可运营的产品系统。** 它也是一个把企业 Agent 落地方法论实践到模拟面试场景里的工程样本：不把 LLM 当万能黑箱，而是用数据预处理、评分合同、上下文治理、可追责 trace 和产品控制面去交付确定性。
 
 [![问镜（Agentic Interviewer）Trace Explorer demo preview](./ai-interviewer/docs/assets/demo-cover.png)](https://www.bilibili.com/video/BV1Ey7Z6gEcA/)
 
 [观看 5 分钟演示视频（Bilibili）](https://www.bilibili.com/video/BV1Ey7Z6gEcA/) · [GitHub Release 下载](https://github.com/liuhan-agent/Agentic_Interviewer/releases/tag/demo-video-2026-06-04)
+
+## 项目当前状态
+
+当前版本的核心面试链路已经闭环实现，不是概念验证路线图：
+
+- **候选人材料接入**：简历/JD 上传或填写后，先经过解析、规则抽取、审计摘要、短期 artifact 和 session anchor/RAG 分层，再进入面试上下文。
+- **正式面试主链路**：自我介绍、导演策略、结构化出题、回答等待、评分、校验、奖励回填、追问/下一题/收尾已经串成 LangGraph 状态机。
+- **结果与复盘闭环**：最终报告、维度证据、训练计划、复练入口、历史记录、回放和 Trace Explorer 已经连接到同一套 workflow 证据链。
+- **产品控制面**：登录/匿名兼容、账号记录归属、平台额度、BYOK、Admin 后台和 production preflight 已经作为主链路外壳实现。
+- **评估层边界**：项目已有评分合同、reviewed acceptance checks、credibility 指标、trace/replay 和人工标注入口；真人标准样本的 baseline 一致率/漂移率评估被明确列为后续工作，不包装成“模型自评准确率”。
+
+## 企业 Agent 落地理念映射
+
+这个项目的目标不是堆 agent 名词，而是把企业级 Agent 常见的落地问题压进可工程化的边界里：
+
+| 企业 Agent 落地理念 | 本项目里的实践 | 证据模块 |
+| --- | --- | --- |
+| 让 LLM 远离原始脏数据 | 简历、JD、自我介绍先进入解析/规则抽取/PII 清理/短期 artifact，再通过 session anchor 和 RAG 按预算进入 prompt。 | `resume_parser.py`、`resume_parse_artifacts.py`、`session_anchor_vectorize.py`、`session_anchor_retriever.py` |
+| LLM 是用来吸收不确定性的，不是制造不确定性的 | 年限、技能、题库 seed、候选锚点、核心评分条款尽量结构化；LLM 主要处理语义理解、回答判断和追问生成。 | `question_seeds/*.yaml`、`seed_contract.py`、`acceptance_compiler.py`、`ask_question.py` |
+| 让 LLM 做判断，不让 LLM 做定义 | 评分标准来自 question seed / variant / reviewed acceptance；运行时锁定核心合同，LLM 按合同判断候选答案，不能重新定义本题考什么。 | `contracts/seed_contract.py`、`contracts/acceptance_compiler.py`、`REVIEWED_ACCEPTANCE_AUTHORING.md` |
+| 长上下文是伪命题 | 不把整份简历、历史回答和题库塞进一次 prompt；通过 history projection、prompt slots、候选锚点、RAG budget 和裁剪诊断分层调度上下文。 | context builder/renderer、`ask_question` prompt slots、Trace Explorer |
+| 确定性不是优点，是底线 | locked contract、reviewed checks、feature flags、fallback、production preflight 和 schema safeguards 让不确定性显式暴露、可灰度、可回滚。 | `settings.py`、`deployment_preflight.py`、contract gate、runbook |
+| 你做的不是 Agent 产品，是确定性产品 | 用户看到的是面试、报告、复练、额度、BYOK、历史记录和 Admin 边界，而不是一个不可解释的聊天框。 | frontend interview/report/account/admin、credits ledger、BYOK routing |
+| 可追责、可回放、可审计 | 每轮写入 trace payload、contract diagnostics、verification changes、reward attribution；最终报告和回放能追溯问题、答案、证据和评分依据。 | Trace Explorer、session replay、final report evidence、scoring credibility |
 
 ## 核心工程主张
 
@@ -304,6 +328,7 @@ python -m app.scripts.production_smoke --check-deps
 - [项目架构一页纸](<./ai-interviewer/docs/项目架构一页纸.md>)
 - [控制面与权限边界说明](<./ai-interviewer/docs/控制面与权限边界说明.md>)
 - [简历与面试讲解稿](<./ai-interviewer/docs/简历与面试讲解稿.md>)
+- [Evaluation Baseline Hook](./ai-interviewer/docs/EVALUATION_BASELINE_HOOK.md)
 - [Phase 3.0 产品与上线决策](<./ai-interviewer/docs/PHASE_3_0_产品与上线决策.md>)
 - [Production Readiness Runbook](./ai-interviewer/docs/PRODUCTION_READINESS_RUNBOOK.md)
 - [本地开发命令速查](<./ai-interviewer/docs/本地开发命令速查.md>)
@@ -332,6 +357,7 @@ python -m app.scripts.production_smoke --check-deps
 - 支付 checkout；
 - 会员或订阅套餐；
 - 正式 admin audit log；
+- 20-50 条真人专家标注样本与 baseline 一致率/漂移率评估；
 - 完整公共生产运维体系。
 
 这些是有意延后，而不是遗漏。当前项目更适合作为 portfolio-ready、production-aware 的 agentic AI 应用工程样本，而不是已经完整运营的商业 SaaS。

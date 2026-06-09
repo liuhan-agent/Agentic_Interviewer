@@ -197,6 +197,11 @@ The project should be packaged around the following engineering story:
    Clear non-goals around payment, email verification, invite codes, and full
    SaaS operations.
 
+6. Evaluation restraint:
+   The project has reviewed acceptance checks, replayable traces, and computed
+   credibility signals, but human-labeled baseline evaluation is explicitly
+   deferred until real interviewer samples exist.
+
 This is stronger than presenting only screenshots. The valuable claim is that
 the project connects workflow runtime and ownership/control-plane concerns
 instead of stopping at a single chat-like demo.
@@ -266,6 +271,15 @@ These items are intentionally deferred, not forgotten.
 - load testing,
 - provider failover policy,
 - security review.
+
+### Evaluation baseline backlog
+
+- collect 20-50 human-reviewed interview samples,
+- label each sample with senior-interviewer score bands, confidence, and notes,
+- compare a simple prompt evaluator against the contract-governed evaluator,
+- report agreement rate, confidence calibration, evidence misses, and score
+  drift relative to the baseline,
+- avoid public accuracy claims until the benchmark report is repeatable.
 
 Decision:
 
