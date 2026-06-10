@@ -83,6 +83,17 @@ test("history list describes backend deletion result counts", () => {
   assert.match(source, /服务端没有找到可删除的数据/);
 });
 
+test("history list removes deleted account sessions from rendered state", () => {
+  const source = readSource("src", "components", "interview", "HistoryList.tsx");
+
+  const deleteHandler = source.match(
+    /const handleDeleteData = useCallback\([\s\S]*?\n  \);/,
+  )?.[0] ?? "";
+
+  assert.match(deleteHandler, /setAccountSessions/);
+  assert.match(deleteHandler, /session\.session_id !== sessionId/);
+});
+
 test("history page exposes setup drafts separately from interview records", () => {
   const source = readSource("src", "components", "interview", "HistoryList.tsx");
 

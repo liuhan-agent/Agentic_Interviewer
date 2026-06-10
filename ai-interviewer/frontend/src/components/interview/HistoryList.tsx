@@ -283,6 +283,9 @@ export function HistoryList() {
       try {
         const result = await deleteSession(sessionId);
         removeEntry(sessionId);
+        setAccountSessions((sessions) =>
+          sessions.filter((session) => session.session_id !== sessionId),
+        );
         setDeleteTarget(null);
         reload();
         toast({
