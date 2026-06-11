@@ -12,7 +12,7 @@ from collections.abc import Sequence
 from dataclasses import dataclass, field, replace
 from typing import Any
 
-from sqlalchemy import select
+from sqlalchemy import or_, select
 from sqlalchemy.orm import Session
 
 from app.engine.workflow.depth_followup import sanitize_depth_followup_metadata
@@ -28,6 +28,7 @@ from app.models.question_bank import (
 from app.services.question_usage_stats import (
     CONTEXT_SCOPE,
     DEFAULT_ROLLOUT_MODE,
+    GLOBAL_CONTEXT_KEY,
     MIN_CANDIDATES,
     MIN_REWARDED_USES,
     REWARD_SHADOW_BONUS_WEIGHT,
@@ -131,6 +132,9 @@ class QuestionSelectionResult:
 @dataclass(frozen=True)
 class _AggregatedQuestionStats:
     variant_id: str
+    context_key: str = GLOBAL_CONTEXT_KEY
+    scope: str = "global"
+    requested_context_key: str | None = None
     uses: int = 0
     injected_uses: int = 0
     rewarded_uses: int = 0
@@ -271,6 +275,7 @@ def select_question_candidates(
         session,
         ranked,
         question_selector_mode=question_selector_mode,
+        question_context_key=question_context_key,
     )
     return QuestionSelectionResult(candidates=ranked)
 
@@ -288,6 +293,7 @@ def _select_with_reward_rollouts(
     stats_by_variant = _load_aggregated_question_stats(
         session,
         [candidate.variant_id for candidate in candidates],
+        question_context_key=question_context_key,
     )
     seed_ids = sorted({candidate.seed_id for candidate in candidates})
     seed_rollouts = {
@@ -421,34 +427,67 @@ def _reward_sort_key(
 def _load_aggregated_question_stats(
     session: Session,
     variant_ids: Sequence[str],
+    *,
+    question_context_key: str | None = None,
 ) -> dict[str, _AggregatedQuestionStats]:
     clean_variant_ids = sorted({str(value or "").strip() for value in variant_ids if value})
     if not clean_variant_ids:
         return {}
+    requested_context_key = _clean_context_key(question_context_key)
+    context_order = (
+        [requested_context_key, GLOBAL_CONTEXT_KEY]
+        if requested_context_key != GLOBAL_CONTEXT_KEY
+        else [GLOBAL_CONTEXT_KEY]
+    )
     rows = list(
         session.scalars(
             select(QuestionUsageStats)
             .where(QuestionUsageStats.variant_id.in_(clean_variant_ids))
+            .where(
+                or_(
+                    QuestionUsageStats.question_context_key.in_(context_order),
+                    QuestionUsageStats.question_context_key.is_(None),
+                )
+            )
         )
     )
-    grouped: dict[str, list[QuestionUsageStats]] = {}
+    grouped: dict[str, dict[str, list[QuestionUsageStats]]] = {}
     for row in rows:
-        grouped.setdefault(row.variant_id, []).append(row)
-    return {
-        variant_id: _aggregate_stats_rows(variant_id, stats_rows)
-        for variant_id, stats_rows in grouped.items()
-    }
+        context_key = _clean_context_key(
+            getattr(row, "question_context_key", None)
+        )
+        if context_key not in context_order:
+            continue
+        grouped.setdefault(row.variant_id, {}).setdefault(context_key, []).append(row)
+    matches: dict[str, _AggregatedQuestionStats] = {}
+    for variant_id in clean_variant_ids:
+        match = _select_stats_for_context(
+            variant_id,
+            grouped.get(variant_id, {}),
+            context_order=context_order,
+            requested_context_key=requested_context_key,
+        )
+        if match is not None:
+            matches[variant_id] = match
+    return matches
 
 
 def _aggregate_stats_rows(
     variant_id: str,
     rows: list[QuestionUsageStats],
+    *,
+    context_key: str,
+    scope: str,
+    requested_context_key: str | None,
 ) -> _AggregatedQuestionStats:
     uses = sum(int(row.uses or 0) for row in rows)
     injected_uses = sum(int(row.injected_uses or 0) for row in rows)
     rewarded_uses = sum(int(row.rewarded_uses or 0) for row in rows)
     return _AggregatedQuestionStats(
         variant_id=variant_id,
+        context_key=context_key,
+        scope=scope,
+        requested_context_key=requested_context_key,
         uses=uses,
         injected_uses=injected_uses,
         rewarded_uses=rewarded_uses,
@@ -465,6 +504,34 @@ def _aggregate_stats_rows(
             ]
         ),
     )
+
+
+def _select_stats_for_context(
+    variant_id: str,
+    rows_by_context: dict[str, list[QuestionUsageStats]],
+    *,
+    context_order: Sequence[str],
+    requested_context_key: str,
+) -> _AggregatedQuestionStats | None:
+    for idx, context_key in enumerate(context_order):
+        rows = rows_by_context.get(context_key)
+        if not rows:
+            continue
+        scope = (
+            "global"
+            if context_key == GLOBAL_CONTEXT_KEY
+            else "exact"
+            if idx == 0
+            else "fallback"
+        )
+        return _aggregate_stats_rows(
+            variant_id,
+            rows,
+            context_key=context_key,
+            scope=scope,
+            requested_context_key=requested_context_key,
+        )
+    return None
 
 
 def _weighted_avg(values: Sequence[tuple[float | None, int]]) -> float | None:
@@ -552,12 +619,14 @@ def _apply_reward_shadow(
     candidates: list[QuestionCandidate],
     *,
     question_selector_mode: str,
+    question_context_key: str | None = None,
 ) -> list[QuestionCandidate]:
     if not candidates:
         return []
     stats_by_variant = _load_aggregated_question_stats(
         session,
         [candidate.variant_id for candidate in candidates],
+        question_context_key=question_context_key,
     )
     scored: list[tuple[float, str, QuestionCandidate, _AggregatedQuestionStats]] = []
     for candidate in candidates:
@@ -638,6 +707,9 @@ def _reward_shadow_reason(
         "avg_immediate_reward": stats.avg_immediate_reward,
         "pass_rate": stats.pass_rate,
         "sample_confidence": sample_confidence,
+        "stats_scope": stats.scope,
+        "stats_context_key": stats.context_key,
+        "requested_question_context_key": stats.requested_context_key,
         "metadata_rank": candidate.rank,
         "metadata_score": candidate.match_score,
     }
@@ -651,6 +723,9 @@ def _usage_stats_payload(stats: _AggregatedQuestionStats) -> dict[str, Any]:
         "avg_score": stats.avg_score,
         "pass_rate": stats.pass_rate,
         "avg_immediate_reward": stats.avg_immediate_reward,
+        "stats_scope": stats.scope,
+        "stats_context_key": stats.context_key,
+        "requested_question_context_key": stats.requested_context_key,
     }
 
 
@@ -662,6 +737,13 @@ def _safe_log(value: int) -> float:
     import math
 
     return math.log(max(1, value))
+
+
+def _clean_context_key(value: Any) -> str:
+    clean = str(value or "").strip()
+    if not clean or clean == GLOBAL_CONTEXT_KEY:
+        return GLOBAL_CONTEXT_KEY
+    return clean
 
 
 def format_question_seed_block(candidate: QuestionCandidate | None) -> str:

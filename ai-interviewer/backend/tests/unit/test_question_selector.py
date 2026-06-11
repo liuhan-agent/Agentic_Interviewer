@@ -498,6 +498,129 @@ def test_selector_context_reward_override_reorders_seed_representatives_when_gat
     assert result.candidates[0].reward_shadow_reason["context_rollout_mode"] == "reward"
 
 
+def test_selector_context_reward_uses_exact_context_stats_before_global_prior() -> None:
+    session_local = _session_factory()
+    context_key = "internet_tech:java_backend:senior:system_design"
+    with session_local() as sess:
+        global_winner = _add_seed(
+            sess,
+            "system_design.global_winner",
+            seed_priority=100,
+            variant_priority=0,
+            variant_id="system_design.global_winner.opening",
+        )
+        context_winner = _add_seed(
+            sess,
+            "system_design.context_winner",
+            seed_priority=90,
+            variant_priority=0,
+            variant_id="system_design.context_winner.opening",
+        )
+        filler_variants = [
+            _add_seed(
+                sess,
+                f"system_design.context_filler_{idx}",
+                seed_priority=80 - idx,
+                variant_priority=0,
+                variant_id=f"system_design.context_filler_{idx}.opening",
+            )
+            for idx in range(3)
+        ]
+        sess.add(
+            QuestionRewardRollout(
+                id=f"context:{context_key}",
+                scope="context",
+                scope_key=context_key,
+                mode="reward",
+                reason="pilot context",
+            )
+        )
+        sess.add_all(
+            [
+                QuestionUsageStats(
+                    id="stats-global-winner-global",
+                    variant_id=global_winner,
+                    question_selector_mode="structured_primary",
+                    question_context_key="__global__",
+                    uses=20,
+                    injected_uses=20,
+                    rewarded_uses=20,
+                    avg_score=9.0,
+                    pass_rate=1.0,
+                    avg_immediate_reward=1.0,
+                ),
+                QuestionUsageStats(
+                    id="stats-global-winner-context",
+                    variant_id=global_winner,
+                    question_selector_mode="structured_primary",
+                    question_context_key=context_key,
+                    uses=20,
+                    injected_uses=20,
+                    rewarded_uses=20,
+                    avg_score=5.0,
+                    pass_rate=0.2,
+                    avg_immediate_reward=0.1,
+                ),
+                QuestionUsageStats(
+                    id="stats-context-winner-global",
+                    variant_id=context_winner,
+                    question_selector_mode="structured_primary",
+                    question_context_key="__global__",
+                    uses=20,
+                    injected_uses=20,
+                    rewarded_uses=20,
+                    avg_score=5.0,
+                    pass_rate=0.2,
+                    avg_immediate_reward=0.1,
+                ),
+                QuestionUsageStats(
+                    id="stats-context-winner-context",
+                    variant_id=context_winner,
+                    question_selector_mode="structured_primary",
+                    question_context_key=context_key,
+                    uses=20,
+                    injected_uses=20,
+                    rewarded_uses=20,
+                    avg_score=9.0,
+                    pass_rate=1.0,
+                    avg_immediate_reward=1.0,
+                ),
+            ]
+        )
+        sess.add_all(
+            QuestionUsageStats(
+                id=f"stats-context-filler-{idx}",
+                variant_id=variant_id,
+                question_selector_mode="structured_primary",
+                question_context_key=context_key,
+                uses=20,
+                injected_uses=20,
+                rewarded_uses=20,
+                avg_score=6.0,
+                pass_rate=0.4,
+                avg_immediate_reward=0.2,
+            )
+            for idx, variant_id in enumerate(filler_variants)
+        )
+        sess.commit()
+
+        result = select_question_candidates(
+            sess,
+            dimension="system_design",
+            job_level="senior",
+            direction_tags=["internet_tech"],
+            role_tags=["java_backend"],
+            probe_intent="opening",
+            top_k=5,
+        )
+
+    assert result.candidates[0].variant_id == context_winner
+    assert result.candidates[1].variant_id == global_winner
+    assert result.candidates[0].reward_shadow_reason["live_order"] == "reward"
+    assert result.candidates[0].reward_shadow_reason["stats_scope"] == "exact"
+    assert result.candidates[0].reward_shadow_reason["stats_context_key"] == context_key
+
+
 def test_selector_seed_reward_override_reorders_variants_inside_seed_when_gate_passes() -> None:
     session_local = _session_factory()
     with session_local() as sess:

@@ -31,6 +31,7 @@ QUESTION_REWARD_ROLLOUT_MODES = {"metadata", "reward_shadow", "reward"}
 DEFAULT_ROLLOUT_MODE = "reward_shadow"
 CONTEXT_SCOPE = "context"
 SEED_SCOPE = "seed"
+GLOBAL_CONTEXT_KEY = "__global__"
 
 
 @dataclass(frozen=True)
@@ -64,17 +65,22 @@ def refresh_question_usage_stats(*, session: Session) -> QuestionUsageStatsResul
 
     session.flush()
     usages = list(session.scalars(select(QuestionUsage)))
-    groups: dict[tuple[str, str], list[QuestionUsage]] = defaultdict(list)
+    groups: dict[tuple[str, str, str], list[QuestionUsage]] = defaultdict(list)
     for usage in usages:
         variant_id = str(usage.variant_id or "").strip()
         mode = str(usage.question_selector_mode or "").strip()
         if not variant_id or not mode:
             continue
-        groups[(variant_id, mode)].append(usage)
+        context_key = _clean_context_key(
+            getattr(usage, "question_context_key", None)
+        )
+        groups[(variant_id, mode, GLOBAL_CONTEXT_KEY)].append(usage)
+        if context_key != GLOBAL_CONTEXT_KEY:
+            groups[(variant_id, mode, context_key)].append(usage)
 
     seen_ids: set[str] = set()
-    for (variant_id, mode), rows in groups.items():
-        stat_id = _stats_id(variant_id, mode)
+    for (variant_id, mode, context_key), rows in groups.items():
+        stat_id = _stats_id(variant_id, mode, context_key)
         seen_ids.add(stat_id)
         row = session.get(QuestionUsageStats, stat_id)
         if row is None:
@@ -82,8 +88,10 @@ def refresh_question_usage_stats(*, session: Session) -> QuestionUsageStatsResul
                 id=stat_id,
                 variant_id=variant_id,
                 question_selector_mode=mode,
+                question_context_key=context_key,
             )
             session.add(row)
+        row.question_context_key = context_key
         _apply_stats(row, rows)
 
     deleted = 0
@@ -578,12 +586,29 @@ def _rate(values: list[bool | None]) -> float | None:
     return sum(1 for value in observed if value) / len(observed)
 
 
-def _stats_id(variant_id: str, mode: str) -> str:
+def _stats_id(
+    variant_id: str,
+    mode: str,
+    context_key: str = GLOBAL_CONTEXT_KEY,
+) -> str:
+    clean_context = _clean_context_key(context_key)
+    material = (
+        f"{variant_id}|{mode}"
+        if clean_context == GLOBAL_CONTEXT_KEY
+        else f"{variant_id}|{mode}|{clean_context}"
+    )
     digest = hashlib.sha1(
-        f"{variant_id}|{mode}".encode("utf-8"),
+        material.encode("utf-8"),
         usedforsecurity=False,
     ).hexdigest()
     return f"question-usage-stats:{digest[:32]}"
+
+
+def _clean_context_key(value: Any) -> str:
+    clean = str(value or "").strip()
+    if not clean or clean == GLOBAL_CONTEXT_KEY:
+        return GLOBAL_CONTEXT_KEY
+    return clean
 
 
 def _first_slug(values: list[str] | tuple[str, ...] | None) -> str:

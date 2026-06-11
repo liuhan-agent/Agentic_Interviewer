@@ -118,8 +118,8 @@ def _add_variant(
 
 
 def test_refresh_question_usage_stats_counts_candidates_but_rewards_injected_rows() -> None:
-    SessionLocal = _session_factory()
-    with SessionLocal() as sess:
+    session_local = _session_factory()
+    with session_local() as sess:
         _add_usage(sess, usage_id="injected-good", reward=0.8, score=9.0, passed=True)
         _add_usage(sess, usage_id="injected-weak", reward=0.2, score=5.0, passed=False)
         _add_usage(
@@ -152,8 +152,8 @@ def test_refresh_question_usage_stats_counts_candidates_but_rewards_injected_row
 
 
 def test_refresh_question_usage_stats_partitions_by_variant_and_mode() -> None:
-    SessionLocal = _session_factory()
-    with SessionLocal() as sess:
+    session_local = _session_factory()
+    with session_local() as sess:
         _add_usage(sess, usage_id="primary", variant_id="system_design.cache.opening")
         _add_usage(
             sess,
@@ -190,9 +190,59 @@ def test_refresh_question_usage_stats_partitions_by_variant_and_mode() -> None:
     }
 
 
+def test_refresh_question_usage_stats_adds_context_and_global_rollups() -> None:
+    session_local = _session_factory()
+    exact_context = "internet_tech:java_backend:junior:system_design"
+    other_context = "business:product_manager:junior:system_design"
+    with session_local() as sess:
+        _add_usage(
+            sess,
+            usage_id="exact-strong",
+            context_key=exact_context,
+            reward=0.9,
+            score=9.0,
+            passed=True,
+        )
+        _add_usage(
+            sess,
+            usage_id="exact-weak",
+            context_key=exact_context,
+            reward=0.3,
+            score=5.0,
+            passed=False,
+        )
+        _add_usage(
+            sess,
+            usage_id="other-context",
+            context_key=other_context,
+            reward=0.6,
+            score=7.0,
+            passed=True,
+        )
+
+        result = refresh_question_usage_stats(session=sess)
+        sess.commit()
+
+        rows = {
+            row.question_context_key: row
+            for row in sess.scalars(select(QuestionUsageStats))
+        }
+
+    assert result.refreshed == 3
+    assert set(rows) == {"__global__", exact_context, other_context}
+    assert rows["__global__"].uses == 3
+    assert rows["__global__"].rewarded_uses == 3
+    assert rows["__global__"].avg_immediate_reward == pytest.approx(0.6)
+    assert rows[exact_context].uses == 2
+    assert rows[exact_context].rewarded_uses == 2
+    assert rows[exact_context].avg_score == pytest.approx(7.0)
+    assert rows[exact_context].pass_rate == pytest.approx(0.5)
+    assert rows[other_context].uses == 1
+
+
 def test_refresh_question_usage_stats_removes_stale_rows() -> None:
-    SessionLocal = _session_factory()
-    with SessionLocal() as sess:
+    session_local = _session_factory()
+    with session_local() as sess:
         _add_usage(sess, usage_id="one")
         refresh_question_usage_stats(session=sess)
         sess.query(QuestionUsage).delete()
@@ -208,10 +258,10 @@ def test_refresh_question_usage_stats_removes_stale_rows() -> None:
 
 
 def test_build_question_reward_readiness_unifies_selector_modes_for_shadow_top_k() -> None:
-    SessionLocal = _session_factory()
+    session_local = _session_factory()
     low_variant = "system_design.metadata.low_reward"
     high_variant = "system_design.reward.high_reward"
-    with SessionLocal() as sess:
+    with session_local() as sess:
         _add_variant(
             sess,
             seed_id="system_design.metadata",
@@ -270,8 +320,8 @@ def test_build_question_reward_readiness_unifies_selector_modes_for_shadow_top_k
 
 
 def test_build_question_reward_readiness_reports_needs_samples_after_pool_is_large_enough() -> None:
-    SessionLocal = _session_factory()
-    with SessionLocal() as sess:
+    session_local = _session_factory()
+    with session_local() as sess:
         for idx in range(5):
             seed_id = f"system_design.seed_{idx}"
             variant_id = f"{seed_id}.variant"
@@ -298,11 +348,11 @@ def test_build_question_reward_readiness_reports_needs_samples_after_pool_is_lar
 
 
 def test_build_question_reward_readiness_adds_context_and_seed_rollout_groups() -> None:
-    SessionLocal = _session_factory()
+    session_local = _session_factory()
     context_key = "internet_tech:java_backend:junior:system_design"
     low_variant = "system_design.metadata.low_reward"
     high_variant = "system_design.reward.high_reward"
-    with SessionLocal() as sess:
+    with session_local() as sess:
         _add_variant(
             sess,
             seed_id="system_design.metadata",

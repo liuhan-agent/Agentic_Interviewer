@@ -3384,6 +3384,7 @@ def _question_usage_stats_payload(row: Any) -> dict[str, Any]:
         "id": row.id,
         "variant_id": row.variant_id,
         "question_selector_mode": row.question_selector_mode,
+        "question_context_key": getattr(row, "question_context_key", "__global__"),
         "uses": row.uses,
         "injected_uses": row.injected_uses,
         "rewarded_uses": row.rewarded_uses,
@@ -3895,6 +3896,7 @@ def list_question_usage_stats(
             query
             .order_by(
                 QuestionUsageStats.question_selector_mode.asc(),
+                QuestionUsageStats.question_context_key.asc(),
                 QuestionUsageStats.variant_id.asc(),
             )
             .offset(safe_offset)
