@@ -147,6 +147,11 @@ class QuestionUsageStats(Base):
     id: Mapped[str] = mapped_column(String(160), primary_key=True)
     variant_id: Mapped[str] = mapped_column(String(200), index=True)
     question_selector_mode: Mapped[str] = mapped_column(String(32), index=True)
+    question_context_key: Mapped[str] = mapped_column(
+        String(160),
+        default="__global__",
+        index=True,
+    )
 
     uses: Mapped[int] = mapped_column(Integer, default=0)
     injected_uses: Mapped[int] = mapped_column(Integer, default=0)
