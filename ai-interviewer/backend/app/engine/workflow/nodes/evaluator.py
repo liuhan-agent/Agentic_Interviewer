@@ -94,16 +94,16 @@ def _evaluate_answer_once(
         video_signals=video_signals,
         context_flags=context_flags,
     )
+    evaluation["acceptance_check_result_items"] = join_acceptance_check_results(
+        runtime_contract or {},
+        evaluation.get("acceptance_check_results") or {},
+    )
     evaluation = normalize_evaluation_consistency(
         evaluation,
         contract=scoring_contract,
         quality_threshold=float(quality_threshold),
     )
     evaluation = attach_replay_followup_reason(evaluation)
-    evaluation["acceptance_check_result_items"] = join_acceptance_check_results(
-        runtime_contract or {},
-        evaluation.get("acceptance_check_results") or {},
-    )
     return evaluation
 
 

@@ -112,6 +112,61 @@ def test_adaptive_context_no_does_not_trigger_hard_fail() -> None:
     assert normalized["recommended_next"] == "advance"
 
 
+def test_workflow_normalizes_after_source_metadata_join_for_adaptive_context(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from app.engine.workflow.nodes import evaluator as evaluator_node
+
+    def fake_evaluate_answer(**_: object) -> dict:
+        return {
+            "score": 8.5,
+            "passed": True,
+            "recommended_next": "advance",
+            "recommended_next_plan": None,
+            "rubric_coverage": {"core skill": "covered"},
+            "acceptance_check_results": {
+                "context check": {"verdict": "no", "evidence": []},
+            },
+            "strengths": [],
+            "weaknesses": [],
+            "failure_categories": [],
+            "rationale": "ok",
+        }
+
+    monkeypatch.setattr(evaluator_node, "evaluate_answer", fake_evaluate_answer)
+    runtime_contract = {
+        "must_cover": ["core skill"],
+        "acceptance_checks": ["context check"],
+        "acceptance_check_items": [
+            {
+                "check_id": "adaptive:context",
+                "text": "context check",
+                "source": "adaptive_context",
+                "severity": "supporting",
+            }
+        ],
+    }
+
+    evaluation = evaluator_node._evaluate_answer_once(
+        dimension="technical_depth",
+        question={"question": "Describe the project."},
+        answer="The answer covers the core skill but misses a context hint.",
+        quality_threshold=7.5,
+        scoring_contract=runtime_contract,
+        runtime_contract=runtime_contract,
+        drift_negatives="",
+        video_signals=None,
+        context_flags={},
+    )
+
+    assert evaluation["passed"] is True
+    assert evaluation["recommended_next"] == "advance"
+    assert evaluation["acceptance_check_result_items"][0]["source"] == (
+        "adaptive_context"
+    )
+    assert evaluation["acceptance_check_result_items"][0]["verdict"] == "no"
+
+
 def test_legacy_no_without_structured_items_keeps_hard_fail_behavior() -> None:
     evaluation = _base_eval()
     evaluation["acceptance_check_results"] = {
