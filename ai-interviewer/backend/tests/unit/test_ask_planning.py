@@ -159,8 +159,8 @@ def test_ask_question_trace_payload_records_plan_and_prompt_slots(monkeypatch):
         "ask_planning": False,
     }
     assert [step["kind"] for step in payload["ask_plan"]["steps"]][:2] == [
+        "select_structured_question",
         "retrieve_rag",
-        "retrieve_strategy",
     ]
     assert "produced_keys" in payload["ask_plan"]["steps"][0]
 
@@ -399,6 +399,7 @@ def test_ask_planning_on_uses_llm_plan_when_available(monkeypatch):
     assert out["current_ask_plan"]["source"] == "llm"
     assert out["current_ask_plan"]["plan_id"].endswith("abcdef")
     assert [step["kind"] for step in out["current_ask_plan"]["steps"]] == [
+        "select_structured_question",
         "retrieve_rag",
         "retrieve_skills",
         "draft_question",
@@ -429,38 +430,44 @@ def test_llm_planner_accepts_skill_and_candidate_anchor_steps(monkeypatch):
         "steps": [
             {
                 "step_id": 1,
+                "kind": "select_structured_question",
+                "goal": "structured question",
+                "success_criteria": "selected",
+            },
+            {
+                "step_id": 2,
                 "kind": "retrieve_rag",
                 "goal": "retrieve",
                 "success_criteria": "retrieved",
             },
             {
-                "step_id": 2,
+                "step_id": 3,
                 "kind": "retrieve_strategy",
                 "goal": "strategy",
                 "success_criteria": "strategy_block",
             },
             {
-                "step_id": 3,
+                "step_id": 4,
                 "kind": "retrieve_skills",
                 "goal": "skills",
                 "success_criteria": "skill_block",
                 "optional": True,
             },
             {
-                "step_id": 4,
+                "step_id": 5,
                 "kind": "retrieve_candidate_anchors",
                 "goal": "anchors",
                 "success_criteria": "anchor artifact",
                 "optional": True,
             },
             {
-                "step_id": 5,
+                "step_id": 6,
                 "kind": "draft_question",
                 "goal": "draft",
                 "success_criteria": "question",
             },
             {
-                "step_id": 6,
+                "step_id": 7,
                 "kind": "guardrail_check",
                 "goal": "guardrail",
                 "success_criteria": "allowed",
@@ -482,6 +489,7 @@ def test_llm_planner_accepts_skill_and_candidate_anchor_steps(monkeypatch):
 
     assert plan is not None
     assert [step["kind"] for step in plan["steps"]] == [
+        "select_structured_question",
         "retrieve_rag",
         "retrieve_strategy",
         "retrieve_skills",
