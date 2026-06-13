@@ -155,6 +155,74 @@ def test_contract_diagnostics_accepts_evaluator_signed_contract():
     assert diagnostics["warnings"] == []
 
 
+def test_structured_acceptance_selector_prefers_reviewed_and_suppresses_compiled():
+    from app.engine.workflow.nodes import ask_question as ask_mod
+
+    reviewed = [
+        {
+            "check_id": "reviewed:one",
+            "acceptance_check": "Reviewed check.",
+            "source_text": "consistency",
+            "severity": "core",
+        }
+    ]
+    compiled = [
+        {
+            "check_id": "compiled:one",
+            "acceptance_check": "Compiled check.",
+            "source_text": "consistency",
+            "severity": "core",
+        }
+    ]
+
+    result = ask_mod._select_structured_acceptance_checks(
+        reviewed_acceptance_checks=reviewed,
+        compiled_acceptance_checks=compiled,
+    )
+
+    assert result["source"] == "reviewed"
+    assert result["selected"] == reviewed
+    assert result["suppressed"] == compiled
+    assert result["fallback_reason"] == ""
+
+
+def test_structured_acceptance_selector_falls_back_to_compiled_when_reviewed_missing():
+    from app.engine.workflow.nodes import ask_question as ask_mod
+
+    compiled = [
+        {
+            "check_id": "compiled:one",
+            "acceptance_check": "Compiled check.",
+            "source_text": "consistency",
+            "severity": "core",
+        }
+    ]
+
+    result = ask_mod._select_structured_acceptance_checks(
+        reviewed_acceptance_checks=[],
+        compiled_acceptance_checks=compiled,
+    )
+
+    assert result["source"] == "compiled_fallback"
+    assert result["selected"] == compiled
+    assert result["suppressed"] == []
+    assert result["fallback_reason"] == "reviewed_missing"
+
+
+def test_structured_acceptance_selector_returns_none_without_structured_checks():
+    from app.engine.workflow.nodes import ask_question as ask_mod
+
+    result = ask_mod._select_structured_acceptance_checks(
+        reviewed_acceptance_checks=[],
+        compiled_acceptance_checks=[],
+    )
+
+    assert result["source"] == "none"
+    assert result["selected"] == []
+    assert result["suppressed"] == []
+    assert result["fallback_reason"] == ""
+
+
 def test_contract_diagnostics_flags_generator_only_and_generic_items():
     from app.engine.workflow.nodes import ask_question as ask_mod
 
