@@ -120,6 +120,7 @@ ProbeIntent = Literal[
 ]
 BarLevel = Literal["intro", "standard", "deep_probe"]
 PlanStepKind = Literal[
+    "select_structured_question",
     "retrieve_rag",
     "retrieve_strategy",
     "retrieve_skills",

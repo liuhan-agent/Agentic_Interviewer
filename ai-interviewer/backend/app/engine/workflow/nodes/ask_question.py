@@ -953,6 +953,14 @@ def _step_select_structured_question(
             log.debug("question usage write failed: %s", e)
 
 
+def _step_select_structured_question_from_plan(
+    state: InterviewState,
+    ctx: dict[str, Any],
+) -> None:
+    probe_intent = str(ctx.get("probe_intent") or "").strip() or None
+    _step_select_structured_question(state, ctx, probe_intent=probe_intent)
+
+
 def _retrieval_block_for_prompt(ctx: dict[str, Any]) -> str:
     if ctx.get("structured_primary_seed_hit"):
         return ""
@@ -1869,6 +1877,7 @@ def _step_guardrail_check(state: InterviewState, ctx: dict[str, Any]) -> None:
 
 
 _STEP_DISPATCH = {
+    "select_structured_question": _step_select_structured_question_from_plan,
     "retrieve_rag": _step_retrieve_rag,
     "retrieve_strategy": _step_retrieve_strategy,
     "retrieve_skills": _step_retrieve_skills,
@@ -1880,9 +1889,20 @@ _STEP_DISPATCH = {
 }
 
 
-def _run_plan(plan: AskPlan, state: InterviewState, ctx: dict[str, Any]) -> None:
+def _run_plan(
+    plan: AskPlan,
+    state: InterviewState,
+    ctx: dict[str, Any],
+    *,
+    include_kinds: set[str] | None = None,
+    skip_kinds: set[str] | None = None,
+) -> None:
     for step in plan.get("steps", []):
         kind = step.get("kind")
+        if include_kinds is not None and kind not in include_kinds:
+            continue
+        if skip_kinds is not None and kind in skip_kinds:
+            continue
         fn = _STEP_DISPATCH.get(kind or "")
         if fn is None:
             log.warning("ask_plan: unknown step kind=%s, skipping", kind)
@@ -1913,6 +1933,46 @@ def _retrieve_skills_plan_step(dependencies: list[int]) -> dict[str, Any]:
         "dependencies": list(dependencies),
         "optional": True,
     }
+
+
+def _select_structured_question_plan_step() -> dict[str, Any]:
+    return {
+        "step_id": 0,
+        "kind": "select_structured_question",
+        "goal": "Select a structured question seed/variant and compile seed-level contract hints.",
+        "success_criteria": (
+            "question selector mode recorded; seed block set when structured_primary hits."
+        ),
+        "produced_keys": [
+            "question_candidates",
+            "question_items",
+            "question_seed_block",
+            "question_seed_contract_hints",
+            "question_context_key",
+        ],
+        "dependencies": [],
+        "optional": False,
+    }
+
+
+def _ensure_select_structured_question_step(plan: AskPlan) -> AskPlan:
+    steps = [dict(step) for step in plan.get("steps", [])]
+    existing_idx = next(
+        (
+            idx
+            for idx, step in enumerate(steps)
+            if step.get("kind") == "select_structured_question"
+        ),
+        None,
+    )
+    if existing_idx == 0:
+        return plan
+    if existing_idx is not None:
+        step = steps.pop(existing_idx)
+        steps.insert(0, step)
+        return _renumber_plan_steps(plan, steps)
+    steps.insert(0, _select_structured_question_plan_step())
+    return _renumber_plan_steps(plan, steps)
 
 
 def _ensure_retrieve_skills_step(plan: AskPlan) -> AskPlan:
@@ -1989,6 +2049,12 @@ def _renumber_plan_steps(plan: AskPlan, steps: list[dict[str, Any]]) -> AskPlan:
         **plan,
         "steps": normalised,  # type: ignore[typeddict-item]
     }
+
+
+def _ensure_required_plan_steps(plan: AskPlan) -> AskPlan:
+    return _ensure_retrieve_skills_step(
+        _ensure_select_structured_question_step(plan)
+    )
 
 
 def _has_coverage_pressure(
@@ -3074,7 +3140,7 @@ def _resolve_plan(
                     llm_plan.get("template"),
                     len(llm_plan.get("steps", [])),
                 )
-                return _ensure_retrieve_skills_step(llm_plan)
+                return _ensure_required_plan_steps(llm_plan)
             log.info("ask_plan: llm planner returned None; falling back to default")
 
     plan = resolve_ask_plan(
@@ -3086,7 +3152,7 @@ def _resolve_plan(
         uncovered_dimensions=uncovered_dimensions,
         job_level=job_level,
     )
-    return _ensure_retrieve_skills_step(plan)
+    return _ensure_required_plan_steps(plan)
 
 
 def _depth_followup_slot_from_action(selected_action: Any) -> dict[str, Any] | None:
@@ -3252,7 +3318,12 @@ def ask_question_node(state: InterviewState) -> dict[str, Any]:
         )
     ctx["probe_intent"] = probe_intent
 
-    _step_select_structured_question(state, ctx, probe_intent=probe_intent)
+    _run_plan(
+        plan,
+        state,
+        ctx,
+        include_kinds={"select_structured_question"},
+    )
     soft_followup_context = build_soft_followup_context(
         qa_history=state.get("qa_history", []),
         current_dimension=dimension,
@@ -3274,7 +3345,12 @@ def ask_question_node(state: InterviewState) -> dict[str, Any]:
     ctx["history_section"] = history_context.get("history_section", "")
     ctx["history_selector_summary"] = history_context.get("selector_summary", "")
     ctx["history_prompt_slots"] = history_context.get("prompt_slots", [])
-    _run_plan(plan, state, ctx)
+    _run_plan(
+        plan,
+        state,
+        ctx,
+        skip_kinds={"select_structured_question"},
+    )
 
     question_payload: dict[str, Any] = ctx.get("question_payload") or {}
     if probe_intent:

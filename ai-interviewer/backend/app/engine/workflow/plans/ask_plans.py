@@ -57,22 +57,36 @@ def _step(
 _SIMPLE_STEPS: list[AskPlanStep] = [
     _step(
         1,
+        "select_structured_question",
+        goal="Select a structured question seed/variant and compile seed-level contract hints.",
+        success_criteria="question selector mode recorded; seed block set when structured_primary hits.",
+        produced_keys=[
+            "question_candidates",
+            "question_items",
+            "question_seed_block",
+            "question_seed_contract_hints",
+            "question_context_key",
+        ],
+    ),
+    _step(
+        2,
         "retrieve_rag",
         goal="Pull top-k knowledge snippets for the current dimension.",
         success_criteria="At least one retrieved doc OR an explicit empty marker.",
         produced_keys=["retrieval_block"],
+        dependencies=[1],
     ),
     _step(
-        2,
+        3,
         "retrieve_skills",
         goal="Surface playbook cards matching the current turn before drafting.",
         success_criteria="skill_block is set (possibly the no-match placeholder).",
         produced_keys=["skill_block", "skill_artifact"],
-        dependencies=[1],
+        dependencies=[2],
         optional=True,
     ),
     _step(
-        3,
+        4,
         "retrieve_candidate_anchors",
         goal="Pull semantically related resume and self-intro anchors to ground follow-up questions.",
         success_criteria="candidate_anchor_rag_artifact is set (status may be off/shadow/empty).",
@@ -81,46 +95,60 @@ _SIMPLE_STEPS: list[AskPlanStep] = [
             "self_intro_rag_block",
             "candidate_anchor_rag_artifact",
         ],
-        dependencies=[1],
+        dependencies=[1, 2],
         optional=True,
     ),
     _step(
-        4,
+        5,
         "draft_question",
         goal="Author a clear, open-ended question plus a draft contract proposal.",
         success_criteria="question non-empty AND proposed_contract has >=1 must_cover item.",
         produced_keys=["question_payload", "proposed_contract"],
-        dependencies=[1, 2, 3],
+        dependencies=[1, 2, 3, 4],
     ),
     _step(
-        5,
+        6,
         "guardrail_check",
         goal="Scan the question against the compliance rule set.",
         success_criteria="verdict.allowed OR fallback applied.",
         produced_keys=["question_payload"],
-        dependencies=[4],
+        dependencies=[5],
     ),
 ]
 
 _QUICK_REVIEW_STEPS: list[AskPlanStep] = [
     _step(
         1,
+        "select_structured_question",
+        goal="Select a structured question seed/variant for a compact review turn.",
+        success_criteria="question selector mode recorded; seed block set when structured_primary hits.",
+        produced_keys=[
+            "question_candidates",
+            "question_items",
+            "question_seed_block",
+            "question_seed_contract_hints",
+            "question_context_key",
+        ],
+    ),
+    _step(
+        2,
         "retrieve_rag",
         goal="Pull only the most relevant snippets needed for a compact review probe.",
         success_criteria="At least one retrieved doc OR an explicit empty marker.",
         produced_keys=["retrieval_block"],
+        dependencies=[1],
     ),
     _step(
-        2,
+        3,
         "retrieve_skills",
         goal="Surface playbook cards matching the compact review turn before drafting.",
         success_criteria="skill_block is set (possibly the no-match placeholder).",
         produced_keys=["skill_block", "skill_artifact"],
-        dependencies=[1],
+        dependencies=[2],
         optional=True,
     ),
     _step(
-        3,
+        4,
         "retrieve_candidate_anchors",
         goal="Pull semantically related resume and self-intro anchors to ground follow-up questions.",
         success_criteria="candidate_anchor_rag_artifact is set (status may be off/shadow/empty).",
@@ -129,11 +157,11 @@ _QUICK_REVIEW_STEPS: list[AskPlanStep] = [
             "self_intro_rag_block",
             "candidate_anchor_rag_artifact",
         ],
-        dependencies=[1],
+        dependencies=[1, 2],
         optional=True,
     ),
     _step(
-        4,
+        5,
         "draft_question",
         goal=(
             "Author one concise recap-style question that checks the current "
@@ -141,44 +169,59 @@ _QUICK_REVIEW_STEPS: list[AskPlanStep] = [
         ),
         success_criteria="question non-empty AND proposed_contract has >=1 must_cover item.",
         produced_keys=["question_payload", "proposed_contract"],
-        dependencies=[1, 2, 3],
+        dependencies=[1, 2, 3, 4],
     ),
     _step(
-        5,
+        6,
         "guardrail_check",
         goal="Scan the compact question against the compliance rule set.",
         success_criteria="verdict.allowed OR fallback applied.",
         produced_keys=["question_payload"],
-        dependencies=[4],
+        dependencies=[5],
     ),
 ]
 
 _ADAPTIVE_STEPS: list[AskPlanStep] = [
     _step(
         1,
+        "select_structured_question",
+        goal="Select a structured question seed/variant and compile seed-level contract hints.",
+        success_criteria="question selector mode recorded; seed block set when structured_primary hits.",
+        produced_keys=[
+            "question_candidates",
+            "question_items",
+            "question_seed_block",
+            "question_seed_contract_hints",
+            "question_context_key",
+        ],
+    ),
+    _step(
+        2,
         "retrieve_rag",
         goal="Pull top-k knowledge snippets for the current dimension.",
         success_criteria="At least one retrieved doc OR an explicit empty marker.",
         produced_keys=["retrieval_block"],
+        dependencies=[1],
     ),
     _step(
-        2,
+        3,
         "retrieve_strategy",
         goal="Surface memoised strategies matching dimension + job_level.",
         success_criteria="strategy_block non-empty string (possibly the no-match placeholder).",
         produced_keys=["strategy_block"],
+        dependencies=[1],
     ),
     _step(
-        3,
+        4,
         "retrieve_skills",
         goal="Surface playbook cards matching the current strategy and probe intent before drafting.",
         success_criteria="skill_block is set (possibly the no-match placeholder).",
         produced_keys=["skill_block", "skill_artifact"],
-        dependencies=[1, 2],
+        dependencies=[2, 3],
         optional=True,
     ),
     _step(
-        4,
+        5,
         "retrieve_candidate_anchors",
         goal="Pull semantically related resume and self-intro anchors to ground follow-up questions.",
         success_criteria="candidate_anchor_rag_artifact is set (status may be off/shadow/empty).",
@@ -187,105 +230,24 @@ _ADAPTIVE_STEPS: list[AskPlanStep] = [
             "self_intro_rag_block",
             "candidate_anchor_rag_artifact",
         ],
-        dependencies=[1, 2],
+        dependencies=[1, 2, 3],
         optional=True,
     ),
     _step(
-        5,
+        6,
         "draft_question",
         goal="Author a clear question plus a draft contract proposal.",
         success_criteria="question non-empty AND proposed_contract has >=2 must_cover items.",
         produced_keys=["question_payload", "proposed_contract"],
-        dependencies=[1, 2, 3, 4],
+        dependencies=[1, 2, 3, 4, 5],
     ),
     _step(
-        6,
+        7,
         "negotiate_contract",
         goal="Have the evaluator confirm/amend the contract BEFORE the question is emitted.",
         success_criteria="contract.signed_by contains 'evaluator'.",
         produced_keys=["contract"],
-        dependencies=[5],
-    ),
-    _step(
-        7,
-        "guardrail_check",
-        goal="Scan the final question against the compliance rule set.",
-        success_criteria="verdict.allowed OR fallback applied.",
-        produced_keys=["question_payload"],
         dependencies=[6],
-    ),
-]
-
-_DEEP_PROBE_STEPS: list[AskPlanStep] = [
-    _step(
-        1,
-        "retrieve_rag",
-        goal="Pull focused knowledge snippets; bias toward advanced/edge material.",
-        success_criteria="At least one retrieved doc OR an explicit empty marker.",
-        produced_keys=["retrieval_block"],
-    ),
-    _step(
-        2,
-        "retrieve_strategy",
-        goal="Surface strategies tagged for the same dimension + previous-turn weaknesses.",
-        success_criteria="strategy_block non-empty.",
-        produced_keys=["strategy_block"],
-    ),
-    _step(
-        3,
-        "retrieve_skills",
-        goal="Surface playbook cards matching the deep-probe weakness and probe intent before drafting.",
-        success_criteria="skill_block is set (possibly the no-match placeholder).",
-        produced_keys=["skill_block", "skill_artifact"],
-        dependencies=[1, 2],
-        optional=True,
-    ),
-    _step(
-        4,
-        "retrieve_candidate_anchors",
-        goal="Pull semantically related resume and self-intro anchors to ground follow-up questions.",
-        success_criteria="candidate_anchor_rag_artifact is set (status may be off/shadow/empty).",
-        produced_keys=[
-            "resume_rag_block",
-            "self_intro_rag_block",
-            "candidate_anchor_rag_artifact",
-        ],
-        dependencies=[1, 2],
-        optional=True,
-    ),
-    _step(
-        5,
-        "draft_question",
-        goal="Author a follow-up question that directly probes the prior weaknesses.",
-        success_criteria=(
-            "question non-empty AND proposed_contract.bar_level is 'deep_probe' "
-            "AND >=3 acceptance_checks."
-        ),
-        produced_keys=["question_payload", "proposed_contract"],
-        dependencies=[1, 2, 3, 4],
-    ),
-    _step(
-        6,
-        "negotiate_contract",
-        goal=(
-            "Evaluator signs a stricter contract: more acceptance_checks, "
-            "bar_level='deep_probe', explicit review_focus."
-        ),
-        success_criteria="contract.signed_by contains 'evaluator' AND bar_level=='deep_probe'.",
-        produced_keys=["contract"],
-        dependencies=[5],
-    ),
-    _step(
-        7,
-        "challenge_with_reference",
-        goal=(
-            "Optionally annotate the question with a concrete reference scenario "
-            "(counter-example or production pitfall)."
-        ),
-        success_criteria="question_payload.challenge_context populated OR step marked optional-skip.",
-        produced_keys=["question_payload"],
-        dependencies=[6],
-        optional=True,
     ),
     _step(
         8,
@@ -294,6 +256,102 @@ _DEEP_PROBE_STEPS: list[AskPlanStep] = [
         success_criteria="verdict.allowed OR fallback applied.",
         produced_keys=["question_payload"],
         dependencies=[7],
+    ),
+]
+
+_DEEP_PROBE_STEPS: list[AskPlanStep] = [
+    _step(
+        1,
+        "select_structured_question",
+        goal="Select a structured question seed/variant for the deep-probe weakness.",
+        success_criteria="question selector mode recorded; seed block set when structured_primary hits.",
+        produced_keys=[
+            "question_candidates",
+            "question_items",
+            "question_seed_block",
+            "question_seed_contract_hints",
+            "question_context_key",
+        ],
+    ),
+    _step(
+        2,
+        "retrieve_rag",
+        goal="Pull focused knowledge snippets; bias toward advanced/edge material.",
+        success_criteria="At least one retrieved doc OR an explicit empty marker.",
+        produced_keys=["retrieval_block"],
+        dependencies=[1],
+    ),
+    _step(
+        3,
+        "retrieve_strategy",
+        goal="Surface strategies tagged for the same dimension + previous-turn weaknesses.",
+        success_criteria="strategy_block non-empty.",
+        produced_keys=["strategy_block"],
+        dependencies=[1],
+    ),
+    _step(
+        4,
+        "retrieve_skills",
+        goal="Surface playbook cards matching the deep-probe weakness and probe intent before drafting.",
+        success_criteria="skill_block is set (possibly the no-match placeholder).",
+        produced_keys=["skill_block", "skill_artifact"],
+        dependencies=[2, 3],
+        optional=True,
+    ),
+    _step(
+        5,
+        "retrieve_candidate_anchors",
+        goal="Pull semantically related resume and self-intro anchors to ground follow-up questions.",
+        success_criteria="candidate_anchor_rag_artifact is set (status may be off/shadow/empty).",
+        produced_keys=[
+            "resume_rag_block",
+            "self_intro_rag_block",
+            "candidate_anchor_rag_artifact",
+        ],
+        dependencies=[1, 2, 3],
+        optional=True,
+    ),
+    _step(
+        6,
+        "draft_question",
+        goal="Author a follow-up question that directly probes the prior weaknesses.",
+        success_criteria=(
+            "question non-empty AND proposed_contract.bar_level is 'deep_probe' "
+            "AND >=3 acceptance_checks."
+        ),
+        produced_keys=["question_payload", "proposed_contract"],
+        dependencies=[1, 2, 3, 4, 5],
+    ),
+    _step(
+        7,
+        "negotiate_contract",
+        goal=(
+            "Evaluator signs a stricter contract: more acceptance_checks, "
+            "bar_level='deep_probe', explicit review_focus."
+        ),
+        success_criteria="contract.signed_by contains 'evaluator' AND bar_level=='deep_probe'.",
+        produced_keys=["contract"],
+        dependencies=[6],
+    ),
+    _step(
+        8,
+        "challenge_with_reference",
+        goal=(
+            "Optionally annotate the question with a concrete reference scenario "
+            "(counter-example or production pitfall)."
+        ),
+        success_criteria="question_payload.challenge_context populated OR step marked optional-skip.",
+        produced_keys=["question_payload"],
+        dependencies=[7],
+        optional=True,
+    ),
+    _step(
+        9,
+        "guardrail_check",
+        goal="Scan the final question against the compliance rule set.",
+        success_criteria="verdict.allowed OR fallback applied.",
+        produced_keys=["question_payload"],
+        dependencies=[8],
     ),
 ]
 
