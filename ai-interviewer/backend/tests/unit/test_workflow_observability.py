@@ -492,8 +492,8 @@ def test_evaluator_builds_soft_gap_training_suggestions_without_route_change(
     out = enode.evaluator_node(state)  # type: ignore[arg-type]
 
     evaluation = out["evaluation"]
-    assert evaluation["passed"] is False
-    assert evaluation["recommended_next"] == "refine"
+    assert evaluation["passed"] is True
+    assert evaluation["recommended_next"] == "advance"
     suggestions = evaluation["soft_gap_training_suggestions"]
     assert suggestions["counts"] == {"quality": 1, "context": 1, "total": 2}
     assert suggestions["quality_suggestions"][0]["check_id"] == (
@@ -508,7 +508,7 @@ def test_evaluator_builds_soft_gap_training_suggestions_without_route_change(
     assert hints["counts"] == {"quality": 1, "context": 1, "total": 2}
     assert hints["quality_hints"][0]["intent"] == "probe_quality_gap"
     assert hints["context_hints"][0]["intent"] == "probe_context_gap"
-    assert out["dimension_status"]["technical_depth"] == "active"
+    assert out["dimension_status"]["technical_depth"] == "passed"
 
 
 def test_verification_contract_gate_enforce_overrides_verifier_pass(

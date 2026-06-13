@@ -275,6 +275,7 @@ def test_anchor_scheduler_namespaces_numeric_focus_and_project_ids() -> None:
 
 def test_plan_templates_step_kinds_baseline() -> None:
     assert [s["kind"] for s in PLAN_TEMPLATES["simple"]["steps"]] == [
+        "select_structured_question",
         "retrieve_rag",
         "retrieve_skills",
         "retrieve_candidate_anchors",
@@ -282,6 +283,7 @@ def test_plan_templates_step_kinds_baseline() -> None:
         "guardrail_check",
     ]
     assert [s["kind"] for s in PLAN_TEMPLATES["quick_review"]["steps"]] == [
+        "select_structured_question",
         "retrieve_rag",
         "retrieve_skills",
         "retrieve_candidate_anchors",
@@ -289,6 +291,7 @@ def test_plan_templates_step_kinds_baseline() -> None:
         "guardrail_check",
     ]
     assert [s["kind"] for s in PLAN_TEMPLATES["adaptive"]["steps"]] == [
+        "select_structured_question",
         "retrieve_rag",
         "retrieve_strategy",
         "retrieve_skills",
@@ -298,6 +301,7 @@ def test_plan_templates_step_kinds_baseline() -> None:
         "guardrail_check",
     ]
     assert [s["kind"] for s in PLAN_TEMPLATES["deep_probe"]["steps"]] == [
+        "select_structured_question",
         "retrieve_rag",
         "retrieve_strategy",
         "retrieve_skills",
