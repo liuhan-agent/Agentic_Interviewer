@@ -84,6 +84,7 @@ def test_non_reviewed_core_items_are_ignored() -> None:
     result = build_contract_gate_result(
         [
             _item(source="adaptive_context", severity="core", verdict="no"),
+            _item(source="compiled_fallback", severity="core", verdict="no"),
             _item(source="reviewed", severity="supporting", verdict="no"),
             _item(source="evaluator_extra", severity="supporting", verdict="no"),
         ]

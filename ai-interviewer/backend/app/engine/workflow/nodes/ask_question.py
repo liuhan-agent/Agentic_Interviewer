@@ -2513,13 +2513,72 @@ def _reviewed_acceptance_source(
     reviewed_acceptance_checks: list[dict[str, Any]] | None,
     compiled_acceptance_checks: list[dict[str, Any]] | None,
 ) -> str:
+    return str(
+        _structured_acceptance_selection_for_mode(
+            contract_acceptance_mode=contract_acceptance_mode,
+            reviewed_acceptance_checks=reviewed_acceptance_checks,
+            compiled_acceptance_checks=compiled_acceptance_checks,
+        ).get("source")
+        or "none"
+    )
+
+
+def _select_structured_acceptance_checks(
+    *,
+    reviewed_acceptance_checks: list[dict[str, Any]] | None,
+    compiled_acceptance_checks: list[dict[str, Any]] | None,
+) -> dict[str, Any]:
+    """Select the single structured acceptance source for reviewed modes."""
+
+    reviewed = [
+        dict(check)
+        for check in reviewed_acceptance_checks or []
+        if isinstance(check, dict)
+    ]
+    compiled = [
+        dict(check)
+        for check in compiled_acceptance_checks or []
+        if isinstance(check, dict)
+    ]
+    if reviewed:
+        return {
+            "source": "reviewed",
+            "selected": reviewed,
+            "suppressed": compiled,
+            "fallback_reason": "",
+        }
+    if compiled:
+        return {
+            "source": "compiled_fallback",
+            "selected": compiled,
+            "suppressed": [],
+            "fallback_reason": "reviewed_missing",
+        }
+    return {
+        "source": "none",
+        "selected": [],
+        "suppressed": [],
+        "fallback_reason": "",
+    }
+
+
+def _structured_acceptance_selection_for_mode(
+    *,
+    contract_acceptance_mode: str,
+    reviewed_acceptance_checks: list[dict[str, Any]] | None,
+    compiled_acceptance_checks: list[dict[str, Any]] | None,
+) -> dict[str, Any]:
     if contract_acceptance_mode not in {"reviewed_shadow", "reviewed_append"}:
-        return "none"
-    if reviewed_acceptance_checks:
-        return "reviewed"
-    if compiled_acceptance_checks:
-        return "compiled_fallback"
-    return "none"
+        return {
+            "source": "none",
+            "selected": [],
+            "suppressed": [],
+            "fallback_reason": "",
+        }
+    return _select_structured_acceptance_checks(
+        reviewed_acceptance_checks=reviewed_acceptance_checks,
+        compiled_acceptance_checks=compiled_acceptance_checks,
+    )
 
 
 def _acceptance_checks_for_reviewed_mode(
@@ -2528,11 +2587,13 @@ def _acceptance_checks_for_reviewed_mode(
     reviewed_acceptance_checks: list[dict[str, Any]] | None,
     compiled_acceptance_checks: list[dict[str, Any]] | None,
 ) -> list[dict[str, Any]]:
-    if reviewed_acceptance_source == "reviewed":
-        return list(reviewed_acceptance_checks or [])
-    if reviewed_acceptance_source == "compiled_fallback":
-        return list(compiled_acceptance_checks or [])
-    return []
+    selection = _select_structured_acceptance_checks(
+        reviewed_acceptance_checks=reviewed_acceptance_checks,
+        compiled_acceptance_checks=compiled_acceptance_checks,
+    )
+    if selection.get("source") != reviewed_acceptance_source:
+        return []
+    return list(selection.get("selected") or [])
 
 
 def _contains_ai_rag_topic(text: str) -> bool:
@@ -2767,18 +2828,54 @@ def _contract_diagnostics_for_trace(
     if locked_core_present and rewrite_fallback:
         locked_core_warnings.append("locked_core_not_applied_after_rewrite")
 
+    reviewed_acceptance_mode_enabled = contract_acceptance_mode in {
+        "reviewed_shadow",
+        "reviewed_append",
+    }
+    reviewed_runtime_checks = (
+        list(reviewed_acceptance_checks or [])
+        if reviewed_acceptance_mode_enabled
+        else []
+    )
+    structured_acceptance_selection = _structured_acceptance_selection_for_mode(
+        contract_acceptance_mode=contract_acceptance_mode,
+        reviewed_acceptance_checks=reviewed_runtime_checks,
+        compiled_acceptance_checks=compiled_acceptance_checks,
+    )
+    structured_acceptance_source = str(
+        structured_acceptance_selection.get("source") or "none"
+    )
+    structured_selected_checks = list(
+        structured_acceptance_selection.get("selected") or []
+    )
+    structured_suppressed_checks = list(
+        structured_acceptance_selection.get("suppressed") or []
+    )
+    reviewed_acceptance_source = (
+        structured_acceptance_source if reviewed_acceptance_mode_enabled else "none"
+    )
     compiled_acceptance_enabled = contract_acceptance_mode != "off"
     compiled_acceptance_present = bool(
         compiled_acceptance_enabled and compiled_acceptance_checks
     )
     final_acceptance_text = "\n".join(acceptance_checks)
     final_acceptance_terms = _contract_coverage_terms(final_acceptance_text)
-    compiled_acceptance_missing_from_final = _acceptance_checks_missing_from_text(
+    raw_compiled_acceptance_missing_from_final = _acceptance_checks_missing_from_text(
         compiled_acceptance_checks,
         checks_text=final_acceptance_text,
         check_terms=final_acceptance_terms,
     )
-    if compiled_acceptance_present:
+    compiled_suppressed_by_reviewed_count = (
+        len(structured_suppressed_checks)
+        if structured_acceptance_source == "reviewed"
+        else 0
+    )
+    compiled_acceptance_missing_from_final = (
+        []
+        if structured_acceptance_source == "reviewed"
+        else raw_compiled_acceptance_missing_from_final
+    )
+    if compiled_acceptance_present and structured_acceptance_source != "reviewed":
         append_candidates = list(
             compiled_acceptance_append_candidates
             if compiled_acceptance_append_candidates is not None
@@ -2797,21 +2894,8 @@ def _contract_diagnostics_for_trace(
             "compiled_acceptance_not_applied_after_rewrite"
         )
 
-    reviewed_acceptance_mode_enabled = contract_acceptance_mode in {
-        "reviewed_shadow",
-        "reviewed_append",
-    }
-    reviewed_runtime_checks = (
-        list(reviewed_acceptance_checks or [])
-        if reviewed_acceptance_mode_enabled
-        else []
-    )
     reviewed_acceptance_present = bool(reviewed_runtime_checks)
-    reviewed_selected_checks = _acceptance_checks_for_reviewed_mode(
-        reviewed_acceptance_source=reviewed_acceptance_source,
-        reviewed_acceptance_checks=reviewed_runtime_checks,
-        compiled_acceptance_checks=compiled_acceptance_checks,
-    )
+    reviewed_selected_checks = structured_selected_checks
     reviewed_acceptance_missing_from_final = _acceptance_checks_missing_from_text(
         reviewed_selected_checks,
         checks_text=final_acceptance_text,
@@ -2857,6 +2941,12 @@ def _contract_diagnostics_for_trace(
         reviewed_acceptance_warnings.append(
             "reviewed_acceptance_not_applied_after_rewrite"
         )
+    compiled_fallback_applied_count = (
+        len(append_candidates)
+        if structured_acceptance_source == "compiled_fallback"
+        and reviewed_acceptance_applied
+        else 0
+    )
     acceptance_item_diagnostics = acceptance_check_item_projection_diagnostics(
         final_contract
     )
@@ -2920,6 +3010,18 @@ def _contract_diagnostics_for_trace(
         ),
         "reviewed_acceptance_applied": bool(reviewed_acceptance_applied),
         "reviewed_acceptance_warnings": reviewed_acceptance_warnings,
+        "reviewed_acceptance_available_count": len(reviewed_runtime_checks),
+        "compiled_acceptance_available_count": (
+            len(compiled_acceptance_checks or [])
+            if compiled_acceptance_present
+            else 0
+        ),
+        "structured_acceptance_source": structured_acceptance_source,
+        "structured_acceptance_selected_count": len(structured_selected_checks),
+        "compiled_suppressed_by_reviewed_count": (
+            compiled_suppressed_by_reviewed_count
+        ),
+        "compiled_fallback_applied_count": compiled_fallback_applied_count,
     }
 
 

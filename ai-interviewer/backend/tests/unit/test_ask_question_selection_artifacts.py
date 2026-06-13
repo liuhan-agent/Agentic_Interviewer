@@ -1746,6 +1746,12 @@ def test_reviewed_acceptance_append_adds_reviewed_checks(
     assert diagnostics["reviewed_acceptance_source"] == "reviewed"
     assert diagnostics["reviewed_acceptance_applied"] is True
     assert diagnostics["reviewed_acceptance_missing_from_final"] == []
+    assert diagnostics["structured_acceptance_source"] == "reviewed"
+    assert diagnostics["reviewed_acceptance_available_count"] == 1
+    assert diagnostics["compiled_acceptance_available_count"] == 2
+    assert diagnostics["structured_acceptance_selected_count"] == 1
+    assert diagnostics["compiled_suppressed_by_reviewed_count"] == 2
+    assert diagnostics["compiled_fallback_applied_count"] == 0
     assert diagnostics["acceptance_check_projection_match"] is True
     assert diagnostics["acceptance_check_item_source_counts"] == {
         "adaptive_context": 1,
@@ -1828,6 +1834,10 @@ def test_reviewed_acceptance_append_preserves_reviewed_metadata_when_text_covere
     assert diagnostics["reviewed_acceptance_applied"] is True
     assert diagnostics["reviewed_acceptance_missing_from_final"] == []
     assert diagnostics["reviewed_acceptance_missing_source_metadata"] == []
+    assert diagnostics["structured_acceptance_source"] == "reviewed"
+    assert diagnostics["structured_acceptance_selected_count"] == 1
+    assert diagnostics["compiled_suppressed_by_reviewed_count"] == 2
+    assert diagnostics["compiled_fallback_applied_count"] == 0
     assert diagnostics["acceptance_check_item_source_counts"] == {"reviewed": 1}
     assert diagnostics["acceptance_check_item_severity_counts"] == {"core": 1}
 
@@ -1870,6 +1880,12 @@ def test_reviewed_acceptance_modes_fallback_to_compiled_when_reviewed_missing(
     }
     diagnostics = captured_trace["contract_diagnostics"]
     assert diagnostics["reviewed_acceptance_source"] == "compiled_fallback"
+    assert diagnostics["structured_acceptance_source"] == "compiled_fallback"
+    assert diagnostics["reviewed_acceptance_available_count"] == 0
+    assert diagnostics["compiled_acceptance_available_count"] == 2
+    assert diagnostics["structured_acceptance_selected_count"] == 2
+    assert diagnostics["compiled_suppressed_by_reviewed_count"] == 0
+    assert diagnostics["compiled_fallback_applied_count"] == 2
     assert (
         "reviewed_acceptance_missing_fallback_compiled"
         in diagnostics["reviewed_acceptance_warnings"]
