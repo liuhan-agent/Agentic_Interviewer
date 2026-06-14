@@ -20,6 +20,11 @@ from app.engine.contracts.contract_gate import (
     apply_contract_gate_enforcement,
     resolve_contract_gate_mode,
 )
+from app.engine.contracts.contract_score import (
+    build_contract_pass_shadow,
+    build_contract_score_shadow,
+    resolve_evaluator_score_mode,
+)
 from app.engine.contracts.evaluation_quality import (
     QUALITY_INVALID_GATE_WARNING,
     build_evaluation_quality_warning,
@@ -131,8 +136,13 @@ def evaluator_node(state: InterviewState) -> dict[str, Any]:
     # — evaluator grading is a hot path and must never fail because of
     # an observability helper.
     settings = get_settings()
+    runtime_config = state.get("runtime_config") or {}
     contract_gate_mode, contract_gate_warnings = resolve_contract_gate_mode(
-        runtime_config=state.get("runtime_config") or {},
+        runtime_config=runtime_config,
+        settings=settings,
+    )
+    evaluator_score_mode, evaluator_score_warnings = resolve_evaluator_score_mode(
+        runtime_config=runtime_config,
         settings=settings,
     )
     drift_negatives = ""
@@ -221,6 +231,19 @@ def evaluator_node(state: InterviewState) -> dict[str, Any]:
     )
     evaluation["soft_followup_hints"] = build_soft_followup_hints(
         evaluation.get("soft_gap_training_suggestions")
+    )
+    evaluation.update(
+        build_contract_score_shadow(
+            evaluation,
+            evaluator_score_mode=evaluator_score_mode,
+            score_mode_warnings=evaluator_score_warnings,
+        )
+    )
+    evaluation.update(
+        build_contract_pass_shadow(
+            evaluation,
+            quality_threshold=float(quality_threshold),
+        )
     )
     fallback_turn = is_evaluator_fallback(evaluation)
     if fallback_turn:

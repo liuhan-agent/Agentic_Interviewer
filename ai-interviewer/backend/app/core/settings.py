@@ -605,6 +605,12 @@ class Settings(BaseSettings):
         "reviewed_append",
     ] = "shadow"
     contract_gate_mode: Literal["shadow", "enforce"] = "shadow"
+    evaluator_score_mode: Literal[
+        "llm",
+        "shadow_contract",
+        "hybrid",
+        "contract",
+    ] = "llm"
     soft_followup_prompt_mode: Literal["off", "shadow", "advisory"] = "off"
     enable_question_fit_profile: bool = True
     enable_question_reranker_shadow: bool = False

@@ -139,6 +139,7 @@ def _trace_route_decision(state: InterviewState, update: dict[str, Any]) -> None
     question = route_state.get("current_question") or {}
     diagnostics = route_after_eval_diagnostics(route_state)
     decision = diagnostics.get("decision")
+    route_shadow = _route_shadow_from_contract_pass(route_state, diagnostics)
     try:
         get_tracer().trace_node_event(
             route_state,
@@ -158,6 +159,7 @@ def _trace_route_decision(state: InterviewState, update: dict[str, Any]) -> None
                 "recommended_next_plan": evaluation.get("recommended_next_plan"),
                 "recommended_probe_intent": evaluation.get("recommended_probe_intent"),
                 "passed": bool(evaluation.get("passed")),
+                "route_shadow": route_shadow,
                 "evaluation_source": evaluation.get("source"),
                 "fallback_reason": evaluation.get("fallback_reason"),
                 "fallback": bool(
@@ -172,6 +174,53 @@ def _trace_route_decision(state: InterviewState, update: dict[str, Any]) -> None
         )
     except Exception as e:  # pragma: no cover - side channel
         log.warning("route_decision tracer side-channel failed: %s", e)
+
+
+def _route_shadow_from_contract_pass(
+    route_state: dict[str, Any],
+    actual_diagnostics: dict[str, Any],
+) -> dict[str, Any]:
+    evaluation = route_state.get("evaluation") or {}
+    pass_shadow = evaluation.get("contract_pass_shadow") or {}
+    if not isinstance(pass_shadow, dict) or not pass_shadow.get("available"):
+        return {"available": False, "reason": "contract_pass_shadow_unavailable"}
+
+    shadow_eval = dict(evaluation)
+    shadow_eval["passed"] = bool(pass_shadow.get("passed"))
+    shadow_eval["recommended_next"] = pass_shadow.get("recommended_next")
+    shadow_eval["recommended_next_plan"] = pass_shadow.get("recommended_next_plan")
+
+    shadow_state = dict(route_state)
+    shadow_state["evaluation"] = shadow_eval
+    current_dim = str(
+        shadow_state.get("current_dimension")
+        or (shadow_state.get("current_question") or {}).get("dimension")
+        or ""
+    )
+    if current_dim:
+        status = dict(shadow_state.get("dimension_status") or {})
+        status[current_dim] = "passed" if shadow_eval.get("passed") else "active"
+        shadow_state["dimension_status"] = status
+
+    shadow_diagnostics = route_after_eval_diagnostics(shadow_state)
+    shadow_decision = shadow_diagnostics.get("decision")
+    actual_decision = actual_diagnostics.get("decision")
+    return {
+        "available": True,
+        "decision": shadow_decision,
+        "next_node": shadow_diagnostics.get("next_node"),
+        "decision_reason": shadow_diagnostics.get("decision_reason"),
+        "actual_decision": actual_decision,
+        "actual_next_node": actual_diagnostics.get("next_node"),
+        "actual_decision_reason": actual_diagnostics.get("decision_reason"),
+        "diff": shadow_decision != actual_decision,
+        "pass_shadow_reason": pass_shadow.get("reason"),
+        "pass_shadow": {
+            "passed": pass_shadow.get("passed"),
+            "recommended_next": pass_shadow.get("recommended_next"),
+            "recommended_next_plan": pass_shadow.get("recommended_next_plan"),
+        },
+    }
 
 
 def turn_finalize_node(state: InterviewState) -> dict[str, Any]:
