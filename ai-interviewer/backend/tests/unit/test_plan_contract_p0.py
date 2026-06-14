@@ -1085,6 +1085,310 @@ def test_evaluator_node_shadow_gate_does_not_change_passed_or_routing(monkeypatc
     assert "acceptance_check_items" not in captured["scoring_contract"]
 
 
+def test_evaluator_node_attaches_contract_score_shadow_without_changing_legacy_score(
+    monkeypatch,
+):
+    from app.engine.workflow.nodes import evaluator as eval_node_mod
+
+    captured: dict[str, Any] = {}
+
+    def fake_evaluate_answer(**kwargs):
+        captured["scoring_contract"] = kwargs.get("contract")
+        return {
+            "score": 8.5,
+            "passed": True,
+            "rationale": "The answer covers the core point but only partly explains tradeoffs.",
+            "strengths": ["Covers transaction boundary"],
+            "weaknesses": ["Idempotency detail is thin"],
+            "rubric_coverage": {
+                "Transaction boundary": "covered",
+                "Idempotency": "partial",
+            },
+            "recommended_next": "advance",
+            "recommended_next_plan": None,
+            "acceptance_check_results": {
+                "Explains transaction boundary.": {
+                    "verdict": "yes",
+                    "evidence": ["local transaction"],
+                },
+                "Explains idempotency.": {
+                    "verdict": "partial",
+                    "evidence": ["idempotency key"],
+                },
+            },
+        }
+
+    class _Tracer:
+        def trace_evaluator(self, state, **_kwargs):
+            captured["trace_evaluation"] = state["evaluation"]
+
+    monkeypatch.setattr(eval_node_mod, "evaluate_answer", fake_evaluate_answer)
+    monkeypatch.setattr(eval_node_mod, "get_tracer", lambda: _Tracer())
+
+    state = _base_state()
+    state.update(
+        {
+            "current_question": {
+                "question": "How would you keep payment consistent?",
+                "dimension": "technical_depth",
+                "rubric_points": ["Transaction boundary", "Idempotency"],
+            },
+            "current_contract": {
+                "must_cover": ["Transaction boundary", "Idempotency"],
+                "acceptance_checks": [
+                    "Explains transaction boundary.",
+                    "Explains idempotency.",
+                ],
+                "acceptance_check_items": [
+                    {
+                        "check_id": "reviewed:tx",
+                        "text": "Explains transaction boundary.",
+                        "source": "reviewed",
+                        "severity": "core",
+                        "source_text": "Transaction boundary",
+                        "origin": "question_variant",
+                    },
+                    {
+                        "check_id": "reviewed:idempotency",
+                        "text": "Explains idempotency.",
+                        "source": "reviewed",
+                        "severity": "core",
+                        "source_text": "Idempotency",
+                        "origin": "question_variant",
+                    },
+                ],
+                "minimum_bar": "Covers transaction boundary and idempotency.",
+                "bar_level": "standard",
+                "signed_by": ["generator", "evaluator"],
+            },
+            "current_answer": (
+                "I would keep the order and payment writes in a local transaction "
+                "and use an idempotency key for retries."
+            ),
+            "selected_action": {"id": "deepen_technical"},
+            "scores_per_dim": {},
+            "turn_budget_remaining": 2,
+            "quality_threshold": 7.5,
+            "runtime_config": {"contract_gate_mode": "shadow"},
+        }
+    )
+
+    out = eval_node_mod.evaluator_node(state)  # type: ignore[arg-type]
+
+    evaluation = out["evaluation"]
+    assert evaluation["score"] == 8.5
+    assert evaluation["passed"] is True
+    assert evaluation["recommended_next"] == "advance"
+    assert evaluation["llm_score"] == 8.5
+    assert evaluation["final_score"] == 8.5
+    assert evaluation["score_source"] == "llm"
+    assert evaluation["contract_score"] == 7.86
+    assert evaluation["contract_score_mode"] == "shadow"
+    assert (
+        evaluation["contract_score_breakdown"]["structured_source"] == "reviewed"
+    )
+    assert captured["trace_evaluation"]["contract_score"] == 7.86
+    assert "acceptance_check_items" not in captured["scoring_contract"]
+
+
+def test_evaluator_node_hybrid_score_mode_can_take_over_score_field(monkeypatch):
+    from app.engine.workflow.nodes import evaluator as eval_node_mod
+
+    captured: dict[str, Any] = {}
+
+    def fake_evaluate_answer(**kwargs):
+        captured["scoring_contract"] = kwargs.get("contract")
+        return {
+            "score": 8.5,
+            "passed": True,
+            "rationale": "The answer covers the core point but only partly explains tradeoffs.",
+            "strengths": ["Covers transaction boundary"],
+            "weaknesses": ["Idempotency detail is thin"],
+            "rubric_coverage": {
+                "Transaction boundary": "covered",
+                "Idempotency": "partial",
+            },
+            "recommended_next": "advance",
+            "recommended_next_plan": None,
+            "acceptance_check_results": {
+                "Explains transaction boundary.": {
+                    "verdict": "yes",
+                    "evidence": ["local transaction"],
+                },
+                "Explains idempotency.": {
+                    "verdict": "partial",
+                    "evidence": ["idempotency key"],
+                },
+            },
+        }
+
+    class _Tracer:
+        def trace_evaluator(self, state, **_kwargs):
+            captured["trace_evaluation"] = state["evaluation"]
+
+    monkeypatch.setattr(eval_node_mod, "evaluate_answer", fake_evaluate_answer)
+    monkeypatch.setattr(eval_node_mod, "get_tracer", lambda: _Tracer())
+
+    state = _base_state()
+    state.update(
+        {
+            "current_question": {
+                "question": "How would you keep payment consistent?",
+                "dimension": "technical_depth",
+                "rubric_points": ["Transaction boundary", "Idempotency"],
+            },
+            "current_contract": {
+                "must_cover": ["Transaction boundary", "Idempotency"],
+                "acceptance_checks": [
+                    "Explains transaction boundary.",
+                    "Explains idempotency.",
+                ],
+                "acceptance_check_items": [
+                    {
+                        "check_id": "reviewed:tx",
+                        "text": "Explains transaction boundary.",
+                        "source": "reviewed",
+                        "severity": "core",
+                        "source_text": "Transaction boundary",
+                        "origin": "question_variant",
+                    },
+                    {
+                        "check_id": "reviewed:idempotency",
+                        "text": "Explains idempotency.",
+                        "source": "reviewed",
+                        "severity": "core",
+                        "source_text": "Idempotency",
+                        "origin": "question_variant",
+                    },
+                ],
+                "minimum_bar": "Covers transaction boundary and idempotency.",
+                "bar_level": "standard",
+                "signed_by": ["generator", "evaluator"],
+            },
+            "current_answer": (
+                "I would keep the order and payment writes in a local transaction "
+                "and use an idempotency key for retries."
+            ),
+            "selected_action": {"id": "deepen_technical"},
+            "scores_per_dim": {},
+            "turn_budget_remaining": 2,
+            "quality_threshold": 7.5,
+            "runtime_config": {
+                "contract_gate_mode": "shadow",
+                "evaluator_score_mode": "hybrid",
+            },
+        }
+    )
+
+    out = eval_node_mod.evaluator_node(state)  # type: ignore[arg-type]
+
+    evaluation = out["evaluation"]
+    assert evaluation["evaluator_score_mode"] == "hybrid"
+    assert evaluation["llm_score"] == 8.5
+    assert evaluation["contract_score"] == 7.86
+    assert evaluation["score"] == 8.05
+    assert evaluation["final_score"] == 8.05
+    assert evaluation["score_source"] == "hybrid"
+    assert evaluation["passed"] is True
+    assert captured["trace_evaluation"]["score"] == 8.05
+    assert "acceptance_check_items" not in captured["scoring_contract"]
+
+
+def test_evaluator_node_attaches_contract_pass_shadow_without_changing_passed(
+    monkeypatch,
+):
+    from app.engine.workflow.nodes import evaluator as eval_node_mod
+
+    captured: dict[str, Any] = {}
+
+    def fake_evaluate_answer(**kwargs):
+        captured["scoring_contract"] = kwargs.get("contract")
+        return {
+            "score": 8.5,
+            "passed": True,
+            "rationale": "The answer sounds plausible but only partially covers both contract checks.",
+            "strengths": ["Mentions transaction and retry ideas"],
+            "weaknesses": ["Contract evidence is shallow"],
+            "rubric_coverage": {
+                "Transaction boundary": "partial",
+                "Idempotency": "partial",
+            },
+            "recommended_next": "advance",
+            "recommended_next_plan": None,
+            "acceptance_check_results": {
+                "Explains transaction boundary.": {
+                    "verdict": "partial",
+                    "evidence": ["local transaction"],
+                },
+                "Explains idempotency.": {
+                    "verdict": "partial",
+                    "evidence": ["idempotency key"],
+                },
+            },
+        }
+
+    class _Tracer:
+        def trace_evaluator(self, state, **_kwargs):
+            captured["trace_evaluation"] = state["evaluation"]
+
+    monkeypatch.setattr(eval_node_mod, "evaluate_answer", fake_evaluate_answer)
+    monkeypatch.setattr(eval_node_mod, "get_tracer", lambda: _Tracer())
+
+    state = _base_state()
+    state.update(
+        {
+            "current_question": {
+                "question": "How would you keep payment consistent?",
+                "dimension": "technical_depth",
+                "rubric_points": ["Transaction boundary", "Idempotency"],
+            },
+            "current_contract": {
+                "must_cover": ["Transaction boundary", "Idempotency"],
+                "acceptance_checks": [
+                    "Explains transaction boundary.",
+                    "Explains idempotency.",
+                ],
+                "acceptance_check_items": [
+                    {
+                        "check_id": "reviewed:tx",
+                        "text": "Explains transaction boundary.",
+                        "source": "reviewed",
+                        "severity": "core",
+                    },
+                    {
+                        "check_id": "reviewed:idempotency",
+                        "text": "Explains idempotency.",
+                        "source": "reviewed",
+                        "severity": "core",
+                    },
+                ],
+            },
+            "current_answer": (
+                "I would use a local transaction and an idempotency key."
+            ),
+            "selected_action": {"id": "deepen_technical"},
+            "scores_per_dim": {},
+            "turn_budget_remaining": 2,
+            "quality_threshold": 7.5,
+            "runtime_config": {"contract_gate_mode": "shadow"},
+        }
+    )
+
+    out = eval_node_mod.evaluator_node(state)  # type: ignore[arg-type]
+
+    evaluation = out["evaluation"]
+    assert evaluation["passed"] is True
+    assert evaluation["recommended_next"] == "advance"
+    assert evaluation["contract_score"] == 5.71
+    assert evaluation["contract_passed_shadow"] is False
+    assert evaluation["contract_recommended_next_shadow"] == "refine"
+    assert evaluation["contract_recommended_next_plan_shadow"] == "deep_probe"
+    assert evaluation["contract_pass_shadow_diff"] is True
+    assert evaluation["contract_routing_signal_shadow_diff"] is True
+    assert captured["trace_evaluation"]["contract_pass_shadow"]["legacy_passed"] is True
+    assert "acceptance_check_items" not in captured["scoring_contract"]
+
+
 def test_evaluator_node_persists_question_basis_in_qa_history(monkeypatch):
     from app.engine.workflow.nodes import evaluator as eval_node_mod
 

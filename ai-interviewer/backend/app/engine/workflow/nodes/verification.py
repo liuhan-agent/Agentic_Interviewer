@@ -44,6 +44,11 @@ from app.engine.contracts.contract_gate import (
     build_contract_gate_result,
     resolve_contract_gate_mode,
 )
+from app.engine.contracts.contract_score import (
+    build_contract_pass_shadow,
+    build_contract_score_shadow,
+    resolve_evaluator_score_mode,
+)
 from app.engine.contracts.followup_hints import build_soft_followup_hints
 from app.engine.contracts.gate_calibration import build_gate_calibration_summary
 from app.engine.contracts.training_suggestions import (
@@ -535,8 +540,25 @@ def _verification_effect(triggered: bool, changes: list[dict[str, Any]]) -> str:
 
 _METADATA_ONLY_EVALUATION_FIELDS = {
     "acceptance_check_result_items",
+    "contract_pass_shadow",
+    "contract_pass_shadow_diff",
+    "contract_pass_shadow_reason",
+    "contract_passed_shadow",
+    "contract_recommended_next_plan_shadow",
+    "contract_recommended_next_shadow",
+    "contract_routing_signal_shadow_diff",
+    "contract_score",
+    "contract_score_breakdown",
+    "contract_score_mode",
     "contract_gate_result",
+    "evaluator_score_mode",
+    "final_score",
     "gate_calibration_summary",
+    "llm_score",
+    "requested_evaluator_score_mode",
+    "score_formula",
+    "score_mode_warnings",
+    "score_source",
     "contract_semantics_summary",
     "soft_gap_training_suggestions",
     "soft_followup_hints",
@@ -680,9 +702,15 @@ def verification_node(state: InterviewState) -> dict[str, Any]:
             updated_evaluation.get("acceptance_check_results") or {},
         )
     )
+    runtime_config = state.get("runtime_config") or {}
+    settings = get_settings()
     contract_gate_mode, contract_gate_warnings = resolve_contract_gate_mode(
-        runtime_config=state.get("runtime_config") or {},
-        settings=get_settings(),
+        runtime_config=runtime_config,
+        settings=settings,
+    )
+    evaluator_score_mode, evaluator_score_warnings = resolve_evaluator_score_mode(
+        runtime_config=runtime_config,
+        settings=settings,
     )
     updated_evaluation["contract_gate_result"] = build_contract_gate_result(
         updated_evaluation.get("acceptance_check_result_items"),
@@ -714,6 +742,19 @@ def verification_node(state: InterviewState) -> dict[str, Any]:
     )
     updated_evaluation["soft_followup_hints"] = build_soft_followup_hints(
         updated_evaluation.get("soft_gap_training_suggestions")
+    )
+    updated_evaluation.update(
+        build_contract_score_shadow(
+            updated_evaluation,
+            evaluator_score_mode=evaluator_score_mode,
+            score_mode_warnings=evaluator_score_warnings,
+        )
+    )
+    updated_evaluation.update(
+        build_contract_pass_shadow(
+            updated_evaluation,
+            quality_threshold=float(quality_threshold),
+        )
     )
     dimension_status = sync_dimension_status(
         dict(state.get("dimension_status") or {}),

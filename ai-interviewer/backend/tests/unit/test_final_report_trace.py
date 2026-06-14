@@ -360,6 +360,103 @@ def test_final_report_trace_dimension_evidence_carries_contract_gate_items(
     assert evidence["soft_followup_hints"][0]["counts"]["total"] == 2
 
 
+def test_final_report_trace_dimension_evidence_carries_score_audit(
+    fake_tracer: _RecordingTracer,
+) -> None:
+    state = _state_for_completed_session()
+    state["qa_history"][0]["evaluation"].update(
+        {
+            "score": 8.05,
+            "llm_score": 8.5,
+            "contract_score": 7.86,
+            "final_score": 8.05,
+            "score_source": "hybrid",
+            "evaluator_score_mode": "hybrid",
+            "requested_evaluator_score_mode": "hybrid",
+            "score_formula": "0.7*contract_score+0.3*llm_score",
+            "score_mode_warnings": [],
+            "contract_score_mode": "shadow",
+            "contract_score_breakdown": {
+                "available": True,
+                "structured_source": "reviewed",
+            },
+        }
+    )
+
+    fr.final_report_node(state)  # type: ignore[arg-type]
+
+    evidence = fake_tracer.node_events[0]["payload"]["dimension_evidence"][0]
+    assert evidence["score_audits"] == [
+        {
+            "turn_idx": 0,
+            "llm_score": 8.5,
+            "contract_score": 7.86,
+            "final_score": 8.05,
+            "score_source": "hybrid",
+            "evaluator_score_mode": "hybrid",
+            "requested_evaluator_score_mode": "hybrid",
+            "score_formula": "0.7*contract_score+0.3*llm_score",
+            "score_mode_warnings": [],
+            "contract_score_mode": "shadow",
+            "contract_score_breakdown": {
+                "available": True,
+                "structured_source": "reviewed",
+            },
+        }
+    ]
+
+
+def test_final_report_trace_dimension_evidence_carries_pass_shadow(
+    fake_tracer: _RecordingTracer,
+) -> None:
+    state = _state_for_completed_session()
+    state["qa_history"][0]["evaluation"].update(
+        {
+            "contract_pass_shadow": {
+                "available": True,
+                "score": 5.71,
+                "quality_threshold": 7.5,
+                "passed": False,
+                "recommended_next": "refine",
+                "recommended_next_plan": "deep_probe",
+                "reason": "contract_score_below_threshold",
+                "legacy_passed": True,
+                "legacy_recommended_next": "advance",
+                "legacy_recommended_next_plan": None,
+                "pass_diff": True,
+                "routing_signal_diff": True,
+            },
+            "contract_passed_shadow": False,
+            "contract_recommended_next_shadow": "refine",
+            "contract_recommended_next_plan_shadow": "deep_probe",
+            "contract_pass_shadow_reason": "contract_score_below_threshold",
+            "contract_pass_shadow_diff": True,
+            "contract_routing_signal_shadow_diff": True,
+        }
+    )
+
+    fr.final_report_node(state)  # type: ignore[arg-type]
+
+    evidence = fake_tracer.node_events[0]["payload"]["dimension_evidence"][0]
+    assert evidence["pass_shadows"] == [
+        {
+            "turn_idx": 0,
+            "available": True,
+            "score": 5.71,
+            "quality_threshold": 7.5,
+            "passed": False,
+            "recommended_next": "refine",
+            "recommended_next_plan": "deep_probe",
+            "reason": "contract_score_below_threshold",
+            "legacy_passed": True,
+            "legacy_recommended_next": "advance",
+            "legacy_recommended_next_plan": None,
+            "pass_diff": True,
+            "routing_signal_diff": True,
+        }
+    ]
+
+
 def test_cancelled_session_marks_final_status_in_payload(
     fake_tracer: _RecordingTracer,
 ) -> None:

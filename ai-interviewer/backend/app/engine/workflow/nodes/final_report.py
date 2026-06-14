@@ -232,19 +232,24 @@ def _build_dimension_scores(
             evidence=evidence,
             turn_meta=meta,
         )
+        coverage_status = _coverage_status(
+            score_status=score_status,
+            score=score,
+            passed=passed,
+            quality_threshold=quality_threshold,
+        )
         item = {
             "score": score,
             "score_status": score_status,
             "excluded_from_overall": score_status != "scored",
             "exclusion_reason": exclusion_reason,
-            "coverage_status": _coverage_status(
-                score_status=score_status,
-                score=score,
-                passed=passed,
-                quality_threshold=quality_threshold,
-            ),
+            "coverage_status": coverage_status,
             "passed": passed,
-            "rationale": latest.get("rationale") or None,
+            "rationale": _status_aligned_rationale(
+                latest.get("rationale"),
+                passed=passed,
+                coverage_status=coverage_status,
+            ),
             "weaknesses": list(summary.get("weaknesses") or []),
         }
         if score_status == "scored" and breakdown is not None:
@@ -407,6 +412,113 @@ def _coverage_status(
     if score is not None and score < quality_threshold:
         return "below_threshold"
     return "coverage_limited"
+
+
+_CONFLICTING_PASS_RATIONALE_PHRASES = (
+    "整体表现优秀，达到通过标准。",
+    "整体表现优秀，达到通过标准",
+    "达到通过标准",
+    "已达到通过标准",
+    "满足最低门槛",
+    "满足最低标准",
+    "满足通过标准",
+    "满足甚至超出",
+    "满足must_cover",
+    "满足 must_cover",
+    "超出must_cover",
+    "超出 must_cover",
+    "建议进入下一维度",
+    "可以进入下一维度",
+    "评为通过",
+    "判定为通过",
+    "可以通过",
+    "标记为通过",
+)
+
+
+def _status_aligned_rationale(
+    value: Any,
+    *,
+    passed: bool,
+    coverage_status: str,
+) -> str | None:
+    rationale = str(value or "").strip()
+    if not rationale:
+        return None
+    if passed or coverage_status != "coverage_limited":
+        return rationale
+    if not any(phrase in rationale for phrase in _CONFLICTING_PASS_RATIONALE_PHRASES):
+        return rationale
+
+    sanitized = _remove_conflicting_pass_rationale_segments(rationale)
+    prefix = "结构化状态显示该维度仍有核心判定条款未满足，暂不标记为通过。"
+    if not sanitized:
+        return prefix
+    return f"{prefix}{sanitized}"
+
+
+def _remove_conflicting_pass_rationale_segments(value: str) -> str:
+    kept: list[str] = []
+    for segment in _rationale_segments(value):
+        if not _has_conflicting_pass_claim(segment):
+            kept.append(segment)
+            continue
+        trimmed = _trim_conflicting_pass_clause(segment)
+        if trimmed:
+            kept.append(trimmed)
+    return "".join(kept).strip(" ，。；;")
+
+
+def _rationale_segments(value: str) -> list[str]:
+    segments: list[str] = []
+    start = 0
+    for idx, char in enumerate(value):
+        if char not in "。；;.!?\n":
+            continue
+        segment = value[start : idx + 1].strip()
+        if segment:
+            segments.append(segment)
+        start = idx + 1
+    tail = value[start:].strip()
+    if tail:
+        segments.append(tail)
+    return segments
+
+
+def _has_conflicting_pass_claim(value: str) -> bool:
+    compact = value.replace(" ", "")
+    for phrase in _CONFLICTING_PASS_RATIONALE_PHRASES:
+        if phrase in value or phrase.replace(" ", "") in compact:
+            return True
+    return False
+
+
+def _trim_conflicting_pass_clause(value: str) -> str | None:
+    phrase_idx = _first_conflicting_phrase_index(value)
+    if phrase_idx is None:
+        return value
+    cut_idx = max(value.rfind(sep, 0, phrase_idx) for sep in ("，", ",", "；", ";"))
+    if cut_idx <= 0:
+        return None
+    kept = value[:cut_idx].strip(" ，,；;。")
+    if not kept or _has_conflicting_pass_claim(kept):
+        return None
+    return f"{kept}。"
+
+
+def _first_conflicting_phrase_index(value: str) -> int | None:
+    compact = value.replace(" ", "")
+    indexes: list[int] = []
+    for phrase in _CONFLICTING_PASS_RATIONALE_PHRASES:
+        raw_idx = value.find(phrase)
+        if raw_idx >= 0:
+            indexes.append(raw_idx)
+            continue
+        compact_phrase = phrase.replace(" ", "")
+        compact_idx = compact.find(compact_phrase)
+        if compact_idx >= 0:
+            indexes.append(compact_idx)
+    return min(indexes) if indexes else None
 
 
 def _dimension_passed(
@@ -656,6 +768,46 @@ def _resume_anchor_display_fields(qa: dict[str, Any]) -> dict[str, str]:
     return out
 
 
+def _score_audit_fields(evaluation: dict[str, Any]) -> dict[str, Any]:
+    keys = [
+        "llm_score",
+        "contract_score",
+        "final_score",
+        "score_source",
+        "evaluator_score_mode",
+        "requested_evaluator_score_mode",
+        "score_formula",
+        "score_mode_warnings",
+        "contract_score_mode",
+        "contract_score_breakdown",
+    ]
+    out = {
+        key: evaluation.get(key)
+        for key in keys
+        if key in evaluation
+    }
+    return out
+
+
+def _pass_shadow_fields(evaluation: dict[str, Any]) -> dict[str, Any]:
+    shadow = evaluation.get("contract_pass_shadow")
+    if isinstance(shadow, dict) and shadow:
+        return dict(shadow)
+    keys = [
+        "contract_passed_shadow",
+        "contract_recommended_next_shadow",
+        "contract_recommended_next_plan_shadow",
+        "contract_pass_shadow_reason",
+        "contract_pass_shadow_diff",
+        "contract_routing_signal_shadow_diff",
+    ]
+    return {
+        key: evaluation.get(key)
+        for key in keys
+        if key in evaluation
+    }
+
+
 def _turn_evidence(qa: dict[str, Any]) -> dict[str, Any]:
     evaluation = qa.get("evaluation") or {}
     evidence = {
@@ -719,6 +871,12 @@ def _turn_evidence(qa: dict[str, Any]) -> dict[str, Any]:
         "recommended_next_plan": evaluation.get("recommended_next_plan"),
         "soft_warnings": evaluation.get("soft_warnings") or [],
     }
+    score_audit = _score_audit_fields(evaluation)
+    if score_audit:
+        evidence["score_audit"] = score_audit
+    pass_shadow = _pass_shadow_fields(evaluation)
+    if pass_shadow:
+        evidence["pass_shadow"] = pass_shadow
     evidence.update(_resume_anchor_display_fields(qa))
     depth_followup = sanitize_depth_followup_metadata(qa.get("depth_followup"))
     if qa.get("phase") == DEPTH_FOLLOWUP_PHASE or depth_followup:
@@ -1057,6 +1215,40 @@ def _dimension_soft_followup_hints(
     return hints
 
 
+def _dimension_score_audits(turn_evidence: Any) -> list[dict[str, Any]]:
+    if not isinstance(turn_evidence, list):
+        return []
+
+    audits: list[dict[str, Any]] = []
+    for turn in turn_evidence:
+        if not isinstance(turn, dict):
+            continue
+        audit = turn.get("score_audit") or {}
+        if not isinstance(audit, dict) or not audit:
+            continue
+        item = dict(audit)
+        item["turn_idx"] = turn.get("turn_idx")
+        audits.append(item)
+    return audits
+
+
+def _dimension_pass_shadows(turn_evidence: Any) -> list[dict[str, Any]]:
+    if not isinstance(turn_evidence, list):
+        return []
+
+    shadows: list[dict[str, Any]] = []
+    for turn in turn_evidence:
+        if not isinstance(turn, dict):
+            continue
+        shadow = turn.get("pass_shadow") or {}
+        if not isinstance(shadow, dict) or not shadow:
+            continue
+        item = dict(shadow)
+        item["turn_idx"] = turn.get("turn_idx")
+        shadows.append(item)
+    return shadows
+
+
 def _final_report_dimension_evidence(report: dict[str, Any]) -> list[dict[str, Any]]:
     dimension_summaries = report.get("dimension_summaries") or {}
     if not isinstance(dimension_summaries, dict):
@@ -1084,6 +1276,8 @@ def _final_report_dimension_evidence(report: dict[str, Any]) -> list[dict[str, A
         acceptance_check_result_items = _dimension_acceptance_check_result_items(
             turn_evidence
         )
+        score_audits = _dimension_score_audits(turn_evidence)
+        pass_shadows = _dimension_pass_shadows(turn_evidence)
         evidence.append(
             {
                 "dimension": dim,
@@ -1109,6 +1303,8 @@ def _final_report_dimension_evidence(report: dict[str, Any]) -> list[dict[str, A
                 "soft_gap_training_suggestions": soft_gap_training_suggestions,
                 "soft_followup_hints": soft_followup_hints,
                 "acceptance_check_result_items": acceptance_check_result_items,
+                "score_audits": score_audits,
+                "pass_shadows": pass_shadows,
             }
         )
     return evidence

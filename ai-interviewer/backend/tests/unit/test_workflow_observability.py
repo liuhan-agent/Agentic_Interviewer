@@ -163,12 +163,26 @@ def test_verification_trace_payload_includes_outcome_metrics(monkeypatch) -> Non
         "current_contract": {
             "bar_level": "standard",
             "acceptance_checks": ["Mentions rollback."],
+            "acceptance_check_items": [
+                {
+                    "check_id": "reviewed:rollback",
+                    "text": "Mentions rollback.",
+                    "source": "reviewed",
+                    "severity": "core",
+                }
+            ],
         },
         "current_answer": "I would use a canary rollout.",
         "evaluation": {
             "score": 8.0,
             "passed": True,
             "recommended_next": "next_question",
+            "acceptance_check_results": {
+                "Mentions rollback.": {
+                    "verdict": "partial",
+                    "evidence": ["canary rollout"],
+                },
+            },
         },
         "pending_qa_turn": {
             "turn_idx": 0,
@@ -179,6 +193,12 @@ def test_verification_trace_payload_includes_outcome_metrics(monkeypatch) -> Non
                 "score": 8.0,
                 "passed": True,
                 "recommended_next": "next_question",
+                "acceptance_check_results": {
+                    "Mentions rollback.": {
+                        "verdict": "partial",
+                        "evidence": ["canary rollout"],
+                    },
+                },
             },
         },
         "dimension_status": {"technical_depth": "passed"},
@@ -189,7 +209,15 @@ def test_verification_trace_payload_includes_outcome_metrics(monkeypatch) -> Non
     out = vnode.verification_node(state)  # type: ignore[arg-type]
 
     assert out["evaluation"]["passed"] is False
+    assert out["evaluation"]["contract_score"] == 5.71
+    assert out["evaluation"]["contract_passed_shadow"] is False
+    assert out["evaluation"]["contract_pass_shadow_reason"] == "contract_gate_failed"
+    assert out["evaluation"]["contract_pass_shadow"]["gate_status"] == "failed"
+    assert out["evaluation"]["contract_pass_shadow"]["gate_failed_check_ids"] == [
+        "reviewed:rollback"
+    ]
     assert out["pending_qa_turn"]["evaluation"]["passed"] is False
+    assert out["pending_qa_turn"]["evaluation"]["contract_passed_shadow"] is False
     assert out["pending_qa_turn"]["evaluation"]["recommended_next"] == "refine"
     assert out["dimension_status"]["technical_depth"] == "active"
     assert traced_payloads[-1]["evaluator_passed"] is True
@@ -941,6 +969,75 @@ def test_finalized_pending_turn_feeds_next_history_context_current_gaps(
     assert route_events[-1][2]["decision_inputs"]["current_dimension_attempts"] == 1
     assert route_events[-1][2]["decision_inputs"]["passed"] is False
     assert route_events[-1][2]["decision_inputs"]["recommended_next"] == "refine"
+
+
+def test_turn_finalize_traces_route_shadow_from_contract_pass_shadow(
+    monkeypatch,
+) -> None:
+    traced: list[tuple[str, dict[str, Any], dict[str, Any]]] = []
+
+    class _Tracer:
+        def trace_node_event(
+            self,
+            state,
+            *,
+            node,
+            payload,
+            **_kwargs,
+        ) -> None:
+            traced.append((node, state, payload))
+
+    monkeypatch.setattr(tnode, "get_tracer", lambda: _Tracer())
+
+    pending_turn = {
+        "turn_idx": 0,
+        "dimension": "coding_quality",
+        "question": "Q0",
+        "answer": "A0",
+        "evaluation": {
+            "score": 8.5,
+            "passed": True,
+            "recommended_next": "advance",
+            "contract_pass_shadow": {
+                "available": True,
+                "passed": False,
+                "recommended_next": "refine",
+                "recommended_next_plan": "deep_probe",
+                "reason": "contract_score_below_threshold",
+            },
+            "contract_passed_shadow": False,
+            "contract_recommended_next_shadow": "refine",
+            "contract_recommended_next_plan_shadow": "deep_probe",
+        },
+    }
+    state: dict[str, Any] = {
+        "turn_idx": 1,
+        "formal_turn_idx": 1,
+        "max_turns": 6,
+        "turn_budget_remaining": 5,
+        "current_dimension": "coding_quality",
+        "dimensions": ["coding_quality", "system_design"],
+        "dimension_status": {"coding_quality": "passed", "system_design": "pending"},
+        "evaluation": pending_turn["evaluation"],
+        "qa_history": [],
+        "pending_qa_turn": pending_turn,
+    }
+
+    out = tnode.turn_finalize_node(state)  # type: ignore[arg-type]
+
+    assert out["pending_qa_turn"] is None
+    route_events = [item for item in traced if item[0] == "route_decision"]
+    payload = route_events[-1][2]
+    assert payload["decision"] == "next_question"
+    assert payload["decision_reason"] == "dimension_passed"
+    assert payload["route_shadow"]["available"] is True
+    assert payload["route_shadow"]["decision"] == "refine"
+    assert payload["route_shadow"]["next_node"] == "refine_followup"
+    assert payload["route_shadow"]["decision_reason"] == "evaluator_recommended_refine"
+    assert payload["route_shadow"]["diff"] is True
+    assert payload["route_shadow"]["pass_shadow_reason"] == (
+        "contract_score_below_threshold"
+    )
 
 
 def test_turn_finalize_does_not_duplicate_existing_pending_qa_turn(

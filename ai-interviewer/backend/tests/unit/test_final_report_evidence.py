@@ -194,6 +194,40 @@ def test_turn_evidence_preserves_full_dict_shape() -> None:
         "selected_action": "plan_deep_probe",
         "evaluation": {
             "score": 8.5,
+            "llm_score": 8.5,
+            "contract_score": 7.86,
+            "final_score": 8.05,
+            "score_source": "hybrid",
+            "evaluator_score_mode": "hybrid",
+            "requested_evaluator_score_mode": "hybrid",
+            "score_formula": "0.7*contract_score+0.3*llm_score",
+            "score_mode_warnings": [],
+            "contract_score_mode": "shadow",
+            "contract_score_breakdown": {
+                "available": True,
+                "structured_source": "reviewed",
+                "active_weight_total": 0.7,
+            },
+            "contract_pass_shadow": {
+                "available": True,
+                "score": 7.86,
+                "quality_threshold": 7.5,
+                "passed": True,
+                "recommended_next": "advance",
+                "recommended_next_plan": None,
+                "reason": "contract_score_meets_threshold",
+                "legacy_passed": True,
+                "legacy_recommended_next": "advance",
+                "legacy_recommended_next_plan": "adaptive",
+                "pass_diff": False,
+                "routing_signal_diff": True,
+            },
+            "contract_passed_shadow": True,
+            "contract_recommended_next_shadow": "advance",
+            "contract_recommended_next_plan_shadow": None,
+            "contract_pass_shadow_reason": "contract_score_meets_threshold",
+            "contract_pass_shadow_diff": False,
+            "contract_routing_signal_shadow_diff": True,
             "passed": True,
             "rationale": "covers invalidation",
             "strengths": ["concrete TTL"],
@@ -285,6 +319,36 @@ def test_turn_evidence_preserves_full_dict_shape() -> None:
         },
     }
     assert evidence["score"] == 8.5
+    assert evidence["score_audit"] == {
+        "llm_score": 8.5,
+        "contract_score": 7.86,
+        "final_score": 8.05,
+        "score_source": "hybrid",
+        "evaluator_score_mode": "hybrid",
+        "requested_evaluator_score_mode": "hybrid",
+        "score_formula": "0.7*contract_score+0.3*llm_score",
+        "score_mode_warnings": [],
+        "contract_score_mode": "shadow",
+        "contract_score_breakdown": {
+            "available": True,
+            "structured_source": "reviewed",
+            "active_weight_total": 0.7,
+        },
+    }
+    assert evidence["pass_shadow"] == {
+        "available": True,
+        "score": 7.86,
+        "quality_threshold": 7.5,
+        "passed": True,
+        "recommended_next": "advance",
+        "recommended_next_plan": None,
+        "reason": "contract_score_meets_threshold",
+        "legacy_passed": True,
+        "legacy_recommended_next": "advance",
+        "legacy_recommended_next_plan": "adaptive",
+        "pass_diff": False,
+        "routing_signal_diff": True,
+    }
     assert evidence["selected_action"] == "plan_deep_probe"
     assert evidence["contract_gate_result"]["status"] == "failed"
     assert evidence["contract_gate_result"]["mode"] == "enforce"
@@ -1375,6 +1439,182 @@ def test_final_report_keeps_contract_gate_failure_coverage_limited(
 
     assert report["dimension_scores"]["technical_depth"]["coverage_status"] == "coverage_limited"
     assert report["dimension_scores"]["technical_depth"]["passed"] is False
+
+
+def test_final_report_aligns_rationale_with_contract_gate_failure(
+    monkeypatch,
+) -> None:
+    monkeypatch.setattr(fr, "get_tracer", lambda: _NoopTracer())
+
+    qa_history = [
+        _mk_qa_turn(
+            turn_idx=0,
+            dimension="system_design",
+            passed=False,
+            score=8.0,
+            acceptance={"Explains the cache consistency boundary.": "partial"},
+        ),
+    ]
+    qa_history[0]["evaluation"]["rationale"] = (
+        "回答完整覆盖了数据流和职责划分，但核心检查中对一致性边界讨论不够深入。"
+        "整体表现优秀，达到通过标准。"
+    )
+    qa_history[0]["evaluation"]["contract_gate_result"] = {
+        "mode": "enforce",
+        "status": "failed",
+        "failed_items": [
+            {
+                "check_id": "reviewed:system_design:consistency_boundary:v1",
+                "reason": "partial",
+            }
+        ],
+    }
+    qa_history[0]["evaluation"]["contract_gate_enforced"] = True
+    state = _mk_state(qa_history)
+    state["scores_per_dim"] = {"system_design": 8.0}
+    state["dimension_status"] = {"system_design": "active"}
+    state["quality_threshold"] = 7.0
+
+    out = fr.final_report_node(state)  # type: ignore[arg-type]
+    report = out["final_report"]
+    rationale = report["dimension_scores"]["system_design"]["rationale"]
+
+    assert report["dimension_scores"]["system_design"]["coverage_status"] == (
+        "coverage_limited"
+    )
+    assert report["dimension_scores"]["system_design"]["passed"] is False
+    assert "达到通过标准" not in rationale
+    assert "暂不标记为通过" in rationale
+
+
+def test_final_report_removes_minimum_bar_claim_when_coverage_limited(
+    monkeypatch,
+) -> None:
+    monkeypatch.setattr(fr, "get_tracer", lambda: _NoopTracer())
+
+    qa_history = [
+        _mk_qa_turn(
+            turn_idx=0,
+            dimension="technical_depth",
+            passed=False,
+            score=7.5,
+            acceptance={},
+        ),
+    ]
+    qa_history[0]["evaluation"]["rationale"] = (
+        "候选人对不一致场景和补偿机制描述详细，但未明确事务边界，"
+        "因此评分7.5，满足最低门槛。"
+    )
+    _add_acceptance_item(
+        qa_history[0],
+        check_id="reviewed:technical_depth:tx_boundary:v1",
+        text="候选人明确划分本地事务内写入与事务外副作用。",
+        verdict="no",
+        source="reviewed",
+        severity="core",
+    )
+    state = _mk_state(qa_history)
+    state["scores_per_dim"] = {"technical_depth": 7.5}
+    state["dimension_status"] = {"technical_depth": "active"}
+    state["quality_threshold"] = 7.0
+
+    out = fr.final_report_node(state)  # type: ignore[arg-type]
+    report = out["final_report"]
+    rationale = report["dimension_scores"]["technical_depth"]["rationale"]
+
+    assert report["dimension_scores"]["technical_depth"]["coverage_status"] == (
+        "coverage_limited"
+    )
+    assert report["dimension_scores"]["technical_depth"]["passed"] is False
+    assert "满足最低门槛" not in rationale
+    assert "暂不标记为通过" in rationale
+
+
+def test_final_report_removes_must_cover_claim_when_coverage_limited(
+    monkeypatch,
+) -> None:
+    monkeypatch.setattr(fr, "get_tracer", lambda: _NoopTracer())
+
+    qa_history = [
+        _mk_qa_turn(
+            turn_idx=0,
+            dimension="system_design",
+            passed=False,
+            score=8.0,
+            acceptance={},
+        ),
+    ]
+    qa_history[0]["evaluation"]["rationale"] = (
+        "回答清晰划分了缓存与数据库事务边界。"
+        "整体上满足甚至超出must_cover要求，故评8分并建议继续。"
+    )
+    _add_acceptance_item(
+        qa_history[0],
+        check_id="reviewed:system_design:invalidation:v1",
+        text="候选人说明缓存写入、删除、过期或延迟双删等失效策略。",
+        verdict="partial",
+        source="reviewed",
+        severity="core",
+    )
+    state = _mk_state(qa_history)
+    state["scores_per_dim"] = {"system_design": 8.0}
+    state["dimension_status"] = {"system_design": "active"}
+    state["quality_threshold"] = 7.0
+
+    out = fr.final_report_node(state)  # type: ignore[arg-type]
+    report = out["final_report"]
+    rationale = report["dimension_scores"]["system_design"]["rationale"]
+
+    assert report["dimension_scores"]["system_design"]["coverage_status"] == (
+        "coverage_limited"
+    )
+    assert report["dimension_scores"]["system_design"]["passed"] is False
+    assert "满足甚至超出" not in rationale
+    assert "must_cover要求" not in rationale
+    assert "暂不标记为通过" in rationale
+
+
+def test_final_report_removes_marked_pass_claim_when_coverage_limited(
+    monkeypatch,
+) -> None:
+    monkeypatch.setattr(fr, "get_tracer", lambda: _NoopTracer())
+
+    qa_history = [
+        _mk_qa_turn(
+            turn_idx=0,
+            dimension="system_design",
+            passed=False,
+            score=9.0,
+            acceptance={},
+        ),
+    ]
+    qa_history[0]["evaluation"]["rationale"] = (
+        "回答覆盖了读写路径、一致性边界和异常补偿。"
+        "但在缓存失效策略上缺少具体实现和窗口量化，因此评分9分，评为通过。"
+    )
+    _add_acceptance_item(
+        qa_history[0],
+        check_id="reviewed:system_design:invalidation:v1",
+        text="候选人说明缓存写入、删除、过期或延迟双删等失效策略。",
+        verdict="partial",
+        source="reviewed",
+        severity="core",
+    )
+    state = _mk_state(qa_history)
+    state["scores_per_dim"] = {"system_design": 9.0}
+    state["dimension_status"] = {"system_design": "active"}
+    state["quality_threshold"] = 7.0
+
+    out = fr.final_report_node(state)  # type: ignore[arg-type]
+    report = out["final_report"]
+    rationale = report["dimension_scores"]["system_design"]["rationale"]
+
+    assert report["dimension_scores"]["system_design"]["coverage_status"] == (
+        "coverage_limited"
+    )
+    assert report["dimension_scores"]["system_design"]["passed"] is False
+    assert "评为通过" not in rationale
+    assert "暂不标记为通过" in rationale
 
 
 def test_final_report_promotes_structured_supporting_no_out_of_coverage_limited(
